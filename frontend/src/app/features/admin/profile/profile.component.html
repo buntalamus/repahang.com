@@ -1,0 +1,124 @@
+@if (loading) {
+  <app-loading message="Memuatkan profil..." />
+} @else {
+  <div class="max-w-4xl space-y-6">
+    <!-- Profile Header -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <div class="flex flex-col sm:flex-row items-center gap-6">
+        <!-- Profile Image -->
+        <div class="relative">
+          <div class="w-24 h-24 rounded-full bg-slate-200 overflow-hidden">
+            @if (profileImageUrl) {
+              <img [src]="profileImageUrl" alt="Profil" class="w-full h-full object-cover" />
+            } @else {
+              <div class="w-full h-full flex items-center justify-center text-3xl text-slate-400">
+                <span class="material-icons text-4xl">person</span>
+              </div>
+            }
+          </div>
+          <label class="absolute -bottom-1 -right-1 bg-pahang-yellow rounded-full p-1.5 cursor-pointer shadow hover:brightness-95">
+            <span class="material-icons text-sm text-black">edit</span>
+            <input type="file" accept="image/*" class="hidden" (change)="onImageSelected($event)" />
+          </label>
+        </div>
+        <div class="text-center sm:text-left">
+          <h2 class="text-xl font-bold text-slate-900">{{ profile.nama_penuh }}</h2>
+          <p class="text-sm text-slate-500">{{ profile.email }}</p>
+          <p class="text-xs text-slate-400 mt-1">{{ auth.currentUser?.role }}</p>
+        </div>
+        <div class="sm:ml-auto">
+          @if (!editing) {
+            <button (click)="toggleEdit()"
+              class="px-4 py-2 text-sm bg-pahang-black text-pahang-yellow font-semibold rounded-lg hover:bg-gray-800 transition">
+              Edit Profil
+            </button>
+          } @else {
+            <div class="flex gap-2">
+              <button (click)="toggleEdit()"
+                class="px-4 py-2 text-sm border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50">Batal</button>
+              <button (click)="saveProfile()" [disabled]="saving"
+                class="px-4 py-2 text-sm bg-pahang-black text-pahang-yellow font-semibold rounded-lg hover:bg-gray-800 disabled:opacity-60">
+                {{ saving ? 'Menyimpan...' : 'Simpan' }}
+              </button>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Profile Details -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <h3 class="text-lg font-semibold text-slate-900 mb-4 border-l-4 border-pahang-yellow pl-3">Maklumat Peribadi</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        @for (field of [
+          {key: 'nama_penuh', label: 'Nama Penuh'},
+          {key: 'no_kp', label: 'No. KP'},
+          {key: 'email', label: 'Emel'},
+          {key: 'no_telefon', label: 'No. Telefon'},
+          {key: 'jantina', label: 'Jantina'},
+          {key: 'alamat', label: 'Alamat'},
+          {key: 'umur', label: 'Umur'},
+          {key: 'jenis_pengadil', label: 'Jenis Pengadil'}
+        ]; track field.key) {
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">{{ field.label }}</label>
+            @if (editing && field.key !== 'no_kp') {
+              <input type="text" [(ngModel)]="profile[field.key]"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            } @else {
+              <p class="text-sm text-slate-900">{{ profile[field.key] || '-' }}</p>
+            }
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Employment -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <h3 class="text-lg font-semibold text-slate-900 mb-4 border-l-4 border-pahang-yellow pl-3">Maklumat Pekerjaan</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        @for (field of [
+          {key: 'status_kerja', label: 'Status Kerja'},
+          {key: 'jawatan', label: 'Jawatan'},
+          {key: 'nama_majikan', label: 'Nama Majikan'},
+          {key: 'alamat_majikan', label: 'Alamat Majikan'}
+        ]; track field.key) {
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">{{ field.label }}</label>
+            @if (editing) {
+              <input type="text" [(ngModel)]="profile[field.key]"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            } @else {
+              <p class="text-sm text-slate-900">{{ profile[field.key] || '-' }}</p>
+            }
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Next of Kin -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <h3 class="text-lg font-semibold text-slate-900 mb-4 border-l-4 border-pahang-yellow pl-3">Maklumat Waris</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        @for (field of [
+          {key: 'nama_waris', label: 'Nama Waris'},
+          {key: 'hubungan_waris', label: 'Hubungan'},
+          {key: 'no_telefon_waris', label: 'No. Telefon Waris'}
+        ]; track field.key) {
+          <div>
+            <label class="block text-xs font-medium text-slate-500 mb-1">{{ field.label }}</label>
+            @if (editing) {
+              <input type="text" [(ngModel)]="profile[field.key]"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            } @else {
+              <p class="text-sm text-slate-900">{{ profile[field.key] || '-' }}</p>
+            }
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Change Password -->
+    <app-change-password />
+  </div>
+}

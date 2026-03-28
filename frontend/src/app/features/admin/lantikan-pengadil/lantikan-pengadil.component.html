@@ -1,0 +1,1803 @@
+<div class="space-y-6">
+
+  <!-- Tab Nav -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200">
+    <div class="flex overflow-x-auto">
+      @for (tab of tabs; track tab.id; let i = $index) {
+        <button (click)="activeTab = tab.id; tab.id === 'jadual-lantikan' && loadJadualLantikan()"
+          class="flex items-center gap-2 px-5 py-4 text-sm font-medium whitespace-nowrap border-b-2 transition-colors"
+          [class]="activeTab === tab.id
+            ? 'border-pahang-black text-slate-900'
+            : 'border-transparent text-slate-500 hover:text-slate-700'">
+          <span class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold shrink-0"
+            [class]="activeTab === tab.id ? 'bg-pahang-black text-pahang-yellow' : 'bg-slate-200 text-slate-600'">
+            {{ i + 1 }}
+          </span>
+          {{ tab.label }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- ===================== TAB 1: KEJOHANAN ===================== -->
+  @if (activeTab === 'kejohanan') {
+    <!-- Search & Filter Bar -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-4">
+      <div class="flex-1 relative">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <input type="text" [(ngModel)]="kejohananSearch" (ngModelChange)="kejohananPage = 1"
+          placeholder="Cari kejohanan..."
+          class="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg text-sm" />
+      </div>
+      <div class="flex gap-1.5 shrink-0">
+        <button (click)="kejohananStatusFilter = ''; kejohananPage = 1"
+          class="px-3 py-2 text-xs font-medium rounded-lg transition"
+          [class]="!kejohananStatusFilter ? 'bg-pahang-black text-pahang-yellow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'">
+          Semua
+        </button>
+        <button (click)="kejohananStatusFilter = 'Aktif'; kejohananPage = 1"
+          class="px-3 py-2 text-xs font-medium rounded-lg transition"
+          [class]="kejohananStatusFilter === 'Aktif' ? 'bg-pahang-black text-pahang-yellow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'">
+          Aktif
+        </button>
+        <button (click)="kejohananStatusFilter = 'Draf'; kejohananPage = 1"
+          class="px-3 py-2 text-xs font-medium rounded-lg transition"
+          [class]="kejohananStatusFilter === 'Draf' ? 'bg-pahang-black text-pahang-yellow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'">
+          Draf
+        </button>
+        <button (click)="kejohananStatusFilter = 'Selesai'; kejohananPage = 1"
+          class="px-3 py-2 text-xs font-medium rounded-lg transition"
+          [class]="kejohananStatusFilter === 'Selesai' ? 'bg-pahang-black text-pahang-yellow' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'">
+          Selesai
+        </button>
+      </div>
+      <button (click)="openAddKejohanan()"
+        class="inline-flex items-center gap-2 px-4 py-2 bg-pahang-black text-pahang-yellow text-sm font-semibold rounded-lg hover:bg-gray-800 transition whitespace-nowrap shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        Tambah
+      </button>
+    </div>
+
+    @if (loadingKejohanan) {
+      <app-loading message="Memuatkan kejohanan..." />
+    } @else {
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Kejohanan</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase w-28">Logo</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tarikh</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Anjuran</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase w-24">Perlawanan</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase w-20">Status</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase w-40">Tindakan</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              @for (k of paginatedKejohanan; track k.id) {
+                <tr class="hover:bg-slate-50 transition-colors cursor-pointer"
+                  [class.bg-blue-50]="selectedKejohanan?.id === k.id"
+                  (click)="selectKejohanan(k)">
+                  <td class="px-4 py-3">
+                    <p class="font-medium text-slate-900 text-sm">{{ k.nama }}</p>
+                    <p class="text-xs text-slate-400 mt-0.5">{{ k.tempat || '-' }}</p>
+                  </td>
+                  <td class="px-4 py-3" (click)="$event.stopPropagation()">
+                    <div class="flex items-center justify-center gap-2">
+                      <!-- Logo Kiri -->
+                      <div class="relative shrink-0">
+                        @if (k.logo_kiri) {
+                          <img [src]="k.logo_kiri" class="w-8 h-8 object-contain rounded border border-slate-200" />
+                        } @else {
+                          <div class="w-8 h-8 rounded bg-slate-100 border border-dashed border-slate-300 flex items-center justify-center text-[8px] font-bold text-slate-400">L</div>
+                        }
+                        <input type="file" accept="image/*" class="hidden" [id]="'kejohanan-logo-' + k.id + '-kiri'"
+                          (change)="onKejohananLogoChange($event, k.id, 'kiri')" />
+                        <button (click)="triggerKejohananLogoUpload(k.id, 'kiri')"
+                          class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-white border border-slate-300 rounded-full flex items-center justify-center shadow-sm hover:bg-slate-50"
+                          [class.opacity-50]="uploadingKejohananLogo === k.id + '-kiri'" title="Upload logo kiri">
+                          <svg class="w-2 h-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                          </svg>
+                        </button>
+                      </div>
+                      <!-- Logo Kanan -->
+                      <div class="relative shrink-0">
+                        @if (k.logo_kanan) {
+                          <img [src]="k.logo_kanan" class="w-8 h-8 object-contain rounded border border-slate-200" />
+                        } @else {
+                          <div class="w-8 h-8 rounded bg-slate-100 border border-dashed border-slate-300 flex items-center justify-center text-[8px] font-bold text-slate-400">R</div>
+                        }
+                        <input type="file" accept="image/*" class="hidden" [id]="'kejohanan-logo-' + k.id + '-kanan'"
+                          (change)="onKejohananLogoChange($event, k.id, 'kanan')" />
+                        <button (click)="triggerKejohananLogoUpload(k.id, 'kanan')"
+                          class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-white border border-slate-300 rounded-full flex items-center justify-center shadow-sm hover:bg-slate-50"
+                          [class.opacity-50]="uploadingKejohananLogo === k.id + '-kanan'" title="Upload logo kanan">
+                          <svg class="w-2 h-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">
+                    {{ k.tarikh_mula | date:'d MMM y' }} – {{ k.tarikh_akhir | date:'d MMM y' }}
+                  </td>
+                  <td class="px-4 py-3 text-xs text-slate-600 hidden sm:table-cell">{{ k.anjuran || '-' }}</td>
+                  <td class="px-4 py-3 text-center text-xs text-slate-700 font-semibold">{{ k.jumlah_perlawanan || 0 }}</td>
+                  <td class="px-4 py-3">
+                    <span class="px-2 py-0.5 rounded text-xs font-medium" [class]="getStatusClass(k.status)">{{ k.status }}</span>
+                  </td>
+                  <td class="px-4 py-3 text-center" (click)="$event.stopPropagation()">
+                    <div class="inline-flex gap-1.5">
+                      <button (click)="viewKejohananJadual(k)" title="Lihat Jadual"
+                        class="px-2 py-1 bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 rounded text-xs font-medium transition shadow-sm">
+                        Jadual
+                      </button>
+                      <button (click)="openEditKejohanan(k)" title="Edit"
+                        class="px-2 py-1 bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 rounded text-xs transition shadow-sm">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                      </button>
+                      <button (click)="deleteKejohanan(k.id, k.nama)" title="Padam"
+                        class="px-2 py-1 bg-white border border-rose-300 text-rose-600 hover:bg-rose-50 rounded text-xs transition shadow-sm">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="7" class="px-4 py-16 text-center">
+                    <span class="material-symbols-outlined text-4xl text-slate-300">emoji_events</span>
+                    <p class="text-slate-400 text-sm mt-2">
+                      @if (kejohananSearch || kejohananStatusFilter) {
+                        Tiada kejohanan dijumpai.
+                      } @else {
+                        Tiada kejohanan. Tambah kejohanan pertama.
+                      }
+                    </p>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        @if (totalKejohananPages > 1) {
+          <div class="px-4 py-3 border-t border-slate-200 flex items-center justify-between bg-slate-50">
+            <p class="text-xs text-slate-500">{{ filteredKejohanan.length }} kejohanan dijumpai</p>
+            <div class="flex gap-1">
+              <button (click)="kejohananPage = kejohananPage - 1" [disabled]="kejohananPage <= 1"
+                class="px-2.5 py-1 text-xs border border-slate-200 rounded bg-white disabled:opacity-40 hover:bg-slate-50 transition">&lsaquo;</button>
+              @for (p of kejohananPages; track p) {
+                <button (click)="kejohananPage = p"
+                  class="px-2.5 py-1 text-xs border rounded transition"
+                  [class]="kejohananPage === p ? 'bg-pahang-black text-pahang-yellow border-pahang-black' : 'border-slate-200 bg-white hover:bg-slate-50'">
+                  {{ p }}
+                </button>
+              }
+              <button (click)="kejohananPage = kejohananPage + 1" [disabled]="kejohananPage >= totalKejohananPages"
+                class="px-2.5 py-1 text-xs border border-slate-200 rounded bg-white disabled:opacity-40 hover:bg-slate-50 transition">&rsaquo;</button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Selected Kejohanan Banner -->
+    @if (selectedKejohanan) {
+      <div class="mt-4 bg-blue-50 border border-blue-200 rounded-xl px-5 py-3 flex items-center justify-between">
+        <div>
+          <p class="font-semibold text-slate-900 text-sm">{{ selectedKejohanan.nama }}</p>
+          <p class="text-xs text-slate-500 mt-0.5">
+            {{ selectedKejohanan.tarikh_mula | date:'d MMM y' }} – {{ selectedKejohanan.tarikh_akhir | date:'d MMM y' }}
+            · {{ selectedKejohanan.tempat || '-' }}
+            · {{ selectedKejohanan.jumlah_perlawanan || 0 }} perlawanan
+          </p>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <button (click)="viewKejohananJadual(selectedKejohanan)"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition whitespace-nowrap">
+            Lihat Jadual
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+          </button>
+          <button (click)="selectedKejohanan = null; selectedKejohananId = null; poolList = []; jadualList = []"
+            class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-blue-100 rounded-lg transition" title="Tutup">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- Pool Pengadil Section -->
+    @if (selectedKejohanan) {
+      <div class="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-sm font-semibold text-slate-900">Pool Pengadil Kejohanan</h3>
+            <p class="text-xs text-slate-500 mt-0.5">{{ poolList.length }} pengadil ditag untuk {{ selectedKejohanan.nama }}</p>
+          </div>
+          <button (click)="openPoolModal()"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-pahang-black text-pahang-yellow text-xs font-semibold rounded-lg hover:bg-gray-800 transition">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            Tambah ke Pool
+          </button>
+        </div>
+
+        @if (loadingPool) {
+          <app-loading message="Memuatkan pool..." />
+        } @else if (poolList.length > 0) {
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Nama</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Negeri</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Jenis</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Sumber</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase">No. Tel</th>
+                  <th class="px-3 py-2 text-center text-xs font-semibold text-slate-500 uppercase w-20">Buang</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                @for (p of poolList; track p.pool_id) {
+                  <tr class="hover:bg-slate-50">
+                    <td class="px-3 py-2 font-medium text-slate-800 text-xs">{{ p.nama }}</td>
+                    <td class="px-3 py-2 text-xs text-slate-600">{{ p.negeri || '-' }}</td>
+                    <td class="px-3 py-2">
+                      <span class="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                        [class]="p.jenis_pengadil === 'Pengadil Kebangsaan' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'">
+                        {{ p.jenis_pengadil || '-' }}
+                      </span>
+                    </td>
+                    <td class="px-3 py-2">
+                      <span class="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                        [class]="p.jenis_sumber === 'Berdaftar' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'">
+                        {{ p.jenis_sumber }}
+                      </span>
+                    </td>
+                    <td class="px-3 py-2 text-xs text-slate-600">{{ p.no_tel || '-' }}</td>
+                    <td class="px-3 py-2 text-center">
+                      <button (click)="removeFromPool(p.pool_id)"
+                        class="text-xs text-rose-500 hover:text-rose-700 transition">&#x2715;</button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="text-center text-slate-400 text-xs py-6">Tiada pengadil dalam pool. Klik "Tambah ke Pool" untuk pilih pengadil.</p>
+        }
+      </div>
+    }
+
+  }
+
+  <!-- ===================== TAB 2: JADUAL ===================== -->
+  @if (activeTab === 'jadual') {
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+      <div>
+        <h2 class="text-base font-semibold text-slate-900">Jadual Perlawanan</h2>
+        @if (selectedKejohanan) {
+          <p class="text-xs text-slate-500 mt-0.5">{{ selectedKejohanan.nama }}</p>
+        }
+      </div>
+      <div class="flex gap-2">
+        <select [(ngModel)]="selectedKejohananId" (ngModelChange)="onKejohananSelect($event)"
+          class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white min-w-[200px]">
+          <option [ngValue]="null">-- Pilih Kejohanan --</option>
+          @for (k of kejohananList; track k.id) {
+            <option [ngValue]="k.id">{{ k.nama }}</option>
+          }
+        </select>
+        @if (selectedKejohanan) {
+          <button (click)="openJadualUploadModal()"
+            class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-pahang-black text-pahang-black text-sm font-semibold rounded-lg hover:bg-slate-50 transition whitespace-nowrap">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+            </svg>
+            Muat Naik Excel
+          </button>
+          <button (click)="openAddJadual()"
+            class="inline-flex items-center gap-2 px-4 py-2 bg-pahang-black text-pahang-yellow text-sm font-semibold rounded-lg hover:bg-gray-800 transition whitespace-nowrap">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+            </svg>
+            Tambah Perlawanan
+          </button>
+        }
+      </div>
+    </div>
+
+    @if (!selectedKejohanan) {
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center text-sm text-amber-800">
+        Sila pilih kejohanan dahulu.
+      </div>
+    } @else if (loadingJadual) {
+      <app-loading message="Memuatkan jadual..." />
+    } @else {
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase w-20">No.</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tarikh & Masa</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Perlawanan</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Kategori</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Peringkat</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Kumpulan</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tempat</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Lantikan</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase w-28">Tindakan</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              @for (j of jadualList; track j.id) {
+                <tr class="hover:bg-slate-50 transition-colors">
+                  <td class="px-4 py-3 font-semibold text-slate-700 text-xs">{{ j.no_perlawanan }}</td>
+                  <td class="px-4 py-3">
+                    <p class="text-slate-600 text-xs">{{ j.tarikh | date:'d MMM y' }}</p>
+                    <p class="text-slate-400 text-xs">{{ j.hari }}, {{ j.masa | slice:0:5 }}</p>
+                  </td>
+                  <td class="px-4 py-3">
+                    <div class="flex items-center gap-1.5 mb-0.5">
+                      <div class="relative shrink-0">
+                        @if (j.logo_home) {
+                          <img [src]="j.logo_home" class="w-5 h-5 object-contain rounded" />
+                        } @else {
+                          <div class="w-5 h-5 rounded bg-slate-100 flex items-center justify-center text-[8px] font-bold text-slate-400">H</div>
+                        }
+                        <input type="file" accept="image/*" class="hidden" [id]="'jadual-logo-' + j.id + '-home'"
+                          (change)="onJadualLogoChange($event, j.id, 'home')" />
+                        <button (click)="triggerJadualLogoUpload(j.id, 'home')"
+                          class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-white border border-slate-300 rounded-full flex items-center justify-center shadow-sm hover:bg-slate-50"
+                          [class.opacity-50]="uploadingJadualLogo === j.id + '-home'" title="Upload logo home">
+                          <svg class="w-2 h-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                          </svg>
+                        </button>
+                      </div>
+                      <p class="font-medium text-slate-800 text-xs">{{ j.pasukan_home || '-' }}</p>
+                    </div>
+                    <p class="text-slate-400 text-[10px] pl-6">lawan</p>
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                      <div class="relative shrink-0">
+                        @if (j.logo_away) {
+                          <img [src]="j.logo_away" class="w-5 h-5 object-contain rounded" />
+                        } @else {
+                          <div class="w-5 h-5 rounded bg-slate-100 flex items-center justify-center text-[8px] font-bold text-slate-400">A</div>
+                        }
+                        <input type="file" accept="image/*" class="hidden" [id]="'jadual-logo-' + j.id + '-away'"
+                          (change)="onJadualLogoChange($event, j.id, 'away')" />
+                        <button (click)="triggerJadualLogoUpload(j.id, 'away')"
+                          class="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-white border border-slate-300 rounded-full flex items-center justify-center shadow-sm hover:bg-slate-50"
+                          [class.opacity-50]="uploadingJadualLogo === j.id + '-away'" title="Upload logo away">
+                          <svg class="w-2 h-2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                          </svg>
+                        </button>
+                      </div>
+                      <p class="font-medium text-slate-800 text-xs">{{ j.pasukan_away || '-' }}</p>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3">
+                    @if (j.kategori) {
+                      <span class="px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700">{{ j.kategori }}</span>
+                    } @else {
+                      <span class="text-slate-400 text-xs">-</span>
+                    }
+                  </td>
+                  <td class="px-4 py-3 text-slate-600 text-xs">{{ j.peringkat || '-' }}</td>
+                  <td class="px-4 py-3 text-slate-600 text-xs">{{ j.kumpulan || '-' }}</td>
+                  <td class="px-4 py-3 text-slate-600 text-xs">{{ j.tempat || '-' }}</td>
+                  <td class="px-4 py-3">
+                    <span class="text-xs text-slate-600">{{ j.jumlah_terima || 0 }}/{{ j.jumlah_lantikan || 0 }}</span>
+                  </td>
+                  <td class="px-4 py-3">
+                    <span class="px-2 py-0.5 rounded text-xs font-medium" [class]="getJadualStatusClass(j.status)">
+                      {{ j.status }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-center">
+                    <div class="inline-flex gap-1.5">
+                      <button (click)="openLantikan(j)" title="Lantik Pengadil"
+                        class="px-2 py-1 bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 rounded text-xs transition shadow-sm">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                      </button>
+                      <button (click)="openEditJadual(j)" title="Edit"
+                        class="px-2 py-1 bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 rounded text-xs transition shadow-sm">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                      </button>
+                      <button (click)="deleteJadual(j.id, j.no_perlawanan)" title="Padam"
+                        class="px-2 py-1 bg-white border border-rose-300 text-rose-600 hover:bg-rose-50 rounded text-xs transition shadow-sm">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="8" class="px-4 py-16 text-center">
+                    <span class="material-symbols-outlined text-4xl text-slate-300">calendar_month</span>
+                    <p class="text-slate-400 text-sm mt-2">Tiada perlawanan. Tambah jadual perlawanan.</p>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  }
+
+  <!-- ===================== TAB 3: LANTIKAN ===================== -->
+  @if (activeTab === 'lantikan') {
+
+    @if (!selectedJadual) {
+      <!-- No match selected: prompt + quick-select table -->
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3 mb-4">
+        <svg class="w-5 h-5 text-amber-500 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <p class="text-sm text-amber-800">Sila pilih perlawanan di bawah atau pergi ke tab <strong>Jadual</strong> dan tekan butang <strong>Lantik</strong>.</p>
+      </div>
+
+      @if (selectedKejohanan && jadualList.length > 0) {
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">No.</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tarikh & Masa</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Perlawanan</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Kategori</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase hidden sm:table-cell">Lantikan</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
+                  <th class="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase w-24">Tindakan</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                @for (j of jadualList; track j.id) {
+                  <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-4 py-3 text-xs font-semibold text-slate-700">{{ j.no_perlawanan }}</td>
+                    <td class="px-4 py-3">
+                      <p class="text-xs text-slate-600">{{ j.tarikh | date:'d MMM y' }}</p>
+                      <p class="text-xs text-slate-400">{{ j.hari }}, {{ j.masa | slice:0:5 }}</p>
+                    </td>
+                    <td class="px-4 py-3">
+                      <p class="text-xs font-medium text-slate-800">{{ j.pasukan_home || '-' }}</p>
+                      <p class="text-[10px] text-slate-400">lawan</p>
+                      <p class="text-xs font-medium text-slate-800">{{ j.pasukan_away || '-' }}</p>
+                    </td>
+                    <td class="px-4 py-3 hidden sm:table-cell">
+                      @if (j.kategori) {
+                        <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700">{{ j.kategori }}</span>
+                      }
+                      <p class="text-[10px] text-slate-500 mt-0.5">{{ j.peringkat }}{{ j.kumpulan ? ' ' + j.kumpulan : '' }}</p>
+                    </td>
+                    <td class="px-4 py-3 hidden sm:table-cell">
+                      <span class="text-xs text-slate-600">{{ j.jumlah_terima || 0 }}/{{ j.jumlah_lantikan || 0 }}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                      <span class="px-2 py-0.5 rounded text-xs font-medium" [class]="getJadualStatusClass(j.status)">{{ j.status }}</span>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                      <button (click)="openLantikan(j)"
+                        class="px-3 py-1.5 bg-pahang-black text-pahang-yellow text-xs font-semibold rounded-lg hover:bg-gray-800 transition">
+                        Lantik
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+    } @else {
+      <!-- ── MATCH SELECTED ── -->
+
+      <!-- Match Detail Banner -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-start gap-4 flex-wrap">
+            <!-- No. Perlawanan -->
+            <div>
+              <p class="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">No. Perlawanan</p>
+              <p class="text-lg font-bold text-slate-900">{{ selectedJadual.no_perlawanan }}</p>
+            </div>
+            <!-- Tarikh & Masa -->
+            <div>
+              <p class="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">Tarikh & Masa</p>
+              <p class="text-sm font-semibold text-slate-800">{{ selectedJadual.tarikh | date:'EEE, d MMM y' }}</p>
+              <p class="text-xs text-slate-500">{{ selectedJadual.masa | slice:0:5 }}</p>
+            </div>
+            <!-- Perlawanan -->
+            <div>
+              <p class="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">Perlawanan</p>
+              <p class="text-sm font-bold text-slate-900">{{ selectedJadual.pasukan_home || '-' }}</p>
+              <p class="text-[10px] text-slate-400 font-medium">LAWAN</p>
+              <p class="text-sm font-bold text-slate-900">{{ selectedJadual.pasukan_away || '-' }}</p>
+            </div>
+            <!-- Kategori / Peringkat -->
+            <div>
+              <p class="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">Kategori</p>
+              <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                @if (selectedJadual.kategori) {
+                  <span class="px-2 py-0.5 rounded text-xs font-semibold bg-indigo-50 text-indigo-700">{{ selectedJadual.kategori }}</span>
+                }
+                @if (selectedJadual.peringkat) {
+                  <span class="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600">{{ selectedJadual.peringkat }}</span>
+                }
+                @if (selectedJadual.kumpulan) {
+                  <span class="px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">Kump. {{ selectedJadual.kumpulan }}</span>
+                }
+              </div>
+            </div>
+            <!-- Tempat -->
+            @if (selectedJadual.tempat) {
+              <div>
+                <p class="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">Tempat</p>
+                <p class="text-sm text-slate-700">{{ selectedJadual.tempat }}</p>
+              </div>
+            }
+          </div>
+          <!-- Actions -->
+          <div class="flex gap-2 shrink-0">
+            <button (click)="selectedJadual = null; activeJawatan = null"
+              class="px-3 py-2 text-xs text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition">
+              Tukar Perlawanan
+            </button>
+          </div>
+        </div>
+      </div>
+
+      @if (loadingLantikan) {
+        <app-loading message="Memuatkan lantikan..." />
+      } @else {
+        <!-- Two-column layout: assignments table (left) + pool browser (right) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+          <!-- LEFT: Jawatan Assignment Table -->
+          <div>
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+                <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tugasan Pengadil</h3>
+                <span class="text-xs text-slate-400">{{ lantikanList.length }} / {{ jawatanList.length }} dilantik</span>
+              </div>
+              <table class="w-full">
+                <thead class="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th class="px-4 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Jawatan</th>
+                    <th class="px-4 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Pengadil</th>
+                    <th class="px-4 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Status</th>
+                    <th class="px-4 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wide w-20">Tindakan</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  @for (jawatan of jawatanList; track jawatan) {
+                    @let assignment = getAssignment(jawatan);
+                    @let isActive = activeJawatan === jawatan;
+                    <tr class="transition-colors"
+                      [class]="isActive ? 'bg-pahang-yellow/10 ring-inset ring-1 ring-pahang-black/20' : 'hover:bg-slate-50'">
+                      <td class="px-4 py-3 align-top w-36">
+                        <p class="text-xs font-semibold text-slate-700 leading-snug">{{ jawatan }}</p>
+                        @if (assignment?.notif_hantar) {
+                          <div class="flex flex-col gap-0.5 mt-1">
+                            <span class="text-[10px] text-emerald-600 leading-tight">✓ Emel</span>
+                            @if (assignment?.tg_notif_hantar) {
+                              <span class="text-[10px] text-blue-600 leading-tight">✓ Telegram</span>
+                            }
+                          </div>
+                        }
+                      </td>
+                      <td class="px-4 py-3 align-top">
+                        @if (assignment) {
+                          <div class="flex items-start gap-2">
+                            <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5"
+                              [class]="assignment.jenis_sumber === 'Luar' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'">
+                              {{ (assignment.nama_penuh || '?')[0].toUpperCase() }}
+                            </div>
+                            <div class="min-w-0">
+                              <p class="text-xs font-semibold text-slate-900">{{ assignment.nama_penuh }}</p>
+                              <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                <span class="px-1.5 py-0.5 rounded border text-[10px] font-medium leading-none" [class]="getJenisBadgeClass(assignment.jenis_pengadil)">
+                                  {{ assignment.jenis_pengadil || assignment.jenis_sumber }}
+                                </span>
+                                @if (assignment.no_telefon) {
+                                  <span class="text-[10px] text-slate-400">{{ assignment.no_telefon }}</span>
+                                }
+                              </div>
+                              @if (assignment.komen) {
+                                <p class="text-[10px] text-slate-500 italic mt-0.5">{{ assignment.komen }}</p>
+                              }
+                            </div>
+                          </div>
+                        } @else {
+                          <span class="text-xs text-slate-400 italic">Belum dilantik</span>
+                        }
+                      </td>
+                      <td class="px-4 py-3 align-top hidden sm:table-cell">
+                        @if (assignment) {
+                          <span class="px-2 py-0.5 rounded text-[10px] font-medium" [class]="getAssignmentStatusClass(assignment.status)">
+                            {{ assignment.status }}
+                          </span>
+                        } @else {
+                          <span class="text-[10px] text-slate-300">—</span>
+                        }
+                      </td>
+                      <td class="px-4 py-3 align-top text-center">
+                        @if (assignment) {
+                          <div class="flex flex-col items-center gap-1">
+                            @if (assignment.status === 'Ditolak') {
+                              <button (click)="gantiPengadil(assignment.id, jawatan)"
+                                class="px-2.5 py-1 bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 rounded-lg text-xs font-medium transition">
+                                Ganti
+                              </button>
+                            }
+                            <button (click)="removeLantikan(assignment.id, jawatan)"
+                              class="px-2.5 py-1 bg-white border border-rose-300 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-medium transition">
+                              Buang
+                            </button>
+                          </div>
+                        } @else {
+                          <button (click)="selectJawatan(jawatan)"
+                            class="px-2.5 py-1 text-xs font-semibold rounded-lg transition whitespace-nowrap"
+                            [class]="isActive ? 'bg-pahang-black text-pahang-yellow hover:bg-gray-800' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'">
+                            {{ isActive ? '✕ Batal' : 'Pilih' }}
+                          </button>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- RIGHT: Pool Referee Browser -->
+          <div>
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm sticky top-4">
+              <!-- Header -->
+              <div class="px-4 py-3 border-b border-slate-200">
+                <div class="flex items-center justify-between">
+                  <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wide">Pool Pengadil</h3>
+                  <span class="text-xs text-slate-400">{{ refereeList.length }} pengadil</span>
+                </div>
+                @if (activeJawatan) {
+                  <div class="mt-2 px-2.5 py-1.5 bg-pahang-black text-pahang-yellow rounded-lg text-xs font-semibold">
+                    Pilih untuk: {{ activeJawatan }}
+                  </div>
+                } @else {
+                  <p class="text-[11px] text-slate-400 mt-1.5">Klik "Pilih Pengadil" pada slot jawatan untuk mula melantik.</p>
+                }
+              </div>
+
+              <!-- Search + filter -->
+              <div class="px-4 py-3 border-b border-slate-100 space-y-2">
+                <div class="relative">
+                  <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                  </svg>
+                  <input type="text" [(ngModel)]="refereeSearch" placeholder="Cari nama, negeri..."
+                    class="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs" />
+                </div>
+                @if (uniqueJenisList.length > 1) {
+                  <div class="flex flex-wrap gap-1">
+                    <button (click)="refereeJenisFilter = ''"
+                      class="px-2 py-0.5 rounded text-[10px] font-medium transition"
+                      [class]="!refereeJenisFilter ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
+                      Semua
+                    </button>
+                    @for (jenis of uniqueJenisList; track jenis) {
+                      <button (click)="refereeJenisFilter = jenis"
+                        class="px-2 py-0.5 rounded text-[10px] font-medium transition"
+                        [class]="refereeJenisFilter === jenis ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
+                        {{ jenis }}
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+
+              <!-- Referee list -->
+              <div class="overflow-y-auto max-h-[520px] divide-y divide-slate-100">
+                @if (filteredReferees.length === 0) {
+                  <div class="px-4 py-8 text-center">
+                    <p class="text-xs text-slate-400">Tiada pengadil dalam pool.</p>
+                    <p class="text-[11px] text-slate-400 mt-1">Tambah pengadil ke pool di tab Kejohanan.</p>
+                  </div>
+                }
+                @for (ref of filteredReferees; track ref.pool_id) {
+                  @let alreadyAssigned = isAssignedToCurrentMatch(ref);
+                  <div class="px-4 py-3 transition-colors"
+                    [class]="alreadyAssigned ? 'bg-slate-50 opacity-60' : 'hover:bg-slate-50'">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="flex items-start gap-2.5 min-w-0">
+                        <!-- Avatar -->
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5"
+                          [class]="ref.jenis_sumber === 'Luar' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'">
+                          {{ (ref.nama_penuh || '?')[0].toUpperCase() }}
+                        </div>
+                        <!-- Details -->
+                        <div class="min-w-0">
+                          <p class="text-xs font-semibold text-slate-900 truncate">{{ ref.nama_penuh }}</p>
+                          <div class="flex flex-wrap items-center gap-1 mt-0.5">
+                            <span class="px-1.5 py-0.5 rounded border text-[10px] font-medium leading-none" [class]="getJenisBadgeClass(ref.jenis_pengadil)">
+                              {{ ref.jenis_pengadil || ref.jenis_sumber }}
+                            </span>
+                            @if (ref.jenis_sumber === 'Luar') {
+                              <span class="text-[10px] text-amber-600 font-medium">Luar</span>
+                            }
+                          </div>
+                          <div class="flex items-center gap-2 mt-1">
+                            <span class="text-[10px] text-slate-500">{{ ref.negeri }}</span>
+                            @if (ref.no_telefon) {
+                              <span class="text-[10px] text-slate-400">· {{ ref.no_telefon }}</span>
+                            }
+                          </div>
+                          @if (ref.jumlah_lantikan_kejohanan > 0) {
+                            <p class="text-[10px] text-blue-500 mt-0.5">{{ ref.jumlah_lantikan_kejohanan }} lantikan dalam kejohanan ini</p>
+                          }
+                        </div>
+                      </div>
+                      <!-- Assign button -->
+                      @if (alreadyAssigned) {
+                        <span class="text-[10px] text-slate-400 shrink-0 mt-1">Sudah dilantik</span>
+                      } @else if (activeJawatan) {
+                        <button (click)="assignFromPool(ref)"
+                          class="shrink-0 px-2 py-1 bg-pahang-black text-pahang-yellow text-[10px] font-bold rounded-lg hover:bg-gray-800 transition whitespace-nowrap mt-0.5">
+                          Lantik
+                        </button>
+                      } @else {
+                        <span class="text-[10px] text-slate-300 shrink-0 mt-1">—</span>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+
+        </div>
+      }
+    }
+  }
+
+  <!-- ===================== TAB 4: JADUAL LANTIKAN ===================== -->
+  @if (activeTab === 'jadual-lantikan') {
+
+    @if (!selectedKejohanan) {
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center text-sm text-amber-800">
+        Sila pilih kejohanan terlebih dahulu di tab <strong>Kejohanan</strong>.
+      </div>
+    } @else if (loadingJadualLantikan) {
+      <app-loading message="Memuatkan jadual lantikan..." />
+    } @else if (jadualLantikanData) {
+
+      @let stats = jadualLantikanData.stats;
+      @let pengesahan = jadualLantikanData.pengesahan;
+      @let jadual = jadualLantikanData.jadual;
+
+      <!-- Header banner with logos -->
+      <div class="bg-pahang-black rounded-t-xl px-6 py-5 flex items-center gap-4 mb-0">
+        @if (selectedKejohanan?.logo_kiri || jadualLantikanData.kejohanan?.logo_kiri) {
+          <img [src]="selectedKejohanan?.logo_kiri || jadualLantikanData.kejohanan?.logo_kiri"
+               class="w-14 h-14 object-contain flex-shrink-0" />
+        }
+        <div class="flex-1 text-center">
+          <h2 class="text-pahang-yellow text-sm font-bold tracking-[3px] uppercase">Draf Lantikan Pengadil</h2>
+          <p class="text-white text-base font-bold mt-1 uppercase tracking-wide">{{ jadualLantikanData.kejohanan?.nama }}</p>
+          @if (jadualLantikanData.kejohanan?.anjuran) {
+            <p class="text-slate-400 text-[10px] mt-0.5 uppercase tracking-wider">{{ jadualLantikanData.kejohanan.anjuran }}</p>
+          }
+        </div>
+        @if (selectedKejohanan?.logo_kanan || jadualLantikanData.kejohanan?.logo_kanan) {
+          <img [src]="selectedKejohanan?.logo_kanan || jadualLantikanData.kejohanan?.logo_kanan"
+               class="w-14 h-14 object-contain flex-shrink-0" />
+        }
+      </div>
+
+      <!-- Action buttons -->
+      <div class="flex items-center justify-between gap-2 bg-white border-x border-slate-200 px-4 py-2">
+        <div class="text-xs text-slate-500">
+          @if (stats.jumlah_lantikan > 0) {
+            <span class="font-semibold text-slate-700">{{ stats.jumlah_lantikan - stats.jumlah_terima }}</span> belum jawab
+          }
+        </div>
+        <div class="flex items-center gap-2">
+          <button (click)="loadJadualLantikan()"
+            class="px-3 py-1.5 border border-slate-300 text-slate-600 text-xs rounded-lg hover:bg-slate-50 transition">
+            <svg class="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Muat Semula
+          </button>
+          <button (click)="downloadJadualLantikanPDF()"
+            class="inline-flex items-center gap-1.5 px-4 py-1.5 bg-pahang-black text-pahang-yellow text-xs font-semibold rounded-lg hover:bg-gray-800 transition">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+            </svg>
+            Muat Turun PDF
+          </button>
+        </div>
+      </div>
+
+      <!-- Stats row -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+        <div class="bg-white rounded-xl border border-slate-200 p-3 text-center">
+          <p class="text-2xl font-bold text-slate-900">{{ stats.total_perlawanan }}</p>
+          <p class="text-[10px] text-slate-500 mt-0.5">Jumlah Perlawanan</p>
+        </div>
+        <div class="bg-emerald-50 rounded-xl border border-emerald-200 p-3 text-center">
+          <p class="text-2xl font-bold text-emerald-700">{{ stats.lantikan_lengkap }}</p>
+          <p class="text-[10px] text-emerald-600 mt-0.5">Lantikan Lengkap</p>
+        </div>
+        <div class="bg-amber-50 rounded-xl border border-amber-200 p-3 text-center">
+          <p class="text-2xl font-bold text-amber-700">{{ stats.lantikan_separa }}</p>
+          <p class="text-[10px] text-amber-600 mt-0.5">Separa</p>
+        </div>
+        <div class="bg-rose-50 rounded-xl border border-rose-200 p-3 text-center">
+          <p class="text-2xl font-bold text-rose-700">{{ stats.tiada_lantikan }}</p>
+          <p class="text-[10px] text-rose-600 mt-0.5">Tiada Lantikan</p>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 p-3 text-center">
+          <p class="text-2xl font-bold text-slate-900">{{ stats.jumlah_terima }}/{{ stats.jumlah_lantikan }}</p>
+          <p class="text-[10px] text-slate-500 mt-0.5">Diterima</p>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 p-3 text-center">
+          <p class="text-2xl font-bold text-blue-700">{{ stats.kadar_terima }}%</p>
+          <p class="text-[10px] text-slate-500 mt-0.5">Kadar Terima</p>
+        </div>
+      </div>
+
+      <!-- Pengesahan panel -->
+      <div class="bg-white rounded-xl border shadow-sm mb-4 overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
+          <h3 class="text-xs font-bold text-slate-700 uppercase tracking-wide">Pengesahan Dokumen</h3>
+          @if (pengesahan) {
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-semibold">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+              </svg>
+              Disahkan
+            </span>
+          } @else {
+            <span class="px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full text-xs font-semibold">Belum Disahkan</span>
+          }
+        </div>
+
+        @if (pengesahan && !showPengesahanForm) {
+          <!-- Pengesahan details -->
+          <div class="px-4 py-4">
+            <div class="grid sm:grid-cols-3 gap-4">
+              <div>
+                <p class="text-[10px] text-slate-400 uppercase font-semibold mb-0.5">Disahkan oleh</p>
+                <p class="text-sm font-bold text-slate-900">{{ pengesahan.nama_penyahkan }}</p>
+                <p class="text-xs text-slate-500">{{ pengesahan.jawatan_penyahkan }}</p>
+              </div>
+              <div>
+                <p class="text-[10px] text-slate-400 uppercase font-semibold mb-0.5">Tarikh & Masa</p>
+                <p class="text-sm text-slate-800">{{ pengesahan.tarikh_sahkan | date:'d MMM y, h:mm a' }}</p>
+              </div>
+              <div>
+                <p class="text-[10px] text-slate-400 uppercase font-semibold mb-0.5">Kod Verifikasi</p>
+                <p class="font-mono font-bold text-slate-900 tracking-widest text-sm">{{ pengesahan.kod_verifikasi }}</p>
+                @if (pengesahan.nota) {
+                  <p class="text-xs text-slate-500 italic mt-1">{{ pengesahan.nota }}</p>
+                }
+              </div>
+            </div>
+            <div class="mt-3 flex justify-end">
+              <button (click)="batalPengesahan()" [disabled]="batallingPengesahan"
+                class="text-xs text-rose-500 hover:text-rose-700 underline transition">
+                Batal Pengesahan
+              </button>
+            </div>
+          </div>
+        } @else if (!pengesahan || showPengesahanForm) {
+          <!-- Pengesahan form -->
+          <div class="px-4 py-4 space-y-3">
+            <p class="text-xs text-slate-500">Isi maklumat di bawah untuk mengesahkan jadual lantikan ini secara rasmi.</p>
+            <div class="grid sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-slate-700 mb-1">Nama Ketua Pengadil / Pegawai Bertanggungjawab *</label>
+                <input type="text" [(ngModel)]="pengesahanForm.nama_penyahkan" placeholder="e.g. Haji Abu Bakar bin Ahmad"
+                  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pahang-black" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-700 mb-1">Jawatan *</label>
+                <input type="text" [(ngModel)]="pengesahanForm.jawatan_penyahkan" placeholder="e.g. Ketua Pengadil Pahang"
+                  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pahang-black" />
+              </div>
+              <div class="sm:col-span-2">
+                <label class="block text-xs font-medium text-slate-700 mb-1">Nota (pilihan)</label>
+                <textarea [(ngModel)]="pengesahanForm.nota" rows="2" placeholder="Nota tambahan..."
+                  class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-pahang-black"></textarea>
+              </div>
+            </div>
+            <div class="flex gap-2 justify-end">
+              @if (showPengesahanForm) {
+                <button (click)="showPengesahanForm = false"
+                  class="px-3 py-2 text-xs text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">
+                  Batal
+                </button>
+              }
+              <button (click)="sahkanJadualLantikan()" [disabled]="submittingPengesahan"
+                class="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-60 transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                </svg>
+                {{ submittingPengesahan ? 'Menyimpan...' : 'Sahkan Jadual' }}
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Full schedule table (PDF-style) -->
+      @if (jadual.length === 0) {
+        <div class="bg-slate-50 border border-slate-200 rounded-b-xl p-8 text-center text-sm text-slate-500">
+          Tiada perlawanan dalam jadual bagi kejohanan ini.
+        </div>
+      } @else {
+
+        <!-- Bulk action toolbar -->
+        @if (selectedMatchIds.size > 0) {
+          <div class="bg-slate-800 text-white rounded-xl px-4 py-2.5 mb-3 flex items-center justify-between shadow-lg animate-in">
+            <span class="text-xs font-semibold">
+              {{ selectedMatchIds.size }} perlawanan dipilih
+            </span>
+            <div class="flex items-center gap-2">
+              <button (click)="sendBulkNotification()" [disabled]="sendingNotif"
+                class="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-500 text-white text-[11px] font-semibold rounded-lg hover:bg-emerald-600 disabled:opacity-50 transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                </svg>
+                Hantar Notif
+              </button>
+              <button (click)="batalBulkLantikan()"
+                class="inline-flex items-center gap-1 px-3 py-1.5 bg-rose-500 text-white text-[11px] font-semibold rounded-lg hover:bg-rose-600 transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+                Batal Lantikan
+              </button>
+              <button (click)="selectedMatchIds.clear()"
+                class="px-2 py-1.5 text-slate-300 hover:text-white text-[11px] transition" title="Nyahpilih semua">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        }
+
+        <div class="bg-white rounded-b-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-[11px] border-collapse" style="min-width: 950px;">
+              <thead>
+                <tr class="bg-[#FADA00] text-[#111827]">
+                  <th class="px-2 py-2.5 text-center border border-slate-300 w-8">
+                    <input type="checkbox" [checked]="isAllSelected()" (change)="toggleAllMatches()"
+                      class="w-3.5 h-3.5 rounded border-slate-400 text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                  </th>
+                  <th class="px-2 py-2.5 text-center font-bold border border-slate-300 w-24 uppercase text-[10px] tracking-wide">Tarikh</th>
+                  <th class="px-2 py-2.5 text-center font-bold border border-slate-300 w-12 uppercase text-[10px] tracking-wide">Kump</th>
+                  <th class="px-2 py-2.5 text-center font-bold border border-slate-300 w-10 uppercase text-[10px] tracking-wide">No.<br/>Per</th>
+                  <th class="px-2 py-2.5 text-center font-bold border border-slate-300 w-24 uppercase text-[10px] tracking-wide">Kat</th>
+                  <th class="px-2 py-2.5 text-center font-bold border border-slate-300 uppercase text-[10px] tracking-wide">Perlawanan</th>
+                  <th class="px-2 py-2.5 text-center font-bold border border-slate-300 w-16 uppercase text-[10px] tracking-wide">Masa</th>
+                  <th class="px-2 py-2.5 text-left font-bold border border-slate-300 w-36 uppercase text-[10px] tracking-wide">Venue</th>
+                  <th class="px-2 py-2.5 text-center font-bold border border-slate-300 w-36 uppercase text-[10px] tracking-wide" colspan="2">Pegawai</th>
+                  <th class="px-2 py-2.5 text-center font-bold border border-slate-300 w-24 uppercase text-[10px] tracking-wide">Negeri</th>
+                  <th class="px-2 py-2.5 text-center font-bold border border-slate-300 w-20 uppercase text-[10px] tracking-wide">Tindakan</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (j of jadual; track j.id) {
+                  @for (jaw of jawatanList; track jaw; let ji = $index) {
+                    <tr class="hover:bg-amber-50/30 transition-colors"
+                        [class.border-b-2]="ji === jawatanList.length - 1"
+                        [class.border-b-slate-400]="ji === jawatanList.length - 1"
+                        [class.bg-white]="ji % 2 === 0"
+                        [class.bg-slate-50/50]="ji % 2 !== 0">
+                      @if (ji === 0) {
+                        <!-- Checkbox -->
+                        <td [attr.rowspan]="jawatanList.length"
+                            class="px-2 py-2 text-center align-middle border border-slate-200 bg-white">
+                          @if (getSelectableMatches().some(m => m.id === j.id)) {
+                            <input type="checkbox" [checked]="selectedMatchIds.has(j.id)" (change)="toggleMatch(j.id)"
+                              class="w-3.5 h-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
+                          } @else {
+                            <svg class="w-3.5 h-3.5 text-emerald-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                            </svg>
+                          }
+                        </td>
+                        <!-- Tarikh -->
+                        <td [attr.rowspan]="jawatanList.length"
+                            class="px-2 py-2 text-center align-middle border border-slate-200 font-semibold text-slate-700 bg-white">
+                          <span class="block text-[10px] uppercase font-bold text-slate-500">{{ j.hari }}</span>
+                          <span class="block text-xs">{{ j.tarikh | date:'dd.MM.yy' }}</span>
+                        </td>
+                        <!-- Kumpulan -->
+                        <td [attr.rowspan]="jawatanList.length"
+                            class="px-2 py-2 text-center align-middle border border-slate-200 font-bold text-slate-800 bg-white">
+                          {{ j.kumpulan || '-' }}
+                        </td>
+                        <!-- No Perlawanan -->
+                        <td [attr.rowspan]="jawatanList.length"
+                            class="px-2 py-2 text-center align-middle border border-slate-200 bg-white">
+                          <span class="text-base font-black text-slate-900">{{ j.no_perlawanan }}</span>
+                          @if (!j.is_lengkap) {
+                            <span class="block text-[9px] font-semibold text-amber-600 mt-0.5">{{ j.jumlah_lantikan }}/5</span>
+                          } @else {
+                            <svg class="w-4 h-4 text-emerald-500 mx-auto mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                            </svg>
+                          }
+                        </td>
+                        <!-- Kategori / Peringkat -->
+                        <td [attr.rowspan]="jawatanList.length"
+                            class="px-2 py-2 text-center align-middle border border-slate-200 text-[10px] text-slate-600 bg-white uppercase leading-relaxed">
+                          @if (j.kategori) {
+                            <span class="block font-bold text-indigo-700">{{ j.kategori }}</span>
+                          }
+                          <span class="block font-semibold">{{ j.peringkat }}</span>
+                        </td>
+                        <!-- Perlawanan (Pasukan) -->
+                        <td [attr.rowspan]="jawatanList.length"
+                            class="px-3 py-2 text-center align-middle border border-slate-200 bg-white">
+                          <span class="block font-bold text-slate-900 uppercase text-xs">{{ j.pasukan_home || '?' }}</span>
+                          <span class="block text-[9px] text-slate-400 italic my-0.5">lwn</span>
+                          <span class="block font-bold text-slate-900 uppercase text-xs">{{ j.pasukan_away || '?' }}</span>
+                        </td>
+                        <!-- Masa -->
+                        <td [attr.rowspan]="jawatanList.length"
+                            class="px-2 py-2 text-center align-middle border border-slate-200 font-semibold text-slate-700 bg-white">
+                          {{ j.masa | slice:0:5 }}
+                        </td>
+                        <!-- Venue -->
+                        <td [attr.rowspan]="jawatanList.length"
+                            class="px-2 py-2 text-left align-middle border border-slate-200 text-slate-600 bg-white leading-snug">
+                          {{ j.tempat || '-' }}
+                        </td>
+                      }
+                      <!-- Jawatan code -->
+                      @let a = j.assignments[jaw];
+                      <td class="px-1.5 py-1 text-center border-y border-l border-slate-200 font-bold text-slate-500 w-8"
+                          [class.bg-amber-50]="a?.status_lantikan === 'Belum Jawab'"
+                          [class.bg-emerald-50]="a?.status_lantikan === 'Diterima'"
+                          [class.bg-rose-50]="a?.status_lantikan === 'Ditolak'">
+                        {{ getJawatanCode(jaw) }}
+                      </td>
+                      <!-- Nama Pegawai -->
+                      <td class="px-2 py-1 border-y border-slate-200 text-slate-800"
+                          [class.font-semibold]="a"
+                          [class.bg-amber-50]="a?.status_lantikan === 'Belum Jawab'"
+                          [class.bg-emerald-50]="a?.status_lantikan === 'Diterima'"
+                          [class.bg-rose-50]="a?.status_lantikan === 'Ditolak'">
+                        @if (a) {
+                          <span class="uppercase">{{ a.nama_penuh }}</span>
+                          @if (a.status_lantikan === 'Diterima') {
+                            <svg class="w-3 h-3 text-emerald-600 inline ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                            </svg>
+                          } @else if (a.status_lantikan === 'Ditolak') {
+                            <svg class="w-3 h-3 text-rose-500 inline ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                          }
+                        } @else {
+                          <span class="text-slate-300">—</span>
+                        }
+                      </td>
+                      <!-- Negeri -->
+                      <td class="px-2 py-1 text-center border-y border-r border-slate-200 text-slate-600 uppercase text-[10px] font-medium"
+                          [class.bg-amber-50]="a?.status_lantikan === 'Belum Jawab'"
+                          [class.bg-emerald-50]="a?.status_lantikan === 'Diterima'"
+                          [class.bg-rose-50]="a?.status_lantikan === 'Ditolak'">
+                        {{ a?.negeri || '' }}
+                      </td>
+                      <!-- Tindakan (rowspan) -->
+                      @if (ji === 0) {
+                        <td [attr.rowspan]="jawatanList.length"
+                            class="px-1.5 py-2 text-center align-middle border border-slate-200 bg-white">
+                          <div class="flex flex-col gap-1 items-center">
+                            @if (j.jumlah_lantikan > 0 && hasUnnotified(j)) {
+                              <button (click)="sendMatchNotification(j.id)" [disabled]="sendingNotif"
+                                class="w-full px-1.5 py-1 bg-emerald-600 text-white text-[9px] font-semibold rounded hover:bg-emerald-700 disabled:opacity-50 transition whitespace-nowrap"
+                                title="Hantar notifikasi lantikan">
+                                Hantar
+                              </button>
+                            }
+                            @if (j.jumlah_lantikan > 0) {
+                              <button (click)="editMatchLantikan(j.id)"
+                                class="w-full px-1.5 py-1 bg-blue-50 text-blue-700 text-[9px] font-semibold rounded hover:bg-blue-100 transition whitespace-nowrap"
+                                title="Edit lantikan perlawanan ini">
+                                Edit
+                              </button>
+                            }
+                            @if (j.jumlah_lantikan > 0) {
+                              <button (click)="batalMatchLantikan(j.id, j.no_perlawanan)"
+                                class="w-full px-1.5 py-1 bg-rose-50 text-rose-600 text-[9px] font-semibold rounded hover:bg-rose-100 transition whitespace-nowrap"
+                                title="Batalkan semua lantikan perlawanan ini">
+                                Batal
+                              </button>
+                            }
+                          </div>
+                        </td>
+                      }
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Footer note -->
+          @if (jadualLantikanData.pengesahan) {
+            <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 text-[10px] text-slate-500 flex items-center justify-between">
+              <span>Disahkan oleh: <strong class="text-slate-700">{{ jadualLantikanData.pengesahan.nama_penyahkan }}</strong></span>
+              <span>{{ jadualLantikanData.pengesahan.tarikh_sahkan | date:'d MMM y, h:mm a' }}</span>
+            </div>
+          }
+        </div>
+      }
+    }
+  }
+
+  <!-- ===================== TAB 5: PENILAIAN ===================== -->
+  @if (activeTab === 'penilaian') {
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-base font-semibold text-slate-900">Laporan Penilaian</h2>
+    </div>
+
+    @if (loadingLaporan) {
+      <app-loading message="Memuatkan laporan..." />
+    } @else {
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Kejohanan</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Perlawanan</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Penilai</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Pegawai</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
+                <th class="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase w-24">Tindakan</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              @for (lap of laporanList; track lap.id) {
+                <tr class="hover:bg-slate-50 transition-colors">
+                  <td class="px-4 py-3 text-xs text-slate-700">{{ lap.nama_kejohanan }}</td>
+                  <td class="px-4 py-3">
+                    <p class="text-xs font-semibold">{{ lap.no_perlawanan }}</p>
+                    <p class="text-xs text-slate-400">{{ lap.pasukan_home }} vs {{ lap.pasukan_away }}</p>
+                  </td>
+                  <td class="px-4 py-3 text-xs text-slate-700">{{ lap.nama_penilai }}</td>
+                  <td class="px-4 py-3">
+                    @if (lap.pegawai && lap.pegawai.length > 0) {
+                      <div class="flex flex-wrap gap-1">
+                        @for (pg of lap.pegawai; track pg.id) {
+                          <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
+                            {{ pg.jawatan === 'Pengadil Utama' ? 'PU' : pg.jawatan === 'Pembantu Pengadil 1' ? 'PP1' : pg.jawatan === 'Pembantu Pengadil 2' ? 'PP2' : 'P4' }}
+                            <span class="font-bold" [class]="getMarkahClass(pg.markah)">{{ pg.markah ?? '-' }}</span>
+                          </span>
+                        }
+                      </div>
+                    } @else {
+                      <span class="text-xs text-slate-400">-</span>
+                    }
+                  </td>
+                  <td class="px-4 py-3">
+                    <span class="px-2 py-0.5 rounded text-xs font-medium" [class]="getLaporanStatusClass(lap.status)">
+                      {{ lap.status }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3 text-center">
+                    <button (click)="viewLaporan(lap.id)"
+                      class="px-3 py-1 bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 rounded text-xs transition shadow-sm">
+                      Lihat
+                    </button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="px-4 py-16 text-center">
+                    <span class="material-symbols-outlined text-4xl text-slate-300">assignment</span>
+                    <p class="text-slate-400 text-sm mt-2">Tiada laporan penilaian lagi.</p>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  }
+</div>
+
+<!-- ==================== MODALS ==================== -->
+
+<!-- Modal: Tambah/Edit Kejohanan -->
+@if (showKejohananModal) {
+  <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" (click)="showKejohananModal = false">
+    <div class="bg-white rounded-2xl max-w-lg w-full" (click)="$event.stopPropagation()">
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+        <h3 class="text-base font-semibold">{{ editingKejohanan ? 'Edit' : 'Tambah' }} Kejohanan</h3>
+        <button (click)="showKejohananModal = false" class="text-slate-400 hover:text-slate-600">&#x2715;</button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Nama Kejohanan <span class="text-rose-500">*</span></label>
+          <input type="text" [(ngModel)]="kejohananForm.nama" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="cth: Liga Amatur Pahang 2025" />
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Tarikh Mula <span class="text-rose-500">*</span></label>
+            <input type="date" [(ngModel)]="kejohananForm.tarikh_mula" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Tarikh Akhir <span class="text-rose-500">*</span></label>
+            <input type="date" [(ngModel)]="kejohananForm.tarikh_akhir" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Tempat</label>
+          <input type="text" [(ngModel)]="kejohananForm.tempat" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Anjuran</label>
+          <input type="text" [(ngModel)]="kejohananForm.anjuran" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Status</label>
+          <select [(ngModel)]="kejohananForm.status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+            <option value="Draf">Draf</option>
+            <option value="Aktif">Aktif</option>
+            <option value="Selesai">Selesai</option>
+          </select>
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button (click)="showKejohananModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Batal</button>
+          <button (click)="saveKejohanan()" [disabled]="savingKejohanan"
+            class="px-4 py-2 text-sm bg-pahang-black text-pahang-yellow font-semibold rounded-lg hover:bg-gray-800 disabled:opacity-60">
+            {{ savingKejohanan ? 'Menyimpan...' : 'Simpan' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Modal: Tambah/Edit Jadual Perlawanan -->
+@if (showJadualModal) {
+  <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" (click)="showJadualModal = false">
+    <div class="bg-white rounded-2xl max-w-2xl w-full" (click)="$event.stopPropagation()">
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+        <h3 class="text-base font-semibold">{{ editingJadual ? 'Edit' : 'Tambah' }} Perlawanan</h3>
+        <button (click)="showJadualModal = false" class="text-slate-400 hover:text-slate-600">&#x2715;</button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="grid grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">No. Perlawanan</label>
+            <input type="text" [(ngModel)]="jadualForm.no_perlawanan" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Auto (P001)" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Kategori</label>
+            <select [(ngModel)]="jadualForm.kategori" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+              <option value="">-- Pilih --</option>
+              @for (k of kategoriList; track k) {
+                <option [value]="k">{{ k }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Peringkat</label>
+            <select [(ngModel)]="jadualForm.peringkat" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+              <option value="">-- Pilih --</option>
+              @for (p of peringkatList; track p) {
+                <option [value]="p">{{ p }}</option>
+              }
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Kumpulan</label>
+            <input type="text" [(ngModel)]="jadualForm.kumpulan" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="cth: A, B, C" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Tarikh <span class="text-rose-500">*</span></label>
+            <input type="date" [(ngModel)]="jadualForm.tarikh" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Masa <span class="text-rose-500">*</span></label>
+            <input type="time" [(ngModel)]="jadualForm.masa" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+          <div class="col-span-3 grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Pasukan Tuan Rumah</label>
+              <input type="text" [(ngModel)]="jadualForm.pasukan_home" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="cth: MSS Pahang" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Pasukan Pelawat</label>
+              <input type="text" [(ngModel)]="jadualForm.pasukan_away" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="cth: MSS Selangor" />
+            </div>
+          </div>
+          <div class="col-span-3">
+            <label class="block text-xs text-gray-500 mb-1">Tempat / Padang</label>
+            <input type="text" [(ngModel)]="jadualForm.tempat" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="cth: Padang A, Stadium Darul Makmur" />
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button (click)="showJadualModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Batal</button>
+          <button (click)="saveJadual()" [disabled]="savingJadual"
+            class="px-4 py-2 text-sm bg-pahang-black text-pahang-yellow font-semibold rounded-lg hover:bg-gray-800 disabled:opacity-60">
+            {{ savingJadual ? 'Menyimpan...' : 'Simpan' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Jadual Upload Modal -->
+@if (showJadualUploadModal) {
+  <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" (click)="showJadualUploadModal = false">
+    <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[85vh] flex flex-col" (click)="$event.stopPropagation()">
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+        <h3 class="text-base font-semibold">Muat Naik Jadual Perlawanan</h3>
+        <button (click)="showJadualUploadModal = false" class="text-slate-400 hover:text-slate-600">&#x2715;</button>
+      </div>
+      <div class="px-6 py-5 overflow-y-auto space-y-5">
+
+        @if (!jadualUploadDone) {
+          <!-- Instructions -->
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <p class="text-sm font-medium text-slate-700 mb-2">Arahan:</p>
+            <ol class="text-sm text-slate-600 space-y-1 list-decimal list-inside">
+              <li>Muat turun template Excel di bawah.</li>
+              <li>Isi maklumat jadual perlawanan mengikut format.</li>
+              <li>Pilih fail Excel dan semak pratonton sebelum hantar.</li>
+            </ol>
+          </div>
+
+          <!-- Template Download -->
+          <button (click)="downloadJadualTemplate()"
+            class="inline-flex items-center gap-2 px-4 py-2 bg-pahang-black text-pahang-yellow text-sm font-semibold rounded-lg hover:bg-gray-800 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Muat Turun Template
+          </button>
+
+          <!-- File Picker -->
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Pilih Fail Excel</label>
+            <input type="file" accept=".xlsx,.xls,.csv" (change)="onJadualFileSelected($event)"
+              class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-pahang-black file:text-pahang-yellow hover:file:bg-gray-800 file:cursor-pointer" />
+            @if (jadualUploadFileName) {
+              <p class="text-xs text-slate-500 mt-1">Fail: {{ jadualUploadFileName }}</p>
+            }
+          </div>
+
+          <!-- Errors -->
+          @if (jadualUploadErrors.length > 0 && jadualUploadPreview.length === 0) {
+            <div class="bg-rose-50 border border-rose-200 rounded-xl p-4">
+              @for (err of jadualUploadErrors; track err) {
+                <p class="text-sm text-rose-700">{{ err }}</p>
+              }
+            </div>
+          }
+
+          <!-- Preview Table -->
+          @if (jadualUploadPreview.length > 0) {
+            <div>
+              <p class="text-sm font-medium text-slate-700 mb-2">Pratonton: {{ jadualUploadPreview.length }} perlawanan</p>
+              <div class="border border-slate-200 rounded-xl overflow-hidden">
+                <div class="overflow-x-auto max-h-64">
+                  <table class="w-full text-xs">
+                    <thead class="bg-slate-50 border-b border-slate-200 sticky top-0">
+                      <tr>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-500">#</th>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-500">No Per</th>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-500">Tarikh</th>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-500">Masa</th>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-500">Kategori</th>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-500">Peringkat</th>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-500">Kumpulan</th>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-500">Home</th>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-500">Away</th>
+                        <th class="px-3 py-2 text-left font-semibold text-slate-500">Padang</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                      @for (row of jadualUploadPreview; track $index) {
+                        <tr class="hover:bg-slate-50">
+                          <td class="px-3 py-2 text-slate-500">{{ $index + 1 }}</td>
+                          <td class="px-3 py-2 text-slate-700">{{ row.no_perlawanan || '-' }}</td>
+                          <td class="px-3 py-2 text-slate-700">{{ row.tarikh }}</td>
+                          <td class="px-3 py-2 text-slate-700">{{ row.masa }}</td>
+                          <td class="px-3 py-2 text-slate-700">{{ row.kategori || '-' }}</td>
+                          <td class="px-3 py-2 text-slate-700">{{ row.peringkat || '-' }}</td>
+                          <td class="px-3 py-2 text-slate-700">{{ row.kumpulan || '-' }}</td>
+                          <td class="px-3 py-2 text-slate-700">{{ row.pasukan_home || '-' }}</td>
+                          <td class="px-3 py-2 text-slate-700">{{ row.pasukan_away || '-' }}</td>
+                          <td class="px-3 py-2 text-slate-700">{{ row.tempat || '-' }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- Submit -->
+            <div class="flex justify-end gap-3">
+              <button (click)="jadualUploadPreview = []; jadualUploadFileName = ''"
+                class="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Batal</button>
+              <button (click)="submitJadualUpload()" [disabled]="jadualUploading"
+                class="px-4 py-2 text-sm bg-pahang-black text-pahang-yellow font-semibold rounded-lg hover:bg-gray-800 disabled:opacity-60">
+                {{ jadualUploading ? 'Memuat naik...' : 'Muat Naik ' + jadualUploadPreview.length + ' Perlawanan' }}
+              </button>
+            </div>
+          }
+        } @else {
+          <!-- Upload Done -->
+          <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-5 text-center">
+            <svg class="w-10 h-10 text-emerald-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <p class="text-sm font-semibold text-emerald-800">{{ jadualUploadInserted }} perlawanan berjaya ditambah!</p>
+          </div>
+
+          @if (jadualUploadErrors.length > 0) {
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <p class="text-sm font-medium text-amber-800 mb-1">Baris bermasalah:</p>
+              @for (err of jadualUploadErrors; track err) {
+                <p class="text-xs text-amber-700">{{ err }}</p>
+              }
+            </div>
+          }
+
+          <div class="flex justify-end">
+            <button (click)="showJadualUploadModal = false"
+              class="px-4 py-2 text-sm bg-pahang-black text-pahang-yellow font-semibold rounded-lg hover:bg-gray-800">
+              Tutup
+            </button>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Pool Pengadil Modal -->
+@if (showPoolModal) {
+  <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" (click)="showPoolModal = false">
+    <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] flex flex-col" (click)="$event.stopPropagation()">
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+        <h3 class="text-base font-semibold">Tambah Pengadil ke Pool</h3>
+        <button (click)="showPoolModal = false" class="text-slate-400 hover:text-slate-600">&#x2715;</button>
+      </div>
+
+      <!-- Tab Toggle -->
+      <div class="px-6 pt-4 flex gap-2 shrink-0">
+        <button (click)="switchPoolTab('berdaftar')"
+          class="px-4 py-2 text-xs font-semibold rounded-lg transition"
+          [class]="poolTab === 'berdaftar' ? 'bg-pahang-black text-pahang-yellow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
+          Pengadil Berdaftar (Pahang)
+        </button>
+        <button (click)="switchPoolTab('luar')"
+          class="px-4 py-2 text-xs font-semibold rounded-lg transition"
+          [class]="poolTab === 'luar' ? 'bg-pahang-black text-pahang-yellow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
+          Pengadil Luar
+        </button>
+      </div>
+
+      <!-- Search -->
+      <div class="px-6 pt-3 shrink-0">
+        <input type="text" [(ngModel)]="poolSearchText" placeholder="Cari nama atau negeri..."
+          class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+      </div>
+
+      <!-- List -->
+      <div class="flex-1 overflow-y-auto px-6 py-3">
+        @if (filteredAvailable.length > 0) {
+          <div class="space-y-1">
+            @for (p of filteredAvailable; track p.id) {
+              <label class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 cursor-pointer transition"
+                [class.bg-blue-50]="selectedPoolIds.has(p.id)" [class.ring-1]="selectedPoolIds.has(p.id)" [class.ring-blue-300]="selectedPoolIds.has(p.id)">
+                <input type="checkbox" [checked]="selectedPoolIds.has(p.id)" (change)="togglePoolSelect(p.id)"
+                  class="w-4 h-4 rounded border-slate-300 text-blue-600" />
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium text-slate-800 truncate">{{ p.nama_penuh || p.nama }}</p>
+                  <p class="text-xs text-slate-500">
+                    {{ p.negeri || 'Pahang' }}
+                    @if (p.jenis_pengadil) { · {{ p.jenis_pengadil }} }
+                    @if (p.no_tel || p.no_telefon) { · {{ p.no_tel || p.no_telefon }} }
+                  </p>
+                </div>
+              </label>
+            }
+          </div>
+        } @else {
+          <div class="text-center py-8 text-slate-400 text-sm">
+            @if (poolTab === 'luar') {
+              Tiada pengadil luar tersedia. Sila daftar pengadil luar dahulu di menu "Pengadil Luar".
+            } @else {
+              Tiada pengadil berdaftar tersedia.
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Footer -->
+      <div class="px-6 py-4 border-t flex items-center justify-between shrink-0">
+        <span class="text-xs text-slate-500">{{ selectedPoolIds.size }} dipilih</span>
+        <div class="flex gap-2">
+          <button (click)="showPoolModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Batal</button>
+          <button (click)="addToPool()" [disabled]="selectedPoolIds.size === 0 || addingToPool"
+            class="px-4 py-2 text-sm bg-pahang-black text-pahang-yellow font-semibold rounded-lg hover:bg-gray-800 disabled:opacity-50">
+            {{ addingToPool ? 'Menambah...' : 'Tambah ke Pool' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Confirm Modal -->
+<app-confirm-modal [show]="showConfirmModal" [title]="confirmTitle" [message]="confirmMessage"
+  [confirmText]="confirmBtnText" [type]="confirmType"
+  (confirmed)="onConfirmed()" (cancelled)="showConfirmModal = false" />
+
+<!-- Laporan Detail Modal -->
+@if (showLaporanModal) {
+  <div class="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4 overflow-y-auto" (click)="showLaporanModal = false">
+    <div class="bg-white rounded-xl w-full max-w-3xl shadow-xl my-4" (click)="$event.stopPropagation()">
+      <!-- Header -->
+      <div class="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white rounded-t-xl z-10">
+        <div>
+          <h3 class="font-bold text-lg">Laporan Penilaian Pengadil</h3>
+          @if (laporanDetail) {
+            <p class="text-xs text-slate-500 mt-0.5">{{ laporanDetail.no_perlawanan }} — {{ laporanDetail.pasukan_home }} vs {{ laporanDetail.pasukan_away }}</p>
+          }
+        </div>
+        <div class="flex items-center gap-3">
+          @if (laporanDetail) {
+            <span class="px-2 py-0.5 text-xs font-semibold rounded-full" [class]="getLaporanStatusClass(laporanDetail.status)">{{ laporanDetail.status }}</span>
+          }
+          <button (click)="showLaporanModal = false" class="text-slate-400 hover:text-slate-600">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+      </div>
+
+      @if (loadingLaporanDetail) {
+        <div class="p-12 text-center text-slate-400">
+          <span class="material-icons text-4xl animate-spin block mb-2">refresh</span>
+          Memuatkan laporan...
+        </div>
+      } @else if (laporanDetail) {
+        <div class="p-6 space-y-5 text-sm">
+          <!-- Match Info -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-slate-50 rounded-xl p-4">
+            <div class="text-center">
+              <p class="text-xs text-slate-500 mb-1">Kesukaran</p>
+              <p class="font-medium">{{ laporanDetail.tahap_kesukaran || '-' }}</p>
+            </div>
+            <div class="text-center">
+              <p class="text-xs text-slate-500 mb-1">Penilai</p>
+              <p class="font-medium">{{ laporanDetail.nama_penilai || '-' }}</p>
+            </div>
+            <div class="text-center">
+              <p class="text-xs text-slate-500 mb-1">Tarikh</p>
+              <p class="font-medium">{{ laporanDetail.tarikh || '-' }}</p>
+            </div>
+            <div class="text-center">
+              <p class="text-xs text-slate-500 mb-1">Tempat</p>
+              <p class="font-medium">{{ laporanDetail.tempat || '-' }}</p>
+            </div>
+          </div>
+
+          <!-- Markah Summary -->
+          @if (laporanDetail.pegawai && laporanDetail.pegawai.length > 0) {
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              @for (pg of laporanDetail.pegawai; track pg.id) {
+                <div class="bg-slate-50 rounded-xl p-3 text-center border">
+                  <p class="text-[10px] text-slate-400 uppercase font-semibold">
+                    {{ pg.jawatan === 'Pengadil Utama' ? 'PU' : pg.jawatan === 'Pembantu Pengadil 1' ? 'PP1' : pg.jawatan === 'Pembantu Pengadil 2' ? 'PP2' : 'P4' }}
+                  </p>
+                  <p class="text-xs font-medium truncate mt-0.5">{{ pg.nama_pengadil }}</p>
+                  <p class="text-2xl font-bold mt-1" [class]="getMarkahClass(pg.markah)">{{ pg.markah ?? '-' }}</p>
+                  <p class="text-[10px] text-slate-400">{{ pg.prestasi || '-' }}</p>
+                </div>
+              }
+            </div>
+          }
+
+          <!-- Per-Official Details -->
+          @if (laporanDetail.pegawai && laporanDetail.pegawai.length > 0) {
+            @for (pg of laporanDetail.pegawai; track pg.id) {
+              <div class="border rounded-xl overflow-hidden">
+                <div class="bg-gray-900 text-white px-4 py-2.5 flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="material-icons text-yellow-400 text-lg">
+                      {{ pg.jawatan.includes('Utama') ? 'sports' : pg.jawatan.includes('Pembantu') ? 'flag' : 'person' }}
+                    </span>
+                    <div>
+                      <span class="font-semibold text-sm">{{ pg.nama_pengadil }}</span>
+                      <span class="text-gray-400 text-xs ml-2">{{ pg.jawatan }}</span>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <span class="text-lg font-bold" [class]="getMarkahClass(pg.markah)">{{ pg.markah ?? '-' }}</span>
+                  </div>
+                </div>
+
+                <div class="divide-y">
+                  <!-- Kawalan -->
+                  @if (pg.kawalan_kekuatan?.length || pg.kawalan_kelemahan?.length || pg.kawalan_nasihat) {
+                    <div class="p-4 space-y-2">
+                      <p class="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                        {{ pg.jawatan === 'Pengadil Utama' ? 'Kawalan Permainan' : pg.jawatan.includes('Pembantu') ? 'Penolong Pengadil' : 'Pegawai Keempat' }}
+                      </p>
+                      @if (pg.kawalan_kekuatan?.length) {
+                        <div>
+                          <p class="text-[10px] font-semibold text-green-700 mb-1">KEKUATAN</p>
+                          <div class="flex flex-wrap gap-1">
+                            @for (item of pg.kawalan_kekuatan; track item) {
+                              <span class="px-2 py-0.5 bg-green-50 text-green-700 border border-green-200 rounded-full text-[11px]">{{ item }}</span>
+                            }
+                          </div>
+                        </div>
+                      }
+                      @if (pg.kawalan_kelemahan?.length) {
+                        <div>
+                          <p class="text-[10px] font-semibold text-red-600 mb-1">KELEMAHAN</p>
+                          <div class="flex flex-wrap gap-1">
+                            @for (item of pg.kawalan_kelemahan; track item) {
+                              <span class="px-2 py-0.5 bg-red-50 text-red-700 border border-red-200 rounded-full text-[11px]">{{ item }}</span>
+                            }
+                          </div>
+                        </div>
+                      }
+                      @if (pg.kawalan_nasihat) {
+                        <div>
+                          <p class="text-[10px] font-semibold text-blue-600 mb-1">NASIHAT</p>
+                          <p class="text-xs text-slate-700 whitespace-pre-wrap">{{ pg.kawalan_nasihat }}</p>
+                        </div>
+                      }
+                    </div>
+                  }
+
+                  <!-- Fizikal (PU only) -->
+                  @if (pg.fizikal_kekuatan?.length || pg.fizikal_kelemahan?.length || pg.fizikal_nasihat) {
+                    <div class="p-4 space-y-2">
+                      <p class="text-xs font-bold text-slate-800 uppercase tracking-wide">Kecergasan Fizikal & Posisi</p>
+                      @if (pg.fizikal_kekuatan?.length) {
+                        <div>
+                          <p class="text-[10px] font-semibold text-green-700 mb-1">KEKUATAN</p>
+                          <div class="flex flex-wrap gap-1">
+                            @for (item of pg.fizikal_kekuatan; track item) {
+                              <span class="px-2 py-0.5 bg-green-50 text-green-700 border border-green-200 rounded-full text-[11px]">{{ item }}</span>
+                            }
+                          </div>
+                        </div>
+                      }
+                      @if (pg.fizikal_kelemahan?.length) {
+                        <div>
+                          <p class="text-[10px] font-semibold text-red-600 mb-1">KELEMAHAN</p>
+                          <div class="flex flex-wrap gap-1">
+                            @for (item of pg.fizikal_kelemahan; track item) {
+                              <span class="px-2 py-0.5 bg-red-50 text-red-700 border border-red-200 rounded-full text-[11px]">{{ item }}</span>
+                            }
+                          </div>
+                        </div>
+                      }
+                      @if (pg.fizikal_nasihat) {
+                        <div>
+                          <p class="text-[10px] font-semibold text-blue-600 mb-1">NASIHAT</p>
+                          <p class="text-xs text-slate-700 whitespace-pre-wrap">{{ pg.fizikal_nasihat }}</p>
+                        </div>
+                      }
+                    </div>
+                  }
+
+                  <!-- Kerjasama (PU only) -->
+                  @if (pg.kerjasama_kekuatan?.length || pg.kerjasama_kelemahan?.length || pg.kerjasama_nasihat) {
+                    <div class="p-4 space-y-2">
+                      <p class="text-xs font-bold text-slate-800 uppercase tracking-wide">Kerjasama Berpasukan</p>
+                      @if (pg.kerjasama_kekuatan?.length) {
+                        <div>
+                          <p class="text-[10px] font-semibold text-green-700 mb-1">KEKUATAN</p>
+                          <div class="flex flex-wrap gap-1">
+                            @for (item of pg.kerjasama_kekuatan; track item) {
+                              <span class="px-2 py-0.5 bg-green-50 text-green-700 border border-green-200 rounded-full text-[11px]">{{ item }}</span>
+                            }
+                          </div>
+                        </div>
+                      }
+                      @if (pg.kerjasama_kelemahan?.length) {
+                        <div>
+                          <p class="text-[10px] font-semibold text-red-600 mb-1">KELEMAHAN</p>
+                          <div class="flex flex-wrap gap-1">
+                            @for (item of pg.kerjasama_kelemahan; track item) {
+                              <span class="px-2 py-0.5 bg-red-50 text-red-700 border border-red-200 rounded-full text-[11px]">{{ item }}</span>
+                            }
+                          </div>
+                        </div>
+                      }
+                      @if (pg.kerjasama_nasihat) {
+                        <div>
+                          <p class="text-[10px] font-semibold text-blue-600 mb-1">NASIHAT</p>
+                          <p class="text-xs text-slate-700 whitespace-pre-wrap">{{ pg.kerjasama_nasihat }}</p>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              </div>
+            }
+          }
+
+          @if (laporanDetail.ulasan_keseluruhan) {
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <p class="text-xs font-semibold text-blue-700 mb-1">Ulasan Keseluruhan</p>
+              <p class="text-slate-700 whitespace-pre-wrap">{{ laporanDetail.ulasan_keseluruhan }}</p>
+            </div>
+          }
+
+          @if (laporanDetail.status === 'Dihantar') {
+            <!-- Sahkan section -->
+            <div class="border-2 border-pahang-yellow rounded-xl p-4 space-y-3">
+              <p class="text-sm font-semibold text-slate-800">Tindakan Admin — Sahkan & Hantar kepada Pegawai</p>
+              <div>
+                <label class="block text-xs font-medium mb-1 text-slate-600">Catatan Admin (pilihan)</label>
+                <textarea [(ngModel)]="catatanAdmin" rows="3"
+                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow"
+                  placeholder="Tambah catatan atau maklum balas kepada penilai..."></textarea>
+              </div>
+              <button (click)="sahkanLaporan()" [disabled]="submittingSahkan"
+                class="bg-pahang-yellow text-black font-semibold px-6 py-2 rounded-lg text-sm hover:bg-yellow-500 disabled:opacity-50">
+                {{ submittingSahkan ? 'Mengesahkan...' : 'Sahkan & Hantar Laporan' }}
+              </button>
+            </div>
+          }
+
+          @if (laporanDetail.catatan_admin) {
+            <div class="bg-pahang-yellow/10 border border-pahang-yellow/30 rounded-xl p-4">
+              <p class="text-xs font-semibold text-slate-700 mb-1">Catatan Admin</p>
+              <p class="text-slate-700">{{ laporanDetail.catatan_admin }}</p>
+            </div>
+          }
+        </div>
+      }
+
+      <div class="px-6 py-4 border-t flex justify-end">
+        <button (click)="showLaporanModal = false" class="px-4 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-100">Tutup</button>
+      </div>
+    </div>
+  </div>
+}
+

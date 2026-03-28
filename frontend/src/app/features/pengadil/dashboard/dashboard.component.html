@@ -1,0 +1,163 @@
+@if (loading) {
+  <app-loading message="Memuatkan dashboard..." />
+} @else {
+  <div class="space-y-6">
+    <!-- Welcome -->
+    <div class="bg-linear-to-r from-black to-gray-800 rounded-xl p-6 text-white">
+      <h2 class="text-xl font-bold">Selamat Datang, {{ profile.nama_penuh || auth.currentUser?.nama_penuh }}</h2>
+      <p class="text-gray-300 text-sm mt-1">Panel Pengadil — Sistem Pengurusan Pengadil PBNP</p>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+          <span class="material-icons text-blue-600">sports_soccer</span>
+        </div>
+        <div>
+          <p class="text-2xl font-bold">{{ matchStats.total }}</p>
+          <p class="text-xs text-gray-500">Perlawanan {{ matchStats.year }}</p>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+          <span class="material-icons text-green-600">check_circle</span>
+        </div>
+        <div>
+          <p class="text-2xl font-bold">{{ matchStats.verified }}</p>
+          <p class="text-xs text-gray-500">Disahkan PP</p>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-lg flex items-center justify-center"
+          [class]="matchStats.eligible ? 'bg-green-100' : 'bg-yellow-100'">
+          <span class="material-icons" [class]="matchStats.eligible ? 'text-green-600' : 'text-yellow-600'">
+            {{ matchStats.eligible ? 'verified' : 'pending' }}
+          </span>
+        </div>
+        <div>
+          <p class="text-sm font-bold" [class]="matchStats.eligible ? 'text-green-700' : 'text-yellow-700'">
+            {{ matchStats.eligible ? 'Layak' : 'Belum Layak' }}
+          </p>
+          <p class="text-xs text-gray-500">Status Kelayakan</p>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-lg flex items-center justify-center"
+          [class]="pendingLantikan > 0 ? 'bg-red-100' : 'bg-purple-100'">
+          <span class="material-icons" [class]="pendingLantikan > 0 ? 'text-red-600' : 'text-purple-600'">assignment_ind</span>
+        </div>
+        <div>
+          <p class="text-2xl font-bold">{{ pendingLantikan }}</p>
+          <p class="text-xs text-gray-500">Lantikan Belum Jawab</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Links + Recent -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Quick Links -->
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <h3 class="font-semibold text-lg mb-4">Pautan Pantas</h3>
+        <div class="grid grid-cols-2 gap-3">
+          <a routerLink="/pengadil/profil" class="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-pahang-yellow/10 transition">
+            <span class="material-icons text-gray-600">person</span>
+            <span class="text-sm font-medium">Profil Saya</span>
+          </a>
+          <a routerLink="/pengadil/tugasan" class="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-pahang-yellow/10 transition">
+            <span class="material-icons text-gray-600">assignment_ind</span>
+            <span class="text-sm font-medium">Tugasan Lantikan</span>
+          </a>
+          <a routerLink="/pengadil/perlawanan" class="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-pahang-yellow/10 transition">
+            <span class="material-icons text-gray-600">sports</span>
+            <span class="text-sm font-medium">Rekod Perlawanan</span>
+          </a>
+          <a routerLink="/pengadil/permohonan/berdaftar" class="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-pahang-yellow/10 transition">
+            <span class="material-icons text-gray-600">badge</span>
+            <span class="text-sm font-medium">Pengadil Berdaftar</span>
+          </a>
+          <a routerLink="/pengadil/permohonan/futsal" class="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-pahang-yellow/10 transition">
+            <span class="material-icons text-gray-600">sports_soccer</span>
+            <span class="text-sm font-medium">Pengadil Futsal</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Recent Notifications -->
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <h3 class="font-semibold text-lg mb-4">Notifikasi Terkini</h3>
+        @if (notifications.length) {
+          <div class="space-y-3">
+            @for (n of notifications; track n.id) {
+              <div class="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                <span class="material-icons text-sm mt-0.5"
+                  [class]="n.type === 'approved' ? 'text-green-500' : n.type === 'rejected' ? 'text-red-500' : 'text-blue-500'">
+                  {{ n.type === 'approved' ? 'check_circle' : n.type === 'rejected' ? 'cancel' : 'info' }}
+                </span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium truncate">{{ n.title || n.message }}</p>
+                  <p class="text-xs text-gray-500">{{ n.created_at }}</p>
+                </div>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="text-sm text-gray-400 text-center py-4">Tiada notifikasi.</p>
+        }
+      </div>
+    </div>
+
+    <!-- Announcements -->
+    @if (announcements.length) {
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <h3 class="font-semibold text-lg mb-4">Pengumuman</h3>
+        <div class="space-y-3">
+          @for (ann of announcements; track ann.id) {
+            <div class="py-3 border-b border-gray-100 last:border-0">
+              <p class="text-sm font-medium text-gray-900">{{ ann.title }}</p>
+              <p class="text-xs text-gray-500 mt-1">{{ ann.content }}</p>
+              <p class="text-xs text-gray-400 mt-1">{{ ann.created_at_formatted || ann.created_at }}</p>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- Recent Matches -->
+    @if (recentMatches.length) {
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-semibold text-lg">Perlawanan Terkini</h3>
+          <a routerLink="/pengadil/perlawanan" class="text-sm text-pahang-yellow hover:underline font-medium">Lihat semua</a>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-left">
+              <tr>
+                <th class="px-4 py-2 font-semibold text-gray-600">Perlawanan</th>
+                <th class="px-4 py-2 font-semibold text-gray-600">Jenis</th>
+                <th class="px-4 py-2 font-semibold text-gray-600">Tarikh</th>
+                <th class="px-4 py-2 font-semibold text-gray-600">Status</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y">
+              @for (m of recentMatches; track m.id) {
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-2 font-medium">{{ m.home_team }} vs {{ m.away_team }}</td>
+                  <td class="px-4 py-2">{{ m.jenis || '-' }}</td>
+                  <td class="px-4 py-2">{{ m.tarikh }}</td>
+                  <td class="px-4 py-2">
+                    <span class="px-2 py-0.5 text-xs font-semibold rounded-full"
+                      [class]="m.status_pp === 'Disahkan' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'">
+                      {{ m.status_pp || 'Belum Disahkan' }}
+                    </span>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  </div>
+}

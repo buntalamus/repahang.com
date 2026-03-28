@@ -1,0 +1,154 @@
+<div class="space-y-6">
+  @if (loading) {
+    <app-loading message="Memuatkan perlawanan..." />
+  } @else {
+    <!-- Stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+          <span class="material-icons text-blue-600">sports_soccer</span>
+        </div>
+        <div>
+          <p class="text-2xl font-bold">{{ stats.total }}</p>
+          <p class="text-xs text-gray-500">Jumlah Perlawanan</p>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+          <span class="material-icons text-green-600">check_circle</span>
+        </div>
+        <div>
+          <p class="text-2xl font-bold">{{ stats.disahkan }}</p>
+          <p class="text-xs text-gray-500">Disahkan</p>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-lg bg-yellow-100 flex items-center justify-center">
+          <span class="material-icons text-yellow-600">schedule</span>
+        </div>
+        <div>
+          <p class="text-2xl font-bold">{{ stats.belum_disahkan }}</p>
+          <p class="text-xs text-gray-500">Belum Disahkan</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search + Add Button -->
+    <div class="bg-white rounded-xl shadow-sm p-4 flex flex-col sm:flex-row gap-3">
+      <div class="relative flex-1">
+        <span class="material-icons absolute left-3 top-2.5 text-gray-400 text-xl">search</span>
+        <input type="text" placeholder="Cari perlawanan..." (input)="onSearch($event)" class="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-pahang-yellow focus:border-transparent" />
+      </div>
+      <button (click)="openForm()" class="inline-flex items-center gap-2 px-4 py-2 bg-pahang-yellow text-black font-semibold rounded-lg hover:bg-yellow-500 transition text-sm">
+        <span class="material-icons text-sm">add</span>Tambah Perlawanan
+      </button>
+    </div>
+
+    <!-- Add Match Form -->
+    @if (showForm) {
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <h3 class="font-semibold text-lg mb-4">Tambah Perlawanan Baharu</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium mb-1">Pasukan Tuan Rumah *</label>
+            <input [(ngModel)]="form.home_team" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow" placeholder="Nama pasukan" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Pasukan Lawan *</label>
+            <input [(ngModel)]="form.away_team" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow" placeholder="Nama pasukan" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Tarikh *</label>
+            <input type="date" [(ngModel)]="form.tarikh" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Jenis</label>
+            <select [(ngModel)]="form.jenis" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow">
+              <option value="">-- Pilih --</option>
+              <option value="Liga">Liga</option>
+              <option value="Piala">Piala</option>
+              <option value="Persahabatan">Persahabatan</option>
+              <option value="Lain-lain">Lain-lain</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Tempat</label>
+            <input [(ngModel)]="form.tempat" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow" placeholder="Lokasi perlawanan" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Jawatan</label>
+            <select [(ngModel)]="form.jawatan" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow">
+              <option value="">-- Pilih --</option>
+              <option value="Pengadil">Pengadil</option>
+              <option value="Penolong Pengadil 1">Penolong Pengadil 1</option>
+              <option value="Penolong Pengadil 2">Penolong Pengadil 2</option>
+              <option value="Pengadil Ke-4">Pengadil Ke-4</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 mt-4">
+          <button (click)="cancelForm()" class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Batal</button>
+          <button (click)="submitMatch()" [disabled]="submitting" class="px-6 py-2 text-sm font-semibold bg-pahang-yellow text-black rounded-lg hover:bg-yellow-500 disabled:opacity-50">
+            {{ submitting ? 'Menyimpan...' : 'Simpan' }}
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- Table -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-left">
+            <tr>
+              <th class="px-4 py-3 font-semibold text-gray-600">#</th>
+              <th class="px-4 py-3 font-semibold text-gray-600">Perlawanan</th>
+              <th class="px-4 py-3 font-semibold text-gray-600">Jenis</th>
+              <th class="px-4 py-3 font-semibold text-gray-600">Tarikh</th>
+              <th class="px-4 py-3 font-semibold text-gray-600">Tempat</th>
+              <th class="px-4 py-3 font-semibold text-gray-600">Jawatan</th>
+              <th class="px-4 py-3 font-semibold text-gray-600">Status PP</th>
+              <th class="px-4 py-3 font-semibold text-gray-600">Tindakan</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y">
+            @for (m of filtered; track m.id; let i = $index) {
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-3 text-gray-500">{{ i + 1 }}</td>
+                <td class="px-4 py-3 font-medium">
+                  {{ m.home_team }} vs {{ m.away_team }}
+                  @if (m.lantikan_id) {
+                    <span class="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-50 text-blue-600 border border-blue-200">Lantikan Rasmi</span>
+                  }
+                </td>
+                <td class="px-4 py-3">{{ m.jenis || '-' }}</td>
+                <td class="px-4 py-3">{{ m.tarikh }}</td>
+                <td class="px-4 py-3">{{ m.tempat }}</td>
+                <td class="px-4 py-3">{{ m.jawatan }}</td>
+                <td class="px-4 py-3">
+                  <span class="px-2 py-0.5 text-xs font-semibold rounded-full" [class]="statusClass(m.status_pp)">
+                    {{ m.status_pp }}
+                  </span>
+                </td>
+                <td class="px-4 py-3">
+                  @if (!m.lantikan_id && m.status_pp !== 'Disahkan') {
+                    <button (click)="deleteMatch(m.id)" class="text-red-500 hover:text-red-700" title="Padam">
+                      <span class="material-icons text-sm">delete</span>
+                    </button>
+                  }
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="8" class="px-4 py-12 text-center text-gray-400">
+                  <span class="material-icons text-4xl mb-2 block">sports_soccer</span>
+                  Tiada rekod perlawanan.
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+</div>

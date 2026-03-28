@@ -1,0 +1,61 @@
+@if (loading) {
+  <app-loading message="Memuatkan pengumuman..." />
+} @else {
+  <div class="flex items-center justify-between mb-6">
+    <h3 class="text-lg font-semibold text-slate-900">Senarai Pengumuman</h3>
+    <button (click)="openAdd()"
+      class="px-4 py-2 bg-pahang-black text-pahang-yellow text-sm font-semibold rounded-lg hover:bg-gray-800 transition">
+      + Tambah Pengumuman
+    </button>
+  </div>
+
+  <div class="space-y-4">
+    @for (ann of announcements; track ann.id) {
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <h4 class="text-base font-semibold text-slate-900">{{ ann.title }}</h4>
+            <p class="text-sm text-slate-600 mt-2 whitespace-pre-line">{{ ann.content }}</p>
+            <p class="text-xs text-slate-400 mt-3">{{ ann.created_at }}</p>
+          </div>
+          <div class="flex gap-2 ml-4">
+            <button (click)="openEdit(ann)" class="text-blue-600 hover:text-blue-800 text-xs font-medium">Edit</button>
+            <button (click)="deleteAnnouncement(ann.id)" class="text-red-600 hover:text-red-800 text-xs font-medium">Padam</button>
+          </div>
+        </div>
+      </div>
+    } @empty {
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
+        <p class="text-slate-400">Tiada pengumuman.</p>
+      </div>
+    }
+  </div>
+}
+
+<!-- Modal -->
+@if (showModal) {
+  <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" (click)="showModal = false">
+    <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
+      <div class="p-6 border-b border-slate-200 flex items-center justify-between">
+        <h3 class="text-lg font-semibold">{{ editMode ? 'Edit Pengumuman' : 'Tambah Pengumuman' }}</h3>
+        <button (click)="showModal = false" class="text-slate-400 hover:text-slate-600">✕</button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Tajuk</label>
+          <input type="text" [(ngModel)]="form.title" class="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Kandungan</label>
+          <textarea [(ngModel)]="form.content" rows="6" class="w-full px-4 py-2 border border-gray-300 rounded-lg resize-y"></textarea>
+        </div>
+        <div class="flex justify-end gap-3 pt-4">
+          <button (click)="showModal = false"
+            class="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Batal</button>
+          <button (click)="save()"
+            class="px-4 py-2 text-sm bg-pahang-black text-pahang-yellow font-semibold rounded-lg hover:bg-gray-800">Simpan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

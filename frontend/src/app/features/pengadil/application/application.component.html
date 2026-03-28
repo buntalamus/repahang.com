@@ -1,0 +1,142 @@
+<div class="space-y-6">
+  @if (loading) {
+    <app-loading [message]="'Memuatkan ' + typeLabel + '...'" />
+  } @else {
+    <!-- Current Application Status -->
+    @if (currentApp) {
+      <div class="bg-white rounded-xl shadow-sm p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="material-icons text-pahang-yellow text-2xl">pending_actions</span>
+          <h3 class="text-lg font-semibold">Permohonan Semasa</h3>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <p class="text-xs text-gray-500">Tarikh Hantar</p>
+            <p class="font-medium">{{ currentApp.tarikh_hantar || currentApp.created_at }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-500">Jenis Borang</p>
+            <p class="font-medium">{{ currentApp.jenis_borang || typeLabel }}</p>
+          </div>
+          <div>
+            <p class="text-xs text-gray-500">Status</p>
+            <span class="px-2 py-0.5 text-xs font-semibold rounded-full" [class]="statusClass(currentApp.status_workflow || currentApp.status)">
+              {{ currentApp.status_workflow || currentApp.status }}
+            </span>
+          </div>
+        </div>
+        @if (currentApp.pp_notes || currentApp.admin_notes) {
+          <div class="mt-4 p-3 bg-gray-50 rounded-lg text-sm text-gray-600">
+            @if (currentApp.pp_notes) {
+              <p><strong>Catatan PP Daerah:</strong> {{ currentApp.pp_notes }}</p>
+            }
+            @if (currentApp.admin_notes) {
+              <p><strong>Catatan Admin:</strong> {{ currentApp.admin_notes }}</p>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Submit New Application -->
+    @if (!currentApp) {
+      <div class="bg-white rounded-xl shadow-sm">
+        <div class="px-6 py-4 border-b">
+          <h3 class="font-semibold text-lg">Hantar {{ typeLabel }}</h3>
+        </div>
+        <div class="p-6 space-y-4">
+          @if (type === 'futsal') {
+            <div>
+              <label class="block text-sm font-medium mb-1">Nama Pertandingan</label>
+              <input [(ngModel)]="form.nama_pertandingan" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">Tarikh</label>
+              <input type="date" [(ngModel)]="form.tarikh" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow" />
+            </div>
+          }
+
+          @if (type === 'kecergasan') {
+            <div>
+              <label class="block text-sm font-medium mb-1">Keputusan Larian 2.4km (minit)</label>
+              <input type="number" [(ngModel)]="form.keputusan_larian" step="0.01" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">Keputusan Yo-Yo Test</label>
+              <input type="number" [(ngModel)]="form.keputusan_yoyo" step="0.01" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow" />
+            </div>
+          }
+
+          <div>
+            <label class="block text-sm font-medium mb-1">Dokumen Sokongan</label>
+            <input type="file" (change)="onFileSelected($event)" accept=".pdf,.jpg,.jpeg,.png" class="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-pahang-yellow file:text-black file:font-semibold file:cursor-pointer" />
+            <p class="text-xs text-gray-400 mt-1">Format: PDF, JPG, PNG (Maks 5MB)</p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1">Catatan (Pilihan)</label>
+            <textarea [(ngModel)]="form.catatan" rows="3" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow"></textarea>
+          </div>
+
+          <div class="flex justify-end pt-2">
+            <button (click)="submit()" [disabled]="submitting" class="bg-pahang-yellow text-black font-semibold px-8 py-2.5 rounded-lg hover:bg-yellow-500 disabled:opacity-50">
+              {{ submitting ? 'Menghantar...' : 'Hantar Permohonan' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- History -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div class="px-6 py-4 border-b">
+        <h3 class="font-semibold text-lg">Sejarah Permohonan</h3>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 text-left">
+            <tr>
+              <th class="px-4 py-3 font-semibold text-gray-600">#</th>
+              <th class="px-4 py-3 font-semibold text-gray-600">Tarikh</th>
+              <th class="px-4 py-3 font-semibold text-gray-600">Jenis Borang</th>
+              <th class="px-4 py-3 font-semibold text-gray-600">Status</th>
+              <th class="px-4 py-3 font-semibold text-gray-600">Catatan</th>
+              <th class="px-4 py-3 font-semibold text-gray-600">Muat Turun</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y">
+            @for (a of history; track a.id; let i = $index) {
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-3 text-gray-500">{{ i + 1 }}</td>
+                <td class="px-4 py-3">{{ a.tarikh_hantar || a.created_at }}</td>
+                <td class="px-4 py-3">{{ a.jenis_borang || typeLabel }}</td>
+                <td class="px-4 py-3">
+                  <span class="px-2 py-0.5 text-xs font-semibold rounded-full" [class]="statusClass(a.status_workflow || a.status)">
+                    {{ a.status_workflow || a.status }}
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-gray-500">{{ a.admin_notes || a.pp_notes || '-' }}</td>
+                <td class="px-4 py-3">
+                  @if (a.status_workflow === 'Lengkap' || a.status_workflow === 'Admin Diluluskan' || a.status_workflow === 'Bayaran Diterima' || a.status === 'Approved') {
+                    <button (click)="downloadPdf(a)" class="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800">
+                      <span class="material-icons text-sm">download</span>PDF
+                    </button>
+                  } @else {
+                    <span class="text-gray-300">-</span>
+                  }
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6" class="px-4 py-12 text-center text-gray-400">
+                  <span class="material-icons text-4xl mb-2 block">description</span>
+                  Tiada sejarah permohonan.
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+</div>

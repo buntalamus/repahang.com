@@ -1,0 +1,134 @@
+# Environment files (contain credentials)
+.env
+.env.local
+.env.production
+
+# Testing & Debug Files
+test_*.php
+test_*.html
+test_*.json
+check_*.php
+debug_*.php
+temp_*.php
+tmp_*
+*_test.php
+*_debug.php
+
+# Migration & Setup Scripts (after migration complete)
+migrate_*.php
+run_migration*.php
+setup_*.php
+create_*.php
+add_*.php
+insert_*.php
+export_*.php
+import_*.php
+fix_*.php
+compare_*.php
+analyze_*.php
+smart_*.php
+simulate_*.php
+update_db.php
+reset-*.php
+
+# SQL Backups & Dumps (keep only latest)
+*.sql.old
+*_backup.sql
+*_migration*.sql
+local_db_backup.sql
+migrated_*.sql
+smart_migration*.sql
+complete_db*.sql
+
+# Temporary Folders
+tmp_*/
+temp_*/
+delete/
+query/
+stop/
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Media / Binary Files (not source code)
+*.mp4
+*.xlsx
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.gif
+!assets/**
+!uploads/**
+
+# SQLite DB
+database.sqlite
+
+# Large SQL dumps (root level only)
+/if0_*.sql
+/*.sql
+
+# Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+
+# Dependencies (should be in repo but just in case)
+vendor/
+node_modules/
+
+# Uploads & Storage (user generated content)
+uploads/*
+!uploads/.gitkeep
+storage/uploads/*
+!storage/uploads/.gitkeep
+
+# Config Files with Credentials (if any)
+config/credentials.php
+.env
+
+# Backup Files
+*.bak
+*_backup.*
+backup_*
+
+# Compressed Files
+*.zip
+*.tar
+*.gz
+*.rar
+
+# Documentation Drafts
+*_draft.md
+*_OLD.md
+README_*.md
+
+# PHP Cache
+*.cache
+cache/
+
+# Composer
+composer.lock
+
+# NPM
+package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build Outputs
+dist/
+build/
+
+# Cleanup Scripts (after use)
+cleanup_*.php

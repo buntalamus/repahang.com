@@ -1,0 +1,173 @@
+@if (loading) {
+  <app-loading message="Memuatkan laporan..." />
+} @else {
+  <!-- Stats Cards -->
+  <div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+      <p class="text-xs uppercase tracking-wide text-slate-400">Jumlah Permohonan</p>
+      <p class="text-3xl font-bold text-slate-900 mt-2">{{ stats.total }}</p>
+      <p class="text-xs text-slate-400 mt-3">Data terkini daripada pangkalan data.</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+      <p class="text-xs uppercase tracking-wide text-emerald-500">Diluluskan</p>
+      <p class="text-3xl font-bold text-emerald-600 mt-2">{{ stats.approved }}</p>
+      <p class="text-xs text-slate-400 mt-3">Permohonan lengkap dan diluluskan.</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+      <p class="text-xs uppercase tracking-wide text-amber-500">Menunggu Semakan</p>
+      <p class="text-3xl font-bold text-amber-600 mt-2">{{ stats.pending }}</p>
+      <p class="text-xs text-slate-400 mt-3">Perlu tindakan admin.</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+      <p class="text-xs uppercase tracking-wide text-rose-500">Ditolak</p>
+      <p class="text-3xl font-bold text-rose-600 mt-2">{{ stats.rejected }}</p>
+      <p class="text-xs text-slate-400 mt-3">Rujuk semula pemohon.</p>
+    </div>
+  </div>
+
+  <!-- Main Card -->
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200">
+    <!-- Header + Filters -->
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-6 py-4 border-b border-slate-200">
+      <div>
+        <h3 class="text-lg font-semibold text-slate-900">Senarai Permohonan</h3>
+        <p class="text-xs text-slate-500 mt-1">Kemaskini status permohonan dan semak butiran penting.</p>
+      </div>
+      <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
+        <label class="flex items-center bg-slate-100 px-3 py-2 rounded-lg">
+          <svg class="h-4 w-4 text-slate-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+          </svg>
+          <input type="search" [(ngModel)]="searchQuery" (ngModelChange)="applyFilter()"
+            placeholder="Cari nama atau no. KP"
+            class="bg-transparent text-sm outline-none text-slate-700 w-48" />
+        </label>
+        <select [(ngModel)]="statusFilter" (ngModelChange)="loadApplications()"
+          class="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400">
+          <option value="all">Status: Semua</option>
+          <option value="Menunggu Admin">Menunggu Admin</option>
+          <option value="Lengkap">Lengkap</option>
+          <option value="Ditolak">Ditolak</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
+          <tr>
+            <th class="px-6 py-4">Pemohon</th>
+            <th class="px-6 py-4">Jenis Permohonan</th>
+            <th class="px-6 py-4">Tarikh Hantar</th>
+            <th class="px-6 py-4">Status</th>
+            <th class="px-6 py-4">Tindakan</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          @for (app of paged; track app.id) {
+            <tr class="hover:bg-slate-50 transition">
+              <td class="align-top px-6 py-5">
+                <div class="flex items-start space-x-3">
+                  <img [src]="getProfileImage(app)" [alt]="app.nama_penuh"
+                    class="w-16 h-16 rounded-full object-cover border-2 border-slate-200" />
+                  <div class="flex-1">
+                    <p class="font-semibold text-slate-900">{{ app.nama_penuh || 'Tanpa Nama' }}</p>
+                    <p class="text-xs text-slate-500 mt-1">{{ app.no_kp || '-' }}</p>
+                    <p class="text-xs text-slate-400 mt-1">{{ app.emel || app.email || '-' }} &bull; {{ app.no_telefon || '-' }}</p>
+                    @if (app.jenis_pengadil) {
+                      <span class="text-xs font-semibold bg-black text-yellow-400 px-2 py-1 rounded inline-block mt-2">{{ app.jenis_pengadil }}</span>
+                    }
+                    @if (app.saiz_baju) {
+                      <p class="text-xs text-slate-600 mt-2">Saiz Baju: <strong>{{ app.saiz_baju }}</strong></p>
+                    }
+                    <!-- Expandable Details -->
+                    <details class="mt-3">
+                      <summary class="text-xs text-blue-600 hover:text-blue-800 font-semibold cursor-pointer select-none">Butiran Lanjut</summary>
+                      <div class="mt-2 text-xs text-slate-500 space-y-1">
+                        <p><span class="font-semibold text-slate-600">Alamat:</span> {{ formatAddress(app) }}</p>
+                        <p><span class="font-semibold text-slate-600">Pekerjaan:</span> {{ app.pekerjaan || '-' }}</p>
+                        <p><span class="font-semibold text-slate-600">Waris:</span> {{ app.nama_waris || '-' }} ({{ app.no_telefon_waris || '-' }})</p>
+                        <p>
+                          <span class="font-semibold text-slate-600">Resit Bayaran:</span>
+                          @if (getReceiptUrl(app)) {
+                            <a [href]="getReceiptUrl(app)" target="_blank" class="text-blue-600 underline">Lihat Resit</a>
+                          } @else {
+                            Tiada
+                          }
+                        </p>
+                        <p><span class="font-semibold text-slate-600">Rekod Perlawanan:</span> {{ app.total_matches || 0 }} perlawanan disahkan</p>
+                      </div>
+                    </details>
+                  </div>
+                </div>
+              </td>
+              <td class="align-top px-6 py-5 text-sm text-slate-600">{{ app.jenis_permohonan || 'Pendaftaran Pengadil' }}</td>
+              <td class="align-top px-6 py-5 text-sm text-slate-600">{{ app.tarikh_hantar || '-' }}</td>
+              <td class="align-top px-6 py-5">
+                <span class="px-3 py-1 rounded-full text-xs font-semibold"
+                  [class]="(app.status === 'Menunggu Admin' || app.status === 'Menunggu PP Daerah') ? 'bg-amber-100 text-amber-700' :
+                    (app.status === 'Lengkap' || app.status === 'Admin Diluluskan') ? 'bg-green-100 text-green-700' :
+                    app.status === 'Ditolak' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-700'">
+                  {{ app.status }}
+                </span>
+              </td>
+              <td class="align-top px-6 py-5">
+                <div class="flex flex-col space-y-2">
+                  <button (click)="approve(app.permohonan_id || app.id)"
+                    class="px-4 py-2 bg-emerald-500 text-white rounded-lg text-xs font-semibold hover:bg-emerald-600 transition"
+                    [class.opacity-60]="app.status === 'Lengkap' || app.status === 'Admin Diluluskan'"
+                    [class.pointer-events-none]="app.status === 'Lengkap' || app.status === 'Admin Diluluskan'">
+                    ✓ Luluskan
+                  </button>
+                  <button (click)="openReject(app)"
+                    class="px-4 py-2 bg-rose-500 text-white rounded-lg text-xs font-semibold hover:bg-rose-600 transition"
+                    [class.opacity-60]="app.status === 'Ditolak'"
+                    [class.pointer-events-none]="app.status === 'Ditolak'">
+                    ✗ Tolak
+                  </button>
+                  <button (click)="downloadForm(app.permohonan_id || app.id)"
+                    class="px-4 py-2 bg-blue-500 text-white rounded-lg text-xs font-semibold hover:bg-blue-600 transition">
+                    ↓ Muat Turun
+                  </button>
+                </div>
+              </td>
+            </tr>
+          } @empty {
+            <tr><td colspan="5" class="px-6 py-12 text-center text-slate-400">Tiada permohonan ditemui untuk kriteria yang dipilih.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <app-pagination
+      [totalItems]="filtered.length"
+      [pageSize]="pageSize"
+      [currentPage]="currentPage"
+      (pageChange)="onPageChange($event)"
+      (pageSizeChange)="onPageSizeChange($event)" />
+  </div>
+
+  <!-- Reject Modal -->
+  @if (showRejectModal) {
+    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" (click)="cancelReject()">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden" (click)="$event.stopPropagation()">
+        <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+          <h3 class="text-lg font-bold text-slate-900">Tolak Permohonan</h3>
+          <button (click)="cancelReject()" class="text-slate-400 hover:text-red-600 text-2xl font-bold leading-none">&times;</button>
+        </div>
+        <div class="p-6">
+          <p class="text-sm text-slate-600 mb-4">Tolak permohonan <span class="font-semibold">{{ rejectTargetName }}</span>?</p>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">Sebab Penolakan:</label>
+          <textarea [(ngModel)]="rejectReason" rows="3" placeholder="Nyatakan sebab penolakan..."
+            class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-400 focus:border-transparent"></textarea>
+        </div>
+        <div class="px-6 py-4 border-t border-slate-200 flex justify-end gap-3">
+          <button (click)="cancelReject()" class="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition">Batal</button>
+          <button (click)="confirmReject()" class="px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition">Tolak</button>
+        </div>
+      </div>
+    </div>
+  }
+}

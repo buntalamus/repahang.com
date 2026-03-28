@@ -1,0 +1,576 @@
+    @if (loading) {
+      <app-loading message="Memuatkan data penilaian..." />
+    } @else {
+      <div class="space-y-6">
+        <!-- Header -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-pahang-yellow rounded-xl flex items-center justify-center">
+            <span class="material-icons text-black">rate_review</span>
+          </div>
+          <div>
+            <h2 class="text-xl font-bold text-gray-900">Penilaian Pengadil</h2>
+            <p class="text-sm text-gray-500">Laporan penilaian prestasi pengadil</p>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="bg-white rounded-xl shadow-sm p-1 inline-flex gap-1">
+          @for (t of tabs; track t.key) {
+            <button (click)="activeTab = t.key" class="px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-1.5"
+              [class]="activeTab === t.key ? 'bg-pahang-yellow text-black' : 'text-gray-600 hover:bg-gray-100'">
+              {{ t.label }}
+              @if (t.key === 'nilai' && pendingCount > 0) {
+                <span class="bg-red-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 leading-tight">{{ pendingCount }}</span>
+              }
+            </button>
+          }
+        </div>
+
+        <!-- Tab: Perlu Dinilai -->
+        @if (activeTab === 'nilai') {
+          <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b">
+              <h3 class="font-semibold text-gray-800">Perlawanan Diterima — Belum Dinilai</h3>
+              <p class="text-xs text-gray-400 mt-0.5">Senarai tugasan lantikan yang telah diterima dan memerlukan laporan penilaian.</p>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-gray-50 text-left">
+                  <tr>
+                    <th class="px-4 py-3 font-semibold text-gray-600">Perlawanan</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600">Tarikh</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600">Pengadil Utama</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600">Status Laporan</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600">Tindakan</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y">
+                  @for (a of pendingAssignments; track a.id) {
+                    <tr class="hover:bg-gray-50">
+                      <td class="px-4 py-3">
+                        <p class="font-medium">{{ a.pasukan_home }} vs {{ a.pasukan_away }}</p>
+                        <p class="text-xs text-slate-400">{{ a.no_perlawanan }} · {{ a.nama_kejohanan }}</p>
+                        <p class="text-xs text-slate-400">{{ a.kumpulan_tahap }}</p>
+                      </td>
+                      <td class="px-4 py-3">
+                        <p>{{ a.tarikh | date:'d MMM yyyy' }}</p>
+                        <p class="text-xs text-slate-400">{{ a.hari }}, {{ a.masa | slice:0:5 }}</p>
+                      </td>
+                      <td class="px-4 py-3">
+                        @if (a.nama_pengadil_utama) {
+                          <p class="font-medium">{{ a.nama_pengadil_utama }}</p>
+                        } @else {
+                          <span class="text-gray-400 italic text-xs">Tiada maklumat</span>
+                        }
+                      </td>
+                      <td class="px-4 py-3">
+                        @let laporan = getLaporanForAssignment(a.id);
+                        @if (laporan) {
+                          <span class="px-2 py-0.5 text-xs font-semibold rounded-full"
+                            [class]="getLaporanStatusClass(laporan.status)">
+                            {{ laporan.status }}
+                          </span>
+                        } @else {
+                          <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-100 text-gray-500">
+                            Belum Dilengkapi
+                          </span>
+                        }
+                      </td>
+                      <td class="px-4 py-3">
+                        @let laporanItem = getLaporanForAssignment(a.id);
+                        @if (!laporanItem || laporanItem.status === 'Draf') {
+                          <button (click)="openForm(a)" class="bg-pahang-yellow text-black text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-yellow-500">
+                            {{ laporanItem ? 'Sambung' : 'Isi Laporan' }}
+                          </button>
+                        } @else {
+                          <button (click)="viewReport(laporanItem)" class="bg-gray-100 text-gray-700 text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-gray-200">
+                            Lihat
+                          </button>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="5" class="px-4 py-12 text-center">
+                        <span class="material-icons text-4xl text-gray-300 mb-2 block">task_alt</span>
+                        <p class="text-gray-400">Tiada perlawanan menunggu laporan penilaian.</p>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+
+        <!-- Tab: Laporan Saya -->
+        @if (activeTab === 'laporan') {
+          <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b">
+              <h3 class="font-semibold text-gray-800">Rekod Laporan Penilaian</h3>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-gray-50 text-left">
+                  <tr>
+                    <th class="px-4 py-3 font-semibold text-gray-600">Perlawanan</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600">Pegawai Dinilai</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600">Status</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600">Tarikh Hantar</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600">Tindakan</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y">
+                  @for (r of myReports; track r.id) {
+                    <tr class="hover:bg-gray-50">
+                      <td class="px-4 py-3">
+                        <p class="font-medium">{{ r.pasukan_home }} vs {{ r.pasukan_away }}</p>
+                        <p class="text-xs text-slate-400">{{ r.no_perlawanan }} · {{ r.nama_kejohanan }}</p>
+                      </td>
+                      <td class="px-4 py-3">
+                        @if (r.pegawai && r.pegawai.length > 0) {
+                          <div class="space-y-0.5">
+                            @for (p of r.pegawai; track p.id) {
+                              <div class="flex items-center gap-2">
+                                <span class="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded">{{ getJawatanShort(p.jawatan) }}</span>
+                                <span class="text-sm">{{ p.nama_pengadil }}</span>
+                                @if (p.markah != null) {
+                                  <span class="text-xs font-bold" [class]="getMarkahClass(+p.markah)">{{ p.markah }}</span>
+                                }
+                              </div>
+                            }
+                          </div>
+                        } @else {
+                          <span class="text-gray-400 text-xs">-</span>
+                        }
+                      </td>
+                      <td class="px-4 py-3">
+                        <span class="px-2 py-0.5 text-xs font-semibold rounded-full" [class]="getLaporanStatusClass(r.status)">
+                          {{ r.status }}
+                        </span>
+                      </td>
+                      <td class="px-4 py-3 text-gray-500 text-xs">
+                        {{ r.tarikh_hantar ? (r.tarikh_hantar | date:'d MMM yyyy') : '-' }}
+                      </td>
+                      <td class="px-4 py-3">
+                        <button (click)="viewReport(r)" class="text-xs text-blue-600 hover:underline font-medium">Lihat</button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="5" class="px-4 py-12 text-center">
+                        <span class="material-icons text-4xl text-gray-300 mb-2 block">description</span>
+                        <p class="text-gray-400">Tiada laporan penilaian lagi.</p>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+
+        <!-- ═══════════════ ASSESSMENT FORM MODAL ═══════════════ -->
+        @if (showForm && activeAssignment) {
+          <div class="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4 overflow-y-auto" (click)="showForm = false; closeDropdown()">
+            <div class="bg-white rounded-xl w-full max-w-4xl shadow-xl my-4" (click)="$event.stopPropagation()">
+              <!-- Header -->
+              <div class="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white rounded-t-xl z-10">
+                <div>
+                  <h3 class="font-bold text-lg">Borang Penilaian Pengadil</h3>
+                  <p class="text-xs text-gray-500 mt-0.5">{{ activeAssignment.no_perlawanan }} — {{ activeAssignment.pasukan_home }} vs {{ activeAssignment.pasukan_away }}</p>
+                </div>
+                <button (click)="showForm = false" class="text-gray-400 hover:text-gray-600">
+                  <span class="material-icons">close</span>
+                </button>
+              </div>
+
+              @if (loadingOfficials) {
+                <div class="p-12 text-center">
+                  <app-loading message="Memuatkan senarai pegawai..." />
+                </div>
+              } @else {
+                <div class="p-6 space-y-6">
+                  <!-- Match Header Card -->
+                  <div class="bg-gray-50 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <p class="text-xs text-gray-500 mb-0.5">Kejohanan</p>
+                      <p class="font-medium">{{ activeAssignment.nama_kejohanan }}</p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-gray-500 mb-0.5">Tarikh / Masa</p>
+                      <p class="font-medium">{{ activeAssignment.tarikh | date:'d MMM yyyy' }}, {{ activeAssignment.masa | slice:0:5 }}</p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-gray-500 mb-0.5">Tempat</p>
+                      <p class="font-medium">{{ activeAssignment.tempat || '-' }}</p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-gray-500 mb-0.5">Tahap Kesukaran</p>
+                      <select [(ngModel)]="tahapKesukaran" class="border rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-pahang-yellow w-full">
+                        @for (t of tahapOptions; track t.value) {
+                          <option [value]="t.value">{{ t.value }}</option>
+                        }
+                      </select>
+                    </div>
+                  </div>
+
+                  <!-- Pegawai Tabs -->
+                  @if (pegawaiList.length > 0) {
+                    <div class="flex flex-wrap gap-2 border-b pb-3">
+                      @for (p of pegawaiList; let i = $index; track p.lantikan_pengadil_id) {
+                        <button (click)="activePegawaiIdx = i; closeDropdown()"
+                          class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition border"
+                          [class]="activePegawaiIdx === i ? 'bg-pahang-yellow text-black border-pahang-yellow' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'">
+                          <span class="material-icons text-base">{{ getJawatanIcon(p.jawatan) }}</span>
+                          <span>{{ p.nama_pengadil }}</span>
+                          <span class="text-xs opacity-60">({{ getJawatanShort(p.jawatan) }})</span>
+                          @if (p.markah != null) {
+                            <span class="text-xs font-bold px-1.5 py-0.5 rounded-full"
+                              [class]="getMarkahClass(+p.markah!)">{{ p.markah }}</span>
+                          }
+                        </button>
+                      }
+                    </div>
+                  }
+
+                  <!-- Active Pegawai Form -->
+                  @if (activePegawai; as pg) {
+                    <div class="space-y-5">
+                      <!-- Official Header -->
+                      <div class="flex items-center gap-3 bg-pahang-black rounded-xl p-3 text-white">
+                        <span class="material-icons text-pahang-yellow text-2xl">{{ getJawatanIcon(pg.jawatan) }}</span>
+                        <div>
+                          <p class="font-bold">{{ pg.nama_pengadil }}</p>
+                          <p class="text-xs text-gray-300">{{ pg.jawatan }}</p>
+                        </div>
+                      </div>
+
+                      <!-- Markah & Prestasi row -->
+                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label class="block text-sm font-semibold mb-1.5">Markah <span class="text-red-500">*</span></label>
+                          <div class="flex items-center gap-2">
+                            <input type="number" [(ngModel)]="pg.markah" min="6" max="10" step="0.1"
+                              class="w-24 border rounded-lg px-3 py-2 focus:ring-2 focus:ring-pahang-yellow text-center font-bold text-lg"
+                              placeholder="0.0" />
+                            <span class="text-gray-400 text-sm">/ 10</span>
+                          </div>
+                          <!-- Skala guide -->
+                          <details class="mt-2">
+                            <summary class="text-xs text-blue-600 cursor-pointer hover:underline">Panduan Skala Pemarkahan</summary>
+                            <div class="mt-1 bg-blue-50 rounded-lg p-2 text-xs space-y-0.5">
+                              @for (s of skala; track s.range) {
+                                <div class="flex gap-2"><span class="font-bold w-16 shrink-0">{{ s.range }}</span><span class="text-gray-600">{{ s.desc }}</span></div>
+                              }
+                            </div>
+                          </details>
+                        </div>
+                        <div>
+                          <label class="block text-sm font-semibold mb-1.5">Prestasi</label>
+                          <select [(ngModel)]="pg.prestasi" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow">
+                            <option value="">-- Pilih --</option>
+                            <option>Sangat Baik</option>
+                            <option>Baik</option>
+                            <option>Memuaskan</option>
+                            <option>Tidak Memuaskan</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <!-- Criteria Sections -->
+                      @for (section of pg.sections; track section.key) {
+                        <div class="border rounded-xl overflow-hidden">
+                          <div class="bg-pahang-black text-pahang-yellow px-4 py-2.5 font-semibold text-sm flex items-center gap-2">
+                            <span class="material-icons text-sm">{{ getSectionIcon(section.key) }}</span>
+                            {{ section.label }}
+                          </div>
+                          <div class="p-4 space-y-4">
+                            <!-- Kekuatan dropdown multiselect -->
+                            <div>
+                              <label class="flex items-center gap-1 text-sm font-medium mb-1.5 text-green-700">
+                                <span class="material-icons text-sm">thumb_up</span> Kekuatan
+                              </label>
+                              <div class="relative">
+                                <button type="button" (click)="toggleDropdown(activePegawaiIdx + '-' + section.key + '-kekuatan'); $event.stopPropagation()"
+                                  class="w-full border rounded-lg px-3 py-2.5 text-sm text-left flex items-center justify-between hover:bg-gray-50">
+                                  @if (getKekuatanArr(pg, section.key).length > 0) {
+                                    <span class="text-green-700 font-medium">{{ getKekuatanArr(pg, section.key).length }} dipilih</span>
+                                  } @else {
+                                    <span class="text-gray-400">Pilih kriteria kekuatan...</span>
+                                  }
+                                  <span class="material-icons text-gray-400 text-sm">expand_more</span>
+                                </button>
+                                @if (isDropdownOpen(activePegawaiIdx + '-' + section.key + '-kekuatan')) {
+                                  <div class="absolute z-20 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-y-auto" (click)="$event.stopPropagation()">
+                                    @for (item of section.items; track item) {
+                                      <label class="flex items-start gap-2 px-3 py-2 hover:bg-green-50 cursor-pointer text-sm border-b border-gray-50 last:border-0">
+                                        <input type="checkbox" [checked]="isSelected(getKekuatanArr(pg, section.key), item)"
+                                          (change)="toggleItem(getKekuatanArr(pg, section.key), item)"
+                                          class="mt-0.5 rounded border-gray-300 text-green-600 focus:ring-green-500" />
+                                        <span>{{ item }}</span>
+                                      </label>
+                                    }
+                                  </div>
+                                }
+                              </div>
+                              <!-- Selected chips -->
+                              @if (getKekuatanArr(pg, section.key).length > 0) {
+                                <div class="flex flex-wrap gap-1 mt-2">
+                                  @for (sel of getKekuatanArr(pg, section.key); track sel) {
+                                    <span class="inline-flex items-center gap-1 bg-green-50 text-green-700 text-xs px-2 py-1 rounded-full border border-green-200">
+                                      {{ sel | slice:0:60 }}{{ sel.length > 60 ? '...' : '' }}
+                                      <button type="button" (click)="toggleItem(getKekuatanArr(pg, section.key), sel)" class="text-green-400 hover:text-green-600">
+                                        <span class="material-icons text-xs">close</span>
+                                      </button>
+                                    </span>
+                                  }
+                                </div>
+                              }
+                            </div>
+
+                            <!-- Kelemahan dropdown multiselect -->
+                            <div>
+                              <label class="flex items-center gap-1 text-sm font-medium mb-1.5 text-red-600">
+                                <span class="material-icons text-sm">thumb_down</span> Kelemahan
+                              </label>
+                              <div class="relative">
+                                <button type="button" (click)="toggleDropdown(activePegawaiIdx + '-' + section.key + '-kelemahan'); $event.stopPropagation()"
+                                  class="w-full border rounded-lg px-3 py-2.5 text-sm text-left flex items-center justify-between hover:bg-gray-50">
+                                  @if (getKelemahanArr(pg, section.key).length > 0) {
+                                    <span class="text-red-600 font-medium">{{ getKelemahanArr(pg, section.key).length }} dipilih</span>
+                                  } @else {
+                                    <span class="text-gray-400">Pilih kriteria kelemahan...</span>
+                                  }
+                                  <span class="material-icons text-gray-400 text-sm">expand_more</span>
+                                </button>
+                                @if (isDropdownOpen(activePegawaiIdx + '-' + section.key + '-kelemahan')) {
+                                  <div class="absolute z-20 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-60 overflow-y-auto" (click)="$event.stopPropagation()">
+                                    @for (item of section.items; track item) {
+                                      <label class="flex items-start gap-2 px-3 py-2 hover:bg-red-50 cursor-pointer text-sm border-b border-gray-50 last:border-0">
+                                        <input type="checkbox" [checked]="isSelected(getKelemahanArr(pg, section.key), item)"
+                                          (change)="toggleItem(getKelemahanArr(pg, section.key), item)"
+                                          class="mt-0.5 rounded border-gray-300 text-red-600 focus:ring-red-500" />
+                                        <span>{{ item }}</span>
+                                      </label>
+                                    }
+                                  </div>
+                                }
+                              </div>
+                              @if (getKelemahanArr(pg, section.key).length > 0) {
+                                <div class="flex flex-wrap gap-1 mt-2">
+                                  @for (sel of getKelemahanArr(pg, section.key); track sel) {
+                                    <span class="inline-flex items-center gap-1 bg-red-50 text-red-700 text-xs px-2 py-1 rounded-full border border-red-200">
+                                      {{ sel | slice:0:60 }}{{ sel.length > 60 ? '...' : '' }}
+                                      <button type="button" (click)="toggleItem(getKelemahanArr(pg, section.key), sel)" class="text-red-400 hover:text-red-600">
+                                        <span class="material-icons text-xs">close</span>
+                                      </button>
+                                    </span>
+                                  }
+                                </div>
+                              }
+                            </div>
+
+                            <!-- Nasihat text -->
+                            <div>
+                              <label class="flex items-center gap-1 text-sm font-medium mb-1.5 text-blue-600">
+                                <span class="material-icons text-sm">lightbulb</span> Nasihat / Cadangan
+                              </label>
+                              <textarea [ngModel]="getNasihat(pg, section.key)" (ngModelChange)="setNasihat(pg, section.key, $event)" rows="2"
+                                class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow"
+                                placeholder="Nasihat atau cadangan penambahbaikan..."></textarea>
+                            </div>
+                          </div>
+                        </div>
+                      }
+                    </div>
+                  }
+
+                  <!-- Ulasan Keseluruhan -->
+                  <div>
+                    <label class="block text-sm font-semibold mb-1.5">Ulasan Keseluruhan</label>
+                    <textarea [(ngModel)]="ulasanKeseluruhan" rows="4"
+                      class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow"
+                      placeholder="Ulasan dan rumusan keseluruhan prestasi pasukan pengadil dalam perlawanan ini..."></textarea>
+                  </div>
+
+                  <!-- Progress Summary -->
+                  @if (pegawaiList.length > 0) {
+                    <div class="bg-gray-50 rounded-xl p-4">
+                      <p class="text-xs font-semibold text-gray-600 mb-2">Ringkasan Markah</p>
+                      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        @for (p of pegawaiList; track p.lantikan_pengadil_id) {
+                          <div class="bg-white rounded-lg p-3 text-center border">
+                            <p class="text-xs text-gray-500">{{ getJawatanShort(p.jawatan) }}</p>
+                            <p class="text-xs font-medium truncate">{{ p.nama_pengadil }}</p>
+                            @if (p.markah != null) {
+                              <p class="text-xl font-bold mt-1" [class]="getMarkahClass(+p.markah!)">{{ p.markah }}</p>
+                            } @else {
+                              <p class="text-xl font-bold mt-1 text-gray-300">-</p>
+                            }
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+
+                <!-- Footer -->
+                <div class="px-6 py-4 border-t flex flex-wrap justify-end gap-3 sticky bottom-0 bg-white rounded-b-xl">
+                  <button (click)="showForm = false" class="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100">
+                    Batal
+                  </button>
+                  <button (click)="saveDraft()" [disabled]="submitting"
+                    class="px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                    {{ submitting ? 'Menyimpan...' : 'Simpan Draf' }}
+                  </button>
+                  <button (click)="submitReport()" [disabled]="submitting"
+                    class="bg-pahang-yellow text-black font-semibold px-6 py-2 rounded-lg text-sm hover:bg-yellow-500 disabled:opacity-50">
+                    {{ submitting ? 'Menghantar...' : 'Hantar Laporan' }}
+                  </button>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- ═══════════════ VIEW REPORT MODAL ═══════════════ -->
+        @if (showView && viewingReport) {
+          <div class="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4 overflow-y-auto" (click)="showView = false">
+            <div class="bg-white rounded-xl w-full max-w-4xl shadow-xl my-4" (click)="$event.stopPropagation()">
+              <div class="flex items-center justify-between px-6 py-4 border-b">
+                <div>
+                  <h3 class="font-bold text-lg">Laporan Penilaian</h3>
+                  <p class="text-xs text-gray-500 mt-0.5">{{ viewingReport.no_perlawanan }} — {{ viewingReport.pasukan_home }} vs {{ viewingReport.pasukan_away }}</p>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="px-2 py-0.5 text-xs font-semibold rounded-full" [class]="getLaporanStatusClass(viewingReport.status)">
+                    {{ viewingReport.status }}
+                  </span>
+                  <button (click)="showView = false" class="text-gray-400 hover:text-gray-600">
+                    <span class="material-icons">close</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="p-6 space-y-5 text-sm">
+                <!-- Match info row -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-gray-50 rounded-xl p-4">
+                  <div class="text-center">
+                    <p class="text-xs text-gray-500 mb-1">Kesukaran</p>
+                    <p class="font-medium">{{ viewingReport.tahap_kesukaran || '-' }}</p>
+                  </div>
+                  <div class="text-center">
+                    <p class="text-xs text-gray-500 mb-1">Tarikh</p>
+                    <p class="font-medium">{{ viewingReport.tarikh | date:'d MMM yyyy' }}</p>
+                  </div>
+                  <div class="text-center">
+                    <p class="text-xs text-gray-500 mb-1">Status</p>
+                    <span class="px-2 py-0.5 text-xs font-semibold rounded-full" [class]="getLaporanStatusClass(viewingReport.status)">
+                      {{ viewingReport.status }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Per-official results -->
+                @if (viewingReport.pegawai && viewingReport.pegawai.length > 0) {
+                  @for (pg of viewingReport.pegawai; track pg.id) {
+                    <div class="border rounded-xl overflow-hidden">
+                      <div class="bg-pahang-black text-white px-4 py-3 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                          <span class="material-icons text-pahang-yellow">{{ getJawatanIcon(pg.jawatan) }}</span>
+                          <div>
+                            <p class="font-bold">{{ pg.nama_pengadil }}</p>
+                            <p class="text-xs text-gray-300">{{ pg.jawatan }}</p>
+                          </div>
+                        </div>
+                        <div class="text-right">
+                          @if (pg.markah != null) {
+                            <p class="text-2xl font-bold text-pahang-yellow">{{ pg.markah }}</p>
+                            <p class="text-xs text-gray-400">/10</p>
+                          }
+                          @if (pg.prestasi) {
+                            <span class="text-xs px-2 py-0.5 rounded-full font-semibold" [class]="getPrestasiClass(pg.prestasi)">
+                              {{ pg.prestasi }}
+                            </span>
+                          }
+                        </div>
+                      </div>
+                      <div class="divide-y text-sm">
+                        <!-- Kekuatan -->
+                        @if (pg.kawalan_kekuatan?.length > 0 || pg.fizikal_kekuatan?.length > 0 || pg.kerjasama_kekuatan?.length > 0) {
+                          <div class="p-3">
+                            <p class="text-xs font-semibold text-green-700 mb-1.5 flex items-center gap-1">
+                              <span class="material-icons text-xs">thumb_up</span> Kekuatan
+                            </p>
+                            <div class="flex flex-wrap gap-1">
+                              @for (item of (pg.kawalan_kekuatan || []); track item) {
+                                <span class="bg-green-50 text-green-700 text-xs px-2 py-0.5 rounded-full border border-green-200">{{ item }}</span>
+                              }
+                              @for (item of (pg.fizikal_kekuatan || []); track item) {
+                                <span class="bg-green-50 text-green-700 text-xs px-2 py-0.5 rounded-full border border-green-200">{{ item }}</span>
+                              }
+                              @for (item of (pg.kerjasama_kekuatan || []); track item) {
+                                <span class="bg-green-50 text-green-700 text-xs px-2 py-0.5 rounded-full border border-green-200">{{ item }}</span>
+                              }
+                            </div>
+                          </div>
+                        }
+                        <!-- Kelemahan -->
+                        @if (pg.kawalan_kelemahan?.length > 0 || pg.fizikal_kelemahan?.length > 0 || pg.kerjasama_kelemahan?.length > 0) {
+                          <div class="p-3">
+                            <p class="text-xs font-semibold text-red-600 mb-1.5 flex items-center gap-1">
+                              <span class="material-icons text-xs">thumb_down</span> Kelemahan
+                            </p>
+                            <div class="flex flex-wrap gap-1">
+                              @for (item of (pg.kawalan_kelemahan || []); track item) {
+                                <span class="bg-red-50 text-red-700 text-xs px-2 py-0.5 rounded-full border border-red-200">{{ item }}</span>
+                              }
+                              @for (item of (pg.fizikal_kelemahan || []); track item) {
+                                <span class="bg-red-50 text-red-700 text-xs px-2 py-0.5 rounded-full border border-red-200">{{ item }}</span>
+                              }
+                              @for (item of (pg.kerjasama_kelemahan || []); track item) {
+                                <span class="bg-red-50 text-red-700 text-xs px-2 py-0.5 rounded-full border border-red-200">{{ item }}</span>
+                              }
+                            </div>
+                          </div>
+                        }
+                        <!-- Nasihat -->
+                        @if (pg.kawalan_nasihat || pg.fizikal_nasihat || pg.kerjasama_nasihat) {
+                          <div class="p-3">
+                            <p class="text-xs font-semibold text-blue-600 mb-1 flex items-center gap-1">
+                              <span class="material-icons text-xs">lightbulb</span> Nasihat
+                            </p>
+                            @if (pg.kawalan_nasihat) { <p class="text-gray-700 whitespace-pre-wrap">{{ pg.kawalan_nasihat }}</p> }
+                            @if (pg.fizikal_nasihat) { <p class="text-gray-700 whitespace-pre-wrap mt-1">{{ pg.fizikal_nasihat }}</p> }
+                            @if (pg.kerjasama_nasihat) { <p class="text-gray-700 whitespace-pre-wrap mt-1">{{ pg.kerjasama_nasihat }}</p> }
+                          </div>
+                        }
+                      </div>
+                    </div>
+                  }
+                }
+
+                @if (viewingReport.ulasan_keseluruhan) {
+                  <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                    <p class="text-xs font-semibold text-blue-700 mb-1">Ulasan Keseluruhan</p>
+                    <p class="text-gray-700 whitespace-pre-wrap">{{ viewingReport.ulasan_keseluruhan }}</p>
+                  </div>
+                }
+
+                @if (viewingReport.catatan_admin) {
+                  <div class="bg-yellow-50 border border-pahang-yellow rounded-xl p-4">
+                    <p class="text-xs font-semibold text-yellow-700 mb-1">Catatan Admin</p>
+                    <p class="text-gray-700">{{ viewingReport.catatan_admin }}</p>
+                  </div>
+                }
+              </div>
+
+              <div class="px-6 py-4 border-t flex justify-end">
+                <button (click)="showView = false" class="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100">Tutup</button>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    }

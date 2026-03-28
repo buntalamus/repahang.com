@@ -1,0 +1,580 @@
+@if (loading) {
+  <app-loading message="Memuatkan senarai permohonan..." />
+} @else {
+
+  <!-- Header -->
+  <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+      <h2 class="text-2xl font-bold text-gray-900 tracking-tight">Senarai Permohonan</h2>
+      <p class="text-sm text-gray-500 mt-1">Urus permohonan pendaftaran, ujian kecergasan, Ujian Kelas III FAM dan Ujian Kelas 1 FAM.</p>
+    </div>
+    <button (click)="downloadExcel()" class="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm gap-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+      Muat Turun Excel
+    </button>
+  </div>
+
+  <!-- Stats -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+      <p class="text-sm text-gray-500 font-medium mb-1">Jumlah</p>
+      <p class="text-2xl font-bold text-gray-900">{{ stats.total }}</p>
+      <p class="text-[10px] text-gray-400 mt-1">Data terkini dari pangkalan data.</p>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+      <p class="text-sm text-gray-500 font-medium mb-1">Menunggu</p>
+      <p class="text-2xl font-bold text-amber-600">{{ stats.pending }}</p>
+      <p class="text-[10px] text-gray-400 mt-1">{{ isUjianTab ? 'Belum ada keputusan.' : 'Perlu tindakan admin.' }}</p>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+      <p class="text-sm text-gray-500 font-medium mb-1">{{ isUjianTab ? 'Lulus' : 'Diluluskan' }}</p>
+      <p class="text-2xl font-bold text-emerald-600">{{ stats.approved }}</p>
+      <p class="text-[10px] text-gray-400 mt-1">{{ isUjianTab ? 'Lulus ujian.' : 'Permohonan lengkap dan diluluskan.' }}</p>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+      <p class="text-sm text-gray-500 font-medium mb-1">{{ isUjianTab ? 'Tidak Lulus / Tidak Hadir' : 'Ditolak' }}</p>
+      <p class="text-2xl font-bold text-rose-600">{{ stats.rejected }}</p>
+      <p class="text-[10px] text-gray-400 mt-1">{{ isUjianTab ? 'Tidak lulus atau tidak hadir.' : 'Rujuk semula pemohon.' }}</p>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="bg-white border-b border-gray-200 mb-6 rounded-t-xl overflow-hidden">
+    <nav class="flex overflow-x-auto p-1 gap-1 bg-gray-50/50">
+      @for (tab of tabs; track tab.key) {
+        <button
+          (click)="switchTab(tab.key)"
+          [class]="activeTab === tab.key
+            ? 'bg-white text-gray-900 shadow-sm border border-gray-200 whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-lg'
+            : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100 border border-transparent whitespace-nowrap px-4 py-2.5 text-sm font-medium rounded-lg'"
+        >{{ tab.label }}</button>
+      }
+    </nav>
+  </div>
+
+  <!-- Filters -->
+  <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm mb-6">
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+      <div class="md:col-span-4">
+        <label class="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wide">Carian</label>
+        <div class="relative">
+          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          </div>
+          <input type="text" [(ngModel)]="searchQuery" (ngModelChange)="applyFilter()"
+            placeholder="Nama, No. KP, Emel..."
+            class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm" />
+        </div>
+      </div>
+      <div class="md:col-span-3">
+        <label class="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wide">Status</label>
+        <select [(ngModel)]="statusFilter" (ngModelChange)="applyFilter()" class="block w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white">
+          <option value="all">Semua Status</option>
+          @if (isUjianTab) {
+            <option value="Menunggu">Menunggu</option>
+            <option value="Lulus">Lulus</option>
+            <option value="Tidak Lulus">Tidak Lulus</option>
+            <option value="Tidak Hadir">Tidak Hadir</option>
+          } @else {
+            <option value="Menunggu">Menunggu</option>
+            <option value="Diluluskan">Diluluskan</option>
+            <option value="Ditolak">Ditolak</option>
+          }
+        </select>
+      </div>
+      <div class="md:col-span-3">
+        <label class="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wide">PBD / Daerah</label>
+        <select [(ngModel)]="districtFilter" (ngModelChange)="applyFilter()" class="block w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white">
+          <option value="all">Semua PBD</option>
+          @for (pd of persatuanList; track pd.id) {
+            <option [value]="pd.nama_persatuan">{{ pd.nama_persatuan }}</option>
+          }
+        </select>
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-xs font-medium text-gray-700 mb-1.5 uppercase tracking-wide">Tahun</label>
+        <select [(ngModel)]="yearFilter" (ngModelChange)="loadApplications()" class="block w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white">
+          <option value="2024">2024</option>
+          <option value="2025">2025</option>
+          <option value="2026">2026</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Desktop Table (hidden on mobile) -->
+  <div class="hidden lg:block bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden mb-6">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm text-left">
+        <thead class="bg-gray-50 border-b border-gray-200">
+          <tr>
+            <th class="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider w-12 text-center">#</th>
+            <th class="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Pemohon</th>
+            <th class="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Daerah / PBD</th>
+            <th class="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+            <th class="px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Tindakan</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          @for (app of paged; track app.id; let i = $index) {
+            <!-- Main Row -->
+            <tr class="hover:bg-gray-50/80 transition-colors group cursor-pointer" (click)="toggleExpand(app.id)">
+              <td class="px-4 py-3 text-center text-gray-400 font-medium text-xs">{{ getGlobalIndex(i) }}</td>
+
+              <!-- Pemohon (enriched) -->
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-3 min-w-0">
+                  @if (app.url_gambar_profil) {
+                    <img [src]="app.url_gambar_profil" alt="" class="w-10 h-10 rounded-full object-cover ring-1 ring-gray-200 shrink-0" (error)="app.url_gambar_profil = ''">
+                  } @else {
+                    <div class="w-10 h-10 rounded-full bg-gray-100 ring-1 ring-gray-200 flex items-center justify-center text-xs font-bold text-gray-500 shrink-0">{{ app.nama_penuh?.charAt(0) }}</div>
+                  }
+                  <div class="min-w-0">
+                    <p class="font-semibold text-gray-900 truncate text-sm">{{ app.nama_penuh }}</p>
+                    <p class="text-xs text-gray-500 mt-0.5">{{ app.no_kp }} &middot; {{ app.no_telefon || '-' }}</p>
+                    <p class="text-[11px] text-gray-400 mt-0.5">{{ app.emel || app.user_email || '-' }}</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1.5 mt-1.5">
+                  @if (app.jenis_pengadil) {
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-gray-900 text-amber-400">{{ app.jenis_pengadil }}</span>
+                  }
+                  @if (app.saiz_baju) {
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200">{{ app.saiz_baju }}</span>
+                  }
+                </div>
+              </td>
+
+              <!-- Daerah / PBD -->
+              <td class="px-4 py-3">
+                <p class="text-xs text-gray-900 font-medium" title="PBD Mendaftar">{{ (app.district_nama || '-') | uppercase }}</p>
+                @if (app.daerah && app.daerah !== app.district_nama) {
+                  <p class="text-[11px] text-gray-400 mt-0.5" title="Daerah Domisil">{{ app.daerah | uppercase }}</p>
+                }
+              </td>
+
+              <!-- Status -->
+              <td class="px-4 py-3">
+                @if (isUjianTab) {
+                  @if (app.status_ujian) {
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border"
+                      [class]="app.status_ujian === 'Lulus' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        app.status_ujian === 'Tidak Hadir' ? 'bg-gray-100 text-gray-600 border-gray-300' :
+                        'bg-rose-50 text-rose-700 border-rose-200'">
+                      {{ app.status_ujian }}
+                    </span>
+                  } @else {
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border bg-amber-50 text-amber-700 border-amber-200">Menunggu</span>
+                  }
+                } @else {
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border"
+                    [class]="getDisplayStatus(app) === 'Menunggu' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                      getDisplayStatus(app) === 'Diluluskan' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                      getDisplayStatus(app) === 'Ditolak' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                      'bg-gray-50 text-gray-600 border-gray-200'">
+                    {{ getDisplayStatus(app) }}
+                  </span>
+                }
+                @if (app.tarikh_hantar) {
+                  <p class="text-[10px] text-gray-400 mt-1">{{ app.tarikh_hantar }}</p>
+                }
+              </td>
+
+              <!-- Tindakan -->
+              <td class="px-4 py-3 text-right" (click)="$event.stopPropagation()">
+                <div class="inline-flex items-center gap-1.5">
+                  <button (click)="toggleExpand(app.id)" class="px-2 py-1 bg-white border border-gray-300 text-gray-600 hover:bg-gray-50 rounded text-xs font-medium transition-colors shadow-sm" title="Butiran Lanjut">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                  </button>
+                  @if (isUjianTab) {
+                    <button (click)="openStatusUjian(app.id)" class="px-2 py-1 bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 rounded text-xs font-medium transition-colors shadow-sm" title="Ubah Keputusan"
+                      [class.opacity-40]="app.status !== 'Lengkap' && app.status !== 'Admin Diluluskan' && !app.status_ujian"
+                      [class.pointer-events-none]="app.status !== 'Lengkap' && app.status !== 'Admin Diluluskan' && !app.status_ujian">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    </button>
+                  } @else {
+                    <button (click)="openStatusChange(app)" class="px-2 py-1 bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 rounded text-xs font-medium transition-colors shadow-sm" title="Ubah Status">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                    </button>
+                  }
+                  <button (click)="deleteApplication(app)" class="px-2 py-1 bg-white border border-rose-300 text-rose-600 hover:bg-rose-50 rounded text-xs font-medium transition-colors shadow-sm" title="Padam">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Expanded Detail Row -->
+            @if (expandedId === app.id) {
+              <tr>
+                <td colspan="5" class="px-0 py-0 bg-gray-50/50">
+                  <div class="px-6 py-5 border-t border-gray-100">
+                    @if (isUjianTab) {
+                      <!-- Ujian tab details -->
+                      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <h4 class="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-2">Maklumat Hubungan</h4>
+                          <div class="text-sm text-gray-700 space-y-0.5">
+                            <p>{{ app.emel || '-' }}</p>
+                            <p class="text-gray-500">{{ app.no_telefon || '-' }}</p>
+                          </div>
+                        </div>
+                        <div>
+                          <h4 class="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-2">Waris</h4>
+                          <div class="text-sm text-gray-700 space-y-0.5">
+                            <p>{{ app.nama_waris || '-' }}</p>
+                            @if (app.hubungan_waris) { <p class="text-gray-500">{{ app.hubungan_waris }}</p> }
+                            @if (app.telefon_waris) { <p class="text-gray-500">{{ app.telefon_waris }}</p> }
+                          </div>
+                        </div>
+                        <div>
+                          <h4 class="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-2">PBD / Daerah</h4>
+                          <div class="text-sm text-gray-700 space-y-0.5">
+                            <p>{{ app.district_nama || '-' }}</p>
+                          </div>
+                        </div>
+                      </div>
+                      @if (app.payment_amount) {
+                        <div class="flex items-center gap-4 mt-4 pt-4 border-t border-gray-200">
+                          <span class="text-xs text-gray-500">Bayaran: <span class="font-semibold text-gray-700">RM{{ app.payment_amount }}</span></span>
+                        </div>
+                      }
+                    } @else {
+                      <!-- Registration tab details -->
+                      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div>
+                          <h4 class="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-2">Alamat</h4>
+                          <div class="text-sm text-gray-700 space-y-0.5">
+                            <p>{{ app.alamat1 || '-' }}</p>
+                            @if (app.alamat2) { <p>{{ app.alamat2 }}</p> }
+                            <p>{{ app.poskod || '' }} {{ app.daerah || '' }}, {{ app.negeri || 'Pahang' }}</p>
+                          </div>
+                        </div>
+                        <div>
+                          <h4 class="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-2">Pekerjaan</h4>
+                          <div class="text-sm text-gray-700 space-y-0.5">
+                            <p>{{ app.status_kerja || '-' }}</p>
+                            @if (app.jawatan) { <p class="text-gray-500">{{ app.jawatan }}</p> }
+                            @if (app.nama_majikan) { <p class="text-gray-500">{{ app.nama_majikan }}</p> }
+                          </div>
+                        </div>
+                        <div>
+                          <h4 class="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-2">Waris</h4>
+                          <div class="text-sm text-gray-700 space-y-0.5">
+                            <p>{{ app.nama_waris || '-' }}</p>
+                            @if (app.hubungan_waris) { <p class="text-gray-500">{{ app.hubungan_waris }}</p> }
+                            @if (app.telefon_waris) { <p class="text-gray-500">{{ app.telefon_waris }}</p> }
+                          </div>
+                        </div>
+                      </div>
+                      <div class="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-gray-200">
+                        @if (app.url_resit) {
+                          <a [href]="app.url_resit" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                            Lihat Resit Bayaran
+                          </a>
+                        }
+                        @if (app.total_matches > 0) {
+                          <span class="text-xs text-gray-500">
+                            <span class="font-semibold text-gray-700">{{ app.total_matches }}</span> perlawanan disahkan
+                          </span>
+                        }
+                        @if (app.jenis_permohonan) {
+                          <span class="text-xs text-gray-400">Jenis: <span class="font-medium text-gray-600">{{ app.jenis_permohonan }}</span></span>
+                        }
+                      </div>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          } @empty {
+            <tr>
+              <td colspan="5" class="px-4 py-12 text-center">
+                <div class="mx-auto w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center mb-3">
+                  <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                </div>
+                <p class="text-sm font-medium text-gray-900 mb-1">Tiada Rekod</p>
+                <p class="text-sm text-gray-500">Tiada permohonan sepadan dengan kriteria yang dipilih.</p>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="px-4 py-3 border-t border-gray-200 bg-gray-50/50">
+      <app-pagination [totalItems]="filtered.length" [pageSize]="pageSize" [currentPage]="currentPage"
+        (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)" />
+    </div>
+  </div>
+
+  <!-- Mobile Card View (visible only on mobile/tablet) -->
+  <div class="lg:hidden space-y-3 mb-6">
+    @for (app of paged; track app.id; let i = $index) {
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <!-- Card Header -->
+        <div class="p-4 cursor-pointer" (click)="toggleExpand(app.id)">
+          <div class="flex items-start gap-3">
+            @if (app.url_gambar_profil) {
+              <img [src]="app.url_gambar_profil" alt="" class="w-10 h-10 rounded-full object-cover ring-1 ring-gray-200 shrink-0" (error)="app.url_gambar_profil = ''">
+            } @else {
+              <div class="w-10 h-10 rounded-full bg-gray-100 ring-1 ring-gray-200 flex items-center justify-center text-sm font-bold text-gray-500 shrink-0">{{ app.nama_penuh?.charAt(0) }}</div>
+            }
+            <div class="flex-1 min-w-0">
+              <div class="flex items-start justify-between gap-2">
+                <p class="font-semibold text-gray-900 text-sm truncate">{{ app.nama_penuh }}</p>
+                @if (isUjianTab) {
+                  @if (app.status_ujian) {
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border shrink-0"
+                      [class]="app.status_ujian === 'Lulus' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        app.status_ujian === 'Tidak Hadir' ? 'bg-gray-100 text-gray-600 border-gray-300' :
+                        'bg-rose-50 text-rose-700 border-rose-200'">
+                      {{ app.status_ujian }}
+                    </span>
+                  } @else {
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border shrink-0 bg-amber-50 text-amber-700 border-amber-200">Menunggu</span>
+                  }
+                } @else {
+                  <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border shrink-0"
+                    [class]="getDisplayStatus(app) === 'Menunggu' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                      getDisplayStatus(app) === 'Diluluskan' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                      getDisplayStatus(app) === 'Ditolak' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                      'bg-gray-50 text-gray-600 border-gray-200'">
+                    {{ getDisplayStatus(app) }}
+                  </span>
+                }
+              </div>
+              <p class="text-xs text-gray-500 mt-0.5">{{ app.no_kp }}</p>
+              <p class="text-xs text-gray-400">{{ app.no_telefon || '-' }} &middot; {{ app.emel || app.user_email || '-' }}</p>
+            </div>
+          </div>
+
+          <!-- Card Meta -->
+          <div class="mt-3 flex flex-wrap items-center gap-2">
+            <span class="text-[11px] text-gray-500">
+              <span class="font-medium">PBD:</span> {{ (app.district_nama || '-') | uppercase }}
+            </span>
+            @if (app.daerah && app.daerah !== app.district_nama) {
+              <span class="text-[11px] text-gray-400">&middot; Domisil: {{ app.daerah | uppercase }}</span>
+            }
+            @if (app.jenis_pengadil) {
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-gray-900 text-amber-400">{{ app.jenis_pengadil }}</span>
+            }
+            @if (app.saiz_baju) {
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-100 text-gray-600 border border-gray-200">{{ app.saiz_baju }}</span>
+            }
+          </div>
+          @if (app.tarikh_hantar) {
+            <p class="text-[10px] text-gray-400 mt-1.5">Dihantar: {{ app.tarikh_hantar }}</p>
+          }
+        </div>
+
+        <!-- Expanded Details -->
+        @if (expandedId === app.id) {
+          <div class="px-4 pb-4 pt-2 border-t border-gray-100 space-y-3">
+            @if (isUjianTab) {
+              <div>
+                <h4 class="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">Maklumat Hubungan</h4>
+                <p class="text-xs text-gray-700">{{ app.emel || '-' }}</p>
+                <p class="text-xs text-gray-500">{{ app.no_telefon || '-' }}</p>
+              </div>
+              <div>
+                <h4 class="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">Waris</h4>
+                <p class="text-xs text-gray-700">{{ app.nama_waris || '-' }} @if (app.hubungan_waris) { ({{ app.hubungan_waris }}) } @if (app.telefon_waris) { — {{ app.telefon_waris }} }</p>
+              </div>
+              <div>
+                <h4 class="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">PBD / Daerah</h4>
+                <p class="text-xs text-gray-700">{{ app.district_nama || '-' }}</p>
+              </div>
+              @if (app.payment_amount) {
+                <div class="pt-2">
+                  <span class="text-xs text-gray-500">Bayaran: <span class="font-semibold text-gray-700">RM{{ app.payment_amount }}</span></span>
+                </div>
+              }
+            } @else {
+              <div>
+                <h4 class="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">Alamat</h4>
+                <p class="text-xs text-gray-700">{{ app.alamat1 || '-' }}</p>
+                @if (app.alamat2) { <p class="text-xs text-gray-700">{{ app.alamat2 }}</p> }
+                <p class="text-xs text-gray-700">{{ app.poskod || '' }} {{ app.daerah || '' }}, {{ app.negeri || 'Pahang' }}</p>
+              </div>
+              <div>
+                <h4 class="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">Pekerjaan</h4>
+                <p class="text-xs text-gray-700">{{ app.status_kerja || '-' }} @if (app.jawatan) { — {{ app.jawatan }} } @if (app.nama_majikan) { ({{ app.nama_majikan }}) }</p>
+              </div>
+              <div>
+                <h4 class="text-[10px] uppercase tracking-wider font-bold text-gray-400 mb-1">Waris</h4>
+                <p class="text-xs text-gray-700">{{ app.nama_waris || '-' }} @if (app.hubungan_waris) { ({{ app.hubungan_waris }}) } @if (app.telefon_waris) { — {{ app.telefon_waris }} }</p>
+              </div>
+              <div class="flex flex-wrap items-center gap-3 pt-2">
+                @if (app.url_resit) {
+                  <a [href]="app.url_resit" target="_blank" rel="noopener" class="inline-flex items-center gap-1 text-xs font-medium text-blue-600">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                    Lihat Resit
+                  </a>
+                }
+                @if (app.total_matches > 0) {
+                  <span class="text-xs text-gray-500"><span class="font-semibold">{{ app.total_matches }}</span> perlawanan</span>
+                }
+              </div>
+            }
+          </div>
+        }
+
+        <!-- Card Actions -->
+        <div class="flex border-t border-gray-100 divide-x divide-gray-100">
+          <button (click)="toggleExpand(app.id)" class="flex-1 py-2.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors text-center">Butiran</button>
+          @if (isUjianTab) {
+            <button (click)="openStatusUjian(app.id)" class="flex-1 py-2.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 transition-colors text-center"
+              [class.opacity-40]="app.status !== 'Lengkap' && app.status !== 'Admin Diluluskan' && !app.status_ujian"
+              [class.pointer-events-none]="app.status !== 'Lengkap' && app.status !== 'Admin Diluluskan' && !app.status_ujian">Ubah</button>
+          } @else {
+            <button (click)="openStatusChange(app)" class="flex-1 py-2.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 transition-colors text-center">Ubah</button>
+          }
+          <button (click)="deleteApplication(app)" class="flex-1 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors text-center">Padam</button>
+        </div>
+      </div>
+    } @empty {
+      <div class="bg-white rounded-xl border border-gray-200 p-8 text-center">
+        <p class="text-sm font-medium text-gray-900 mb-1">Tiada Rekod</p>
+        <p class="text-sm text-gray-500">Tiada permohonan sepadan dengan kriteria yang dipilih.</p>
+      </div>
+    }
+
+    <!-- Mobile Pagination -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
+      <app-pagination [totalItems]="filtered.length" [pageSize]="pageSize" [currentPage]="currentPage"
+        (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)" />
+    </div>
+  </div>
+
+  <!-- Status Ujian Modal -->
+  @if (showStatusUjianModal) {
+    <div class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" (click)="closeStatusUjian()">
+      <div class="bg-white rounded-xl shadow-2xl max-w-xs w-full overflow-hidden" (click)="$event.stopPropagation()">
+        <div class="border-b border-gray-100 p-4 flex items-center justify-between">
+          <h3 class="text-sm font-bold text-gray-900">Keputusan Ujian</h3>
+          <button (click)="closeStatusUjian()" class="text-gray-400 hover:text-gray-700 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+        <div class="p-4 space-y-2">
+          <button (click)="selectStatusUjian('Lulus')" class="w-full text-left px-3 py-2.5 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-sm font-semibold transition-colors flex items-center justify-between">
+            Lulus
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+          </button>
+          <button (click)="selectStatusUjian('Tidak Lulus')" class="w-full text-left px-3 py-2.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-800 text-sm font-semibold transition-colors flex items-center justify-between">
+            Tidak Lulus
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+          <button (click)="selectStatusUjian('Tidak Hadir')" class="w-full text-left px-3 py-2.5 rounded-lg border border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 text-sm font-semibold transition-colors flex items-center justify-between">
+            Tidak Hadir
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Status Change Modal (for registration tabs) -->
+  @if (showStatusChangeModal) {
+    <div class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" (click)="closeStatusChange()">
+      <div class="bg-white rounded-xl shadow-2xl max-w-xs w-full overflow-hidden" (click)="$event.stopPropagation()">
+        <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 class="text-sm font-bold text-gray-900">Ubah Status Permohonan</h3>
+          <button (click)="closeStatusChange()" class="text-gray-400 hover:text-gray-700 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+        <div class="p-4 space-y-2">
+          <button (click)="selectStatusLulus()" class="w-full text-left px-3 py-2.5 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-sm font-semibold transition-colors flex items-center justify-between">
+            Lulus
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+          </button>
+          <button (click)="selectStatusTolak()" class="w-full text-left px-3 py-2.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-800 text-sm font-semibold transition-colors flex items-center justify-between">
+            Tolak
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Approve Modal -->
+  @if (showApproveModal) {
+    <div class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" (click)="cancelApprove()">
+      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden" (click)="$event.stopPropagation()">
+        <div class="bg-emerald-50 border-b border-emerald-100 p-4 flex items-center justify-between">
+          <h3 class="text-sm font-bold text-emerald-900">Luluskan Permohonan</h3>
+          <button (click)="cancelApprove()" class="text-emerald-400 hover:text-emerald-700 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+        <div class="p-5">
+          <div class="mb-4 bg-gray-50 border border-gray-100 rounded-lg p-3">
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-0.5">Pemohon</p>
+            <p class="text-sm font-bold text-gray-900">{{ approveTargetName }}</p>
+          </div>
+          <label class="block text-sm font-semibold text-gray-800 mb-2">Nota (Pilihan)</label>
+          <textarea [(ngModel)]="approveNotes" rows="2"
+            class="w-full px-3 py-2 bg-white border border-gray-300 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none rounded-lg text-sm resize-none shadow-sm"
+            placeholder="Nota tambahan (tidak wajib)..."></textarea>
+          <div class="flex justify-end gap-3 mt-6">
+            <button (click)="cancelApprove()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">Batal</button>
+            <button (click)="confirmApprove()" class="px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm">Luluskan</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Reject Modal -->
+  @if (showRejectModal) {
+    <div class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" (click)="cancelReject()">
+      <div class="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden" (click)="$event.stopPropagation()">
+        <div class="bg-rose-50 border-b border-rose-100 p-4 flex items-center justify-between">
+          <h3 class="text-sm font-bold text-rose-900">Tolak Permohonan</h3>
+          <button (click)="cancelReject()" class="text-rose-400 hover:text-rose-700 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+        <div class="p-5">
+          <div class="mb-4 bg-gray-50 border border-gray-100 rounded-lg p-3">
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-0.5">Pemohon</p>
+            <p class="text-sm font-bold text-gray-900">{{ rejectTargetName }}</p>
+          </div>
+          <label class="block text-sm font-semibold text-gray-800 mb-2">Sebab Penolakan (Wajib)</label>
+          <textarea [(ngModel)]="rejectReason" rows="3"
+            class="w-full px-3 py-2 bg-white border border-gray-300 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none rounded-lg text-sm resize-none shadow-sm"
+            placeholder="Terangkan sebab..."></textarea>
+          <div class="flex justify-end gap-3 mt-6">
+            <button (click)="cancelReject()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">Batal</button>
+            <button (click)="confirmReject()" class="px-4 py-2 text-sm font-medium bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors shadow-sm">Tolak</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Delete Confirmation Modal -->
+  @if (showDeleteModal) {
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
+        <div class="text-center">
+          <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-rose-100 mb-4">
+            <svg class="h-6 w-6 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+          </div>
+          <h3 class="text-lg font-bold text-gray-900 mb-1">Padam Permohonan</h3>
+          <p class="text-sm text-gray-500">Adakah anda pasti mahu memadam permohonan <span class="font-semibold text-gray-800">{{ deleteTargetName }}</span>? Tindakan ini tidak boleh dibatalkan.</p>
+        </div>
+        <div class="flex justify-end gap-3 mt-6">
+          <button (click)="cancelDelete()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">Batal</button>
+          <button (click)="confirmDelete()" class="px-4 py-2 text-sm font-medium bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors shadow-sm">Padam</button>
+        </div>
+      </div>
+    </div>
+  }
+}

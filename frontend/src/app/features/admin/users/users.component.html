@@ -1,0 +1,383 @@
+@if (loading) {
+  <app-loading message="Memuatkan senarai pengguna..." />
+} @else {
+  <!-- Kad Statistik -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+      <p class="text-sm text-gray-500 font-medium mb-1">Jumlah Pengguna</p>
+      <p class="text-2xl font-bold text-gray-900">{{ stats.total }}</p>
+      <p class="text-[10px] text-gray-400 mt-1">Pengguna berdaftar dalam sistem.</p>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+      <p class="text-sm text-gray-500 font-medium mb-1">Pengadil</p>
+      <p class="text-2xl font-bold text-emerald-600">{{ stats.pengadil }}</p>
+      <p class="text-[10px] text-gray-400 mt-1">Pengguna berperanan Pengadil.</p>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+      <p class="text-sm text-gray-500 font-medium mb-1">PP Daerah</p>
+      <p class="text-2xl font-bold text-blue-600">{{ stats.pp }}</p>
+      <p class="text-[10px] text-gray-400 mt-1">Penolong Pegawai Daerah.</p>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+      <p class="text-sm text-gray-500 font-medium mb-1">Pentadbir & Penilai</p>
+      <p class="text-2xl font-bold text-slate-600">{{ stats.staff }}</p>
+      <p class="text-[10px] text-gray-400 mt-1">Admin & Penilai sistem.</p>
+    </div>
+  </div>
+
+  <!-- Penapis -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
+    <div class="flex flex-col lg:flex-row gap-3">
+      <div class="relative flex-1">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+        <input type="text" [(ngModel)]="searchQuery" (ngModelChange)="applyFilter()"
+          placeholder="Cari nama, emel, no. telefon..."
+          class="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+      </div>
+      <select [(ngModel)]="roleFilter" (ngModelChange)="applyFilter()"
+        class="px-4 py-2.5 border border-slate-300 rounded-lg text-sm bg-white">
+        <option value="all">Semua Peranan</option>
+        @for (role of roles; track role) {
+          <option [value]="role">{{ role }}</option>
+        }
+      </select>
+      <button (click)="openAddUser()"
+        class="inline-flex items-center gap-2 px-4 py-2.5 bg-pahang-black text-pahang-yellow text-sm font-semibold rounded-lg hover:bg-gray-800 transition whitespace-nowrap">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        <span>Tambah Pengguna</span>
+      </button>
+    </div>
+    @if (searchQuery || roleFilter !== 'all') {
+      <div class="mt-3 text-xs text-slate-500">
+        Menunjukkan {{ filtered.length }} daripada {{ users.length }} pengguna
+      </div>
+    }
+  </div>
+
+  <!-- Jadual Desktop -->
+  <div class="bg-white rounded-xl shadow-sm border border-slate-200 hidden md:block">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 border-b border-slate-200">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase w-10">#</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Nama</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Emel / Tel</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Peranan</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Persatuan</th>
+            <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Jenis Pengadil</th>
+            <th class="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase w-40">Tindakan</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          @for (user of paged; track user.id; let i = $index) {
+            <tr class="hover:bg-slate-50 transition-colors">
+              <td class="px-4 py-3 text-slate-400 text-xs">{{ getGlobalIndex(i) }}</td>
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-3">
+                  @if (user.url_gambar_profil) {
+                    <img [src]="getProfileImage(user.url_gambar_profil)" class="w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                      onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+                    <div class="w-10 h-10 rounded-full bg-slate-200 items-center justify-center text-xs font-semibold text-slate-600 hidden shrink-0">
+                      {{ (user.nama_penuh || '?')[0] }}
+                    </div>
+                  } @else {
+                    <div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-xs font-semibold text-slate-600 shrink-0">
+                      {{ (user.nama_penuh || '?')[0] }}
+                    </div>
+                  }
+                  <span class="font-medium text-slate-900">{{ user.nama_penuh }}</span>
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <p class="text-slate-600 text-xs">{{ user.email || '-' }}</p>
+                <p class="text-slate-400 text-xs mt-0.5">{{ user.no_telefon || '-' }}</p>
+              </td>
+              <td class="px-4 py-3">
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" [class]="getRoleClass(user.user_role || user.role)">
+                  {{ user.user_role || user.role || '-' }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-slate-600 text-xs">{{ user.persatuan_nama || '-' }}</td>
+              <td class="px-4 py-3 text-slate-600 text-xs">{{ titleCase(user.jenis_pengadil) }}</td>
+              <td class="px-4 py-3 text-center">
+                <div class="inline-flex items-center gap-1.5">
+                  <button (click)="openEdit(user)" title="Edit Profil"
+                    class="px-2 py-1 bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 rounded text-xs font-medium transition-colors shadow-sm">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                  </button>
+                  <button (click)="resetPassword(user)" title="Reset Kata Laluan"
+                    class="px-2 py-1 bg-white border border-amber-300 text-amber-700 hover:bg-amber-50 rounded text-xs font-medium transition-colors shadow-sm">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                  </button>
+                  <button (click)="resendNotification(user)" title="Hantar Semula Emel"
+                    class="px-2 py-1 bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 rounded text-xs font-medium transition-colors shadow-sm">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                  </button>
+                  <button (click)="deleteUser(user.id, user.nama_penuh)" title="Padam"
+                    class="px-2 py-1 bg-white border border-rose-300 text-rose-600 hover:bg-rose-50 rounded text-xs font-medium transition-colors shadow-sm">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="7" class="px-4 py-16 text-center">
+                <span class="material-symbols-outlined text-4xl text-slate-300 mb-2">person_off</span>
+                <p class="text-slate-400 text-sm">Tiada pengguna ditemui.</p>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <app-pagination [totalItems]="filtered.length" [pageSize]="pageSize" [currentPage]="currentPage"
+      (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)" />
+  </div>
+
+  <!-- Kad Mobil -->
+  <div class="md:hidden space-y-3">
+    @for (user of paged; track user.id; let i = $index) {
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+        <div class="flex items-start justify-between mb-3">
+          <div class="flex items-center gap-3">
+            @if (user.url_gambar_profil) {
+              <img [src]="getProfileImage(user.url_gambar_profil)" class="w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+              <div class="w-10 h-10 rounded-full bg-slate-200 items-center justify-center text-sm font-semibold text-slate-600 hidden shrink-0">
+                {{ (user.nama_penuh || '?')[0] }}
+              </div>
+            } @else {
+              <div class="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-sm font-semibold text-slate-600 shrink-0">
+                {{ (user.nama_penuh || '?')[0] }}
+              </div>
+            }
+            <div>
+              <p class="font-medium text-slate-900 text-sm">{{ user.nama_penuh }}</p>
+              <p class="text-xs text-slate-500">{{ user.email || '-' }}</p>
+            </div>
+          </div>
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium shrink-0" [class]="getRoleClass(user.user_role || user.role)">
+            {{ user.user_role || user.role || '-' }}
+          </span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-xs mb-3">
+          <div><span class="text-slate-500">Tel:</span> <span class="font-medium">{{ user.no_telefon || '-' }}</span></div>
+          <div><span class="text-slate-500">Jenis:</span> <span class="font-medium">{{ titleCase(user.jenis_pengadil) }}</span></div>
+          <div class="col-span-2"><span class="text-slate-500">Persatuan:</span> <span class="font-medium">{{ user.persatuan_nama || '-' }}</span></div>
+        </div>
+        <div class="flex border-t border-gray-100 divide-x divide-gray-100">
+          <button (click)="openEdit(user)" class="flex-1 py-2.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 transition-colors text-center">Edit</button>
+          <button (click)="resetPassword(user)" class="flex-1 py-2.5 text-xs font-medium text-amber-700 hover:bg-amber-50 transition-colors text-center">Reset</button>
+          <button (click)="resendNotification(user)" class="flex-1 py-2.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors text-center">Emel</button>
+          <button (click)="deleteUser(user.id, user.nama_penuh)" class="flex-1 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors text-center">Padam</button>
+        </div>
+      </div>
+    } @empty {
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
+        <span class="material-symbols-outlined text-4xl text-slate-300 mb-2">person_off</span>
+        <p class="text-slate-400 text-sm">Tiada pengguna ditemui.</p>
+      </div>
+    }
+    <app-pagination [totalItems]="filtered.length" [pageSize]="pageSize" [currentPage]="currentPage"
+      (pageChange)="onPageChange($event)" (pageSizeChange)="onPageSizeChange($event)" />
+  </div>
+}
+
+<!-- Edit Modal -->
+@if (showEditModal) {
+  <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" (click)="showEditModal = false">
+    <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl">
+        <h3 class="text-base font-semibold text-slate-900">Kemaskini Pengguna</h3>
+        <button (click)="showEditModal = false" class="text-slate-400 hover:text-slate-600 text-lg leading-none">&#x2715;</button>
+      </div>
+      <div class="p-6 space-y-6">
+        <div>
+          <h4 class="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wide">Maklumat Asas</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Nama Penuh</label>
+              <input type="text" [(ngModel)]="editUser.nama_penuh" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">No. KP</label>
+              <input type="text" [(ngModel)]="editUser.no_ic" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Emel</label>
+              <input type="email" [(ngModel)]="editUser.email" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">No. Telefon</label>
+              <input type="text" [(ngModel)]="editUser.no_telefon" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Peranan</label>
+              <select [(ngModel)]="editUser.user_role" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                @for (role of roles; track role) {
+                  <option [value]="role">{{ role }}</option>
+                }
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">FA Daerah</label>
+              <select [(ngModel)]="editUser.persatuan_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                <option [ngValue]="null">- Tiada -</option>
+                @for (p of persatuanList; track p.id) {
+                  <option [ngValue]="p.id">{{ p.nama_persatuan }}</option>
+                }
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Jantina</label>
+              <select [(ngModel)]="editUser.jantina" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                <option value="">-</option>
+                <option value="Lelaki">Lelaki</option>
+                <option value="Perempuan">Perempuan</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Jenis Pengadil</label>
+              <input type="text" [(ngModel)]="editUser.jenis_pengadil" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+          </div>
+        </div>
+        <hr class="border-slate-100" />
+        <div>
+          <h4 class="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wide">Alamat</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="sm:col-span-2">
+              <label class="block text-xs text-gray-500 mb-1">Alamat 1</label>
+              <input type="text" [(ngModel)]="editUser.alamat1" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-xs text-gray-500 mb-1">Alamat 2</label>
+              <input type="text" [(ngModel)]="editUser.alamat2" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Poskod</label>
+              <input type="text" [(ngModel)]="editUser.poskod" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Daerah</label>
+              <input type="text" [(ngModel)]="editUser.daerah" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Negeri</label>
+              <input type="text" [(ngModel)]="editUser.negeri" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+          </div>
+        </div>
+        <hr class="border-slate-100" />
+        <div>
+          <h4 class="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wide">Pekerjaan &amp; Waris</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Status Kerja</label>
+              <input type="text" [(ngModel)]="editUser.status_kerja" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Jawatan</label>
+              <input type="text" [(ngModel)]="editUser.jawatan" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Nama Majikan</label>
+              <input type="text" [(ngModel)]="editUser.nama_majikan" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Alamat Majikan</label>
+              <input type="text" [(ngModel)]="editUser.alamat_majikan1" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Nama Waris</label>
+              <input type="text" [(ngModel)]="editUser.nama_waris" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Hubungan Waris</label>
+              <input type="text" [(ngModel)]="editUser.hubungan_waris" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs text-gray-500 mb-1">Telefon Waris</label>
+              <input type="text" [(ngModel)]="editUser.telefon_waris" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+            </div>
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+          <button (click)="showEditModal = false"
+            class="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Batal</button>
+          <button (click)="saveUser()"
+            class="px-4 py-2 text-sm bg-pahang-black text-pahang-yellow font-semibold rounded-lg hover:bg-gray-800">Simpan</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Add User Modal -->
+@if (showAddModal) {
+  <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" (click)="showAddModal = false">
+    <div class="bg-white rounded-2xl max-w-lg w-full" (click)="$event.stopPropagation()">
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+        <h3 class="text-base font-semibold text-slate-900">Tambah Pengguna Baru</h3>
+        <button (click)="showAddModal = false" class="text-slate-400 hover:text-slate-600 text-lg leading-none">&#x2715;</button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Nama Penuh</label>
+          <input type="text" [(ngModel)]="newUser.nama_penuh" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Emel</label>
+          <input type="email" [(ngModel)]="newUser.email" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">No. Telefon</label>
+          <input type="text" [(ngModel)]="newUser.no_telefon" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Peranan</label>
+          <select [(ngModel)]="newUser.user_role" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+            @for (role of roles; track role) {
+              <option [value]="role">{{ role }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">FA Daerah</label>
+          <select [(ngModel)]="newUser.persatuan_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+            <option value="">- Pilih -</option>
+            @for (p of persatuanList; track p.id) {
+              <option [value]="p.id">{{ p.nama_persatuan }}</option>
+            }
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Jenis Pengadil</label>
+          <input type="text" [(ngModel)]="newUser.jenis_pengadil" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="cth: Pengadil Utama" />
+        </div>
+        <p class="text-xs text-slate-400">Kata laluan akan dijana secara automatik dan dihantar ke emel.</p>
+        <div class="flex justify-end gap-3 pt-2">
+          <button (click)="showAddModal = false"
+            class="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Batal</button>
+          <button (click)="addUser()"
+            class="px-4 py-2 text-sm bg-pahang-black text-pahang-yellow font-semibold rounded-lg hover:bg-gray-800">Tambah</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Delete Confirmation Modal -->
+<app-confirm-modal [show]="showDeleteModal" title="Padam Pengguna"
+  [message]="'Adakah anda pasti ingin memadam ' + deleteTargetName + '?'"
+  confirmText="Padam" type="danger"
+  (confirmed)="onDeleteConfirmed()" (cancelled)="showDeleteModal = false" />
+
+<!-- General Confirmation Modal -->
+<app-confirm-modal [show]="showConfirmModal" [title]="confirmTitle"
+  [message]="confirmMessage" confirmText="Ya" type="warning"
+  (confirmed)="onActionConfirmed()" (cancelled)="showConfirmModal = false" />

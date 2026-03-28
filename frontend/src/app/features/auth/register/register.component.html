@@ -1,0 +1,209 @@
+<div class="min-h-screen bg-zinc-100 font-sans antialiased">
+  <div class="container mx-auto max-w-4xl p-4 md:p-8">
+
+    <!-- Header -->
+    <header class="flex flex-col items-center mb-10 pt-6 pb-8 bg-pahang-black rounded-b-xl shadow-2xl">
+      <img src="assets/images/logo-pahang.png" alt="Logo PBNP" class="w-24 h-24 mx-auto mb-4" />
+      <h1 class="text-3xl md:text-4xl font-bold text-pahang-yellow uppercase tracking-wider text-center">
+        Pendaftaran Sistem Pengurusan Pengadil
+      </h1>
+      <p class="text-xl font-light text-white">Negeri Pahang</p>
+      <p class="text-sm text-white/80 mt-2 text-center max-w-2xl mx-auto">
+        Lengkapkan borang asas ini untuk mendaftar akaun. Selepas pendaftaran, anda akan menerima email dengan kata laluan.
+      </p>
+      <div class="mt-6 flex flex-wrap gap-3 justify-center">
+        <a routerLink="/login" class="px-6 py-2 bg-slate-700 text-white text-sm font-semibold rounded-lg shadow hover:bg-slate-600 transition">
+          ← Halaman Utama
+        </a>
+      </div>
+    </header>
+
+    <!-- Form -->
+    <form (ngSubmit)="onSubmit()" novalidate class="bg-white p-6 md:p-10 rounded-xl shadow-2xl">
+
+      <section class="mb-10">
+        <h2 class="text-2xl font-semibold text-pahang-black mb-6 border-l-4 border-pahang-yellow pl-4">
+          Maklumat Asas Pendaftaran
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+
+          <!-- Nama Penuh -->
+          <div class="md:col-span-2">
+            <label for="nama_penuh" class="block text-sm font-medium text-gray-700 mb-1">
+              Nama Penuh (Seperti dalam KP) <span class="text-red-600">*</span>
+            </label>
+            <input type="text" id="nama_penuh" [(ngModel)]="form.nama_penuh" name="nama_penuh"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-pahang-yellow focus:border-pahang-yellow"
+              placeholder="cth: Ahmad bin Abdullah" />
+            @if (errors['nama_penuh']) {
+              <p class="text-red-500 text-xs mt-1">{{ errors['nama_penuh'] }}</p>
+            }
+          </div>
+
+          <!-- No. KP -->
+          <div>
+            <label for="no_ic" class="block text-sm font-medium text-gray-700 mb-1">
+              No. Kad Pengenalan <span class="text-red-600">*</span>
+            </label>
+            <input type="text" id="no_ic" [(ngModel)]="form.no_ic" name="no_ic" maxlength="12"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-pahang-yellow focus:border-pahang-yellow"
+              placeholder="cth: 900101011234" />
+            <p class="text-xs text-gray-500 mt-1">Masukkan 12 digit tanpa tanda tolak</p>
+            @if (errors['no_ic']) {
+              <p class="text-red-500 text-xs mt-1">{{ errors['no_ic'] }}</p>
+            }
+          </div>
+
+          <!-- Emel -->
+          <div>
+            <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
+              Alamat Emel <span class="text-red-600">*</span>
+            </label>
+            <input type="email" id="email" [(ngModel)]="form.email" name="email"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-pahang-yellow focus:border-pahang-yellow"
+              placeholder="cth: ahmad@gmail.com" />
+            @if (errors['email']) {
+              <p class="text-red-500 text-xs mt-1">{{ errors['email'] }}</p>
+            }
+          </div>
+
+          <!-- No. Telefon -->
+          <div>
+            <label for="no_telefon" class="block text-sm font-medium text-gray-700 mb-1">
+              No. Telefon Bimbit <span class="text-red-600">*</span>
+            </label>
+            <input type="tel" id="no_telefon" [(ngModel)]="form.no_telefon" name="no_telefon"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-pahang-yellow focus:border-pahang-yellow"
+              placeholder="cth: 0123456789" />
+            @if (errors['no_telefon']) {
+              <p class="text-red-500 text-xs mt-1">{{ errors['no_telefon'] }}</p>
+            }
+          </div>
+
+          <!-- Jantina -->
+          <div>
+            <label for="jantina" class="block text-sm font-medium text-gray-700 mb-1">
+              Jantina <span class="text-red-600">*</span>
+            </label>
+            <select id="jantina" [(ngModel)]="form.jantina" name="jantina"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-pahang-yellow focus:border-pahang-yellow">
+              <option value="" disabled>-- Sila Pilih --</option>
+              <option value="Lelaki">Lelaki</option>
+              <option value="Perempuan">Perempuan</option>
+            </select>
+            @if (errors['jantina']) {
+              <p class="text-red-500 text-xs mt-1">{{ errors['jantina'] }}</p>
+            }
+          </div>
+
+          <!-- Jenis Pengadil -->
+          <div class="md:col-span-2">
+            <label for="jenis_pengadil" class="block text-sm font-medium text-gray-700 mb-1">
+              Jenis Pengadil <span class="text-red-600">*</span>
+            </label>
+            <select id="jenis_pengadil" [(ngModel)]="form.jenis_pengadil" name="jenis_pengadil"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-pahang-yellow focus:border-pahang-yellow">
+              <option value="" disabled>-- Sila Pilih --</option>
+              @for (jenis of jenisPengadilList; track jenis) {
+                <option [value]="jenis">{{ jenis }}</option>
+              }
+            </select>
+            @if (errors['jenis_pengadil']) {
+              <p class="text-red-500 text-xs mt-1">{{ errors['jenis_pengadil'] }}</p>
+            }
+          </div>
+
+          <!-- Persatuan Bolasepak -->
+          <div class="md:col-span-2">
+            <label for="persatuan_id" class="block text-sm font-medium text-gray-700 mb-1">
+              Persatuan Bolasepak <span class="text-red-600">*</span>
+            </label>
+            <select id="persatuan_id" [(ngModel)]="form.persatuan_id" name="persatuan_id"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-pahang-yellow focus:border-pahang-yellow">
+              <option value="" disabled>-- Sila Pilih Persatuan Bolasepak --</option>
+              @for (p of persatuanList; track p.value) {
+                <option [value]="p.value">{{ p.label }}</option>
+              }
+            </select>
+            @if (errors['persatuan_id']) {
+              <p class="text-red-500 text-xs mt-1">{{ errors['persatuan_id'] }}</p>
+            }
+          </div>
+
+          <!-- Info Box -->
+          <div class="md:col-span-2 mt-4 p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
+            <p class="text-sm text-blue-800">
+              <strong>Nota Penting:</strong> Selepas mendaftar, anda akan menerima email dengan kata laluan akaun anda.
+              Log masuk ke dashboard untuk lengkapkan profil penuh sebelum hantar permohonan rasmi.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Submit -->
+      <section class="mt-10 pt-6 border-t border-gray-300">
+        <div class="flex flex-col items-center">
+          <div class="flex items-center mb-4">
+            <input id="pengesahan_data" type="checkbox" [(ngModel)]="form.pengesahan_data" name="pengesahan_data"
+              class="h-4 w-4 text-pahang-black border-gray-300 rounded focus:ring-pahang-black" />
+            <label for="pengesahan_data" class="ml-2 block text-sm text-gray-900">
+              Saya dengan ini mengesahkan bahawa semua maklumat yang diberikan adalah benar dan tepat.
+            </label>
+          </div>
+          @if (errors['pengesahan']) {
+            <p class="text-red-500 text-xs mb-3">{{ errors['pengesahan'] }}</p>
+          }
+
+          <div class="flex flex-col sm:flex-row gap-4 items-center justify-center">
+            <a routerLink="/login"
+              class="w-full sm:w-auto px-8 py-3 bg-slate-200 text-slate-700 font-semibold rounded-lg shadow hover:bg-slate-300 transition text-center">
+              ← Kembali
+            </a>
+            <button type="submit" [disabled]="loading"
+              class="w-full sm:w-auto px-12 py-3 bg-pahang-black text-pahang-yellow font-bold text-lg rounded-lg shadow-lg hover:bg-gray-800 transition disabled:opacity-60 flex items-center justify-center">
+              @if (loading) {
+                <span class="border-2 border-white border-t-pahang-yellow rounded-full w-4 h-4 animate-spin mr-2"></span>
+              }
+              Hantar Pendaftaran
+            </button>
+          </div>
+        </div>
+      </section>
+    </form>
+  </div>
+
+  <!-- Result Modal -->
+  @if (showModal) {
+    <div class="fixed inset-0 bg-gray-900/75 flex items-center justify-center z-50" (click)="closeModal()">
+      <div class="bg-white p-8 rounded-lg shadow-xl text-center max-w-sm" (click)="$event.stopPropagation()">
+        <div class="w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center"
+          [class]="modalSuccess ? 'bg-green-100' : 'bg-red-100'">
+          <span class="material-icons text-3xl" [class]="modalSuccess ? 'text-green-600' : 'text-red-600'">
+            {{ modalSuccess ? 'check_circle' : 'error' }}
+          </span>
+        </div>
+        <h3 class="text-xl font-bold mb-2" [class]="modalSuccess ? 'text-green-700' : 'text-red-700'">
+          {{ modalTitle }}
+        </h3>
+        <p class="text-gray-600 text-sm mb-6">{{ modalMessage }}</p>
+
+        @if (modalSuccess && telegramLink) {
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-left">
+            <p class="text-sm font-semibold text-blue-800 mb-2">📱 Hubungkan Telegram</p>
+            <p class="text-xs text-blue-700 mb-3">Aktifkan notifikasi Telegram untuk menerima maklumat lantikan terus ke telefon anda.</p>
+            <a [href]="telegramLink" target="_blank" rel="noopener"
+              class="inline-flex items-center gap-2 px-4 py-2 bg-[#0088cc] text-white text-sm font-semibold rounded-lg hover:bg-[#006699] transition w-full justify-center">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+              Buka Telegram
+            </a>
+          </div>
+        }
+
+        <button (click)="closeModal()"
+          class="px-6 py-2 bg-pahang-black text-pahang-yellow font-semibold rounded-lg hover:bg-gray-800 transition">
+          {{ modalSuccess ? 'Log Masuk' : 'Tutup' }}
+        </button>
+      </div>
+    </div>
+  }
+</div>
