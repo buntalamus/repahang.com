@@ -8,7 +8,7 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/config/env.php';
+require_once __DIR__ . '/env.php';
 
 if (!defined('DB_HOST')) {
     define('DB_HOST', env('DB_HOST', 'localhost'));

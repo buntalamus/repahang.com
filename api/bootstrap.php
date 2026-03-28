@@ -16,7 +16,7 @@ date_default_timezone_set('Asia/Kuala_Lumpur');
 
 // Load environment and database config
 require_once __DIR__ . '/../config/env.php';
-require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../config/db.php';
 
 // Define APP_DEBUG from .env (defaults to false for production safety)
 if (!defined('APP_DEBUG')) {

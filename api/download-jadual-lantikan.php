@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 // Use session auth only (no JSON headers — outputs HTML)
 date_default_timezone_set('Asia/Kuala_Lumpur');
-require_once __DIR__ . '/../db.php';
+require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../config/env.php';
 
 // Start session using same settings as bootstrap.php
