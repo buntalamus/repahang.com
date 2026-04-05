@@ -1,18 +1,21 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
 import { ChangePasswordComponent } from '../../auth/change-password/change-password.component';
+import { ImageCropComponent } from '../../../shared/components/image-crop/image-crop.component';
 
 @Component({
   selector: 'app-admin-profile',
   standalone: true,
-  imports: [FormsModule, LoadingComponent, ChangePasswordComponent],
+  imports: [FormsModule, LoadingComponent, ChangePasswordComponent, ImageCropComponent],
   templateUrl: './profile.component.html',
 })
 export class AdminProfileComponent implements OnInit {
+  @ViewChild('imageCrop') imageCrop!: ImageCropComponent;
+
   loading = true;
   editing = false;
   saving = false;
@@ -60,9 +63,9 @@ export class AdminProfileComponent implements OnInit {
           this.toast.error(res.message);
         }
       },
-      error: () => {
+      error: (err: any) => {
         this.saving = false;
-        this.toast.error('Gagal mengemaskini profil.');
+        this.toast.error(err?.error?.message || 'Gagal mengemaskini profil.');
       },
     });
   }
@@ -70,13 +73,13 @@ export class AdminProfileComponent implements OnInit {
   onImageSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (!input.files?.length) return;
-    const file = input.files[0];
-    if (file.size > 2 * 1024 * 1024) {
-      this.toast.error('Saiz fail mesti kurang dari 2MB.');
-      return;
-    }
+    this.imageCrop.loadImage(input.files[0]);
+    input.value = '';
+  }
+
+  onImageCropped(blob: Blob): void {
     const fd = new FormData();
-    fd.append('image', file);
+    fd.append('image', blob, 'profile.jpg');
     this.api.postFormData<any>('upload-profile-image.php', fd).subscribe({
       next: (res) => {
         if (!res.error) {

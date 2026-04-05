@@ -133,13 +133,13 @@ const PEGAWAI_KEEMPAT: KriteriaSection = {
  * Get criteria sections for a given jawatan.
  */
 export function getSectionsForJawatan(jawatan: string): KriteriaSection[] {
-  if (jawatan.includes('Pembantu') || jawatan.includes('Penolong')) {
+  if (jawatan.includes('Penolong') || jawatan.includes('Pembantu')) {
     return [PENOLONG_PENGADIL];
   }
-  if (jawatan.includes('Keempat') || jawatan.includes('Ke 4') || jawatan.includes('Ke-4')) {
+  if (jawatan.includes('ke4') || jawatan.includes('Keempat') || jawatan.includes('Ke 4') || jawatan.includes('Ke-4')) {
     return [PEGAWAI_KEEMPAT];
   }
-  // Pengadil Utama
+  // Pengadil (R)
   return [KAWALAN_PERMAINAN, FIZIKAL_POSISI, KERJASAMA];
 }
 

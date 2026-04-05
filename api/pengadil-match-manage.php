@@ -49,7 +49,7 @@ try {
     if ($action === 'add') {
 
         // Validate required fields
-        $required = ['tarikh', 'jenis', 'tempat', 'jawatan', 'home_team', 'away_team'];
+        $required = ['tarikh', 'jenis', 'tempat', 'home_team', 'away_team'];
 
         foreach ($required as $field) {
 
@@ -66,164 +66,193 @@ try {
         $today = new DateTime();
         $diff = $today->diff($matchDate);
 
-        // Check if date is in the past more than 14 days
         if ($matchDate < $today && $diff->days > 14) {
             jsonResponse(['error' => true, 'message' => "Rekod perlawanan tidak boleh dihantar melebihi 14 hari dari tarikh perlawanan."], 400);
         }
 
-
-
-        // Insert match
-
-        $stmt = $pdo->prepare("
-
-            INSERT INTO perlawanan (
-                user_id, tarikh, jenis, tempat, jawatan, 
-                home_team, away_team, 
-                head_referee_id, assistant_referee_1_id, assistant_referee_2_id, fourth_official_id,
-                created_at
-            )
-
-            VALUES (
-                :user_id, :tarikh, :jenis, :tempat, :jawatan, 
-                :home_team, :away_team,
-                :head_referee_id, :assistant_referee_1_id, :assistant_referee_2_id, :fourth_official_id,
-                NOW()
-            )
-
-        ");
-
-
-
-        $stmt->execute([
-
-            ':user_id' => $userId,
-
-            ':tarikh' => $input['tarikh'],
-
-            ':jenis' => $input['jenis'],
-
-            ':tempat' => $input['tempat'],
-
-            ':jawatan' => $input['jawatan'],
-
-            ':home_team' => $input['home_team'],
-
-            ':away_team' => $input['away_team'],
-
-            ':head_referee_id' => !empty($input['head_referee_id']) ? $input['head_referee_id'] : null,
-
-            ':assistant_referee_1_id' => !empty($input['assistant_referee_1_id']) ? $input['assistant_referee_1_id'] : null,
-
-            ':assistant_referee_2_id' => !empty($input['assistant_referee_2_id']) ? $input['assistant_referee_2_id'] : null,
-
-            ':fourth_official_id' => !empty($input['fourth_official_id']) ? $input['fourth_official_id'] : null
-
-        ]);
-
-
-
-        $matchId = (int) $pdo->lastInsertId();
-
-
-
-        // Get user persatuan and name for notifications
-
-        $userStmt = $pdo->prepare("SELECT persatuan_id, nama_penuh FROM users WHERE id = :user_id");
-
-        $userStmt->execute([':user_id' => $userId]);
-
-        $userData = $userStmt->fetch(PDO::FETCH_ASSOC);
-
-
-
-        if ($userData) {
-
-            // Send notifications to all PP Daerah in the same persatuan
-
-            $ppStmt = $pdo->prepare("SELECT id, nama_penuh, email FROM users WHERE role = 'PP Daerah' AND persatuan_id = :persatuan_id");
-
-            $ppStmt->execute([':persatuan_id' => $userData['persatuan_id']]);
-
-            $ppUsers = $ppStmt->fetchAll(PDO::FETCH_ASSOC);
-
-
-
-            foreach ($ppUsers as $ppUser) {
-
-                // Insert notification for PP Daerah
-
-                $notifStmt = $pdo->prepare("
-
-                    INSERT INTO notifications (user_id, type, subject, message, created_at) 
-
-                    VALUES (:user_id, 'Perlawanan Baru', :subject, :message, NOW())
-
-                ");
-
-                $notifStmt->execute([
-
-                    ':user_id' => $ppUser['id'],
-
-                    ':subject' => 'Perlawanan Baru Untuk Pengesahan',
-
-                    ':message' => sprintf(
-
-                        'Pengadil %s telah menambah rekod perlawanan baru pada %s (%s) di %s. Sila semak dan sahkan.',
-
-                        $userData['nama_penuh'],
-
-                        date('d/m/Y', strtotime($input['tarikh'])),
-
-                        $input['jenis'],
-
-                        $input['tempat']
-
-                    )
-
-                ]);
-
-
-
-                // Send email notification to PP Daerah
-
-                $emailSubject = '🔔 Perlawanan Baru Memerlukan Pengesahan';
-
-                $emailBody = getNewMatchEmailTemplate(
-
-                    $ppUser['nama_penuh'],
-
-                    $userData['nama_penuh'],
-
-                    $input['tarikh'],
-
-                    $input['jenis'],
-
-                    $input['tempat'],
-
-                    $input['jawatan']
-
-                );
-
-
-
-                sendEmail($ppUser['email'], $emailSubject, $emailBody, null, 'lantikan');
-
+        // Check if this is a grouped submission (v3 — always grouped)
+        $officials = $input['officials'] ?? [];
+        $isGrouped = !empty($officials) && is_array($officials);
+
+        if (!$isGrouped) {
+            // v3: officials array is required for all submissions
+            jsonResponse(['error' => true, 'message' => 'Sila pilih pegawai perlawanan.'], 400);
+        }
+            // --- GROUPED PERSAHABATAN FLOW ---
+            // Validate we have at least 1 official
+            if (count($officials) < 1 || count($officials) > 5) {
+                jsonResponse(['error' => true, 'message' => 'Bilangan pegawai mestilah antara 1 hingga 5.'], 400);
             }
 
-        }
+            // Validate daerah_perlawanan_id
+            $daerahId = !empty($input['daerah_perlawanan_id']) ? (int) $input['daerah_perlawanan_id'] : null;
+            if (!$daerahId) {
+                jsonResponse(['error' => true, 'message' => 'Sila pilih daerah perlawanan.'], 400);
+            }
 
+            // Validate each official has user_id and jawatan
+            $usedJawatan = [];
+            foreach ($officials as $i => $off) {
+                if (empty($off['user_id']) || empty($off['jawatan'])) {
+                    jsonResponse(['error' => true, 'message' => "Pegawai #" . ($i + 1) . ": Sila pilih pengadil dan jawatan."], 400);
+                }
+                if (in_array($off['jawatan'], $usedJawatan, true)) {
+                    jsonResponse(['error' => true, 'message' => "Jawatan '" . $off['jawatan'] . "' telah digunakan. Setiap jawatan hanya boleh diberikan kepada seorang pegawai."], 400);
+                }
+                $usedJawatan[] = $off['jawatan'];
+            }
 
+            // Generate match_group_id (UUID v4)
+            $matchGroupId = sprintf(
+                '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
+                random_int(0, 0xffff), random_int(0, 0xffff),
+                random_int(0, 0xffff),
+                random_int(0, 0x0fff) | 0x4000,
+                random_int(0, 0x3fff) | 0x8000,
+                random_int(0, 0xffff), random_int(0, 0xffff), random_int(0, 0xffff)
+            );
 
-        jsonResponse([
+            $pdo->beginTransaction();
 
-            'error' => false,
+            $insertStmt = $pdo->prepare("
+                INSERT INTO perlawanan (
+                    match_group_id, user_id, submitted_by, tarikh, masa, jenis, nama_kejohanan,
+                    tempat, jawatan, home_team, away_team, daerah_perlawanan_id,
+                    skor_ht_home, skor_ht_away, skor_ft_home, skor_ft_away,
+                    skor_et_home, skor_et_away, skor_ps_home, skor_ps_away, cuaca,
+                    created_at
+                ) VALUES (
+                    :match_group_id, :user_id, :submitted_by, :tarikh, :masa, :jenis, :nama_kejohanan,
+                    :tempat, :jawatan, :home_team, :away_team, :daerah_perlawanan_id,
+                    :skor_ht_home, :skor_ht_away, :skor_ft_home, :skor_ft_away,
+                    :skor_et_home, :skor_et_away, :skor_ps_home, :skor_ps_away, :cuaca,
+                    NOW()
+                )
+            ");
 
-            'message' => 'Rekod perlawanan berjaya ditambah.',
+            // Parse optional score values
+            $skorFields = ['skor_ht_home','skor_ht_away','skor_ft_home','skor_ft_away','skor_et_home','skor_et_away','skor_ps_home','skor_ps_away'];
+            $skorValues = [];
+            foreach ($skorFields as $sf) {
+                $skorValues[$sf] = isset($input[$sf]) && $input[$sf] !== '' && $input[$sf] !== null ? (int) $input[$sf] : null;
+            }
 
-            'match_id' => $matchId
+            $insertedIds = [];
+            $officialUserIds = [];
 
-        ]);
+            foreach ($officials as $off) {
+                $offUserId = (int) $off['user_id'];
+                $insertStmt->execute([
+                    ':match_group_id' => $matchGroupId,
+                    ':user_id' => $offUserId,
+                    ':submitted_by' => $userId,
+                    ':tarikh' => $input['tarikh'],
+                    ':masa' => !empty($input['masa']) ? $input['masa'] : null,
+                    ':jenis' => !empty($input['jenis']) ? $input['jenis'] : null,
+                    ':nama_kejohanan' => !empty($input['nama_kejohanan']) ? $input['nama_kejohanan'] : null,
+                    ':tempat' => $input['tempat'],
+                    ':jawatan' => $off['jawatan'],
+                    ':home_team' => $input['home_team'],
+                    ':away_team' => $input['away_team'],
+                    ':daerah_perlawanan_id' => $daerahId,
+                    ':skor_ht_home' => $skorValues['skor_ht_home'],
+                    ':skor_ht_away' => $skorValues['skor_ht_away'],
+                    ':skor_ft_home' => $skorValues['skor_ft_home'],
+                    ':skor_ft_away' => $skorValues['skor_ft_away'],
+                    ':skor_et_home' => $skorValues['skor_et_home'],
+                    ':skor_et_away' => $skorValues['skor_et_away'],
+                    ':skor_ps_home' => $skorValues['skor_ps_home'],
+                    ':skor_ps_away' => $skorValues['skor_ps_away'],
+                    ':cuaca' => !empty($input['cuaca']) ? $input['cuaca'] : null,
+                ]);
+                $insertedIds[] = (int) $pdo->lastInsertId();
+                $officialUserIds[] = $offUserId;
+            }
+
+            $pdo->commit();
+
+            // Get submitter name
+            $userStmt = $pdo->prepare("SELECT nama_penuh FROM users WHERE id = :id");
+            $userStmt->execute([':id' => $userId]);
+            $submitterName = $userStmt->fetchColumn() ?: 'Pengadil';
+
+            // Send notifications to PP Daerah of the MATCH DISTRICT (not pengadil's district)
+            $ppStmt = $pdo->prepare("
+                SELECT u.id, u.nama_penuh, u.email 
+                FROM users u 
+                INNER JOIN persatuan_bolasepak_daerah p ON u.persatuan_id = p.id
+                INNER JOIN districts d ON p.daerah = d.nama
+                WHERE u.role = 'PP Daerah' AND d.id = :daerah_id
+            ");
+            $ppStmt->execute([':daerah_id' => $daerahId]);
+            $ppUsers = $ppStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Get daerah name for notification
+            $daerahStmt = $pdo->prepare("SELECT nama FROM districts WHERE id = :id");
+            $daerahStmt->execute([':id' => $daerahId]);
+            $daerahName = $daerahStmt->fetchColumn() ?: '';
+
+            foreach ($ppUsers as $ppUser) {
+                $notifStmt = $pdo->prepare("
+                    INSERT INTO notifications (user_id, type, subject, message, created_at) 
+                    VALUES (:user_id, 'Perlawanan Baru', :subject, :message, NOW())
+                ");
+                $notifStmt->execute([
+                    ':user_id' => $ppUser['id'],
+                    ':subject' => 'Perlawanan Baru Untuk Pengesahan',
+                    ':message' => sprintf(
+                        '%s telah merekod perlawanan %s vs %s pada %s di %s (%s). %d pegawai perlawanan. Sila semak dan sahkan.',
+                        $submitterName,
+                        $input['home_team'],
+                        $input['away_team'],
+                        date('d/m/Y', strtotime($input['tarikh'])),
+                        $input['tempat'],
+                        $daerahName,
+                        count($officials)
+                    )
+                ]);
+
+                $emailSubject = '🔔 Perlawanan Baru — Pengesahan Diperlukan';
+                $emailBody = getNewGroupMatchEmailTemplate(
+                    $ppUser['nama_penuh'],
+                    $submitterName,
+                    $input,
+                    $officials,
+                    $daerahName
+                );
+                sendEmail($ppUser['email'], $emailSubject, $emailBody, null, 'pengesahan');
+            }
+
+            // Notify all officials (except the submitter)
+            foreach ($officials as $off) {
+                $offUserId = (int) $off['user_id'];
+                if ($offUserId === $userId) continue;
+
+                $notifStmt = $pdo->prepare("
+                    INSERT INTO notifications (user_id, type, subject, message, created_at) 
+                    VALUES (:user_id, 'Rekod Perlawanan', :subject, :message, NOW())
+                ");
+                $notifStmt->execute([
+                    ':user_id' => $offUserId,
+                    ':subject' => 'Rekod Perlawanan Baru Dimasukkan',
+                    ':message' => sprintf(
+                        '%s telah merekodkan anda sebagai %s dalam perlawanan %s vs %s pada %s di %s.',
+                        $submitterName,
+                        $off['jawatan'],
+                        $input['home_team'],
+                        $input['away_team'],
+                        date('d/m/Y', strtotime($input['tarikh'])),
+                        $input['tempat']
+                    )
+                ]);
+            }
+
+            jsonResponse([
+                'error' => false,
+                'message' => 'Rekod perlawanan berjaya ditambah untuk ' . count($officials) . ' pegawai.',
+                'match_group_id' => $matchGroupId,
+                'match_ids' => $insertedIds
+            ]);
 
 
 
@@ -320,24 +349,23 @@ try {
             $params[':away_team'] = $input['away_team'];
         }
 
-        if (isset($input['head_referee_id'])) {
-            $updateFields[] = 'head_referee_id = :head_referee_id';
-            $params[':head_referee_id'] = !empty($input['head_referee_id']) ? $input['head_referee_id'] : null;
+        // Score fields
+        $editSkorFields = ['skor_ht_home','skor_ht_away','skor_ft_home','skor_ft_away','skor_et_home','skor_et_away','skor_ps_home','skor_ps_away'];
+        foreach ($editSkorFields as $sf) {
+            if (array_key_exists($sf, $input)) {
+                $updateFields[] = "$sf = :$sf";
+                $params[":$sf"] = ($input[$sf] !== '' && $input[$sf] !== null) ? (int) $input[$sf] : null;
+            }
         }
 
-        if (isset($input['assistant_referee_1_id'])) {
-            $updateFields[] = 'assistant_referee_1_id = :assistant_referee_1_id';
-            $params[':assistant_referee_1_id'] = !empty($input['assistant_referee_1_id']) ? $input['assistant_referee_1_id'] : null;
+        if (array_key_exists('cuaca', $input)) {
+            $updateFields[] = 'cuaca = :cuaca';
+            $params[':cuaca'] = !empty($input['cuaca']) ? $input['cuaca'] : null;
         }
 
-        if (isset($input['assistant_referee_2_id'])) {
-            $updateFields[] = 'assistant_referee_2_id = :assistant_referee_2_id';
-            $params[':assistant_referee_2_id'] = !empty($input['assistant_referee_2_id']) ? $input['assistant_referee_2_id'] : null;
-        }
-
-        if (isset($input['fourth_official_id'])) {
-            $updateFields[] = 'fourth_official_id = :fourth_official_id';
-            $params[':fourth_official_id'] = !empty($input['fourth_official_id']) ? $input['fourth_official_id'] : null;
+        if (isset($input['daerah_perlawanan_id'])) {
+            $updateFields[] = 'daerah_perlawanan_id = :daerah_perlawanan_id';
+            $params[':daerah_perlawanan_id'] = !empty($input['daerah_perlawanan_id']) ? (int) $input['daerah_perlawanan_id'] : null;
         }
 
 
@@ -460,8 +488,46 @@ function getNewMatchEmailTemplate($ppName, $pengadilName, $tarikh, $jenis, $temp
         ['Jawatan',         htmlspecialchars($jawatan)],
     ]);
     $body .= emailAlert('#2563EB', '#EFF6FF', 'Tindakan Diperlukan', 'Sila log masuk ke sistem dan <strong>sahkan atau tolak</strong> rekod perlawanan ini dalam masa yang sewajarnya.');
-    $body .= emailButton('https://refpahang.com/pp-dashboard.html', 'Sahkan Perlawanan');
+    $body .= emailButton(env('BASE_URL') . '/pp-daerah', 'Sahkan Perlawanan');
 
     return buildEmailTemplate('Rekod Perlawanan Baru - Pengesahan Diperlukan', '#2563EB', '', $body);
+}
+
+/**
+ * Email template for grouped persahabatan match notification to PP Daerah
+ */
+function getNewGroupMatchEmailTemplate($ppName, $submitterName, $matchData, $officials, $daerahName)
+{
+    require_once __DIR__ . '/../config/email.php';
+
+    $tarikhFormatted = date('d M Y', strtotime($matchData['tarikh']));
+    $masa = !empty($matchData['masa']) ? $matchData['masa'] : '-';
+
+    $body  = emailGreeting($ppName);
+    $body .= emailPara('<strong>' . htmlspecialchars($submitterName) . '</strong> telah merekod perlawanan persahabatan yang memerlukan <strong>pengesahan anda</strong>:');
+    $body .= emailInfoTable([
+        ['Perlawanan',       htmlspecialchars($matchData['home_team']) . ' vs ' . htmlspecialchars($matchData['away_team'])],
+        ['Tarikh',           $tarikhFormatted],
+        ['Masa',             htmlspecialchars($masa)],
+        ['Jenis',            htmlspecialchars($matchData['jenis'])],
+        ['Kejohanan',        htmlspecialchars($matchData['nama_kejohanan'] ?? '-')],
+        ['Tempat',           htmlspecialchars($matchData['tempat'])],
+        ['Daerah',           htmlspecialchars($daerahName)],
+    ]);
+
+    // Officials list
+    $officialRows = [];
+    foreach ($officials as $off) {
+        $officialRows[] = [htmlspecialchars($off['jawatan']), htmlspecialchars($off['nama'] ?? 'Pengadil #' . $off['user_id'])];
+    }
+    if (!empty($officialRows)) {
+        $body .= emailPara('<strong>Pegawai Perlawanan (' . count($officials) . '):</strong>');
+        $body .= emailInfoTable($officialRows);
+    }
+
+    $body .= emailAlert('#2563EB', '#EFF6FF', 'Tindakan Diperlukan', 'Satu pengesahan sahaja diperlukan untuk kesemua pegawai perlawanan ini.');
+    $body .= emailButton(env('BASE_URL') . '/pp-daerah/pengesahan-perlawanan', 'Sahkan Perlawanan');
+
+    return buildEmailTemplate('Perlawanan Persahabatan Baru - Pengesahan Diperlukan', '#2563EB', '', $body);
 }
 

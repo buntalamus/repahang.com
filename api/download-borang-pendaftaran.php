@@ -39,7 +39,7 @@ try {
                                  u.status_kerja, u.jawatan, u.nama_majikan,
                                  u.alamat_majikan1, u.alamat_majikan2, u.poskod_majikan, u.daerah_majikan, u.negeri_majikan,
                                  u.nama_waris, u.hubungan_waris, u.telefon_waris,
-                                 u.jenis_pengadil, u.tahun_mula_aktif, u.saiz_baju, u.jantina
+                                 u.jenis_pengadil, u.tahun_mula_aktif, u.saiz_baju, u.jantina, u.url_gambar_profil
                           FROM permohonan p
                           JOIN users u ON p.user_id = u.id
                           WHERE p.id = ? AND (p.user_id = ? OR p.district_id = ?) AND p.jenis_borang = ? AND LOWER(p.status) = 'approved'";
@@ -50,7 +50,7 @@ try {
                                  u.status_kerja, u.jawatan, u.nama_majikan,
                                  u.alamat_majikan1, u.alamat_majikan2, u.poskod_majikan, u.daerah_majikan, u.negeri_majikan,
                                  u.nama_waris, u.hubungan_waris, u.telefon_waris,
-                                 u.jenis_pengadil, u.tahun_mula_aktif, u.saiz_baju, u.jantina
+                                 u.jenis_pengadil, u.tahun_mula_aktif, u.saiz_baju, u.jantina, u.url_gambar_profil
                           FROM permohonan p
                           JOIN users u ON p.user_id = u.id
                           WHERE (p.user_id = ? OR p.district_id = ?) AND p.jenis_borang = ? AND LOWER(p.status) = 'approved'
@@ -113,6 +113,64 @@ try {
             }
             break;
 
+        case 'ujian_bertulis':
+            if ($application_id) {
+                $query = "SELECT p.*, u.nama_penuh, u.no_ic, u.email, u.no_telefon,
+                                 u.alamat1, u.alamat2, u.poskod, u.daerah, u.negeri,
+                                 u.status_kerja, u.jawatan, u.nama_majikan,
+                                 u.alamat_majikan1, u.alamat_majikan2, u.poskod_majikan, u.daerah_majikan, u.negeri_majikan,
+                                 u.nama_waris, u.hubungan_waris, u.telefon_waris,
+                                 u.jenis_pengadil, u.tahun_mula_aktif, u.saiz_baju, u.jantina, u.umur,
+                                 u.tarikh_lahir, u.tempat_lahir
+                          FROM permohonan_ujian_bertulis p
+                          JOIN users u ON p.user_id = u.id
+                          WHERE p.id = ? AND (p.user_id = ? OR p.persatuan_id = ?) AND p.status = 'Approved'";
+                $params = [$application_id, $user_id, $user['persatuan_id']];
+            } else {
+                $query = "SELECT p.*, u.nama_penuh, u.no_ic, u.email, u.no_telefon,
+                                 u.alamat1, u.alamat2, u.poskod, u.daerah, u.negeri,
+                                 u.status_kerja, u.jawatan, u.nama_majikan,
+                                 u.alamat_majikan1, u.alamat_majikan2, u.poskod_majikan, u.daerah_majikan, u.negeri_majikan,
+                                 u.nama_waris, u.hubungan_waris, u.telefon_waris,
+                                 u.jenis_pengadil, u.tahun_mula_aktif, u.saiz_baju, u.jantina, u.umur,
+                                 u.tarikh_lahir, u.tempat_lahir
+                          FROM permohonan_ujian_bertulis p
+                          JOIN users u ON p.user_id = u.id
+                          WHERE (p.user_id = ? OR p.persatuan_id = ?) AND p.status = 'Approved'
+                          ORDER BY p.id DESC LIMIT 1";
+                $params = [$user_id, $user['persatuan_id']];
+            }
+            break;
+
+        case 'ujian_kelas1':
+            if ($application_id) {
+                $query = "SELECT p.*, u.nama_penuh, u.no_ic, u.email, u.no_telefon,
+                                 u.alamat1, u.alamat2, u.poskod, u.daerah, u.negeri,
+                                 u.status_kerja, u.jawatan, u.nama_majikan,
+                                 u.alamat_majikan1, u.alamat_majikan2, u.poskod_majikan, u.daerah_majikan, u.negeri_majikan,
+                                 u.nama_waris, u.hubungan_waris, u.telefon_waris,
+                                 u.jenis_pengadil, u.tahun_mula_aktif, u.saiz_baju, u.jantina, u.umur,
+                                 u.tarikh_lahir, u.tempat_lahir
+                          FROM permohonan_ujian_bertulis p
+                          JOIN users u ON p.user_id = u.id
+                          WHERE p.id = ? AND (p.user_id = ? OR p.persatuan_id = ?) AND p.jenis_permohonan = 'kelas1' AND p.status = 'Approved'";
+                $params = [$application_id, $user_id, $user['persatuan_id']];
+            } else {
+                $query = "SELECT p.*, u.nama_penuh, u.no_ic, u.email, u.no_telefon,
+                                 u.alamat1, u.alamat2, u.poskod, u.daerah, u.negeri,
+                                 u.status_kerja, u.jawatan, u.nama_majikan,
+                                 u.alamat_majikan1, u.alamat_majikan2, u.poskod_majikan, u.daerah_majikan, u.negeri_majikan,
+                                 u.nama_waris, u.hubungan_waris, u.telefon_waris,
+                                 u.jenis_pengadil, u.tahun_mula_aktif, u.saiz_baju, u.jantina, u.umur,
+                                 u.tarikh_lahir, u.tempat_lahir
+                          FROM permohonan_ujian_bertulis p
+                          JOIN users u ON p.user_id = u.id
+                          WHERE (p.user_id = ? OR p.persatuan_id = ?) AND p.jenis_permohonan = 'kelas1' AND p.status = 'Approved'
+                          ORDER BY p.id DESC LIMIT 1";
+                $params = [$user_id, $user['persatuan_id']];
+            }
+            break;
+
         default:
             jsonResponse(['error' => true, 'message' => 'Jenis borang tidak sah'], 400);
     }
@@ -126,11 +184,19 @@ try {
     }
 
     // Get district info
-    $district_id = $application['district_id'] ?? $user['persatuan_id'];
+    $district_id = $application['district_id'] ?? $application['persatuan_id'] ?? $user['persatuan_id'];
     $district_stmt = $pdo->prepare("SELECT nama_persatuan FROM persatuan_bolasepak_daerah WHERE id = ?");
     $district_stmt->execute([$district_id]);
     $district = $district_stmt->fetch(PDO::FETCH_ASSOC);
     $district_nama = $district ? $district['nama_persatuan'] : '';
+
+    // Get PP Daerah info (for R-11 / R-1 sections)
+    $pp_stmt = $pdo->prepare("SELECT nama_penuh, no_telefon, email FROM users WHERE role = 'PP Daerah' AND persatuan_id = ? LIMIT 1");
+    $pp_stmt->execute([$district_id]);
+    $pp_user = $pp_stmt->fetch(PDO::FETCH_ASSOC);
+    $pp_daerah_nama = $pp_user['nama_penuh'] ?? ($user['role'] === 'PP Daerah' ? $user['nama_penuh'] : '');
+    $pp_telefon     = $pp_user['no_telefon'] ?? ($user['role'] === 'PP Daerah' ? $user['no_telefon'] : '');
+    $pp_emel        = $pp_user['email'] ?? ($user['role'] === 'PP Daerah' ? $user['email'] : '');
 
     // Generate filename based on type
     $filename = "";
@@ -149,6 +215,12 @@ try {
             break;
         case 'ujian_kecergasan':
             $filename = 'Borang_Permohonan_Ujian_Kecergasan_R4_' . date('Y-m-d') . '.pdf';
+            break;
+        case 'ujian_bertulis':
+            $filename = 'Borang_R11_KelasIII_' . date('Y-m-d') . '.pdf';
+            break;
+        case 'ujian_kelas1':
+            $filename = 'Borang_R11_KelasI_' . date('Y-m-d') . '.pdf';
             break;
     }
 
@@ -206,7 +278,10 @@ try {
                 'saiz_baju' => $application['saiz_baju'],
                 'jantina' => $application['jantina'],
                 'district_id' => $district_id,
-                'district_nama' => $district_nama
+                'district_nama' => $district_nama,
+                'pp_daerah_nama' => $pp_daerah_nama,
+                'pp_telefon'    => $pp_telefon,
+                'pp_emel'       => $pp_emel,
             ];
 
             if ($form === 'r1') {
@@ -281,6 +356,84 @@ try {
                 'jantina' => $application['jantina']
             ];
             generateR4Pdf($pdf, $mappedData);
+            break;
+
+        case 'ujian_bertulis':
+            // Map data for R3 template (Data Diri Pegawai Perlawanan - Kelas 3 FAM)
+            $mappedData = [
+                'id' => $application['id'],
+                'nama_penuh' => $application['nama_penuh'],
+                'user_email' => $application['email'],
+                'no_ic' => $application['no_ic'],
+                'no_telefon' => $application['no_telefon'],
+                'alamat1' => $application['alamat1'],
+                'alamat2' => $application['alamat2'],
+                'poskod' => $application['poskod'],
+                'daerah' => $application['daerah'],
+                'negeri' => $application['negeri'],
+                'status_kerja' => $application['status_kerja'],
+                'jawatan' => $application['jawatan'],
+                'nama_majikan' => $application['nama_majikan'],
+                'alamat_majikan1' => $application['alamat_majikan1'],
+                'alamat_majikan2' => $application['alamat_majikan2'],
+                'poskod_majikan' => $application['poskod_majikan'],
+                'daerah_majikan' => $application['daerah_majikan'],
+                'negeri_majikan' => $application['negeri_majikan'],
+                'jenis_pengadil' => $application['jenis_pengadil'],
+                'tahun_mula_aktif' => $application['tahun_mula_aktif'] ?? '',
+                'saiz_baju' => $application['saiz_baju'],
+                'jantina' => $application['jantina'],
+                'umur' => $application['umur'] ?? '',
+                'tarikh_lahir' => $application['tarikh_lahir'] ?? '',
+                'tempat_lahir' => $application['tempat_lahir'] ?? '',
+                'tahun_permohonan' => $application['tahun_permohonan'] ?? date('Y'),
+                'tahun_lulus_kelas3' => $application['tahun_lulus_kelas3'] ?? '',
+                'tarikh_hantar'    => $application['tarikh_hantar'] ?? null,
+                'district_nama'    => $district_nama,
+                'pp_daerah_nama'   => $pp_daerah_nama,
+                'pp_telefon'       => $pp_telefon,
+                'pp_emel'          => $pp_emel,
+            ];
+            generateR11Pdf($pdf, $mappedData, 'III');
+            break;
+
+        case 'ujian_kelas1':
+            // Map data for R3-A template (Data Diri Penilai Pengadil - Kelas 1 FAM)
+            $mappedData = [
+                'id' => $application['id'],
+                'nama_penuh' => $application['nama_penuh'],
+                'user_email' => $application['email'],
+                'no_ic' => $application['no_ic'],
+                'no_telefon' => $application['no_telefon'],
+                'alamat1' => $application['alamat1'],
+                'alamat2' => $application['alamat2'],
+                'poskod' => $application['poskod'],
+                'daerah' => $application['daerah'],
+                'negeri' => $application['negeri'],
+                'status_kerja' => $application['status_kerja'],
+                'jawatan' => $application['jawatan'],
+                'nama_majikan' => $application['nama_majikan'],
+                'alamat_majikan1' => $application['alamat_majikan1'],
+                'alamat_majikan2' => $application['alamat_majikan2'],
+                'poskod_majikan' => $application['poskod_majikan'],
+                'daerah_majikan' => $application['daerah_majikan'],
+                'negeri_majikan' => $application['negeri_majikan'],
+                'jenis_pengadil' => $application['jenis_pengadil'],
+                'tahun_mula_aktif' => $application['tahun_mula_aktif'] ?? '',
+                'saiz_baju' => $application['saiz_baju'],
+                'jantina' => $application['jantina'],
+                'umur' => $application['umur'] ?? '',
+                'tarikh_lahir' => $application['tarikh_lahir'] ?? '',
+                'tempat_lahir' => $application['tempat_lahir'] ?? '',
+                'tahun_permohonan' => $application['tahun_permohonan'] ?? date('Y'),
+                'tahun_lulus_kelas3' => $application['tahun_lulus_kelas3'] ?? '',
+                'tarikh_hantar'    => $application['tarikh_hantar'] ?? null,
+                'district_nama'    => $district_nama,
+                'pp_daerah_nama'   => $pp_daerah_nama,
+                'pp_telefon'       => $pp_telefon,
+                'pp_emel'          => $pp_emel,
+            ];
+            generateR11Pdf($pdf, $mappedData, 'I');
             break;
     }
 

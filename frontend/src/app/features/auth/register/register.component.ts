@@ -25,6 +25,8 @@ export class RegisterComponent {
 
   errors: Record<string, string> = {};
   loading = false;
+  checkingStatus = true;
+  registrationClosed = false;
   showModal = false;
   modalSuccess = false;
   modalTitle = '';
@@ -45,7 +47,23 @@ export class RegisterComponent {
     private toast: ToastService,
     private router: Router,
   ) {
+    this.checkRegistrationStatus();
     this.loadPersatuan();
+  }
+
+  private checkRegistrationStatus(): void {
+    this.checkingStatus = true;
+    this.api.get<any>('registration-status.php').subscribe({
+      next: (res) => {
+        this.checkingStatus = false;
+        if (!res.error) {
+          this.registrationClosed = !res.registration_open;
+        }
+      },
+      error: () => {
+        this.checkingStatus = false;
+      },
+    });
   }
 
   private loadPersatuan(): void {
@@ -94,9 +112,9 @@ export class RegisterComponent {
         }
         this.showModal = true;
       },
-      error: () => {
+      error: (err: any) => {
         this.loading = false;
-        this.toast.error('Tidak dapat menyambung ke pelayan.');
+        this.toast.error(err?.error?.message || 'Tidak dapat menyambung ke pelayan.');
       },
     });
   }

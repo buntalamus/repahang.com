@@ -5,6 +5,7 @@ import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
 import { getSectionsForJawatan, KriteriaSection, SKALA_PEMARKAHAN, TAHAP_KESUKARAN } from '../../../shared/data/kriteria-penilaian';
+import { environment } from '../../../../environments/environment';
 
 interface PegawaiForm {
   lantikan_pengadil_id: number | null;
@@ -55,7 +56,10 @@ export class PenilaiAssessmentsComponent implements OnInit {
 
   // Form state
   tahapKesukaran = 'Normal';
+  cuaca = '';
   ulasanKeseluruhan = '';
+
+  cuacaOptions = ['Cerah', 'Mendung', 'Hujan Renyai', 'Hujan Lebat', 'Panas Terik', 'Berangin'];
   pegawaiList: PegawaiForm[] = [];
   activePegawaiIdx = 0;
 
@@ -126,6 +130,7 @@ export class PenilaiAssessmentsComponent implements OnInit {
 
     // Set parent-level fields
     this.tahapKesukaran = existing?.tahap_kesukaran ?? 'Normal';
+    this.cuaca = existing?.cuaca ?? '';
     this.ulasanKeseluruhan = existing?.ulasan_keseluruhan ?? '';
 
     // Load officials for this match
@@ -209,11 +214,11 @@ export class PenilaiAssessmentsComponent implements OnInit {
   }
 
   getJawatanShort(jawatan: string): string {
-    if (jawatan === 'Pengadil Utama') return 'PU';
-    if (jawatan === 'Pembantu Pengadil 1') return 'PP1';
-    if (jawatan === 'Pembantu Pengadil 2') return 'PP2';
-    if (jawatan.includes('Keempat') || jawatan.includes('Ke-4')) return 'P4';
-    return 'PG';
+    if (jawatan === 'Pengadil') return 'R';
+    if (jawatan === 'Penolong Pengadil 1') return 'AR1';
+    if (jawatan === 'Penolong Pengadil 2') return 'AR2';
+    if (jawatan.includes('ke4') || jawatan.includes('Keempat') || jawatan.includes('Ke-4')) return 'P4';
+    return jawatan;
   }
 
   saveDraft(): void {
@@ -239,6 +244,7 @@ export class PenilaiAssessmentsComponent implements OnInit {
       jadual_id: a.jadual_id,
       lantikan_id: a.id,
       tahap_kesukaran: this.tahapKesukaran,
+      cuaca: this.cuaca,
       ulasan_keseluruhan: this.ulasanKeseluruhan,
       pegawai: this.pegawaiList.map(p => ({
         lantikan_pengadil_id: p.lantikan_pengadil_id,
@@ -278,7 +284,7 @@ export class PenilaiAssessmentsComponent implements OnInit {
                 this.toast.error(r2.message);
               }
             },
-            error: () => { this.submitting = false; this.toast.error('Gagal menghantar laporan.'); },
+            error: (err: any) => { this.submitting = false; this.toast.error(err?.error?.message || 'Gagal menghantar laporan.'); },
           });
         } else {
           this.submitting = false;
@@ -286,7 +292,7 @@ export class PenilaiAssessmentsComponent implements OnInit {
           this.loadData();
         }
       },
-      error: () => { this.submitting = false; this.toast.error('Gagal menyimpan laporan.'); },
+      error: (err: any) => { this.submitting = false; this.toast.error(err?.error?.message || 'Gagal menyimpan laporan.'); },
     });
   }
 
@@ -305,6 +311,10 @@ export class PenilaiAssessmentsComponent implements OnInit {
       this.viewingReport = report;
       this.showView = true;
     }
+  }
+
+  downloadLaporanPdf(id: number): void {
+    window.open(`${environment.apiUrl}/download-laporan-penilaian.php?id=${id}`, '_blank');
   }
 
   getLaporanStatusClass(status: string): string {

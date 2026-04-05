@@ -1,22 +1,22 @@
 @if (loading) {
-  <app-loading message="Memuatkan senarai pengadil..." />
+  <app-loading [message]="'Memuatkan senarai ' + typeLabel.toLowerCase() + '...'" />
 } @else {
   <!-- Kad Statistik -->
   <div class="grid grid-cols-3 gap-4 mb-6">
     <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-      <p class="text-sm text-gray-500 font-medium mb-1">Jumlah Pengadil</p>
+      <p class="text-sm text-gray-500 font-medium mb-1">Jumlah {{ typeLabel }}</p>
       <p class="text-2xl font-bold text-gray-900">{{ stats.total }}</p>
-      <p class="text-[10px] text-gray-400 mt-1">Pengadil berdaftar tahun {{ yearFilter }}.</p>
+      <p class="text-[10px] text-gray-400 mt-1">{{ typeLabelFull }} tahun {{ yearFilter }}.</p>
     </div>
     <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
       <p class="text-sm text-gray-500 font-medium mb-1">Lelaki</p>
       <p class="text-2xl font-bold text-blue-600">{{ stats.lelaki }}</p>
-      <p class="text-[10px] text-gray-400 mt-1">Pengadil lelaki berdaftar.</p>
+      <p class="text-[10px] text-gray-400 mt-1">{{ typeLabel }} lelaki berdaftar.</p>
     </div>
     <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
       <p class="text-sm text-gray-500 font-medium mb-1">Perempuan</p>
       <p class="text-2xl font-bold text-pink-600">{{ stats.perempuan }}</p>
-      <p class="text-[10px] text-gray-400 mt-1">Pengadil perempuan berdaftar.</p>
+      <p class="text-[10px] text-gray-400 mt-1">{{ typeLabel }} perempuan berdaftar.</p>
     </div>
   </div>
 
@@ -26,7 +26,7 @@
       <div class="relative flex-1">
         <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
         <input type="text" [(ngModel)]="searchQuery" (ngModelChange)="applyFilter()"
-          placeholder="Cari nama, No. KP, persatuan, jenis pengadil..."
+          placeholder="Cari nama, No. KP, persatuan, jenis..."
           class="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
       </div>
       <select [(ngModel)]="yearFilter" (ngModelChange)="loadReferees()"
@@ -56,7 +56,7 @@
     </div>
     @if (searchQuery || genderFilter !== 'all') {
       <div class="mt-3 text-xs text-slate-500">
-        Menunjukkan {{ filtered.length }} daripada {{ referees.length }} pengadil
+        Menunjukkan {{ filtered.length }} daripada {{ referees.length }} {{ typeLabel.toLowerCase() }}
       </div>
     }
   </div>
@@ -127,7 +127,7 @@
             <tr>
               <td colspan="9" class="px-4 py-16 text-center">
                 <span class="material-symbols-outlined text-4xl text-slate-300 mb-2">person_off</span>
-                <p class="text-slate-400 text-sm">Tiada pengadil berdaftar ditemui.</p>
+                <p class="text-slate-400 text-sm">Tiada {{ typeLabel.toLowerCase() }} berdaftar ditemui.</p>
               </td>
             </tr>
           }
@@ -178,7 +178,7 @@
     } @empty {
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
         <span class="material-symbols-outlined text-4xl text-slate-300 mb-2">person_off</span>
-        <p class="text-slate-400 text-sm">Tiada pengadil berdaftar ditemui.</p>
+        <p class="text-slate-400 text-sm">Tiada {{ typeLabel.toLowerCase() }} berdaftar ditemui.</p>
       </div>
     }
     <app-pagination [totalItems]="filtered.length" [pageSize]="pageSize" [currentPage]="currentPage"
@@ -343,6 +343,24 @@
                 </div>
               </div>
             </div>
+
+            <!-- Notifikasi Telegram -->
+            <div>
+              <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Notifikasi Telegram</h4>
+              <div class="flex items-center gap-3">
+                @if (selectedReferee.telegram_chat_id) {
+                  <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg text-xs font-medium text-green-700">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                    Telegram disambungkan
+                  </span>
+                } @else {
+                  <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium text-gray-500">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                    Telegram belum disambungkan
+                  </span>
+                }
+              </div>
+            </div>
           </div>
         }
 
@@ -441,7 +459,7 @@
   <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" (click)="showEditModal = false">
     <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
       <div class="p-5 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl">
-        <h3 class="text-base font-semibold text-gray-900">Kemaskini Profil Pengadil</h3>
+        <h3 class="text-base font-semibold text-gray-900">Kemaskini Profil {{ typeLabel }}</h3>
         <button (click)="showEditModal = false" class="text-gray-400 hover:text-gray-600">✕</button>
       </div>
 

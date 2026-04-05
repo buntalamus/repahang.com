@@ -22,6 +22,8 @@ if ($method !== 'POST') {
 
 
 
+requireAuth();
+
 handleUpload();
 
 

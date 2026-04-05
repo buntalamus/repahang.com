@@ -44,6 +44,7 @@ import { environment } from '../../../../environments/environment';
               <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Nama</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">No. KP</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Jenis</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Resit</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
               <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Tarikh</th>
               <th class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Tindakan</th>
@@ -56,6 +57,16 @@ import { environment } from '../../../../environments/environment';
                 <td class="px-6 py-4 font-medium text-slate-900">{{ app.nama_penuh }}</td>
                 <td class="px-6 py-4 text-slate-600">{{ app.no_kp }}</td>
                 <td class="px-6 py-4 text-slate-600">{{ app.jenis_permohonan || app.jenis_borang || '-' }}</td>
+                <td class="px-6 py-4">
+                  @if (app.url_resit) {
+                    <a [href]="app.url_resit" target="_blank" rel="noopener"
+                      class="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline">
+                      <span class="material-icons text-sm">receipt</span>Lihat
+                    </a>
+                  } @else {
+                    <span class="text-xs text-slate-400">—</span>
+                  }
+                </td>
                 <td class="px-6 py-4">
                   <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
                     [ngClass]="{
@@ -79,7 +90,7 @@ import { environment } from '../../../../environments/environment';
                 </td>
               </tr>
             } @empty {
-              <tr><td colspan="7" class="px-6 py-12 text-center text-slate-400">Tiada permohonan ditemui.</td></tr>
+              <tr><td colspan="8" class="px-6 py-12 text-center text-slate-400">Tiada permohonan ditemui.</td></tr>
             }
           </tbody>
         </table>

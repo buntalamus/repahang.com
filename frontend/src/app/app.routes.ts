@@ -18,6 +18,7 @@ export const routes: Routes = [
   },
   {
     path: 'daftar',
+    canActivate: [guestGuard],
     loadComponent: () =>
       import('./features/auth/register/register.component').then((m) => m.RegisterComponent),
   },
@@ -25,6 +26,18 @@ export const routes: Routes = [
     path: 'maintenance',
     loadComponent: () =>
       import('./features/maintenance/maintenance.component').then((m) => m.MaintenanceComponent),
+  },
+  {
+    path: 'lupa-kata-laluan',
+    canActivate: [guestGuard],
+    loadComponent: () =>
+      import('./features/auth/forgot-password/forgot-password.component').then((m) => m.ForgotPasswordComponent),
+  },
+  {
+    path: 'reset-kata-laluan',
+    canActivate: [guestGuard],
+    loadComponent: () =>
+      import('./features/auth/reset-password/reset-password.component').then((m) => m.ResetPasswordComponent),
   },
   {
     path: 'tukar-kata-laluan',
@@ -49,11 +62,30 @@ export const routes: Routes = [
         path: 'permohonan',
         loadComponent: () =>
           import('./features/admin/applications/applications.component').then((m) => m.AdminApplicationsComponent),
+        data: { group: 'pengadil' },
+      },
+      {
+        path: 'permohonan-ra',
+        loadComponent: () =>
+          import('./features/admin/applications/applications.component').then((m) => m.AdminApplicationsComponent),
+        data: { group: 'penilai' },
       },
       {
         path: 'pengadil-berdaftar',
         loadComponent: () =>
           import('./features/admin/pengadil-berdaftar/pengadil-berdaftar.component').then((m) => m.PengadilBerdaftarComponent),
+        data: { type: 'pengadil_berdaftar' },
+      },
+      {
+        path: 'ra-berdaftar',
+        loadComponent: () =>
+          import('./features/admin/pengadil-berdaftar/pengadil-berdaftar.component').then((m) => m.PengadilBerdaftarComponent),
+        data: { type: 'penilai_berdaftar' },
+      },
+      {
+        path: 'pp-daerah',
+        loadComponent: () =>
+          import('./features/admin/pp-daerah-list/pp-daerah-list.component').then((m) => m.PpDaerahListComponent),
       },
       {
         path: 'pengguna',
@@ -122,12 +154,6 @@ export const routes: Routes = [
         data: { type: 'berdaftar' },
       },
       {
-        path: 'permohonan/futsal',
-        loadComponent: () =>
-          import('./features/pp-daerah/applications/applications.component').then((m) => m.PpApplicationsComponent),
-        data: { type: 'futsal' },
-      },
-      {
         path: 'permohonan/kecergasan',
         loadComponent: () =>
           import('./features/pp-daerah/applications/applications.component').then((m) => m.PpApplicationsComponent),
@@ -151,10 +177,20 @@ export const routes: Routes = [
           import('./features/pp-daerah/referees/referees.component').then((m) => m.PpRefereesComponent),
       },
       {
+        path: 'ra-berdaftar',
+        loadComponent: () =>
+          import('./features/pp-daerah/ra-berdaftar/ra-berdaftar.component').then((m) => m.PpRaBerdaftarComponent),
+      },
+      {
         path: 'lantikan',
         loadComponent: () =>
           import('./features/pp-daerah/applications/applications.component').then((m) => m.PpApplicationsComponent),
         data: { type: 'lantikan' },
+      },
+      {
+        path: 'tugasan',
+        loadComponent: () =>
+          import('./features/pengadil/tugasan/tugasan.component').then((m) => m.PengadilTugasanComponent),
       },
       {
         path: 'statistik',
@@ -163,10 +199,44 @@ export const routes: Routes = [
         data: { section: 'statistik' },
       },
       {
+        path: 'pengesahan-perlawanan',
+        loadComponent: () =>
+          import('./features/pp-daerah/match-verification/match-verification.component').then((m) => m.PpMatchVerificationComponent),
+      },
+      {
+        path: 'laporan-penilaian',
+        loadComponent: () =>
+          import('./features/pp-daerah/penilaian/penilaian.component').then((m) => m.PpPenilaianComponent),
+      },
+      {
         path: 'pengesahan',
         loadComponent: () =>
           import('./features/pp-daerah/applications/applications.component').then((m) => m.PpApplicationsComponent),
         data: { type: 'pengesahan' },
+      },
+      {
+        path: 'daftar/tahunan',
+        loadComponent: () =>
+          import('./features/pengadil/application/application.component').then((m) => m.PengadilApplicationComponent),
+        data: { type: 'penilai_berdaftar' },
+      },
+      {
+        path: 'daftar/bertulis',
+        loadComponent: () =>
+          import('./features/pengadil/application/application.component').then((m) => m.PengadilApplicationComponent),
+        data: { type: 'bertulis' },
+      },
+      {
+        path: 'daftar/kelas1',
+        loadComponent: () =>
+          import('./features/pengadil/application/application.component').then((m) => m.PengadilApplicationComponent),
+        data: { type: 'kelas1' },
+      },
+      {
+        path: 'daftar/kecergasan',
+        loadComponent: () =>
+          import('./features/pengadil/application/application.component').then((m) => m.PengadilApplicationComponent),
+        data: { type: 'kecergasan' },
       },
       {
         path: 'profil',
@@ -199,16 +269,15 @@ export const routes: Routes = [
           import('./features/pengadil/matches/matches.component').then((m) => m.PengadilMatchesComponent),
       },
       {
+        path: 'penilaian',
+        loadComponent: () =>
+          import('./features/pengadil/penilaian/penilaian.component').then((m) => m.PengadilPenilaianComponent),
+      },
+      {
         path: 'permohonan/berdaftar',
         loadComponent: () =>
           import('./features/pengadil/application/application.component').then((m) => m.PengadilApplicationComponent),
         data: { type: 'berdaftar' },
-      },
-      {
-        path: 'permohonan/futsal',
-        loadComponent: () =>
-          import('./features/pengadil/application/application.component').then((m) => m.PengadilApplicationComponent),
-        data: { type: 'futsal' },
       },
       {
         path: 'permohonan/kecergasan',
@@ -258,6 +327,12 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/penilai/dashboard/dashboard.component').then((m) => m.PenilaiDashboardComponent),
         data: { section: 'permohonan' },
+      },
+      {
+        path: 'permohonan/tahunan',
+        loadComponent: () =>
+          import('./features/pengadil/application/application.component').then((m) => m.PengadilApplicationComponent),
+        data: { type: 'penilai_berdaftar' },
       },
       {
         path: 'tugasan',

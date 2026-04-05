@@ -15,7 +15,7 @@ require_once __DIR__ . '/bootstrap.php';
 
 $currentUser = requireRole(['Admin']);
 
-$JAWATAN_LIST = ['Pengadil Utama', 'Pembantu Pengadil 1', 'Pembantu Pengadil 2', 'Pengadil Keempat', 'Penilai Pengadil'];
+$JAWATAN_LIST = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4', 'Penilai Pengadil'];
 
 try {
     $pdo = getDbConnection();
@@ -102,7 +102,7 @@ try {
                 LEFT JOIN users u ON lp.pengadil_id = u.id
                 LEFT JOIN pengadil_luar pl ON lp.pengadil_luar_id = pl.id
                 WHERE lp.jadual_id = :jadual_id
-                ORDER BY FIELD(lp.jawatan, 'Pengadil Utama','Pembantu Pengadil 1','Pembantu Pengadil 2','Pengadil Keempat','Penilai Pengadil')
+                ORDER BY FIELD(lp.jawatan, 'Pengadil','Penolong Pengadil 1','Penolong Pengadil 2','Pegawai ke4','Penilai Pengadil')
             ");
             $assignStmt->execute([':jadual_id' => $id]);
             $match['lantikan'] = $assignStmt->fetchAll();
@@ -123,6 +123,30 @@ try {
         } else {
             jsonResponse(['error' => true, 'message' => 'kejohanan_id diperlukan.'], 400);
         }
+    }
+
+    if ($method === 'POST' && ($_GET['action'] ?? '') === 'bulk_delete') {
+        $input = getJsonInput();
+        $ids = $input['ids'] ?? [];
+        if (!is_array($ids) || empty($ids)) {
+            jsonResponse(['error' => true, 'message' => 'Senarai ID diperlukan.'], 400);
+        }
+        $ids = array_map('intval', $ids);
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+        // Check for any with existing lantikan
+        $checkStmt = $pdo->prepare("SELECT jp.id, jp.no_perlawanan FROM jadual_perlawanan jp WHERE jp.id IN ($placeholders) AND (SELECT COUNT(*) FROM lantikan_pengadil lp WHERE lp.jadual_id = jp.id) > 0");
+        $checkStmt->execute($ids);
+        $blocked = $checkStmt->fetchAll(PDO::FETCH_ASSOC);
+        if (!empty($blocked)) {
+            $nos = implode(', ', array_column($blocked, 'no_perlawanan'));
+            jsonResponse(['error' => true, 'message' => "Perlawanan berikut masih mempunyai lantikan: $nos. Sila batalkan lantikan terlebih dahulu."], 400);
+        }
+
+        $delStmt = $pdo->prepare("DELETE FROM jadual_perlawanan WHERE id IN ($placeholders)");
+        $delStmt->execute($ids);
+        $count = $delStmt->rowCount();
+        jsonResponse(['error' => false, 'message' => "$count perlawanan berjaya dipadam."]);
     }
 
     if ($method === 'POST') {

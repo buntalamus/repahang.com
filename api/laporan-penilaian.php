@@ -23,7 +23,7 @@ $isAdmin = ($currentUser['user_role'] ?? $currentUser['role'] ?? '') === 'Admin'
 /* ────────────── helpers ────────────── */
 
 function fetchPegawaiForLaporan(PDO $pdo, int $laporanId): array {
-    $stmt = $pdo->prepare("SELECT * FROM laporan_penilaian_pegawai WHERE laporan_id = :lid ORDER BY FIELD(jawatan,'Pengadil Utama','Pembantu Pengadil 1','Pembantu Pengadil 2','Pengadil Keempat')");
+    $stmt = $pdo->prepare("SELECT * FROM laporan_penilaian_pegawai WHERE laporan_id = :lid ORDER BY FIELD(jawatan,'Pengadil','Penolong Pengadil 1','Penolong Pengadil 2','Pegawai ke4')");
     $stmt->execute([':lid' => $laporanId]);
     $rows = $stmt->fetchAll();
     foreach ($rows as &$r) {
@@ -92,8 +92,8 @@ try {
                 FROM lantikan_pengadil lp
                 LEFT JOIN users u ON lp.pengadil_id = u.id
                 LEFT JOIN pengadil_luar pl ON lp.pengadil_luar_id = pl.id
-                WHERE lp.jadual_id = :jid AND lp.jawatan != 'Penilai Pengadil' AND lp.status = 'Diterima'
-                ORDER BY FIELD(lp.jawatan,'Pengadil Utama','Pembantu Pengadil 1','Pembantu Pengadil 2','Pengadil Keempat')
+                WHERE lp.jadual_id = :jid AND lp.jawatan != 'Penilai Pengadil' AND lp.status != 'Ditolak'
+                ORDER BY FIELD(lp.jawatan,'Pengadil','Penolong Pengadil 1','Penolong Pengadil 2','Pegawai ke4')
             ");
             $stmt->execute([':jid' => $jadualId]);
             $officials = $stmt->fetchAll();
@@ -166,9 +166,11 @@ try {
             $stmt = $pdo->prepare("
                 SELECT lp.id, lp.jadual_id, lp.status, lp.tahap_kesukaran, lp.ulasan_keseluruhan,
                        lp.tarikh_hantar, lp.catatan_admin,
-                       u_penilai.nama_penuh AS nama_penilai
+                       COALESCE(u_penilai.nama_penuh, pl_penilai.nama) AS nama_penilai
                 FROM laporan_penilaian lp
-                JOIN users u_penilai ON lp.penilai_id = u_penilai.id
+                LEFT JOIN users u_penilai ON lp.penilai_id = u_penilai.id
+                LEFT JOIN lantikan_pengadil lp2 ON lp.lantikan_id = lp2.id
+                LEFT JOIN pengadil_luar pl_penilai ON lp2.pengadil_luar_id = pl_penilai.id
                 WHERE lp.jadual_id = :jid
                 ORDER BY lp.created_at ASC
             ");
@@ -240,9 +242,15 @@ try {
 
         $parentFields = [
             'tahap_kesukaran'    => $input['tahap_kesukaran'] ?? 'Normal',
+            'cuaca'              => !empty($input['cuaca']) ? $input['cuaca'] : null,
             'ulasan_keseluruhan' => $input['ulasan_keseluruhan'] ?? '',
             'status'             => 'Draf',
         ];
+
+        // Score fields
+        foreach (['skor_ht_home','skor_ht_away','skor_ft_home','skor_ft_away','skor_et_home','skor_et_away','skor_ps_home','skor_ps_away'] as $sf) {
+            $parentFields[$sf] = isset($input[$sf]) && $input[$sf] !== '' && $input[$sf] !== null ? (int)$input[$sf] : null;
+        }
 
         $pdo->beginTransaction();
 
@@ -316,6 +324,10 @@ try {
             try {
                 require_once __DIR__ . '/../config/email.php';
                 require_once __DIR__ . '/../config/telegram.php';
+                require_once __DIR__ . '/../config/env.php';
+
+                $baseUrl = env('BASE_URL', 'https://refpahang.com');
+                $reportUrl = $baseUrl . '/api/download-laporan-penilaian.php?id=' . $id;
 
                 $reportStmt = $pdo->prepare("
                     SELECT lp.*, jp.no_perlawanan, jp.tarikh, jp.masa, jp.pasukan_home, jp.pasukan_away,
@@ -376,7 +388,8 @@ try {
                             $allKelemahan,
                             $allNasihat,
                             $report['ulasan_keseluruhan'] ?? '',
-                            $catatan
+                            $catatan,
+                            $reportUrl
                         );
                     }
 
@@ -401,6 +414,8 @@ try {
                             $tgMsg .= "\n\n⚠️ <b>Perlu Diperbaiki:</b>\n• " . implode("\n• ", array_slice($allKelemahan, 0, 5));
                             if (count($allKelemahan) > 5) $tgMsg .= "\n  <i>+" . (count($allKelemahan) - 5) . " lagi</i>";
                         }
+
+                        $tgMsg .= "\n\n📋 <a href=\"{$reportUrl}\">Lihat Laporan Penuh</a>";
 
                         tgSend($chatId, $tgMsg);
                     }

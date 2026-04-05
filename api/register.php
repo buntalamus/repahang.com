@@ -44,6 +44,16 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 try {
 
+    // Check if registration is open
+    $regStmt = $pdo->prepare("SELECT setting_value FROM application_settings WHERE setting_key = 'registration_open'");
+    $regStmt->execute();
+    $regRow = $regStmt->fetch(PDO::FETCH_ASSOC);
+    if ($regRow && $regRow['setting_value'] === '0') {
+        http_response_code(403);
+        echo json_encode(['error' => true, 'message' => 'Pendaftaran akaun baru telah ditutup buat sementara waktu. Sila hubungi pentadbir untuk maklumat lanjut.']);
+        exit;
+    }
+
     // Get JSON input
 
     $input = json_decode(file_get_contents('php://input'), true);
@@ -463,8 +473,8 @@ function sendWelcomeEmail($to, $nama, $username, $password, $role = 'Pengadil', 
     $subject = "Selamat Datang - Sistem Pengurusan Unit Pengadil Persatuan Bola Sepak Negeri Pahang";
 
     $dashboardUrl = $role === 'PP Daerah'
-        ? 'https://refpahang.com/pp-dashboard.html'
-        : 'https://refpahang.com/index.html';
+        ? env('BASE_URL') . '/pp-daerah'
+        : env('BASE_URL') . '/login';
 
     if ($role === 'PP Daerah') {
         $nextStepsList = emailOrderedList([

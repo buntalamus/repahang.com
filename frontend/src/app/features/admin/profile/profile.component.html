@@ -73,6 +73,20 @@
       </div>
     </div>
 
+    <!-- FAM Kelas III Qualification -->
+    @if (profile.tahun_lulus_kelas3) {
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 class="text-lg font-semibold text-slate-900 mb-4 border-l-4 border-pahang-yellow pl-3">Kelayakan FAM</h3>
+        <div class="flex items-center gap-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <span class="material-icons text-blue-600 text-3xl">workspace_premium</span>
+          <div>
+            <p class="text-xs text-blue-500 font-medium uppercase tracking-wider">Ujian Kelas III FAM</p>
+            <p class="text-base font-bold text-blue-800">Lulus — Tahun {{ profile.tahun_lulus_kelas3 }}</p>
+          </div>
+        </div>
+      </div>
+    }
+
     <!-- Employment -->
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
       <h3 class="text-lg font-semibold text-slate-900 mb-4 border-l-4 border-pahang-yellow pl-3">Maklumat Pekerjaan</h3>
@@ -120,5 +134,8 @@
 
     <!-- Change Password -->
     <app-change-password />
+
+    <!-- Image Crop Modal -->
+    <app-image-crop #imageCrop (cropped)="onImageCropped($event)" />
   </div>
 }

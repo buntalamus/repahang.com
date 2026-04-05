@@ -4,7 +4,9 @@
 
  * PP Daerah Referees API
 
- * Get and manage referees in PP's district
+ * Get and manage referees/RA in PP's district
+
+ * Supports ?role=Pengadil (default) or ?role=Penilai for RA listing
 
  */
 
@@ -24,6 +26,14 @@ $currentUser = requireRole(['PP Daerah']);
 
 
 
+// Determine which role to list (Pengadil or Penilai/RA)
+
+$allowedRoles = ['Pengadil', 'Penilai'];
+
+$targetRole = isset($_GET['role']) && in_array($_GET['role'], $allowedRoles, true) ? $_GET['role'] : 'Pengadil';
+
+
+
 $method = $_SERVER['REQUEST_METHOD'];
 
 
@@ -32,19 +42,19 @@ switch ($method) {
 
     case 'GET':
 
-        handleGetReferees($currentUser);
+        handleGetReferees($currentUser, $targetRole);
 
         break;
 
     case 'POST':
 
-        handleToggleStatus($currentUser);
+        handleToggleStatus($currentUser, $targetRole);
 
         break;
 
     case 'DELETE':
 
-        handleDeleteReferee($currentUser);
+        handleDeleteReferee($currentUser, $targetRole);
 
         break;
 
@@ -56,7 +66,7 @@ switch ($method) {
 
 
 
-function handleGetReferees(array $currentUser): void
+function handleGetReferees(array $currentUser, string $targetRole = 'Pengadil'): void
 
 {
 
@@ -110,7 +120,7 @@ function handleGetReferees(array $currentUser): void
 
                 WHERE u.id = :referee_id
 
-                AND u.role = 'Pengadil'
+                AND u.role = :target_role
 
                 AND u.persatuan_id = :persatuan_id
 
@@ -121,6 +131,8 @@ function handleGetReferees(array $currentUser): void
             $refereeStmt->execute([
 
                 ':referee_id' => $singleRefereeId,
+
+                ':target_role' => $targetRole,
 
                 ':persatuan_id' => $persatuanId
 
@@ -214,7 +226,7 @@ function handleGetReferees(array $currentUser): void
 
             LEFT JOIN permohonan p ON u.id = p.user_id
 
-            WHERE u.role = 'Pengadil'
+            WHERE u.role = :target_role
 
             AND u.persatuan_id = :persatuan_id
 
@@ -226,7 +238,7 @@ function handleGetReferees(array $currentUser): void
 
 
 
-        $refereesStmt->execute([':persatuan_id' => $persatuanId]);
+        $refereesStmt->execute([':target_role' => $targetRole, ':persatuan_id' => $persatuanId]);
 
         $referees = $refereesStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -234,7 +246,7 @@ function handleGetReferees(array $currentUser): void
 
         // Get statistics
 
-        $stats = getRefereeStats($pdo, $persatuanId);
+        $stats = getRefereeStats($pdo, $persatuanId, $targetRole);
 
 
 
@@ -268,7 +280,7 @@ function handleGetReferees(array $currentUser): void
 
 
 
-function handleToggleStatus(array $currentUser): void
+function handleToggleStatus(array $currentUser, string $targetRole = 'Pengadil'): void
 
 {
 
@@ -326,7 +338,7 @@ function handleToggleStatus(array $currentUser): void
 
             WHERE id = :referee_id
 
-            AND role = 'Pengadil'
+            AND role = :target_role
 
             AND persatuan_id = :persatuan_id
 
@@ -336,6 +348,8 @@ function handleToggleStatus(array $currentUser): void
 
             ':referee_id' => $refereeId,
 
+            ':target_role' => $targetRole,
+
             ':persatuan_id' => $persatuanId
 
         ]);
@@ -344,9 +358,11 @@ function handleToggleStatus(array $currentUser): void
 
 
 
+        $label = $targetRole === 'Penilai' ? 'RA' : 'Pengadil';
+
         if (!$referee) {
 
-            jsonResponse(['error' => true, 'message' => 'Pengadil tidak dijumpai atau tidak dalam daerah anda.'], 404);
+            jsonResponse(['error' => true, 'message' => $label . ' tidak dijumpai atau tidak dalam daerah anda.'], 404);
 
         }
 
@@ -378,7 +394,7 @@ function handleToggleStatus(array $currentUser): void
 
         logActivity($pdo, $currentUser['id'], 'toggle_referee_status', 'users', $refereeId,
 
-            "Status pengadil {$referee['nama_penuh']} ditukar kepada " . ($newStatus ? 'Aktif' : 'Tidak Aktif'));
+            "Status {$label} {$referee['nama_penuh']} ditukar kepada " . ($newStatus ? 'Aktif' : 'Tidak Aktif'));
 
 
 
@@ -386,7 +402,7 @@ function handleToggleStatus(array $currentUser): void
 
             'error' => false,
 
-            'message' => "Status pengadil berjaya dikemaskini.",
+            'message' => "Status {$label} berjaya dikemaskini.",
 
             'referee' => [
 
@@ -414,7 +430,7 @@ function handleToggleStatus(array $currentUser): void
 
 }
 
-function handleDeleteReferee(array $currentUser): void
+function handleDeleteReferee(array $currentUser, string $targetRole = 'Pengadil'): void
 
 {
 
@@ -466,7 +482,7 @@ function handleDeleteReferee(array $currentUser): void
 
             WHERE id = :referee_id
 
-            AND role = 'Pengadil'
+            AND role = :target_role
 
             AND persatuan_id = :persatuan_id
 
@@ -476,6 +492,8 @@ function handleDeleteReferee(array $currentUser): void
 
             ':referee_id' => $refereeId,
 
+            ':target_role' => $targetRole,
+
             ':persatuan_id' => $persatuanId
 
         ]);
@@ -484,9 +502,11 @@ function handleDeleteReferee(array $currentUser): void
 
 
 
+        $label = $targetRole === 'Penilai' ? 'RA' : 'Pengadil';
+
         if (!$referee) {
 
-            jsonResponse(['error' => true, 'message' => 'Pengadil tidak dijumpai atau tidak dalam daerah anda.'], 404);
+            jsonResponse(['error' => true, 'message' => $label . ' tidak dijumpai atau tidak dalam daerah anda.'], 404);
 
         }
 
@@ -510,7 +530,7 @@ function handleDeleteReferee(array $currentUser): void
 
         logActivity($pdo, $currentUser['id'], 'delete_referee', 'users', $refereeId,
 
-            "Pengadil {$referee['nama_penuh']} telah dipadamkan");
+            "{$label} {$referee['nama_penuh']} telah dipadamkan");
 
 
 
@@ -518,7 +538,7 @@ function handleDeleteReferee(array $currentUser): void
 
             'error' => false,
 
-            'message' => "Pengadil berjaya dipadamkan.",
+            'message' => "{$label} berjaya dipadamkan.",
 
             'referee' => [
 
@@ -546,7 +566,7 @@ function handleDeleteReferee(array $currentUser): void
 
 
 
-function getRefereeStats(PDO $pdo, int $persatuanId): array
+function getRefereeStats(PDO $pdo, int $persatuanId, string $targetRole = 'Pengadil'): array
 
 {
 
@@ -560,11 +580,11 @@ function getRefereeStats(PDO $pdo, int $persatuanId): array
 
         SELECT COUNT(*) as count FROM users
 
-        WHERE role = 'Pengadil' AND persatuan_id = :persatuan_id
+        WHERE role = :target_role AND persatuan_id = :persatuan_id
 
     ");
 
-    $totalStmt->execute([':persatuan_id' => $persatuanId]);
+    $totalStmt->execute([':target_role' => $targetRole, ':persatuan_id' => $persatuanId]);
 
     $stats['total'] = (int) $totalStmt->fetch()['count'];
 
@@ -578,13 +598,13 @@ function getRefereeStats(PDO $pdo, int $persatuanId): array
 
         INNER JOIN permohonan p ON u.id = p.user_id
 
-        WHERE u.role = 'Pengadil' AND u.persatuan_id = :persatuan_id
+        WHERE u.role = :target_role AND u.persatuan_id = :persatuan_id
 
         AND p.tahun_permohonan = 2026 AND p.status = 'Approved'
 
     ");
 
-    $activeStmt->execute([':persatuan_id' => $persatuanId]);
+    $activeStmt->execute([':target_role' => $targetRole, ':persatuan_id' => $persatuanId]);
 
     $stats['active'] = (int) $activeStmt->fetch()['count'];
 

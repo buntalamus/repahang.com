@@ -18,8 +18,8 @@
 
 
 
-require_once 'bootstrap.php';
-require_once 'user-utils.php';
+require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/user-utils.php';
 
 
 
@@ -46,7 +46,16 @@ try {
             // Fetch single user with full profile
             $stmt = $pdo->prepare("
                 SELECT 
-                    u.*,
+                    u.id, u.email, u.role, u.district_id, u.persatuan_id,
+                    u.nama_penuh, u.no_ic, u.no_telefon, u.jantina,
+                    u.alamat1, u.alamat2, u.poskod, u.daerah, u.negeri,
+                    u.status_kerja, u.jawatan, u.nama_majikan,
+                    u.alamat_majikan1, u.alamat_majikan2, u.poskod_majikan,
+                    u.daerah_majikan, u.negeri_majikan,
+                    u.nama_waris, u.hubungan_waris, u.telefon_waris,
+                    u.url_gambar_profil, u.jenis_pengadil, u.jenis_penilai,
+                    u.tahun_mula_aktif, u.saiz_baju, u.aktif,
+                    u.password_changed, u.last_login, u.created_at, u.updated_at, u.umur, u.telegram_chat_id,
                     p.nama_persatuan as persatuan_nama,
                     p.kod_persatuan
                 FROM users u
@@ -93,6 +102,7 @@ try {
                 u.jenis_pengadil,
                 u.url_gambar_profil,
                 u.aktif as is_active,
+                u.telegram_chat_id,
                 u.created_at,
                 p.nama_persatuan as persatuan_nama,
                 p.kod_persatuan
@@ -750,7 +760,7 @@ function sendUserRegistrationEmail($to, $nama, $role, $password, $jenisPengadil 
         'Simpan kata laluan ini dengan selamat. ' .
         ($isReset ? '<strong>Kata laluan lama anda tidak lagi sah.</strong> ' : '') .
         'Anda <strong>digalakkan menukar kata laluan</strong> selepas log masuk pertama. Jangan kongsikan maklumat log masuk dengan sesiapa.');
-    $body .= emailButton('https://refpahang.com/index.html', 'Log Masuk ke Sistem');
+    $body .= emailButton(env('BASE_URL') . '/login', 'Log Masuk ke Sistem');
 
     $htmlBody = buildEmailTemplate($bannerTitle, $accentColor, $accentIcon, $body);
 

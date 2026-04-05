@@ -39,7 +39,7 @@
                   <tr>
                     <th class="px-4 py-3 font-semibold text-gray-600">Perlawanan</th>
                     <th class="px-4 py-3 font-semibold text-gray-600">Tarikh</th>
-                    <th class="px-4 py-3 font-semibold text-gray-600">Pengadil Utama</th>
+                    <th class="px-4 py-3 font-semibold text-gray-600">Pengadil (R)</th>
                     <th class="px-4 py-3 font-semibold text-gray-600">Status Laporan</th>
                     <th class="px-4 py-3 font-semibold text-gray-600">Tindakan</th>
                   </tr>
@@ -153,7 +153,12 @@
                         {{ r.tarikh_hantar ? (r.tarikh_hantar | date:'d MMM yyyy') : '-' }}
                       </td>
                       <td class="px-4 py-3">
-                        <button (click)="viewReport(r)" class="text-xs text-blue-600 hover:underline font-medium">Lihat</button>
+                        <div class="flex items-center gap-2">
+                          <button (click)="viewReport(r)" class="text-xs text-blue-600 hover:underline font-medium">Lihat</button>
+                          @if (r.status === 'Disahkan') {
+                            <button (click)="downloadLaporanPdf(r.id)" class="text-xs text-green-600 hover:underline font-medium">PDF</button>
+                          }
+                        </div>
                       </td>
                     </tr>
                   } @empty {
@@ -192,7 +197,7 @@
               } @else {
                 <div class="p-6 space-y-6">
                   <!-- Match Header Card -->
-                  <div class="bg-gray-50 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                  <div class="bg-gray-50 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
                     <div>
                       <p class="text-xs text-gray-500 mb-0.5">Kejohanan</p>
                       <p class="font-medium">{{ activeAssignment.nama_kejohanan }}</p>
@@ -210,6 +215,15 @@
                       <select [(ngModel)]="tahapKesukaran" class="border rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-pahang-yellow w-full">
                         @for (t of tahapOptions; track t.value) {
                           <option [value]="t.value">{{ t.value }}</option>
+                        }
+                      </select>
+                    </div>
+                    <div>
+                      <p class="text-xs text-gray-500 mb-0.5">Cuaca</p>
+                      <select [(ngModel)]="cuaca" class="border rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-pahang-yellow w-full">
+                        <option value="">-- Pilih --</option>
+                        @for (c of cuacaOptions; track c) {
+                          <option [value]="c">{{ c }}</option>
                         }
                       </select>
                     </div>
@@ -455,10 +469,14 @@
 
               <div class="p-6 space-y-5 text-sm">
                 <!-- Match info row -->
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 bg-gray-50 rounded-xl p-4">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-gray-50 rounded-xl p-4">
                   <div class="text-center">
                     <p class="text-xs text-gray-500 mb-1">Kesukaran</p>
                     <p class="font-medium">{{ viewingReport.tahap_kesukaran || '-' }}</p>
+                  </div>
+                  <div class="text-center">
+                    <p class="text-xs text-gray-500 mb-1">Cuaca</p>
+                    <p class="font-medium">{{ viewingReport.cuaca || '-' }}</p>
                   </div>
                   <div class="text-center">
                     <p class="text-xs text-gray-500 mb-1">Tarikh</p>
@@ -566,7 +584,14 @@
                 }
               </div>
 
-              <div class="px-6 py-4 border-t flex justify-end">
+              <div class="px-6 py-4 border-t flex items-center justify-between">
+                @if (viewingReport?.status === 'Disahkan') {
+                  <button (click)="downloadLaporanPdf(viewingReport.id)" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition">
+                    <span class="material-icons text-sm">download</span> Muat Turun RA Report
+                  </button>
+                } @else {
+                  <div></div>
+                }
                 <button (click)="showView = false" class="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100">Tutup</button>
               </div>
             </div>

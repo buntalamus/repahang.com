@@ -1,11 +1,13 @@
 <?php
 /**
- * Shared helper: auto-create perlawanan record when lantikan is accepted.
+ * Shared helper: auto-create perlawanan record when lantikan is accepted,
+ * portal notifications, PP Daerah notifications, admin notifications.
  *
  * Called from:
  *   - api/lantikan-jawab-token.php  (email accept)
  *   - api/telegram-webhook.php      (Telegram accept)
  *   - api/lantikan-jawab.php        (dashboard accept)
+ *   - api/lantikan.php              (admin notify)
  */
 
 declare(strict_types=1);
@@ -65,10 +67,10 @@ function createPerlawananFromLantikan(PDO $pdo, int $lantikanId): bool
     ];
     foreach ($crewRows as $c) {
         switch ($c['jawatan']) {
-            case 'Pengadil Utama':      $crew['head_referee_id']        = (int) $c['pengadil_id']; break;
-            case 'Pembantu Pengadil 1': $crew['assistant_referee_1_id'] = (int) $c['pengadil_id']; break;
-            case 'Pembantu Pengadil 2': $crew['assistant_referee_2_id'] = (int) $c['pengadil_id']; break;
-            case 'Pengadil Keempat':    $crew['fourth_official_id']     = (int) $c['pengadil_id']; break;
+            case 'Pengadil':             $crew['head_referee_id']        = (int) $c['pengadil_id']; break;
+            case 'Penolong Pengadil 1':  $crew['assistant_referee_1_id'] = (int) $c['pengadil_id']; break;
+            case 'Penolong Pengadil 2':  $crew['assistant_referee_2_id'] = (int) $c['pengadil_id']; break;
+            case 'Pegawai ke4':          $crew['fourth_official_id']     = (int) $c['pengadil_id']; break;
         }
     }
 
@@ -105,4 +107,324 @@ function createPerlawananFromLantikan(PDO $pdo, int $lantikanId): bool
     ]);
 
     return true;
+}
+
+/**
+ * Generate penilaian_token for Penilai Pengadil when they accept.
+ * Sends email + Telegram notification with the borang penilaian link.
+ *
+ * @param PDO $pdo
+ * @param int $lantikanId  The lantikan_pengadil.id just accepted
+ * @return string|null  The token if generated, null if not applicable
+ */
+function generatePenilaianToken(PDO $pdo, int $lantikanId): ?string
+{
+    $stmt = $pdo->prepare("
+        SELECT lp.jawatan, lp.pengadil_id, lp.pengadil_luar_id,
+               jp.tarikh, jp.pasukan_home, jp.pasukan_away, jp.tempat,
+               COALESCE(kj.nama, '') AS kejohanan,
+               COALESCE(u.nama_penuh, pl.nama, '') AS nama_penilai,
+               COALESCE(u.email, pl.emel, '') AS emel_penilai,
+               COALESCE(u.telegram_chat_id, pl.telegram_chat_id, '') AS tg_chat_id
+        FROM lantikan_pengadil lp
+        JOIN jadual_perlawanan jp ON lp.jadual_id = jp.id
+        LEFT JOIN kejohanan kj ON jp.kejohanan_id = kj.id
+        LEFT JOIN users u ON lp.pengadil_id = u.id
+        LEFT JOIN pengadil_luar pl ON lp.pengadil_luar_id = pl.id
+        WHERE lp.id = :id AND lp.jawatan = 'Penilai Pengadil'
+    ");
+    $stmt->execute([':id' => $lantikanId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$row) {
+        return null; // Not a Penilai Pengadil
+    }
+
+    // Generate secure token
+    $token = bin2hex(random_bytes(32));
+
+    $pdo->prepare("UPDATE lantikan_pengadil SET penilaian_token = :tok WHERE id = :id")
+        ->execute([':tok' => $token, ':id' => $lantikanId]);
+
+    // Build borang link
+    $baseUrl   = env('BASE_URL', 'https://refpahang.com');
+    $borangUrl = $baseUrl . '/penilaian-borang.html?token=' . $token;
+
+    // Send email notification
+    if (!empty($row['emel_penilai'])) {
+        require_once __DIR__ . '/email.php';
+
+        $tarikhFmt = date('d M Y', strtotime($row['tarikh']));
+        $pasukan   = htmlspecialchars($row['pasukan_home'] . ' lwn ' . $row['pasukan_away']);
+
+        $body = emailGreeting($row['nama_penilai'])
+              . emailPara("Anda telah menerima tugasan sebagai <strong>Penilai Pengadil</strong> untuk perlawanan berikut:")
+              . emailInfoTable([
+                    'Kejohanan'  => htmlspecialchars($row['kejohanan']),
+                    'Perlawanan' => $pasukan,
+                    'Tarikh'     => $tarikhFmt,
+                    'Tempat'     => htmlspecialchars($row['tempat'] ?? ''),
+                ])
+              . emailPara("Sila gunakan pautan di bawah untuk mengisi <strong>Borang Penilaian Pengadil</strong> selepas perlawanan:")
+              . emailButton($borangUrl, 'Isi Borang Penilaian')
+              . emailPara("<span style=\"color:#9CA3AF;font-size:12px;\">Pautan ini unik untuk anda. Jangan kongsikan dengan orang lain.</span>");
+
+        $html = buildEmailTemplate('Borang Penilaian Pengadil', '#2563EB', '📋', $body);
+        sendEmail(
+            $row['emel_penilai'],
+            'Borang Penilaian Pengadil — ' . $row['pasukan_home'] . ' lwn ' . $row['pasukan_away'],
+            $html,
+            $row['nama_penilai']
+        );
+    }
+
+    // Send Telegram notification
+    if (!empty($row['tg_chat_id'])) {
+        require_once __DIR__ . '/telegram.php';
+
+        $tarikhFmt = date('d M Y', strtotime($row['tarikh']));
+        $msg = "📋 <b>Borang Penilaian Pengadil</b>\n\n"
+             . "Anda telah menerima tugasan sebagai <b>Penilai Pengadil</b>.\n\n"
+             . "⚽ " . htmlspecialchars($row['pasukan_home'] . ' lwn ' . $row['pasukan_away']) . "\n"
+             . "📅 {$tarikhFmt}\n"
+             . "📍 " . htmlspecialchars($row['tempat'] ?? '') . "\n\n"
+             . "Sila isi borang penilaian selepas perlawanan:";
+
+        tgSend((int) $row['tg_chat_id'], $msg, [
+            'inline_keyboard' => [
+                [['text' => '📋 Isi Borang Penilaian', 'url' => $borangUrl]]
+            ]
+        ]);
+    }
+
+    return $token;
+}
+
+/**
+ * Create a portal notification for a user.
+ */
+function createPortalNotification(PDO $pdo, int $userId, string $type, string $subject, string $message): void
+{
+    $pdo->prepare("
+        INSERT INTO notifications (user_id, type, subject, message, created_at)
+        VALUES (:uid, :type, :subject, :msg, NOW())
+    ")->execute([
+        ':uid'     => $userId,
+        ':type'    => $type,
+        ':subject' => $subject,
+        ':msg'     => $message,
+    ]);
+}
+
+/**
+ * Create portal notification for lantikan assignment.
+ */
+function notifyLantikanPortal(PDO $pdo, int $userId, string $jawatan, string $kejohanan, string $tarikh, string $pasukanHome, string $pasukanAway): void
+{
+    $tarikhFmt = date('d M Y', strtotime($tarikh));
+    $subject = "Lantikan: {$pasukanHome} lwn {$pasukanAway}";
+    $message = "Anda telah dilantik sebagai {$jawatan} untuk perlawanan {$pasukanHome} lwn {$pasukanAway} ({$kejohanan}) pada {$tarikhFmt}. Sila semak menu Tugasan untuk terima atau tolak.";
+    createPortalNotification($pdo, $userId, 'Lantikan', $subject, $message);
+}
+
+/**
+ * Notify PP Daerah about a lantikan involving pengadil in their district.
+ * Sends portal notification, Telegram, and email.
+ */
+function notifyPPDaerahLantikan(
+    PDO $pdo,
+    int $persatuanId,
+    string $namaPengadil,
+    string $jawatan,
+    string $kejohanan,
+    string $tarikh,
+    string $masa,
+    string $tempat,
+    string $pasukanHome,
+    string $pasukanAway,
+    string $noMatch = ''
+): void {
+    if (!$persatuanId) return;
+
+    $stmt = $pdo->prepare("
+        SELECT id, nama_penuh, email, telegram_chat_id
+        FROM users
+        WHERE role = 'PP Daerah' AND persatuan_id = :pid AND aktif = 1
+    ");
+    $stmt->execute([':pid' => $persatuanId]);
+    $ppUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (empty($ppUsers)) return;
+
+    $tarikhFmt = date('d M Y', strtotime($tarikh));
+    $masaFmt = $masa ? date('H:i', strtotime($masa)) : '-';
+    $pasukan = "{$pasukanHome} lwn {$pasukanAway}";
+
+    foreach ($ppUsers as $pp) {
+        // Portal notification
+        $subject = "Lantikan Pengadil Daerah: {$pasukan}";
+        $message = "{$namaPengadil} telah dilantik sebagai {$jawatan} untuk perlawanan {$pasukan} ({$kejohanan}) pada {$tarikhFmt}.";
+        createPortalNotification($pdo, (int)$pp['id'], 'Lantikan PP Daerah', $subject, $message);
+
+        // Telegram
+        if (!empty($pp['telegram_chat_id'])) {
+            $tgMsg = "<b>📋 Makluman Lantikan Pengadil</b>\n\n"
+                   . "Pengadil daerah anda telah dilantik:\n\n"
+                   . "<b>Pengadil:</b> " . htmlspecialchars($namaPengadil) . "\n"
+                   . "<b>Jawatan:</b> " . htmlspecialchars($jawatan) . "\n"
+                   . "<b>Kejohanan:</b> " . htmlspecialchars($kejohanan) . "\n"
+                   . "<b>Perlawanan:</b> " . htmlspecialchars($pasukan) . "\n"
+                   . "<b>Tarikh:</b> {$tarikhFmt}\n"
+                   . "<b>Masa:</b> {$masaFmt}\n"
+                   . "<b>Tempat:</b> " . htmlspecialchars($tempat) . "\n";
+
+            if (!function_exists('tgSend')) {
+                require_once __DIR__ . '/telegram.php';
+            }
+            tgSend((int)$pp['telegram_chat_id'], $tgMsg);
+        }
+
+        // Email
+        if (!empty($pp['email'])) {
+            if (!function_exists('sendEmail')) {
+                require_once __DIR__ . '/email.php';
+            }
+            $body = emailGreeting($pp['nama_penuh'])
+                  . emailPara("Pengadil dari daerah anda telah dilantik untuk bertugas:")
+                  . emailInfoTable([
+                        'Pengadil'   => htmlspecialchars($namaPengadil),
+                        'Jawatan'    => htmlspecialchars($jawatan),
+                        'Kejohanan'  => htmlspecialchars($kejohanan),
+                        'Perlawanan' => htmlspecialchars($pasukan),
+                        'Tarikh'     => $tarikhFmt,
+                        'Masa'       => $masaFmt,
+                        'Tempat'     => htmlspecialchars($tempat),
+                    ])
+                  . emailPara("Sila log masuk ke portal untuk maklumat lanjut.");
+
+            $html = buildEmailTemplate('Makluman Lantikan Pengadil', '#1e293b', '📋', $body);
+            sendEmail(
+                $pp['email'],
+                "Lantikan Pengadil: {$namaPengadil} — {$pasukan}",
+                $html,
+                $pp['nama_penuh']
+            );
+        }
+    }
+}
+
+/**
+ * Notify admin(s) when a pengadil accepts or rejects a lantikan.
+ */
+function notifyAdminLantikanResponse(
+    PDO $pdo,
+    string $action,
+    string $namaPengadil,
+    string $jawatan,
+    string $kejohanan,
+    string $tarikh,
+    string $pasukanHome,
+    string $pasukanAway,
+    string $komen = ''
+): void {
+    $admins = $pdo->query("SELECT id, nama_penuh, telegram_chat_id FROM users WHERE role = 'Admin' AND aktif = 1")
+        ->fetchAll(PDO::FETCH_ASSOC);
+
+    if (empty($admins)) return;
+
+    $tarikhFmt = date('d M Y', strtotime($tarikh));
+    $pasukan = "{$pasukanHome} lwn {$pasukanAway}";
+    $isAccept = $action === 'accept';
+
+    $type = $isAccept ? 'Lantikan Diterima' : 'Lantikan Ditolak';
+    $subject = ($isAccept ? '✅ ' : '❌ ') . "{$namaPengadil} — {$pasukan}";
+    $statusText = $isAccept ? 'menerima' : 'menolak';
+    $message = "{$namaPengadil} telah {$statusText} lantikan sebagai {$jawatan} untuk {$pasukan} ({$kejohanan}) pada {$tarikhFmt}.";
+    if (!$isAccept && $komen) {
+        $message .= " Sebab: {$komen}";
+    }
+
+    foreach ($admins as $admin) {
+        createPortalNotification($pdo, (int)$admin['id'], $type, $subject, $message);
+
+        if (!empty($admin['telegram_chat_id'])) {
+            $icon = $isAccept ? '✅' : '❌';
+            $tgMsg = "<b>{$icon} Lantikan " . ($isAccept ? 'Diterima' : 'Ditolak') . "</b>\n\n"
+                   . "<b>Pengadil:</b> " . htmlspecialchars($namaPengadil) . "\n"
+                   . "<b>Jawatan:</b> " . htmlspecialchars($jawatan) . "\n"
+                   . "<b>Perlawanan:</b> " . htmlspecialchars($pasukan) . "\n"
+                   . "<b>Kejohanan:</b> " . htmlspecialchars($kejohanan) . "\n"
+                   . "<b>Tarikh:</b> {$tarikhFmt}\n";
+            if (!$isAccept && $komen) {
+                $tgMsg .= "<b>Sebab:</b> " . htmlspecialchars($komen) . "\n";
+            }
+
+            if (!function_exists('tgSend')) {
+                require_once __DIR__ . '/telegram.php';
+            }
+            tgSend((int)$admin['telegram_chat_id'], $tgMsg);
+        }
+    }
+}
+
+/**
+ * Notify PP Daerah when a pengadil in their district accepts/rejects a lantikan.
+ */
+function notifyPPDaerahResponse(
+    PDO $pdo,
+    string $action,
+    int $persatuanId,
+    string $namaPengadil,
+    string $jawatan,
+    string $kejohanan,
+    string $tarikh,
+    string $pasukanHome,
+    string $pasukanAway,
+    string $komen = ''
+): void {
+    if (!$persatuanId) return;
+
+    $stmt = $pdo->prepare("
+        SELECT id, nama_penuh, telegram_chat_id
+        FROM users
+        WHERE role = 'PP Daerah' AND persatuan_id = :pid AND aktif = 1
+    ");
+    $stmt->execute([':pid' => $persatuanId]);
+    $ppUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (empty($ppUsers)) return;
+
+    $tarikhFmt = date('d M Y', strtotime($tarikh));
+    $pasukan = "{$pasukanHome} lwn {$pasukanAway}";
+    $isAccept = $action === 'accept';
+
+    $type = $isAccept ? 'Pengadil Terima Lantikan' : 'Pengadil Tolak Lantikan';
+    $statusText = $isAccept ? 'menerima' : 'menolak';
+    $subject = ($isAccept ? '✅ ' : '❌ ') . "{$namaPengadil} — {$pasukan}";
+    $message = "{$namaPengadil} telah {$statusText} lantikan sebagai {$jawatan} untuk {$pasukan} ({$kejohanan}) pada {$tarikhFmt}.";
+    if (!$isAccept && $komen) {
+        $message .= " Sebab: {$komen}";
+    }
+
+    foreach ($ppUsers as $pp) {
+        createPortalNotification($pdo, (int)$pp['id'], $type, $subject, $message);
+
+        if (!empty($pp['telegram_chat_id'])) {
+            $icon = $isAccept ? '✅' : '❌';
+            $tgMsg = "<b>{$icon} Pengadil " . ($isAccept ? 'Terima' : 'Tolak') . " Lantikan</b>\n\n"
+                   . "<b>Pengadil:</b> " . htmlspecialchars($namaPengadil) . "\n"
+                   . "<b>Jawatan:</b> " . htmlspecialchars($jawatan) . "\n"
+                   . "<b>Perlawanan:</b> " . htmlspecialchars($pasukan) . "\n"
+                   . "<b>Kejohanan:</b> " . htmlspecialchars($kejohanan) . "\n"
+                   . "<b>Tarikh:</b> {$tarikhFmt}\n";
+            if (!$isAccept && $komen) {
+                $tgMsg .= "<b>Sebab:</b> " . htmlspecialchars($komen) . "\n";
+            }
+
+            if (!function_exists('tgSend')) {
+                require_once __DIR__ . '/telegram.php';
+            }
+            tgSend((int)$pp['telegram_chat_id'], $tgMsg);
+        }
+    }
 }

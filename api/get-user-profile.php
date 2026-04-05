@@ -108,13 +108,17 @@ try {
 
             u.saiz_baju,
             u.telegram_chat_id,
-            u.tg_link_token,
 
             pbd.nama_persatuan as persatuan_bolasepak_daerah,
 
             u.password_changed,
 
-            p.jenis_pengadil as permohonan_jenis_pengadil
+            p.jenis_pengadil as permohonan_jenis_pengadil,
+
+            (SELECT tahun_permohonan FROM permohonan
+             WHERE user_id = u.id AND jenis_borang = 'ujian_bertulis'
+             AND status_workflow IN ('Lengkap', 'Admin Diluluskan', 'Bayaran Diterima')
+             ORDER BY tahun_permohonan DESC LIMIT 1) AS tahun_lulus_kelas3
 
         FROM users u
 

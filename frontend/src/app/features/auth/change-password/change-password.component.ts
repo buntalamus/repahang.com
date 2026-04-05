@@ -78,9 +78,9 @@ export class ChangePasswordComponent {
             this.current = this.newPass = this.confirm = '';
           }
         },
-        error: () => {
+        error: (err: any) => {
           this.loading = false;
-          this.error = 'Ralat pelayan.';
+          this.error = err?.error?.message || 'Ralat pelayan.';
         },
       });
   }

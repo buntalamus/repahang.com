@@ -10,7 +10,7 @@
 
 
 
-require_once 'bootstrap.php';
+require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/../includes/penilai_permohonan_helper.php';
 
 
@@ -80,11 +80,11 @@ try {
                 ]);
                 exit;
             } catch (PDOException $e) {
+                error_log('[admin-applications] Status ujian error: ' . $e->getMessage());
                 http_response_code(500);
                 echo json_encode([
                     'error' => true,
-                    'message' => 'Gagal mengemaskini status ujian: ' . $e->getMessage(),
-                    'code' => $e->getCode()
+                    'message' => 'Gagal mengemaskini status ujian.'
                 ]);
                 exit;
             }
@@ -115,10 +115,11 @@ try {
                 exit;
             } catch (PDOException $e) {
                 $pdo->rollBack();
+                error_log('[admin-applications] Delete error: ' . $e->getMessage());
                 http_response_code(500);
                 echo json_encode([
                     'error' => true,
-                    'message' => 'Gagal memadam permohonan: ' . $e->getMessage()
+                    'message' => 'Gagal memadam permohonan.'
                 ]);
                 exit;
             }
@@ -140,8 +141,7 @@ try {
         // Map tab key to jenis_borang
         $typeMap = [
             'berdaftar' => 'pengadil_berdaftar',
-            'futsal' => 'pengadil_futsal',
-            'kecergasan' => 'ujian_kecergasan',
+            'penilai' => 'penilai_berdaftar',
             'bertulis' => 'ujian_bertulis',
             'kelas1' => 'ujian_kelas1_fam',
         ];
@@ -355,21 +355,21 @@ try {
 
 } catch (Exception $e) {
 
+    error_log('[admin-applications] Error: ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
+
     http_response_code(500);
 
-    echo json_encode([
+    $response = ['error' => true, 'message' => 'Ralat dalaman.'];
 
-        'error' => true,
+    if (defined('APP_DEBUG') && APP_DEBUG) {
 
-        'message' => $e->getMessage(),
+        $response['debug'] = $e->getMessage();
 
-        'line' => $e->getLine(),
+        $response['trace'] = $e->getTraceAsString();
 
-        'file' => basename($e->getFile()),
+    }
 
-        'trace' => APP_DEBUG ? $e->getTraceAsString() : null
-
-    ]);
+    echo json_encode($response);
 
 }
 

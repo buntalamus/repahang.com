@@ -10,7 +10,7 @@
 
 
 
-require_once 'bootstrap.php';
+require_once __DIR__ . '/bootstrap.php';
 
 require_once __DIR__ . '/../config/email.php';
 
@@ -365,7 +365,7 @@ function sendApprovalEmail($application, $notes) {
         'Semak dashboard untuk maklumat dan tugasan terkini.',
         'Hubungi pejabat PBNP jika ada sebarang pertanyaan.',
     ]);
-    $body .= emailButton('https://refpahang.com/pengadil-dashboard.html', 'Pergi ke Dashboard');
+    $body .= emailButton(env('BASE_URL') . '/pengadil', 'Pergi ke Dashboard');
 
     $html = buildEmailTemplate('Pendaftaran Pengadil Diluluskan', '#16A34A', '', $body);
 
@@ -397,7 +397,7 @@ function sendRejectionEmail($application, $reason) {
     ]);
     $body .= emailAlert('#DC2626', '#FEF2F2', 'Sebab Penolakan', htmlspecialchars($reason));
     $body .= emailPara('Jika anda ingin membuat <strong>rayuan</strong> atau mempunyai sebarang pertanyaan, sila hubungi pejabat PBNP atau emel kepada <a href="mailto:support@refpahang.com" style="color:#2563EB;">support@refpahang.com</a>.');
-    $body .= emailButton('https://refpahang.com/index.html', 'Hubungi Kami');
+    $body .= emailButton(env('BASE_URL') . '/login', 'Hubungi Kami');
 
     $html = buildEmailTemplate('Status Permohonan Ditolak', '#DC2626', '', $body);
 

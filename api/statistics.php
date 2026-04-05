@@ -138,9 +138,7 @@ function handleStatistics(): void
 
                 'pengadil_berdaftar' => 0,
 
-                'pengadil_futsal' => 0,
-
-                'ujian_kecergasan' => 0,
+                'penilai_berdaftar' => 0,
 
                 'ujian_bertulis' => 0,
 
@@ -262,7 +260,7 @@ function handleStatistics(): void
             $allMatchCount[$userId]['count']++;
 
             // Track Pengadil only (not RA/Penolong/Pegawai ke 4)
-            $isPengadil = in_array($jawatan, ['Pengadil', 'Pengadil Utama']);
+            $isPengadil = ($jawatan === 'Pengadil');
             if ($isPengadil) {
                 if (!isset($pengadilMatchCount[$userId])) {
                     $pengadilMatchCount[$userId] = ['name' => $name, 'count' => 0];
@@ -494,61 +492,134 @@ function handleStatistics(): void
         arsort($examStats['ujian_bertulis']['by_district']);
         arsort($examStats['ujian_kelas1_fam']['by_district']);
 
-        $statistics = [
+        // ── Penilaian / Assessment Rankings ──
+        $sqlRatings = <<<'SQL'
+            SELECT
+                lpp.lantikan_pengadil_id,
+                lpp.markah,
+                lpp.prestasi,
+                lpp.jawatan,
+                lpp.nama_pengadil,
+                lp2.jadual_id,
+                lp2.status AS laporan_status,
+                COALESCE(u2.nama_penuh, lpp.nama_pengadil) AS nama,
+                lp_ref.pengadil_id AS ref_user_id,
+                jp2.tarikh
+            FROM laporan_penilaian_pegawai lpp
+            JOIN laporan_penilaian lp2 ON lpp.laporan_id = lp2.id
+            JOIN jadual_perlawanan jp2 ON lp2.jadual_id = jp2.id
+            LEFT JOIN lantikan_pengadil lp_ref ON lpp.lantikan_pengadil_id = lp_ref.id
+            LEFT JOIN users u2 ON lp_ref.pengadil_id = u2.id
+            WHERE lpp.markah IS NOT NULL
+              AND lp2.status IN ('Dihantar', 'Disahkan')
+              AND YEAR(jp2.tarikh) = :year
+        SQL;
+        $stmtRatings = $pdo->prepare($sqlRatings);
+        $stmtRatings->execute([':year' => $year]);
+        $allRatings = $stmtRatings->fetchAll();
 
-            'year' => $year,
+        // Aggregate per referee
+        $refRatings = [];
+        $totalMarkah = 0;
+        $totalCount = 0;
+        $distribution = ['1-3' => 0, '4-5' => 0, '6-7' => 0, '8-9' => 0, '10' => 0];
 
-            'total' => count($referees),
+        foreach ($allRatings as $r) {
+            $key = $r['ref_user_id'] ?? ('luar_' . ($r['lantikan_pengadil_id'] ?? 0));
+            $nama = $r['nama'] ?: $r['nama_pengadil'];
+            $m = (float) $r['markah'];
 
-            'genderBreakdown' => $genderBreakdown,
+            if (!isset($refRatings[$key])) {
+                $refRatings[$key] = ['nama' => $nama, 'total' => 0, 'count' => 0, 'scores' => []];
+            }
+            $refRatings[$key]['total'] += $m;
+            $refRatings[$key]['count']++;
+            $refRatings[$key]['scores'][] = $m;
 
-            'districtBreakdown' => $persatuanBreakdown,
+            $totalMarkah += $m;
+            $totalCount++;
 
-            'districtAddressBreakdown' => $districtAddressBreakdown,
+            // Distribution (markah is 0-10 scale)
+            if ($m >= 10) $distribution['10']++;
+            elseif ($m >= 8) $distribution['8-9']++;
+            elseif ($m >= 6) $distribution['6-7']++;
+            elseif ($m >= 4) $distribution['4-5']++;
+            else $distribution['1-3']++;
+        }
 
-            'employmentBreakdown' => $employmentBreakdown,
+        // Calculate averages and sort
+        $rankings = [];
+        foreach ($refRatings as $key => $rd) {
+            $avg = $rd['count'] > 0 ? round($rd['total'] / $rd['count'], 1) : 0;
+            $rankings[] = [
+                'nama'   => $rd['nama'],
+                'avg'    => $avg,
+                'count'  => $rd['count'],
+                'best'   => !empty($rd['scores']) ? max($rd['scores']) : 0,
+            ];
+        }
+        usort($rankings, fn($a, $b) => $b['avg'] <=> $a['avg'] ?: $b['count'] <=> $a['count']);
 
-            'monthlyTrend' => $monthlyTrend,
-
-            'applications' => $applicationStats,
-
-            'matches' => $matchStats,
-
-            'exams' => $examStats,
-
-            'ratings' => [
-
-                'average' => 0.0,
-
-                'total' => 0,
-
-                'highest' => [
-
-                    'name' => null,
-
-                    'rating' => 0.0,
-
-                ],
-
-                'distribution' => [
-
-                    '1' => 0,
-
-                    '2' => 0,
-
-                    '3' => 0,
-
-                    '4' => 0,
-
-                    '5' => 0,
-
-                ],
-
-            ],
-
+        $ratingsData = [
+            'average'      => $totalCount > 0 ? round($totalMarkah / $totalCount, 1) : 0,
+            'total'        => $totalCount,
+            'distribution' => $distribution,
+            'rankings'     => array_slice($rankings, 0, 20),
         ];
 
+        // ── Telegram Stats ──
+        $tgTotal = (int) $pdo->query("SELECT COUNT(*) FROM users WHERE aktif = 1 AND email IS NOT NULL AND email != ''")->fetchColumn();
+        $tgLinked = (int) $pdo->query("SELECT COUNT(*) FROM users WHERE aktif = 1 AND email IS NOT NULL AND email != '' AND telegram_chat_id IS NOT NULL AND telegram_chat_id != ''")->fetchColumn();
 
+        // ── Lantikan (Jadual Perlawanan) Stats ──
+        $sqlLantikan = <<<'SQL'
+            SELECT COUNT(*) AS total,
+                   SUM(CASE WHEN jp.status = 'Selesai' THEN 1 ELSE 0 END) AS selesai,
+                   SUM(CASE WHEN jp.status = 'Disahkan' THEN 1 ELSE 0 END) AS disahkan,
+                   SUM(CASE WHEN jp.status IN ('Belum Lantik','Menunggu Pengesahan') THEN 1 ELSE 0 END) AS belum
+            FROM jadual_perlawanan jp
+            JOIN kejohanan k ON jp.kejohanan_id = k.id
+            WHERE YEAR(jp.tarikh) = :year
+        SQL;
+        $stmtLantikan = $pdo->prepare($sqlLantikan);
+        $stmtLantikan->execute([':year' => $year]);
+        $lantikanStats = $stmtLantikan->fetch();
+
+        // ── Kejohanan Stats ──
+        $sqlKejohanan = <<<'SQL'
+            SELECT k.nama, k.status, k.anjuran, COUNT(jp.id) AS jum_perlawanan,
+                   k.tarikh_mula, k.tarikh_akhir
+            FROM kejohanan k
+            LEFT JOIN jadual_perlawanan jp ON jp.kejohanan_id = k.id AND YEAR(jp.tarikh) = :year
+            WHERE YEAR(k.tarikh_mula) = :year OR YEAR(k.tarikh_akhir) = :year
+            GROUP BY k.id
+            ORDER BY k.tarikh_mula DESC
+        SQL;
+        $stmtKejohanan = $pdo->prepare($sqlKejohanan);
+        $stmtKejohanan->execute([':year' => $year]);
+        $kejohananList = $stmtKejohanan->fetchAll();
+
+        $statistics = [
+            'year' => $year,
+            'total' => count($referees),
+            'genderBreakdown' => $genderBreakdown,
+            'districtBreakdown' => $persatuanBreakdown,
+            'districtAddressBreakdown' => $districtAddressBreakdown,
+            'employmentBreakdown' => $employmentBreakdown,
+            'monthlyTrend' => $monthlyTrend,
+            'applications' => $applicationStats,
+            'matches' => $matchStats,
+            'exams' => $examStats,
+            'ratings' => $ratingsData,
+            'telegram' => ['total' => $tgTotal, 'linked' => $tgLinked],
+            'lantikan' => [
+                'total'    => (int) ($lantikanStats['total'] ?? 0),
+                'selesai'  => (int) ($lantikanStats['selesai'] ?? 0),
+                'disahkan' => (int) ($lantikanStats['disahkan'] ?? 0),
+                'belum'    => (int) ($lantikanStats['belum'] ?? 0),
+            ],
+            'kejohanan' => $kejohananList,
+        ];
 
         jsonResponse(['error' => false, 'data' => $statistics]);
 

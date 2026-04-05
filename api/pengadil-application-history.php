@@ -10,9 +10,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 // Check if user is logged in
 $user = requireAuth();
 
-// Only allow Pengadil role
-if ($user['role'] !== 'Pengadil') {
-    jsonResponse(['error' => true, 'message' => 'Akses ditolak. Hanya Pengadil dibenarkan.'], 403);
+// Allow Pengadil, Penilai, and PP Daerah
+$allowedRoles = ['Pengadil', 'Penilai', 'PP Daerah'];
+if (!in_array($user['role'], $allowedRoles, true)) {
+    jsonResponse(['error' => true, 'message' => 'Akses ditolak.'], 403);
 }
 
 try {
@@ -67,53 +68,53 @@ try {
         ]);
 
     } else {
-        // Query to get all applications for this pengadil (all statuses)
+        // Map frontend type param to DB jenis_borang filter
+        $typeParam = $_GET['type'] ?? '';
+        $jenisBorangFilter = match($typeParam) {
+            'berdaftar'        => 'pengadil_berdaftar',
+            'kecergasan'       => 'pengadil_berdaftar',   // bundled with berdaftar
+            'bertulis'         => 'ujian_bertulis',
+            'kelas1'           => 'ujian_kelas1_fam',
+            'penilai_berdaftar'=> 'penilai_berdaftar',
+            'pp_berdaftar'     => 'pp_berdaftar',
+            default            => null,
+        };
+
+        $whereClause = "WHERE p.user_id = ?";
+        $params = [$user_id];
+        if ($jenisBorangFilter) {
+            $whereClause .= " AND p.jenis_borang = ?";
+            $params[] = $jenisBorangFilter;
+        }
+
         $stmt = $pdo->prepare("
             SELECT
-                id,
-                CASE
-                    WHEN jenis_borang IN ('pengadil_berdaftar', 'pengadil_futsal') THEN jenis_borang
-                    WHEN jenis_permohonan = 'ujian_kecergasan' THEN 'ujian_kecergasan'
-                    WHEN jenis_permohonan = 'ujian_bertulis' THEN 'ujian_bertulis'
-                    WHEN jenis_permohonan = 'ujian_kelas1_fam' THEN 'ujian_kelas1_fam'
-                    ELSE jenis_borang
-                END as jenis_borang,
-                CASE
-                    WHEN jenis_permohonan IN ('ujian_kecergasan', 'ujian_bertulis', 'ujian_kelas1_fam') THEN
-                        CASE
-                            WHEN workflow_status = 'Approved' THEN 'approved'
-                            WHEN workflow_status = 'Rejected' THEN 'rejected'
-                            ELSE 'pending'
-                        END
-                    ELSE LOWER(status)
-                END as status,
-                admin_notes as catatan_admin,
-                tarikh_hantar as created_at,
-                user_id
-            FROM permohonan
-            WHERE user_id = ?
-            ORDER BY tarikh_hantar DESC
+                p.id,
+                p.jenis_borang,
+                p.tahun_permohonan,
+                p.status,
+                p.status_workflow,
+                p.payment_amount,
+                p.url_resit,
+                p.pp_notes,
+                p.admin_notes,
+                p.mohon_ujian_kecergasan,
+                DATE_FORMAT(p.tarikh_hantar, '%d/%m/%Y %H:%i') as tarikh_hantar,
+                DATE_FORMAT(p.tarikh_hantar, '%Y-%m-%d') as tarikh_hantar_raw,
+                IFNULL(pb.nama_persatuan, '') as district_name
+            FROM permohonan p
+            LEFT JOIN persatuan_bolasepak_daerah pb ON p.persatuan_id = pb.id
+            {$whereClause}
+            ORDER BY p.tarikh_hantar DESC
         ");
 
-        $stmt->execute([$user_id]);
+        $stmt->execute($params);
         $applications = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Format the response
-        $response = [
+        jsonResponse([
             'error' => false,
-            'applications' => array_map(function($app) {
-                return [
-                    'id' => $app['id'],
-                    'jenis_borang' => $app['jenis_borang'],
-                    'status' => $app['status'] ?: 'pending',
-                    'catatan_admin' => $app['catatan_admin'],
-                    'created_at' => $app['created_at'],
-                    'user_id' => $app['user_id']
-                ];
-            }, $applications)
-        ];
-
-        jsonResponse($response);
+            'data'  => $applications,
+        ]);
     }
 
 } catch (Exception $e) {

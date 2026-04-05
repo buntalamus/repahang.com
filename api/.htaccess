@@ -1,35 +1,9 @@
-# Enable PHP error handling
-php_flag display_errors Off
-php_flag log_errors On
-
-# Allow OPTIONS requests for CORS preflight
-<IfModule mod_rewrite.c>
-    RewriteEngine On
-    
-    # Handle OPTIONS preflight requests
-    RewriteCond %{REQUEST_METHOD} OPTIONS
-    RewriteRule ^(.*)$ $1 [R=204,L]
-</IfModule>
-
-# Set proper MIME types
-AddType application/json .json
-
-# Disable directory listing
-Options -Indexes
-
-# Allow access to PHP files
-<FilesMatch "\.php$">
-    Order allow,deny
-    Allow from all
-</FilesMatch>
-
-# Security headers
-<IfModule mod_headers.c>
-    # CORS headers (these will be overridden by PHP if needed)
-    Header set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-    Header set Access-Control-Allow-Headers "Content-Type, Accept, X-Requested-With"
-    
-    # Security headers
-    Header set X-Content-Type-Options "nosniff"
-    Header set X-Frame-Options "DENY"
-</IfModule>
+# Security headers
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type, Accept, X-Requested-With"
+    Header set Access-Control-Allow-Origin "https://refpahang.com"
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "DENY"
+</IfModule>
+

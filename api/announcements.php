@@ -5,7 +5,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
-require_once 'bootstrap.php';
+require_once __DIR__ . '/bootstrap.php';
 
 try {
     $pdo = getDbConnection();

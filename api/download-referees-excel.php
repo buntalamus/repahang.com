@@ -61,11 +61,22 @@ function handleDownload(): void
         jsonResponse(['error' => true, 'message' => 'Tahun tidak sah.'], 422);
     }
 
+    // Support type param: pengadil_berdaftar (default) or penilai_berdaftar (RA)
+    $allowedTypes = ['pengadil_berdaftar', 'penilai_berdaftar'];
+    $type = isset($_GET['type']) && in_array($_GET['type'], $allowedTypes, true) ? $_GET['type'] : 'pengadil_berdaftar';
+
+    if ($type === 'penilai_berdaftar') {
+        $roleCondition = "AND a.jenis_pengadil IN ('Penilai Pengadil', 'Pegawai Pembangunan')";
+        $typeLabel = 'RA';
+    } else {
+        $roleCondition = "AND (a.jenis_pengadil NOT IN ('Penilai Pengadil', 'Pegawai Pembangunan') OR a.jenis_pengadil IS NULL)";
+        $typeLabel = 'pengadil';
+    }
+
     try {
         $pdo = getDbConnection();
 
-        // Same query as referees.php — profile data from users + approved pengadil_berdaftar application
-        $sql = <<<'SQL'
+        $sql = <<<SQL
             SELECT DISTINCT
                 u.id as user_id,
                 u.nama_penuh,
@@ -90,7 +101,8 @@ function handleDownload(): void
             FROM users u
             INNER JOIN permohonan a ON u.id = a.user_id
             LEFT JOIN persatuan_bolasepak_daerah p ON a.persatuan_id = p.id
-            WHERE a.jenis_borang = 'pengadil_berdaftar'
+            WHERE a.jenis_borang IN ('pengadil_berdaftar', 'penilai_berdaftar')
+            {$roleCondition}
             AND a.status = 'Approved'
             AND (
                 (a.status_kemaskini IS NOT NULL AND YEAR(a.status_kemaskini) = :year)
@@ -108,7 +120,7 @@ function handleDownload(): void
 
         // Set headers for file download
         header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="senarai-pengadil-' . $year . '.csv"');
+        header('Content-Disposition: attachment; filename="senarai-' . $typeLabel . '-' . $year . '.csv"');
         header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
         header('Pragma: public');
 

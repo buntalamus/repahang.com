@@ -1,0 +1,36 @@
+RewriteEngine On
+RewriteBase /
+
+# Don't rewrite files or directories that exist
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Don't rewrite API requests
+RewriteRule ^api/ - [L]
+
+# Don't rewrite upload files
+RewriteRule ^uploads/ - [L]
+
+# Don't rewrite storage files
+RewriteRule ^storage/ - [L]
+
+# Don't rewrite vendor files
+RewriteRule ^vendor/ - [L]
+
+# Don't rewrite config files  
+RewriteRule ^config/ - [L]
+
+# Rewrite everything else to index.html (Angular SPA)
+RewriteRule ^ index.html [L]
+
+# Security: block access to sensitive files
+<FilesMatch "^(\.env|composer\.(json|lock))$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>

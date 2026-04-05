@@ -2,31 +2,107 @@
   @if (loading) {
     <app-loading [message]="'Memuatkan ' + typeLabel + '...'" />
   } @else {
+
+    <!-- Kecergasan: bundled notice -->
+    @if (isKecergasan) {
+      <div class="bg-white border border-slate-200 rounded-xl p-6 flex gap-4 items-start">
+        <span class="material-icons text-pahang-yellow mt-0.5">info</span>
+        <div>
+          <h3 class="font-semibold text-slate-800 mb-1">Ujian Kecergasan Dibundel Bersama Pendaftaran Tahunan</h3>
+          <p class="text-sm text-slate-600">
+            Permohonan Ujian Kecergasan (R4) adalah <strong>sebahagian daripada</strong> Pendaftaran Tahunan Pengadil (R1+R2).
+            Sila hantar permohonan melalui tab <strong>Pendaftaran Tahunan</strong>.
+          </p>
+        </div>
+      </div>
+    }
+
+    <!-- Applications closed -->
+    @if (!isKecergasan && !applicationsOpen) {
+      <div class="bg-white border border-slate-200 rounded-xl p-6 flex gap-4 items-start">
+        <span class="material-icons text-pahang-yellow mt-0.5">lock</span>
+        <div>
+          <h3 class="font-semibold text-slate-800 mb-1">Permohonan Belum Dibuka</h3>
+          <p class="text-sm text-slate-600">
+            Permohonan {{ typeLabel }} untuk sesi {{ applicationYear }} belum dibuka. Sila semak semula kemudian.
+          </p>
+        </div>
+      </div>
+    }
+
+    <!-- Eligibility: Ujian Kelas III FAM -->
+    @if (isBertulis && applicationsOpen && !currentApp) {
+      <div class="bg-white border border-slate-200 rounded-xl p-5">
+        <div class="flex items-center gap-2 mb-3 pb-3 border-b border-slate-100">
+          <span class="material-icons text-pahang-yellow">history_edu</span>
+          <h3 class="font-semibold text-slate-800">Syarat Kelayakan &mdash; Ujian Kelas III FAM</h3>
+        </div>
+        <ul class="space-y-2 text-sm text-slate-700">
+          <li class="flex items-start gap-2">
+            <span class="material-icons text-sm text-pahang-yellow mt-0.5">check</span>
+            Had umur: <strong>{{ bertulisMinAge }}&ndash;{{ bertulisMaxAge }} tahun</strong> pada tahun {{ applicationYear }}
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="material-icons text-sm text-pahang-yellow mt-0.5">check</span>
+            Yuran peperiksaan: <strong>RM {{ bertulisFee }}</strong>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="material-icons text-sm text-pahang-yellow mt-0.5">check</span>
+            Bayaran kepada: <strong>{{ famBankName }}</strong> &mdash; No. Akaun: <strong class="font-mono">{{ famAccountNo }}</strong>
+          </li>
+        </ul>
+      </div>
+    }
+
+    <!-- Eligibility: Ujian Kelas I FAM -->
+    @if (isKelas1 && applicationsOpen && !currentApp) {
+      <div class="bg-white border border-slate-200 rounded-xl p-5">
+        <div class="flex items-center gap-2 mb-3 pb-3 border-b border-slate-100">
+          <span class="material-icons text-pahang-yellow">workspace_premium</span>
+          <h3 class="font-semibold text-slate-800">Syarat Kelayakan &mdash; Ujian Kelas I FAM</h3>
+        </div>
+        <ul class="space-y-2 text-sm text-slate-700">
+          <li class="flex items-start gap-2">
+            <span class="material-icons text-sm text-pahang-yellow mt-0.5">check</span>
+            Had umur maksimum: <strong>{{ kelas1MaxAge }} tahun ke bawah</strong> pada tahun {{ applicationYear }}
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="material-icons text-sm text-pahang-yellow mt-0.5">check</span>
+            Telah lulus Ujian Kelas III FAM pada tahun <strong>{{ +applicationYear - 2 }} atau sebelumnya</strong> (sekurang-kurangnya 2 tahun)
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="material-icons text-sm text-pahang-yellow mt-0.5">check</span>
+            Yuran: <strong>RM {{ kelas1Fee }}</strong> &mdash; No. Akaun: <strong class="font-mono">{{ famAccountNo }}</strong>
+          </li>
+        </ul>
+      </div>
+    }
+
     <!-- Current Application Status -->
     @if (currentApp) {
-      <div class="bg-white rounded-xl shadow-sm p-6">
-        <div class="flex items-center gap-3 mb-4">
+      <div class="bg-white border border-slate-200 rounded-xl shadow-sm p-6">
+        <div class="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
           <span class="material-icons text-pahang-yellow text-2xl">pending_actions</span>
-          <h3 class="text-lg font-semibold">Permohonan Semasa</h3>
+          <h3 class="text-base font-semibold text-slate-800">Permohonan Semasa &mdash; Sesi {{ applicationYear }}</h3>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <p class="text-xs text-gray-500">Tarikh Hantar</p>
-            <p class="font-medium">{{ currentApp.tarikh_hantar || currentApp.created_at }}</p>
+            <p class="text-xs text-slate-500 mb-0.5">Tarikh Hantar</p>
+            <p class="font-medium text-slate-800">{{ currentApp.tarikh_hantar }}</p>
           </div>
           <div>
-            <p class="text-xs text-gray-500">Jenis Borang</p>
-            <p class="font-medium">{{ currentApp.jenis_borang || typeLabel }}</p>
+            <p class="text-xs text-slate-500 mb-0.5">Jenis Borang</p>
+            <p class="font-medium text-slate-800">{{ typeLabels[currentApp.jenis_borang] || currentApp.jenis_borang }}</p>
           </div>
           <div>
-            <p class="text-xs text-gray-500">Status</p>
+            <p class="text-xs text-slate-500 mb-0.5">Status</p>
             <span class="px-2 py-0.5 text-xs font-semibold rounded-full" [class]="statusClass(currentApp.status_workflow || currentApp.status)">
               {{ currentApp.status_workflow || currentApp.status }}
             </span>
           </div>
         </div>
         @if (currentApp.pp_notes || currentApp.admin_notes) {
-          <div class="mt-4 p-3 bg-gray-50 rounded-lg text-sm text-gray-600">
+          <div class="mt-4 p-3 bg-slate-50 rounded-lg text-sm text-slate-600 space-y-1 border border-slate-200">
             @if (currentApp.pp_notes) {
               <p><strong>Catatan PP Daerah:</strong> {{ currentApp.pp_notes }}</p>
             }
@@ -38,97 +114,363 @@
       </div>
     }
 
-    <!-- Submit New Application -->
-    @if (!currentApp) {
-      <div class="bg-white rounded-xl shadow-sm">
-        <div class="px-6 py-4 border-b">
-          <h3 class="font-semibold text-lg">Hantar {{ typeLabel }}</h3>
+    <!-- Application Form -->
+    @if (showForm) {
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
+          <span class="material-icons text-pahang-yellow">article</span>
+          <h3 class="font-semibold text-lg text-slate-800">Hantar {{ typeLabel }} &mdash; Sesi {{ applicationYear }}</h3>
         </div>
-        <div class="p-6 space-y-4">
-          @if (type === 'futsal') {
-            <div>
-              <label class="block text-sm font-medium mb-1">Nama Pertandingan</label>
-              <input [(ngModel)]="form.nama_pertandingan" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow" />
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-1">Tarikh</label>
-              <input type="date" [(ngModel)]="form.tarikh" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow" />
+        <div class="divide-y divide-slate-100">
+
+          <!-- Payment Card: berdaftar / penilai / pp (PBNP) -->
+          @if (isAnnualReg) {
+            <div class="p-6">
+              <div class="rounded-xl bg-pahang-black text-white p-5 space-y-4">
+                <div class="flex items-center gap-2">
+                  <span class="material-icons text-pahang-yellow">account_balance</span>
+                  <h4 class="font-bold text-pahang-yellow uppercase tracking-wider text-sm">Maklumat Bayaran &mdash; Pendaftaran Tahunan</h4>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Nama Akaun</p>
+                    <p class="font-semibold">{{ accountName }}</p>
+                  </div>
+                  <div>
+                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Nama Bank</p>
+                    <p class="font-semibold">{{ bankName }}</p>
+                  </div>
+                  <div>
+                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">No. Akaun</p>
+                    <p class="font-semibold font-mono tracking-widest">{{ accountNo }}</p>
+                  </div>
+                  <div>
+                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Jumlah</p>
+                    <p class="font-bold text-pahang-yellow text-xl">RM {{ paymentAmount }}</p>
+                  </div>
+                </div>
+                <p class="text-xs text-slate-400 border-t border-slate-700 pt-3">
+                  Sila buat bayaran dan muat naik resit di bawah. Resit diperlukan sebelum permohonan dapat diproses.
+                </p>
+              </div>
             </div>
           }
 
-          @if (type === 'kecergasan') {
-            <div>
-              <label class="block text-sm font-medium mb-1">Keputusan Larian 2.4km (minit)</label>
-              <input type="number" [(ngModel)]="form.keputusan_larian" step="0.01" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow" />
-            </div>
-            <div>
-              <label class="block text-sm font-medium mb-1">Keputusan Yo-Yo Test</label>
-              <input type="number" [(ngModel)]="form.keputusan_yoyo" step="0.01" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow" />
+          <!-- Payment Card: bertulis/kelas1 (FAM) -->
+          @if (isBertulis || isKelas1) {
+            <div class="p-6">
+              <div class="rounded-xl bg-pahang-black text-white p-5 space-y-4">
+                <div class="flex items-center gap-2">
+                  <span class="material-icons text-pahang-yellow">account_balance</span>
+                  <h4 class="font-bold text-pahang-yellow uppercase tracking-wider text-sm">Maklumat Bayaran &mdash; Peperiksaan FAM</h4>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                  <div class="sm:col-span-2">
+                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Nama Bank</p>
+                    <p class="font-semibold">{{ famBankName }}</p>
+                  </div>
+                  <div>
+                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Jumlah Bayaran</p>
+                    <p class="font-bold text-pahang-yellow text-xl">RM {{ isBertulis ? bertulisFee : kelas1Fee }}</p>
+                  </div>
+                  <div class="sm:col-span-3">
+                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">No. Akaun FAM</p>
+                    <p class="font-semibold font-mono tracking-widest text-lg">{{ famAccountNo }}</p>
+                  </div>
+                </div>
+                <p class="text-xs text-slate-400 border-t border-slate-700 pt-3">
+                  Sila buat bayaran kepada akaun FAM di atas dan muat naik resit sebagai bukti pembayaran.
+                </p>
+              </div>
             </div>
           }
 
-          <div>
-            <label class="block text-sm font-medium mb-1">Dokumen Sokongan</label>
-            <input type="file" (change)="onFileSelected($event)" accept=".pdf,.jpg,.jpeg,.png" class="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-pahang-yellow file:text-black file:font-semibold file:cursor-pointer" />
-            <p class="text-xs text-gray-400 mt-1">Format: PDF, JPG, PNG (Maks 5MB)</p>
+          <!-- Maklumat Peribadi (read-only) -->
+          <div class="p-6">
+            <h4 class="font-semibold text-slate-800 mb-1 flex items-center gap-2">
+              <span class="material-icons text-pahang-yellow text-lg">person</span>
+              Maklumat Peribadi Pemohon
+            </h4>
+            <p class="text-xs text-slate-500 mb-4">Maklumat diambil daripada profil anda. Kemaskini profil jika ada perubahan sebelum menghantar.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <p class="text-xs text-slate-500 mb-0.5">Nama Penuh</p>
+                <p class="text-sm font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">{{ profile.nama_penuh || '&mdash;' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-500 mb-0.5">No. Kad Pengenalan</p>
+                <p class="text-sm font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-mono">{{ profile.no_ic || '&mdash;' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-500 mb-0.5">Jantina</p>
+                <p class="text-sm font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">{{ profile.jantina || '&mdash;' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-500 mb-0.5">No. Telefon</p>
+                <p class="text-sm font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">{{ profile.no_telefon || '&mdash;' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-500 mb-0.5">Emel</p>
+                <p class="text-sm font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">{{ profile.email || '&mdash;' }}</p>
+              </div>
+              <div>
+                <p class="text-xs text-slate-500 mb-0.5">Jenis Pengadil</p>
+                <p class="text-sm font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">{{ profile.jenis_pengadil || '&mdash;' }}</p>
+              </div>
+              <div class="sm:col-span-2 lg:col-span-3">
+                <p class="text-xs text-slate-500 mb-0.5">Alamat Tetap</p>
+                <p class="text-sm font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                  {{ profile.alamat1 || '' }}{{ profile.alamat2 ? ', ' + profile.alamat2 : '' }}{{ profile.poskod ? ', ' + profile.poskod : '' }}{{ profile.daerah ? ' ' + profile.daerah : '' }}{{ profile.negeri ? ', ' + profile.negeri : '' }}
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label class="block text-sm font-medium mb-1">Catatan (Pilihan)</label>
-            <textarea [(ngModel)]="form.catatan" rows="3" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow"></textarea>
+          <!-- Maklumat Pekerjaan (annual reg) -->
+          @if (isAnnualReg) {
+            <div class="p-6">
+              <h4 class="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                <span class="material-icons text-pahang-yellow text-lg">work</span>
+                Maklumat Pekerjaan
+              </h4>
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <p class="text-xs text-slate-500 mb-0.5">Status Pekerjaan</p>
+                  <p class="text-sm font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">{{ profile.status_kerja || '&mdash;' }}</p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500 mb-0.5">Jawatan</p>
+                  <p class="text-sm font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">{{ profile.jawatan || '&mdash;' }}</p>
+                </div>
+                <div>
+                  <p class="text-xs text-slate-500 mb-0.5">Nama Majikan / Institusi</p>
+                  <p class="text-sm font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">{{ profile.nama_majikan || '&mdash;' }}</p>
+                </div>
+                <div class="sm:col-span-2 lg:col-span-3">
+                  <p class="text-xs text-slate-500 mb-0.5">Alamat Majikan</p>
+                  <p class="text-sm font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                    {{ profile.alamat_majikan1 || '' }}{{ profile.alamat_majikan2 ? ', ' + profile.alamat_majikan2 : '' }}{{ profile.poskod_majikan ? ', ' + profile.poskod_majikan : '' }}{{ profile.daerah_majikan ? ' ' + profile.daerah_majikan : '' }}{{ profile.negeri_majikan ? ', ' + profile.negeri_majikan : '' }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- Maklumat Waris -->
+          <div class="p-6">
+            <h4 class="font-semibold text-slate-800 mb-1 flex items-center gap-2">
+              <span class="material-icons text-pahang-yellow text-lg">people</span>
+              Maklumat Waris / Orang Hubungi Kecemasan
+            </h4>
+            <p class="text-xs text-slate-500 mb-4">Sila isi maklumat waris atau orang yang boleh dihubungi sekiranya berlaku kecemasan.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Nama Waris <span class="text-red-500">*</span></label>
+                <input [(ngModel)]="form.nama_waris" name="nama_waris" placeholder="Nama penuh waris"
+                  class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pahang-yellow" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Hubungan <span class="text-red-500">*</span></label>
+                <select [(ngModel)]="form.hubungan_waris" name="hubungan_waris"
+                  class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pahang-yellow">
+                  <option value="">Pilih hubungan</option>
+                  @for (opt of hubunganOptions; track opt) {
+                    <option [value]="opt">{{ opt }}</option>
+                  }
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">No. Telefon Waris <span class="text-red-500">*</span></label>
+                <input [(ngModel)]="form.telefon_waris" name="telefon_waris" placeholder="0123456789" type="tel"
+                  class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pahang-yellow" />
+              </div>
+            </div>
           </div>
 
-          <div class="flex justify-end pt-2">
-            <button (click)="submit()" [disabled]="submitting" class="bg-pahang-yellow text-black font-semibold px-8 py-2.5 rounded-lg hover:bg-yellow-500 disabled:opacity-50">
-              {{ submitting ? 'Menghantar...' : 'Hantar Permohonan' }}
-            </button>
+          <!-- Saiz Baju + Uploads (annual reg) -->
+          @if (isAnnualReg) {
+            <div class="p-6">
+              <h4 class="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                <span class="material-icons text-pahang-yellow text-lg">upload_file</span>
+                Maklumat Tambahan &amp; Muat Naik Dokumen
+              </h4>
+              <div class="space-y-5">
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">Saiz Baju Rasmi <span class="text-red-500">*</span></label>
+                  <select [(ngModel)]="form.saiz_baju" name="saiz_baju"
+                    class="w-full sm:w-48 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pahang-yellow">
+                    <option value="">Pilih saiz</option>
+                    @for (s of saizBajuOptions; track s) {
+                      <option [value]="s">{{ s }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Resit Bayaran <span class="text-red-500">*</span></label>
+                    <input type="file" (change)="onResitSelected($event)" accept=".pdf,.jpg,.jpeg,.png"
+                      class="w-full text-sm file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-pahang-yellow file:text-black file:font-semibold file:cursor-pointer" />
+                    <p class="text-xs text-slate-400 mt-1">PDF / JPG / PNG &mdash; maks 5MB</p>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Gambar Profil Terbaru <span class="text-red-500">*</span></label>
+                    <input type="file" (change)="onGambarSelected($event)" accept=".jpg,.jpeg,.png"
+                      class="w-full text-sm file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-pahang-yellow file:text-black file:font-semibold file:cursor-pointer" />
+                    <p class="text-xs text-slate-400 mt-1">JPG / PNG &mdash; maks 5MB. Akan dikemaskini ke profil.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- Resit Upload (bertulis / kelas1) -->
+          @if (isBertulis || isKelas1) {
+            <div class="p-6">
+              <h4 class="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                <span class="material-icons text-pahang-yellow text-lg">upload_file</span>
+                Muat Naik Dokumen
+              </h4>
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Resit Bayaran FAM <span class="text-red-500">*</span></label>
+                <input type="file" (change)="onResitSelected($event)" accept=".pdf,.jpg,.jpeg,.png"
+                  class="w-full text-sm file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-pahang-yellow file:text-black file:font-semibold file:cursor-pointer" />
+                <p class="text-xs text-slate-400 mt-1">PDF / JPG / PNG &mdash; maks 5MB. Resit pembayaran ke akaun FAM.</p>
+              </div>
+            </div>
+          }
+
+          <!-- Deklarasi Kesihatan (annual reg — includes fitness test) -->
+          @if (isAnnualReg) {
+            <div class="p-6">
+              <h4 class="font-semibold text-slate-800 mb-1 flex items-center gap-2">
+                <span class="material-icons text-pahang-yellow text-lg">favorite</span>
+                Deklarasi Kesihatan &mdash; Ujian Kecergasan
+              </h4>
+              <p class="text-xs text-slate-500 mb-4">Oleh kerana pendaftaran tahunan merangkumi ujian kecergasan fizikal, anda dikehendaki membuat deklarasi berikut:</p>
+              <div class="space-y-3">
+                <label class="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" [(ngModel)]="declareHealth1" name="declareHealth1" class="mt-0.5 h-4 w-4 accent-pahang-yellow shrink-0" />
+                  <span class="text-sm text-slate-700">
+                    <strong>Status Kesihatan:</strong> Saya berada dalam keadaan kesihatan fizikal dan mental yang baik. Saya tidak menghidap sebarang penyakit kronik, kecederaan, atau masalah perubatan yang boleh memudaratkan diri saya semasa melakukan aktiviti fizikal berintensiti tinggi.
+                  </span>
+                </label>
+                <label class="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" [(ngModel)]="declareHealth2" name="declareHealth2" class="mt-0.5 h-4 w-4 accent-pahang-yellow shrink-0" />
+                  <span class="text-sm text-slate-700">
+                    <strong>Pemeriksaan Perubatan:</strong> Saya telah menjalani pemeriksaan kesihatan dan mendapat pengesahan bahawa saya layak untuk menyertai program latihan dan ujian kecergasan fizikal.
+                  </span>
+                </label>
+                <label class="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" [(ngModel)]="declareHealth3" name="declareHealth3" class="mt-0.5 h-4 w-4 accent-pahang-yellow shrink-0" />
+                  <span class="text-sm text-slate-700">
+                    <strong>Risiko &amp; Tanggungjawab:</strong> Saya memahami dan menerima bahawa aktiviti fizikal membawa risiko tertentu. Saya bersetuju untuk mengambil bahagian atas risiko peribadi sendiri dan melepaskan Persatuan Bolasepak Pahang daripada sebarang tuntutan berkaitan kecederaan yang mungkin berlaku.
+                  </span>
+                </label>
+                <label class="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" [(ngModel)]="declareHealth4" name="declareHealth4" class="mt-0.5 h-4 w-4 accent-pahang-yellow shrink-0" />
+                  <span class="text-sm text-slate-700">
+                    <strong>Maklumat Perubatan:</strong> Saya bersetuju untuk memberitahu pegawai bertugas sekiranya saya menghidap sebarang kondisi perubatan, alahan, atau sedang mengambil ubat-ubatan yang mungkin mempengaruhi prestasi semasa ujian kecergasan.
+                  </span>
+                </label>
+                <label class="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" [(ngModel)]="declareHealth5" name="declareHealth5" class="mt-0.5 h-4 w-4 accent-pahang-yellow shrink-0" />
+                  <span class="text-sm text-slate-700">
+                    <strong>Kebenaran Rawatan Kecemasan:</strong> Sekiranya berlaku kecemasan perubatan semasa ujian kecergasan, saya memberi kebenaran kepada pegawai perubatan atau penganjur untuk mendapatkan rawatan yang diperlukan bagi pihak saya.
+                  </span>
+                </label>
+              </div>
+            </div>
+          }
+
+          <!-- Perakuan Umum & Submit -->
+          <div class="p-6">
+            <h4 class="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <span class="material-icons text-pahang-yellow text-lg">verified</span>
+              Perakuan Pemohon
+            </h4>
+            <div class="space-y-3">
+              <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" [(ngModel)]="declare1" name="declare1" class="mt-0.5 h-4 w-4 accent-pahang-yellow shrink-0" />
+                <span class="text-sm text-slate-700">
+                  Saya dengan ini memperakui bahawa semua maklumat yang diberikan dalam borang ini adalah benar dan tepat mengikut pengetahuan saya.
+                </span>
+              </label>
+              <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" [(ngModel)]="declare2" name="declare2" class="mt-0.5 h-4 w-4 accent-pahang-yellow shrink-0" />
+                <span class="text-sm text-slate-700">
+                  Saya memahami bahawa sebarang maklumat yang tidak benar atau palsu boleh menyebabkan permohonan ini ditolak atau dibatalkan tanpa notis.
+                </span>
+              </label>
+              @if (isAnnualReg) {
+                <label class="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" [(ngModel)]="declare3" name="declare3" class="mt-0.5 h-4 w-4 accent-pahang-yellow shrink-0" />
+                  <span class="text-sm text-slate-700">
+                    Saya bersetuju untuk mematuhi semua peraturan, arahan, dan etika pengadilan yang ditetapkan oleh Persatuan Bolasepak Pahang dan Persatuan Bolasepak Malaysia (FAM).
+                  </span>
+                </label>
+              }
+            </div>
+            <div class="flex justify-end pt-6 mt-4 border-t border-slate-100">
+              <button (click)="submit()" [disabled]="submitting"
+                class="bg-pahang-yellow text-black font-semibold px-8 py-2.5 rounded-lg hover:bg-yellow-500 disabled:opacity-50 flex items-center gap-2 text-sm">
+                @if (submitting) {
+                  <span class="material-icons animate-spin text-sm">refresh</span>
+                  Menghantar...
+                } @else {
+                  <span class="material-icons text-sm">send</span>
+                  Hantar Permohonan
+                }
+              </button>
+            </div>
           </div>
+
         </div>
       </div>
     }
 
     <!-- History -->
-    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-      <div class="px-6 py-4 border-b">
-        <h3 class="font-semibold text-lg">Sejarah Permohonan</h3>
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+        <span class="material-icons text-pahang-yellow">history</span>
+        <h3 class="font-semibold text-slate-800">Sejarah Permohonan</h3>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
-          <thead class="bg-gray-50 text-left">
+          <thead class="bg-slate-50 text-left border-b border-slate-200">
             <tr>
-              <th class="px-4 py-3 font-semibold text-gray-600">#</th>
-              <th class="px-4 py-3 font-semibold text-gray-600">Tarikh</th>
-              <th class="px-4 py-3 font-semibold text-gray-600">Jenis Borang</th>
-              <th class="px-4 py-3 font-semibold text-gray-600">Status</th>
-              <th class="px-4 py-3 font-semibold text-gray-600">Catatan</th>
-              <th class="px-4 py-3 font-semibold text-gray-600">Muat Turun</th>
+              <th class="px-4 py-3 font-semibold text-slate-600">#</th>
+              <th class="px-4 py-3 font-semibold text-slate-600">Tarikh Hantar</th>
+              <th class="px-4 py-3 font-semibold text-slate-600">Sesi</th>
+              <th class="px-4 py-3 font-semibold text-slate-600">Status</th>
+              <th class="px-4 py-3 font-semibold text-slate-600">Catatan</th>
+              <th class="px-4 py-3 font-semibold text-slate-600">Muat Turun</th>
             </tr>
           </thead>
-          <tbody class="divide-y">
+          <tbody class="divide-y divide-slate-100">
             @for (a of history; track a.id; let i = $index) {
-              <tr class="hover:bg-gray-50">
-                <td class="px-4 py-3 text-gray-500">{{ i + 1 }}</td>
-                <td class="px-4 py-3">{{ a.tarikh_hantar || a.created_at }}</td>
-                <td class="px-4 py-3">{{ a.jenis_borang || typeLabel }}</td>
+              <tr class="hover:bg-slate-50">
+                <td class="px-4 py-3 text-slate-400">{{ i + 1 }}</td>
+                <td class="px-4 py-3 text-slate-700">{{ a.tarikh_hantar }}</td>
+                <td class="px-4 py-3 text-slate-700">{{ a.tahun_permohonan || '&mdash;' }}</td>
                 <td class="px-4 py-3">
-                  <span class="px-2 py-0.5 text-xs font-semibold rounded-full" [class]="statusClass(a.status_workflow || a.status)">
+                  <span class="px-2 py-0.5 text-xs font-semibold rounded-full whitespace-nowrap" [class]="statusClass(a.status_workflow || a.status)">
                     {{ a.status_workflow || a.status }}
                   </span>
                 </td>
-                <td class="px-4 py-3 text-gray-500">{{ a.admin_notes || a.pp_notes || '-' }}</td>
+                <td class="px-4 py-3 text-slate-500 max-w-xs truncate">{{ a.pp_notes || a.admin_notes || '&mdash;' }}</td>
                 <td class="px-4 py-3">
-                  @if (a.status_workflow === 'Lengkap' || a.status_workflow === 'Admin Diluluskan' || a.status_workflow === 'Bayaran Diterima' || a.status === 'Approved') {
-                    <button (click)="downloadPdf(a)" class="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800">
+                  @if (['Lengkap','Admin Diluluskan','Bayaran Diterima','Approved'].includes(a.status_workflow || a.status)) {
+                    <button (click)="downloadPdf(a)" class="inline-flex items-center gap-1 text-xs font-medium text-slate-700 hover:text-pahang-black underline underline-offset-2">
                       <span class="material-icons text-sm">download</span>PDF
                     </button>
                   } @else {
-                    <span class="text-gray-300">-</span>
+                    <span class="text-slate-300">&mdash;</span>
                   }
                 </td>
               </tr>
             } @empty {
               <tr>
-                <td colspan="6" class="px-4 py-12 text-center text-gray-400">
+                <td colspan="6" class="px-4 py-12 text-center text-slate-400">
                   <span class="material-icons text-4xl mb-2 block">description</span>
                   Tiada sejarah permohonan.
                 </td>
@@ -138,5 +480,6 @@
         </table>
       </div>
     </div>
+
   }
 </div>

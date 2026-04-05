@@ -1,5 +1,5 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://refpahang.xo.je/api',
+  apiUrl: '/api',
   appName: 'Sistem Pengurusan Pengadil PBNP',
 };

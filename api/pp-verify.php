@@ -20,7 +20,8 @@ require_once __DIR__ . '/bootstrap.php';
 
 // Require PP Daerah role
 
-$userId = requireRole(['PP Daerah']);
+$currentUser = requireRole(['PP Daerah']);
+$userId = $currentUser['id'];
 
 
 
@@ -72,7 +73,7 @@ try {
 
     $appStmt = $pdo->prepare('
 
-        SELECT p.*, u.user_email as user_email, u.nama_penuh as user_nama
+        SELECT p.*, u.email as user_email, u.nama_penuh as user_nama
 
         FROM permohonan p
 
@@ -270,7 +271,7 @@ function sendAdminNotification(PDO $pdo, array $application, string $ppName): vo
 {
     require_once __DIR__ . '/../config/email.php';
 
-    $adminStmt = $pdo->prepare("SELECT user_email, nama_penuh FROM users WHERE role = 'Admin' AND aktif = 1");
+    $adminStmt = $pdo->prepare("SELECT email, nama_penuh FROM users WHERE role = 'Admin' AND aktif = 1");
     $adminStmt->execute();
     $admins = $adminStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -291,12 +292,12 @@ function sendAdminNotification(PDO $pdo, array $application, string $ppName): vo
         ['Disahkan Oleh',  htmlspecialchars($ppName)],
     ]);
     $body .= emailStatusBadge('Menunggu Kelulusan Admin', '#FEF3C7', '#92400E');
-    $body .= emailButton('https://refpahang.com/admin-senarai-permohonan.html', 'Semak Permohonan');
+    $body .= emailButton(env('BASE_URL') . '/admin/permohonan', 'Semak Permohonan');
 
     $html = buildEmailTemplate('Tindakan Diperlukan: Pengesahan PP Diterima', '#7C3AED', '', $body);
 
     foreach ($admins as $admin) {
-        sendEmail($admin['user_email'], $subject, $html, $admin['nama_penuh'], 'admin');
+        sendEmail($admin['email'], $subject, $html, $admin['nama_penuh'], 'admin');
     }
 }
 
@@ -341,7 +342,7 @@ function sendApplicantNotification(PDO $pdo, array $application, string $result,
     ]);
     $body .= $alertHtml;
     $body .= $nextHtml;
-    $body .= emailButton('https://refpahang.com/pengadil-dashboard.html', 'Semak Dashboard');
+    $body .= emailButton(env('BASE_URL') . '/pengadil', 'Semak Dashboard');
 
     $html = buildEmailTemplate($banner, $accent, $icon, $body);
     sendEmail($application['emel'], $subject, $html, $application['nama_penuh'], 'daftar');

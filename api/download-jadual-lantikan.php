@@ -52,11 +52,11 @@ try {
 }
 
 $JAWATAN_SHORT = [
-    'Pengadil Utama'       => 'Pengadil Utama',
-    'Pembantu Pengadil 1'  => 'PP 1',
-    'Pembantu Pengadil 2'  => 'PP 2',
-    'Pengadil Keempat'     => 'P. Keempat',
-    'Penilai Pengadil'     => 'Penilai',
+    'Pengadil'             => 'R',
+    'Penolong Pengadil 1'  => 'AR1',
+    'Penolong Pengadil 2'  => 'AR2',
+    'Pegawai ke4'          => 'P4',
+    'Penilai Pengadil'     => 'RA',
 ];
 $JAWATAN_LIST = array_keys($JAWATAN_SHORT);
 
@@ -192,16 +192,28 @@ $tarikhTamat = $kejohanan['tarikh_akhir'] ? fDate($kejohanan['tarikh_akhir']) : 
 
     /* ── Document header ── */
     .doc-header {
-      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
       border-bottom: 2.5px solid #1a1a1a;
       padding-bottom: 10px;
       margin-bottom: 14px;
     }
-    .doc-header .org { font-size: 11pt; font-weight: bold; letter-spacing: 0.5px; }
-    .doc-header .sub { font-size: 9.5pt; }
-    .doc-header .title { font-size: 15pt; font-weight: bold; margin: 6px 0 4px; text-transform: uppercase; letter-spacing: 1px; }
-    .doc-header .noj { font-size: 10pt; font-weight: bold; }
-    .doc-header .meta { font-size: 8.5pt; color: #444; margin-top: 3px; }
+    .doc-header .logo-left img,
+    .doc-header .logo-right img {
+      width: 60px;
+      height: 60px;
+      object-fit: contain;
+      vertical-align: middle;
+    }
+    .doc-header .header-text {
+      text-align: center;
+    }
+    .doc-header .sub { font-size: 9.5pt; margin: 0; }
+    .doc-header .title { font-size: 15pt; font-weight: bold; margin: 2px 0 1px; text-transform: uppercase; letter-spacing: 1px; }
+    .doc-header .noj { font-size: 10pt; font-weight: bold; margin: 0; }
+    .doc-header .meta { font-size: 8.5pt; color: #444; margin: 1px 0 0; }
 
     /* ── Stats bar ── */
     .stats-bar {
@@ -257,6 +269,11 @@ $tarikhTamat = $kejohanan['tarikh_akhir'] ? fDate($kejohanan['tarikh_akhir']) : 
     .ref-negeri { font-size: 6.5pt; color: #666; }
     .ref-empty  { color: #aaa; text-align: center; font-style: italic; }
 
+    /* Kategori colors */
+    .chip-b12 { background: #d1fae5; color: #065f46; }
+    .chip-b15 { background: #e0f2fe; color: #0369a1; }
+    .chip-b18 { background: #f3e8ff; color: #7e22ce; }
+
     /* Status chips */
     .chip {
       display: inline-block;
@@ -276,6 +293,7 @@ $tarikhTamat = $kejohanan['tarikh_akhir'] ? fDate($kejohanan['tarikh_akhir']) : 
       border-radius: 6px;
       padding: 14px 18px;
       margin-bottom: 14px;
+      page-break-inside: avoid;
     }
     .pengesahan-section h3 {
       margin: 0 0 10px;
@@ -332,15 +350,41 @@ $tarikhTamat = $kejohanan['tarikh_akhir'] ? fDate($kejohanan['tarikh_akhir']) : 
   </div>
 
   <!-- Document header -->
+  <?php
+    // Embed logos as base64 data URIs so they render in print/PDF
+    $logoKiriData = '';
+    $logoKananData = '';
+    if (!empty($kejohanan['logo_kiri'])) {
+        $path = __DIR__ . '/..' . $kejohanan['logo_kiri'];
+        if (file_exists($path)) {
+            $mime = mime_content_type($path) ?: 'image/png';
+            $logoKiriData = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($path));
+        }
+    }
+    if (!empty($kejohanan['logo_kanan'])) {
+        $path = __DIR__ . '/..' . $kejohanan['logo_kanan'];
+        if (file_exists($path)) {
+            $mime = mime_content_type($path) ?: 'image/png';
+            $logoKananData = 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($path));
+        }
+    }
+  ?>
   <div class="doc-header">
-    <p class="org">PERSATUAN BOLA SEPAK PAHANG (PFAHANG)</p>
-    <p class="sub">JAWATANKUASA PENGADIL</p>
-    <p class="title">Jadual Lantikan Pengadil Kejohanan</p>
-    <p class="noj"><?= escHtml($kejohanan['nama']) ?></p>
-    <p class="meta">
-      <?= escHtml($tarikhMula) ?> – <?= escHtml($tarikhTamat) ?>
-      <?php if ($kejohanan['tempat']): ?>  ·  <?= escHtml($kejohanan['tempat']) ?><?php endif; ?>
-    </p>
+    <div class="logo-left">
+      <?php if ($logoKiriData): ?><img src="<?= $logoKiriData ?>" alt="Logo"><?php endif; ?>
+    </div>
+    <div class="header-text">
+      <p class="sub">JAWATANKUASA PENGADIL</p>
+      <p class="title">Jadual Lantikan Pengadil Kejohanan</p>
+      <p class="noj"><?= escHtml($kejohanan['nama']) ?></p>
+      <p class="meta">
+        <?= escHtml($tarikhMula) ?> – <?= escHtml($tarikhTamat) ?>
+        <?php if ($kejohanan['tempat']): ?>  ·  <?= escHtml($kejohanan['tempat']) ?><?php endif; ?>
+      </p>
+    </div>
+    <div class="logo-right">
+      <?php if ($logoKananData): ?><img src="<?= $logoKananData ?>" alt="Logo"><?php endif; ?>
+    </div>
   </div>
 
   <!-- Stats bar -->
@@ -394,8 +438,15 @@ $tarikhTamat = $kejohanan['tarikh_akhir'] ? fDate($kejohanan['tarikh_akhir']) : 
           </td>
         </tr>
       <?php endif; ?>
-      <?php foreach ($jadualList as $j): ?>
-        <tr>
+      <?php foreach ($jadualList as $j):
+        $rowKatClass = match(strtoupper($j['kategori'] ?? '')) {
+          'B12' => 'background:#f0fdf4;',
+          'B15' => 'background:#f0f9ff;',
+          'B18' => 'background:#faf5ff;',
+          default => '',
+        };
+      ?>
+        <tr style="<?= $rowKatClass ?>">
           <td class="center bold"><?= escHtml($j['no_perlawanan']) ?></td>
           <td class="center">
             <?= escHtml(fDate($j['tarikh'])) ?><br>
@@ -403,8 +454,15 @@ $tarikhTamat = $kejohanan['tarikh_akhir'] ? fDate($kejohanan['tarikh_akhir']) : 
           </td>
           <td class="center"><?= escHtml(fTime($j['masa'])) ?></td>
           <td class="center">
-            <?php if ($j['kategori']): ?>
-              <span class="chip" style="background:#e0e7ff;color:#3730a3;"><?= escHtml($j['kategori']) ?></span><br>
+            <?php if ($j['kategori']):
+              $katClass = match(strtoupper($j['kategori'])) {
+                'B12' => 'chip-b12',
+                'B15' => 'chip-b15',
+                'B18' => 'chip-b18',
+                default => '',
+              };
+            ?>
+              <span class="chip <?= $katClass ?>"><?= escHtml($j['kategori']) ?></span><br>
             <?php endif; ?>
             <span style="font-size:6.5pt;"><?= escHtml($j['peringkat'] ?? '') ?><?= $j['kumpulan'] ? ' ' . escHtml($j['kumpulan']) : '' ?></span>
           </td>

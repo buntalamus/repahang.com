@@ -2,10 +2,10 @@
 // Include bootstrap for session and database
 require_once __DIR__ . '/bootstrap.php';
 
-// Check if user is logged in and is PP Daerah
-if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'PP Daerah') {
+// Check if user is logged in
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_role'] ?? '', ['Pengadil', 'PP Daerah', 'Admin'], true)) {
     http_response_code(403);
-    echo 'Akses ditolak - hanya PP Daerah sahaja';
+    echo 'Akses ditolak';
     exit;
 }
 

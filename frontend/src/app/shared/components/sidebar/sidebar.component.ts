@@ -1,5 +1,6 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnDestroy } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import {
   NavItem,
@@ -95,17 +96,22 @@ import {
     }
   `,
 })
-export class SidebarComponent {
+export class SidebarComponent implements OnDestroy {
   @Input() isOpen = false;
   @Output() closed = new EventEmitter<void>();
   openSubmenus: Record<string, boolean> = {};
 
   navItems: NavItem[] = [];
   roleLabel = '';
+  private sub: Subscription;
 
   constructor(private auth: AuthService) {
     this.updateNav();
-    this.auth.currentUser$.subscribe(() => this.updateNav());
+    this.sub = this.auth.currentUser$.subscribe(() => this.updateNav());
+  }
+
+  ngOnDestroy(): void {
+    this.sub.unsubscribe();
   }
 
   private updateNav(): void {

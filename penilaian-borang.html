@@ -71,7 +71,7 @@
     <div class="bg-white rounded-b-xl shadow-sm">
       <!-- Match Info -->
       <div class="p-6 border-b">
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-4 text-sm">
           <div>
             <p class="text-xs text-gray-500 mb-0.5">Kejohanan</p>
             <p id="matchKejohanan" class="font-semibold"></p>
@@ -86,20 +86,84 @@
             <p id="matchDateTime" class="font-semibold"></p>
           </div>
           <div>
+            <p class="text-xs text-gray-500 mb-0.5">Tempat</p>
+            <p id="matchTempat" class="font-semibold"></p>
+          </div>
+          <div>
             <p class="text-xs text-gray-500 mb-0.5">Penilai</p>
             <p id="penilaiNama" class="font-semibold"></p>
           </div>
         </div>
       </div>
 
-      <!-- Tahap Kesukaran -->
+      <!-- Keputusan Perlawanan -->
       <div class="p-6 border-b">
-        <label class="block text-sm font-semibold mb-1.5">Tahap Kesukaran Perlawanan</label>
-        <select id="tahapKesukaran" class="border rounded-lg px-3 py-2 text-sm w-full sm:w-auto">
-          <option value="Normal">Normal</option>
-          <option value="Susah">Susah</option>
-          <option value="Sangat Susah">Sangat Susah</option>
-        </select>
+        <label class="block text-sm font-semibold mb-3">
+          <span class="material-icons text-sm align-middle mr-1 text-blue-500">scoreboard</span>
+          Keputusan Perlawanan
+        </label>
+        <div class="overflow-x-auto">
+          <table class="w-full max-w-lg mx-auto text-sm border-collapse">
+            <thead>
+              <tr class="bg-gray-100">
+                <th class="border px-3 py-2 text-center font-semibold" id="homeTeamHeader">Home</th>
+                <th class="border px-3 py-2 text-center font-semibold text-gray-500 w-40">-</th>
+                <th class="border px-3 py-2 text-center font-semibold" id="awayTeamHeader">Away</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="border px-2 py-1.5 text-center"><input type="number" min="0" max="99" id="skorHtHome" class="w-16 border rounded px-2 py-1 text-center font-bold" oninput="updateFinalScore()" /></td>
+                <td class="border px-2 py-1.5 text-center text-xs text-gray-500 font-medium">Separuh Masa Pertama</td>
+                <td class="border px-2 py-1.5 text-center"><input type="number" min="0" max="99" id="skorHtAway" class="w-16 border rounded px-2 py-1 text-center font-bold" oninput="updateFinalScore()" /></td>
+              </tr>
+              <tr>
+                <td class="border px-2 py-1.5 text-center"><input type="number" min="0" max="99" id="skorFtHome" class="w-16 border rounded px-2 py-1 text-center font-bold" oninput="updateFinalScore()" /></td>
+                <td class="border px-2 py-1.5 text-center text-xs text-gray-500 font-medium">Separuh Masa Kedua</td>
+                <td class="border px-2 py-1.5 text-center"><input type="number" min="0" max="99" id="skorFtAway" class="w-16 border rounded px-2 py-1 text-center font-bold" oninput="updateFinalScore()" /></td>
+              </tr>
+              <tr>
+                <td class="border px-2 py-1.5 text-center"><input type="number" min="0" max="99" id="skorEtHome" class="w-16 border rounded px-2 py-1 text-center font-bold" oninput="updateFinalScore()" /></td>
+                <td class="border px-2 py-1.5 text-center text-xs text-gray-500 font-medium">Extra Time</td>
+                <td class="border px-2 py-1.5 text-center"><input type="number" min="0" max="99" id="skorEtAway" class="w-16 border rounded px-2 py-1 text-center font-bold" oninput="updateFinalScore()" /></td>
+              </tr>
+              <tr>
+                <td class="border px-2 py-1.5 text-center"><input type="number" min="0" max="99" id="skorPsHome" class="w-16 border rounded px-2 py-1 text-center font-bold" oninput="updateFinalScore()" /></td>
+                <td class="border px-2 py-1.5 text-center text-xs text-gray-500 font-medium">Penalty Shoot Out</td>
+                <td class="border px-2 py-1.5 text-center"><input type="number" min="0" max="99" id="skorPsAway" class="w-16 border rounded px-2 py-1 text-center font-bold" oninput="updateFinalScore()" /></td>
+              </tr>
+              <tr class="bg-gray-50 font-bold">
+                <td class="border px-2 py-2 text-center text-lg" id="finalHome">-</td>
+                <td class="border px-2 py-2 text-center text-xs text-gray-600">Keputusan Akhir</td>
+                <td class="border px-2 py-2 text-center text-lg" id="finalAway">-</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tahap Kesukaran & Cuaca -->
+      <div class="p-6 border-b flex flex-wrap gap-6">
+        <div>
+          <label class="block text-sm font-semibold mb-1.5">Tahap Kesukaran Perlawanan</label>
+          <select id="tahapKesukaran" class="border rounded-lg px-3 py-2 text-sm w-full sm:w-auto">
+            <option value="Normal">Normal</option>
+            <option value="Susah">Susah</option>
+            <option value="Sangat Susah">Sangat Susah</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold mb-1.5">Cuaca</label>
+          <select id="cuaca" class="border rounded-lg px-3 py-2 text-sm w-full sm:w-auto">
+            <option value="">-- Pilih --</option>
+            <option value="Cerah">Cerah</option>
+            <option value="Mendung">Mendung</option>
+            <option value="Hujan Renyai">Hujan Renyai</option>
+            <option value="Hujan Lebat">Hujan Lebat</option>
+            <option value="Panas Terik">Panas Terik</option>
+            <option value="Berangin">Berangin</option>
+          </select>
+        </div>
       </div>
 
       <!-- Officials container -->
@@ -156,8 +220,8 @@ async function loadData() {
     }
     DATA = json;
 
-    // Check if already submitted
-    if (json.existing && json.existing.status === 'Dihantar') {
+    // Check if already submitted or approved
+    if (json.existing && (json.existing.status === 'Dihantar' || json.existing.status === 'Disahkan')) {
       document.getElementById('loading').classList.add('hidden');
       document.getElementById('submittedPage').classList.remove('hidden');
       return;
@@ -184,7 +248,12 @@ function renderForm(data) {
   document.getElementById('matchTeams').textContent = `${m.pasukan_home} vs ${m.pasukan_away}`;
   document.getElementById('matchNo').textContent = `${m.no_perlawanan} · ${m.kumpulan_tahap || ''}`;
   document.getElementById('matchDateTime').textContent = formatDate(m.tarikh) + ', ' + (m.masa || '').substring(0, 5);
+  document.getElementById('matchTempat').textContent = m.tempat || '-';
   document.getElementById('penilaiNama').textContent = data.penilai_nama || '-';
+
+  // Set team names in score table headers
+  document.getElementById('homeTeamHeader').textContent = m.pasukan_home || 'Home';
+  document.getElementById('awayTeamHeader').textContent = m.pasukan_away || 'Away';
 
   // Render each official
   const container = document.getElementById('officialsContainer');
@@ -218,7 +287,18 @@ function renderForm(data) {
   // Restore existing parent data
   if (data.existing) {
       if (data.existing.tahap_kesukaran) document.getElementById('tahapKesukaran').value = data.existing.tahap_kesukaran;
+      if (data.existing.cuaca) document.getElementById('cuaca').value = data.existing.cuaca;
       if (data.existing.ulasan_keseluruhan) document.getElementById('ulasanKeseluruhan').value = data.existing.ulasan_keseluruhan;
+      // Restore keputusan perlawanan scores
+      if (data.existing.skor_ht_home != null) document.getElementById('skorHtHome').value = data.existing.skor_ht_home;
+      if (data.existing.skor_ht_away != null) document.getElementById('skorHtAway').value = data.existing.skor_ht_away;
+      if (data.existing.skor_ft_home != null) document.getElementById('skorFtHome').value = data.existing.skor_ft_home;
+      if (data.existing.skor_ft_away != null) document.getElementById('skorFtAway').value = data.existing.skor_ft_away;
+      if (data.existing.skor_et_home != null) document.getElementById('skorEtHome').value = data.existing.skor_et_home;
+      if (data.existing.skor_et_away != null) document.getElementById('skorEtAway').value = data.existing.skor_et_away;
+      if (data.existing.skor_ps_home != null) document.getElementById('skorPsHome').value = data.existing.skor_ps_home;
+      if (data.existing.skor_ps_away != null) document.getElementById('skorPsAway').value = data.existing.skor_ps_away;
+      updateFinalScore();
   }
   updateSummary();
 }
@@ -229,18 +309,29 @@ function getFieldKey(sectionKey) {
 }
 
 function getJawatanShort(jawatan) {
-  if (jawatan === 'Pengadil Utama') return 'PU';
-  if (jawatan === 'Pembantu Pengadil 1') return 'PP1';
-  if (jawatan === 'Pembantu Pengadil 2') return 'PP2';
-  if (jawatan.includes('Keempat')) return 'P4';
-  return 'PG';
+  if (jawatan === 'Pengadil') return 'R';
+  if (jawatan === 'Penolong Pengadil 1') return 'AR1';
+  if (jawatan === 'Penolong Pengadil 2') return 'AR2';
+  if (jawatan.includes('ke4') || jawatan.includes('Keempat')) return 'P4';
+  return jawatan;
 }
 
 function getJawatanIcon(jawatan) {
-  if (jawatan.includes('Utama')) return 'sports';
-  if (jawatan.includes('Pembantu')) return 'flag';
-  if (jawatan.includes('Keempat')) return 'person';
+  if (jawatan === 'Pengadil') return 'sports';
+  if (jawatan.includes('Penolong') || jawatan.includes('Pembantu')) return 'flag';
+  if (jawatan.includes('ke4') || jawatan.includes('Keempat')) return 'person';
   return 'sports';
+}
+
+function getSectionIcon(key) {
+  switch (key) {
+    case 'kawalan': return 'sports';
+    case 'fizikal': return 'directions_run';
+    case 'kerjasama': return 'handshake';
+    case 'penolong': return 'flag';
+    case 'keempat': return 'person';
+    default: return 'sports';
+  }
 }
 
 function renderOfficialBlock(ofc, idx) {
@@ -249,7 +340,10 @@ function renderOfficialBlock(ofc, idx) {
     const fk = getFieldKey(s.key);
     sectionsHtml += `
       <div class="mt-4 border rounded-xl overflow-hidden">
-        <div class="bg-pahang-black text-pahang-yellow px-4 py-2 text-sm font-semibold">${s.label}</div>
+        <div class="bg-pahang-black text-pahang-yellow px-4 py-2 text-sm font-semibold flex items-center gap-2">
+          <span class="material-icons text-sm">${getSectionIcon(s.key)}</span>
+          ${s.label}
+        </div>
         <div class="p-4 space-y-4">
           <!-- Kekuatan -->
           <div>
@@ -332,6 +426,21 @@ function renderOfficialBlock(ofc, idx) {
               class="w-24 border rounded-lg px-3 py-2 text-center font-bold text-lg" placeholder="0.0" />
             <span class="text-gray-400 text-sm">/ 10</span>
           </div>
+          <details class="mt-2">
+            <summary class="text-xs text-blue-600 cursor-pointer hover:underline">Panduan Skala Pemarkahan</summary>
+            <div class="mt-1 bg-blue-50 rounded-lg p-2 text-xs space-y-0.5">
+              <div class="flex gap-2"><span class="font-bold w-16 shrink-0 text-white bg-green-800 px-1 rounded">9.0 - 10</span><span class="text-gray-600">Prestasi sangat baik dalam perlawanan dengan banyak keputusan sukar dibuat dengan betul</span></div>
+              <div class="flex gap-2"><span class="font-bold w-16 shrink-0 text-white bg-green-700 px-1 rounded">8.5 - 8.9</span><span class="text-gray-600">Prestasi sangat baik dalam perlawanan dengan banyak keputusan sukar dibuat dengan betul</span></div>
+              <div class="flex gap-2"><span class="font-bold w-16 shrink-0 text-white bg-green-600 px-1 rounded">8.3 - 8.4</span><span class="text-gray-600">Prestasi baik dalam perlawanan dengan banyak keputusan dijangka dibuat dengan betul</span></div>
+              <div class="flex gap-2"><span class="font-bold w-16 shrink-0 bg-green-200 px-1 rounded">8.2</span><span class="text-gray-600">Memuaskan dengan beberapa perkara kecil untuk penambahbaikan</span></div>
+              <div class="flex gap-2"><span class="font-bold w-16 shrink-0 bg-yellow-200 px-1 rounded">8.0 - 8.1</span><span class="text-gray-600">Memuaskan dengan beberapa perkara penting untuk penambahbaikan</span></div>
+              <div class="flex gap-2"><span class="font-bold w-16 shrink-0 bg-amber-300 px-1 rounded">7.9</span><span class="text-gray-600">Prestasi tidak memuaskan melibatkan satu key match incident, jika tidak 8.3 atau ke atas</span></div>
+              <div class="flex gap-2"><span class="font-bold w-16 shrink-0 bg-orange-300 px-1 rounded">7.8</span><span class="text-gray-600">Prestasi tidak memuaskan melibatkan satu key match incident jika tidak 8.0 - 8.2</span></div>
+              <div class="flex gap-2"><span class="font-bold w-16 shrink-0 text-white bg-orange-500 px-1 rounded">7.5 - 7.7</span><span class="text-gray-600">Prestasi tidak memuaskan melibatkan dua key match incident</span></div>
+              <div class="flex gap-2"><span class="font-bold w-16 shrink-0 text-white bg-red-500 px-1 rounded">7.4</span><span class="text-gray-600">Satu kesilapan key match incident yang telah mempengaruhi pemenang perlawanan</span></div>
+              <div class="flex gap-2"><span class="font-bold w-16 shrink-0 text-white bg-red-800 px-1 rounded">7.0 - 7.4</span><span class="text-gray-600">Prestasi yang buruk dengan tiga atau lebih key match incident</span></div>
+            </div>
+          </details>
         </div>
         <div>
           <label class="block text-sm font-semibold mb-1">Prestasi</label>
@@ -460,10 +569,20 @@ function updateSummary() {
 }
 
 function collectPayload(hantar) {
+  const getScoreVal = (id) => { const v = document.getElementById(id).value; return v !== '' ? parseInt(v) : null; };
   return {
     token: TOKEN,
     tahap_kesukaran: document.getElementById('tahapKesukaran').value,
+    cuaca: document.getElementById('cuaca').value,
     ulasan_keseluruhan: document.getElementById('ulasanKeseluruhan').value,
+    skor_ht_home: getScoreVal('skorHtHome'),
+    skor_ht_away: getScoreVal('skorHtAway'),
+    skor_ft_home: getScoreVal('skorFtHome'),
+    skor_ft_away: getScoreVal('skorFtAway'),
+    skor_et_home: getScoreVal('skorEtHome'),
+    skor_et_away: getScoreVal('skorEtAway'),
+    skor_ps_home: getScoreVal('skorPsHome'),
+    skor_ps_away: getScoreVal('skorPsAway'),
     hantar: hantar,
     pegawai: officialsData.map(o => ({
       lantikan_pengadil_id: o.lantikan_pengadil_id,
@@ -482,6 +601,27 @@ function collectPayload(hantar) {
       kerjasama_nasihat: o.fields.kerjasama_nasihat || '',
     }))
   };
+}
+
+function updateFinalScore() {
+  const v = (id) => { const el = document.getElementById(id); return el.value !== '' ? parseInt(el.value) : null; };
+  const ht_h = v('skorHtHome'), ht_a = v('skorHtAway');
+  const ft_h = v('skorFtHome'), ft_a = v('skorFtAway');
+  const et_h = v('skorEtHome'), et_a = v('skorEtAway');
+  const ps_h = v('skorPsHome'), ps_a = v('skorPsAway');
+
+  let totalH = null, totalA = null;
+  if (ht_h != null && ft_h != null) totalH = ht_h + ft_h + (et_h || 0);
+  if (ht_a != null && ft_a != null) totalA = ht_a + ft_a + (et_a || 0);
+
+  document.getElementById('finalHome').textContent = totalH != null ? totalH : '-';
+  document.getElementById('finalAway').textContent = totalA != null ? totalA : '-';
+
+  // Show penalty in parentheses if penalty shoot out is filled
+  if (ps_h != null && ps_a != null && totalH != null) {
+    document.getElementById('finalHome').innerHTML = totalH + ' <span class="text-xs text-gray-400">(' + ps_h + ')</span>';
+    document.getElementById('finalAway').innerHTML = totalA + ' <span class="text-xs text-gray-400">(' + ps_a + ')</span>';
+  }
 }
 
 async function saveDraft() {

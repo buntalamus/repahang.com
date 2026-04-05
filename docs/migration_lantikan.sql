@@ -54,8 +54,8 @@ CREATE TABLE IF NOT EXISTS laporan_penilaian (
     id INT AUTO_INCREMENT PRIMARY KEY,
     jadual_id INT NOT NULL,
     lantikan_id INT NOT NULL,
-    penilai_id INT NOT NULL,
-    pengadil_id INT NOT NULL,
+    penilai_id INT NULL,
+    pengadil_id INT NULL,
     markah DECIMAL(4,1),
     tahap_kesukaran ENUM('Normal','Susah','Sangat Susah') DEFAULT 'Normal',
     kawalan_kekuatan TEXT,
@@ -76,9 +76,7 @@ CREATE TABLE IF NOT EXISTS laporan_penilaian (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (jadual_id) REFERENCES jadual_perlawanan(id) ON DELETE CASCADE,
-    FOREIGN KEY (lantikan_id) REFERENCES lantikan_pengadil(id) ON DELETE CASCADE,
-    FOREIGN KEY (penilai_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (pengadil_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (lantikan_id) REFERENCES lantikan_pengadil(id) ON DELETE CASCADE
 );
 
 SELECT 'Migration complete' AS status;

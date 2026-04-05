@@ -142,7 +142,7 @@ function sendWelcomeEmail(string $email, string $nama, string $password): bool
         'Maklumat bayaran RM80 diperlukan.',
         'Permohonan anda lengkap dan diluluskan.',
     ]);
-    $body .= emailButton('https://refpahang.com/admin-login.html', 'Log Masuk Sekarang');
+    $body .= emailButton(env('BASE_URL') . '/login', 'Log Masuk Sekarang');
     $body .= emailAlert('#2563EB', '#EFF6FF', 'Hubungi Kami', 'Jika anda mempunyai sebarang pertanyaan, sila emel kepada <a href="mailto:daftar@refpahang.com" style="color:#2563EB;">daftar@refpahang.com</a>.');
 
     $htmlContent = buildEmailTemplate('Akaun Berjaya Didaftarkan', '#16A34A', '', $body);
@@ -199,7 +199,7 @@ function notifyPPDaerah(PDO $pdo, int $persatuanId, array $applicationData, stri
         '3. Sahkan rekod perlawanan pemohon.',
         '4. Luluskan atau tolak permohonan dengan catatan.',
     ]));
-    $body .= emailButton('https://refpahang.com/pp-dashboard.html', 'Semak Permohonan');
+    $body .= emailButton(env('BASE_URL') . '/pp-daerah', 'Semak Permohonan');
 
     $html = buildEmailTemplate('Permohonan Baru - Pengesahan Diperlukan', '#7C3AED', '', $body);
 

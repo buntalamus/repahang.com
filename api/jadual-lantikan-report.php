@@ -16,10 +16,10 @@ require_once __DIR__ . '/bootstrap.php';
 $currentUser = requireRole(['Admin']);
 
 $JAWATAN_LIST = [
-    'Pengadil Utama',
-    'Pembantu Pengadil 1',
-    'Pembantu Pengadil 2',
-    'Pengadil Keempat',
+    'Pengadil',
+    'Penolong Pengadil 1',
+    'Penolong Pengadil 2',
+    'Pegawai ke4',
     'Penilai Pengadil',
 ];
 

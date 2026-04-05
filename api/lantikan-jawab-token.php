@@ -90,10 +90,12 @@ try {
         SELECT lp.id, lp.status, lp.jawatan, lp.jadual_id,
                jp.tarikh, jp.masa, jp.tempat, jp.pasukan_home, jp.pasukan_away,
                COALESCE(kj.nama, '') AS kejohanan,
-               lp.pengadil_id
+               lp.pengadil_id,
+               u.nama_penuh, u.persatuan_id
         FROM lantikan_pengadil lp
         JOIN jadual_perlawanan jp ON lp.jadual_id = jp.id
         LEFT JOIN kejohanan kj ON jp.kejohanan_id = kj.id
+        LEFT JOIN users u ON lp.pengadil_id = u.id
         WHERE lp.email_token = :tok
         LIMIT 1
     ");
@@ -139,9 +141,10 @@ try {
         }
 
         // Auto-create perlawanan + update jadual status if ALL accepted
+        require_once __DIR__ . '/../config/lantikan-helper.php';
         if ($newStatus === 'Diterima') {
-            require_once __DIR__ . '/../config/lantikan-helper.php';
             createPerlawananFromLantikan($pdo, (int) $row['id']);
+            generatePenilaianToken($pdo, (int) $row['id']);
 
             $chkStmt = $pdo->prepare("
                 SELECT COUNT(*) AS total,
@@ -169,6 +172,29 @@ try {
     // Determine dashboard URL (only for registered referees)
     $baseUrl  = env('BASE_URL', 'https://refpahang.com');
     $dashUrl  = !empty($row['pengadil_id']) ? $baseUrl . '/pengadil-dashboard.html' : '';
+
+    // ── Notify admin(s) & PP Daerah ───────────────────────────────────
+    $namaPengadil = $row['nama_penuh'] ?? 'Pengadil';
+    notifyAdminLantikanResponse($pdo, $action, $namaPengadil,
+        $row['jawatan'], $row['kejohanan'], $row['tarikh'],
+        $row['pasukan_home'], $row['pasukan_away']);
+
+    if (!empty($row['pengadil_id'])) {
+        // Portal notification for the pengadil
+        $statusLabel = $action === 'accept' ? 'diterima' : 'ditolak';
+        createPortalNotification($pdo, (int) $row['pengadil_id'], 'Lantikan ' . ucfirst($statusLabel),
+            "Lantikan {$row['pasukan_home']} lwn {$row['pasukan_away']}",
+            "Anda telah {$statusLabel} lantikan sebagai {$row['jawatan']} untuk {$row['pasukan_home']} lwn {$row['pasukan_away']} ({$row['kejohanan']})."
+        );
+
+        // PP Daerah notification
+        $persatuanId = (int)($row['persatuan_id'] ?? 0);
+        if ($persatuanId) {
+            notifyPPDaerahResponse($pdo, $action, $persatuanId, $namaPengadil,
+                $row['jawatan'], $row['kejohanan'], $row['tarikh'],
+                $row['pasukan_home'], $row['pasukan_away']);
+        }
+    }
 
     if ($action === 'accept') {
         renderPage(

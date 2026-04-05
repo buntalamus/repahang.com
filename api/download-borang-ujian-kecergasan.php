@@ -4,7 +4,7 @@
  * Generates PDF for approved fitness test applications
  */
 
-require_once 'bootstrap.php';
+require_once __DIR__ . '/bootstrap.php';
 
 // Check if user is logged in as Pengadil
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'Pengadil') {

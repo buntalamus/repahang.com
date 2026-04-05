@@ -11,7 +11,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
 
-$currentUser = requireRole(['Pengadil', 'Penilai']);
+$currentUser = requireRole(['Pengadil', 'Penilai', 'PP Daerah']);
 
 try {
     $pdo = getDbConnection();
@@ -30,9 +30,12 @@ try {
 
     // Verify this assignment belongs to current user
     $stmt = $pdo->prepare("
-        SELECT lp.id, lp.status, jp.tarikh, jp.pasukan_home, jp.pasukan_away
+        SELECT lp.id, lp.status, lp.jawatan,
+               jp.tarikh, jp.masa, jp.tempat, jp.pasukan_home, jp.pasukan_away, jp.no_perlawanan,
+               COALESCE(kj.nama, '') AS kejohanan
         FROM lantikan_pengadil lp
         JOIN jadual_perlawanan jp ON lp.jadual_id = jp.id
+        LEFT JOIN kejohanan kj ON jp.kejohanan_id = kj.id
         WHERE lp.id = :id AND lp.pengadil_id = :uid
     ");
     $stmt->execute([':id' => $lantikan_id, ':uid' => (int) $currentUser['id']]);
@@ -62,16 +65,37 @@ try {
             jsonResponse(['error' => true, 'message' => 'Lantikan ini sudah dijawab.'], 400);
         }
 
-        // Create perlawanan record if accepted
+        // Create perlawanan record if accepted; generate penilaian token for RA
+        require_once __DIR__ . '/../config/lantikan-helper.php';
         if ($newStatus === 'Diterima') {
-            require_once __DIR__ . '/../config/lantikan-helper.php';
             createPerlawananFromLantikan($pdo, $lantikan_id);
+            generatePenilaianToken($pdo, $lantikan_id);
         }
 
         $pdo->commit();
     } catch (Throwable $txErr) {
         $pdo->rollBack();
         throw $txErr;
+    }
+
+    // ── Portal notification for the pengadil ──────────────────────────
+    $statusLabel = $action === 'accept' ? 'diterima' : 'ditolak';
+    createPortalNotification($pdo, (int) $currentUser['id'], 'Lantikan ' . ucfirst($statusLabel),
+        "Lantikan {$assignment['pasukan_home']} lwn {$assignment['pasukan_away']}",
+        "Anda telah {$statusLabel} lantikan sebagai {$assignment['jawatan']} untuk {$assignment['pasukan_home']} lwn {$assignment['pasukan_away']} ({$assignment['kejohanan']})."
+    );
+
+    // ── Notify admin(s) ───────────────────────────────────────────────
+    notifyAdminLantikanResponse($pdo, $action, $currentUser['nama_penuh'],
+        $assignment['jawatan'], $assignment['kejohanan'], $assignment['tarikh'],
+        $assignment['pasukan_home'], $assignment['pasukan_away'], $komen);
+
+    // ── Notify PP Daerah ──────────────────────────────────────────────
+    $persatuanId = (int)($currentUser['persatuan_id'] ?? 0);
+    if ($persatuanId) {
+        notifyPPDaerahResponse($pdo, $action, $persatuanId, $currentUser['nama_penuh'],
+            $assignment['jawatan'], $assignment['kejohanan'], $assignment['tarikh'],
+            $assignment['pasukan_home'], $assignment['pasukan_away'], $komen);
     }
 
     $msg = $action === 'accept' ? 'Tugasan berjaya diterima.' : 'Tugasan berjaya ditolak.';

@@ -85,7 +85,9 @@ function handleGetDashboardOverview(): void
 
             'verified_matches' => getVerifiedMatchesCount($pdo, $persatuanId),
 
-            'verification_rate' => getVerificationRate($pdo, $persatuanId)
+            'verification_rate' => getVerificationRate($pdo, $persatuanId),
+
+            'pending_matches' => getPendingMatchesCount($pdo, $persatuanId)
 
         ];
 
@@ -410,6 +412,21 @@ function getApprovedApplicationsCount(PDO $pdo, int $persatuanId): int
         JOIN users u ON p.user_id = u.id
         WHERE u.persatuan_id = :persatuan_id
         AND p.status_workflow = 'Admin Diluluskan'
+    ");
+    $stmt->execute([':persatuan_id' => $persatuanId]);
+    $result = $stmt->fetch();
+    return $result ? (int) $result['count'] : 0;
+}
+
+function getPendingMatchesCount(PDO $pdo, int $persatuanId): int
+{
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as count
+        FROM perlawanan p
+        INNER JOIN users u ON p.user_id = u.id
+        WHERE u.persatuan_id = :persatuan_id
+        AND u.role = 'Pengadil'
+        AND (p.status_pp IS NULL OR p.status_pp = '' OR p.status_pp = 'Menunggu')
     ");
     $stmt->execute([':persatuan_id' => $persatuanId]);
     $result = $stmt->fetch();

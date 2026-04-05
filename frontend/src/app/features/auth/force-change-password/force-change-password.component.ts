@@ -90,9 +90,9 @@ export class ForceChangePasswordComponent {
             this.auth.logout().subscribe();
           }
         },
-        error: () => {
+        error: (err: any) => {
           this.loading = false;
-          this.error = 'Ralat pelayan.';
+          this.error = err?.error?.message || 'Ralat pelayan.';
         },
       });
   }

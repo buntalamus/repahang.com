@@ -1,0 +1,301 @@
+<div class="space-y-6">
+  @if (loading) {
+    <app-loading message="Memuatkan laporan penilaian..." />
+  } @else {
+    <!-- Stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
+          <span class="material-icons text-blue-600">rate_review</span>
+        </div>
+        <div>
+          <p class="text-2xl font-bold">{{ stats.total }}</p>
+          <p class="text-xs text-gray-500">Jumlah Penilaian</p>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
+          <span class="material-icons text-green-600">trending_up</span>
+        </div>
+        <div>
+          <p class="text-2xl font-bold">{{ stats.avgMarkah || '-' }}</p>
+          <p class="text-xs text-gray-500">Purata Markah</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    @if (reports.length === 0) {
+      <div class="bg-white rounded-xl shadow-sm p-12 text-center">
+        <span class="material-icons text-5xl text-gray-300 mb-4">rate_review</span>
+        <h3 class="text-lg font-semibold text-gray-600 mb-2">Tiada Laporan Penilaian</h3>
+        <p class="text-sm text-gray-400">Laporan penilaian anda akan dipaparkan di sini selepas disahkan oleh admin.</p>
+      </div>
+    }
+
+    <!-- Report List -->
+    @if (reports.length > 0 && !selectedReport) {
+      <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div class="p-4 border-b">
+          <h2 class="font-bold text-lg">Laporan Penilaian Saya</h2>
+          <p class="text-sm text-gray-500">Senarai penilaian prestasi anda yang telah disahkan</p>
+        </div>
+
+        <div class="divide-y">
+          @for (r of reports; track r.id) {
+            <div class="p-4 hover:bg-gray-50 cursor-pointer transition" (click)="viewReport(r)">
+              <div class="flex items-start justify-between gap-3">
+                <!-- Match info -->
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="material-icons text-sm text-gray-400">{{ jawatanIcon(r.my_jawatan) }}</span>
+                    <span class="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{{ r.my_jawatan }}</span>
+                  </div>
+                  <h3 class="font-semibold text-gray-900 truncate">{{ r.pasukan_home }} vs {{ r.pasukan_away }}</h3>
+                  <p class="text-sm text-gray-500">{{ r.nama_kejohanan }}</p>
+                  <div class="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                    <span class="flex items-center gap-1">
+                      <span class="material-icons text-xs">calendar_today</span>
+                      {{ r.tarikh }}
+                    </span>
+                    <span class="flex items-center gap-1">
+                      <span class="material-icons text-xs">person</span>
+                      {{ r.nama_penilai }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Markah -->
+                <div class="text-center shrink-0">
+                  <div class="rounded-lg p-3 {{ markahBg(r.my_markah) }}">
+                    <div class="text-2xl font-bold {{ markahColor(r.my_markah) }}">
+                      {{ r.my_markah ? (+r.my_markah).toFixed(1) : '-' }}
+                    </div>
+                    <div class="text-xs text-gray-400">/10</div>
+                  </div>
+                  @if (r.my_prestasi) {
+                    <div class="text-xs font-semibold mt-1 {{ prestasiColor(r.my_prestasi) }}">{{ r.my_prestasi }}</div>
+                  }
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- Report Detail -->
+    @if (detailLoading) {
+      <app-loading message="Memuatkan butiran laporan..." />
+    }
+
+    @if (selectedReport) {
+      <div class="space-y-4">
+        <!-- Back button -->
+        <button (click)="closeDetail()" class="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+          <span class="material-icons text-sm">arrow_back</span> Kembali ke senarai
+        </button>
+
+        <!-- Match Header -->
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div class="bg-gray-900 text-white p-6 text-center">
+            <div class="text-xs text-gray-400 mb-2">{{ selectedReport.nama_kejohanan }}</div>
+            <div class="flex items-center justify-center gap-4 mb-2">
+              <span class="text-xl font-bold">{{ selectedReport.pasukan_home }}</span>
+              <span class="text-sm text-gray-400">vs</span>
+              <span class="text-xl font-bold">{{ selectedReport.pasukan_away }}</span>
+            </div>
+            @if (selectedReport.skor_home != null && selectedReport.skor_away != null) {
+              <div class="text-3xl font-bold text-pahang-yellow">{{ selectedReport.skor_home }} - {{ selectedReport.skor_away }}</div>
+            }
+            <div class="flex items-center justify-center gap-4 mt-2 text-xs text-gray-400">
+              <span>{{ selectedReport.tarikh }}</span>
+              @if (selectedReport.masa) { <span>{{ selectedReport.masa }}</span> }
+              @if (selectedReport.tempat) { <span>{{ selectedReport.tempat }}</span> }
+            </div>
+            <div class="text-xs text-gray-500 mt-2">Penilai: {{ selectedReport.nama_penilai }} · Tahap Kesukaran: {{ selectedReport.tahap_kesukaran }}</div>
+          </div>
+
+          <!-- Download button -->
+          <div class="p-4 bg-blue-50 border-b flex items-center justify-between">
+            <span class="text-sm text-blue-800 font-medium">📋 Laporan Penuh Tersedia (RA Report)</span>
+            <button (click)="downloadReport(selectedReport.id)"
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition text-sm">
+              <span class="material-icons text-sm">download</span> Muat Turun PDF
+            </button>
+          </div>
+        </div>
+
+        <!-- All Officials Summary -->
+        <div class="bg-white rounded-xl shadow-sm p-4">
+          <h3 class="font-bold text-gray-900 mb-3">Markah Pegawai Perlawanan</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-gray-50 text-left">
+                  <th class="px-3 py-2 font-semibold">Jawatan</th>
+                  <th class="px-3 py-2 font-semibold">Nama</th>
+                  <th class="px-3 py-2 font-semibold text-center">Markah</th>
+                  <th class="px-3 py-2 font-semibold text-center">Prestasi</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (p of selectedReport.pegawai; track p.id) {
+                  <tr class="border-t" [class.bg-yellow-50]="p.id === selectedReport.my_entry?.id">
+                    <td class="px-3 py-2 font-medium">{{ p.jawatan }}</td>
+                    <td class="px-3 py-2">{{ p.nama_pengadil }}</td>
+                    <td class="px-3 py-2 text-center font-bold {{ markahColor(p.markah) }}">{{ p.markah ? (+p.markah).toFixed(1) : '-' }}</td>
+                    <td class="px-3 py-2 text-center {{ prestasiColor(p.prestasi) }}">{{ p.prestasi || '-' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- My Evaluation Detail -->
+        @if (selectedReport.my_entry; as my) {
+          <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div class="p-4 border-b bg-blue-50">
+              <h3 class="font-bold text-blue-900">Penilaian Anda ({{ my.jawatan }})</h3>
+            </div>
+
+            <div class="p-4 space-y-5">
+              <!-- Markah & Prestasi -->
+              <div class="flex items-center gap-6">
+                <div class="text-center">
+                  <div class="text-4xl font-bold {{ markahColor(my.markah) }}">{{ my.markah ? (+my.markah).toFixed(1) : '-' }}</div>
+                  <div class="text-xs text-gray-400">/10</div>
+                </div>
+                @if (my.prestasi) {
+                  <div class="px-3 py-1 rounded-full text-sm font-semibold {{ prestasiColor(my.prestasi) }}" [class.bg-green-50]="my.prestasi === 'Sangat Baik'" [class.bg-blue-50]="my.prestasi === 'Baik'" [class.bg-yellow-50]="my.prestasi === 'Memuaskan'" [class.bg-red-50]="my.prestasi === 'Tidak Memuaskan'">
+                    {{ my.prestasi }}
+                  </div>
+                }
+              </div>
+
+              <!-- Sections -->
+              @if (my.kawalan_kekuatan?.length || my.kawalan_kelemahan?.length) {
+                <div>
+                  <h4 class="font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                    <span class="material-icons text-sm text-blue-500">gavel</span>
+                    @if (my.jawatan === 'Pengadil') { Kawalan Permainan } @else if (my.jawatan?.includes('Penolong')) { Penilaian Penolong Pengadil } @else { Penilaian Pegawai Keempat }
+                  </h4>
+                  @if (my.kawalan_kekuatan?.length) {
+                    <div class="mb-2">
+                      <span class="text-xs font-semibold text-green-600 uppercase tracking-wide">Kekuatan</span>
+                      <div class="flex flex-wrap gap-1 mt-1">
+                        @for (k of my.kawalan_kekuatan; track k) {
+                          <span class="inline-block bg-green-50 border border-green-200 text-green-800 text-xs px-2 py-0.5 rounded-full">{{ k }}</span>
+                        }
+                      </div>
+                    </div>
+                  }
+                  @if (my.kawalan_kelemahan?.length) {
+                    <div class="mb-2">
+                      <span class="text-xs font-semibold text-red-600 uppercase tracking-wide">Perlu Diperbaiki</span>
+                      <div class="flex flex-wrap gap-1 mt-1">
+                        @for (k of my.kawalan_kelemahan; track k) {
+                          <span class="inline-block bg-red-50 border border-red-200 text-red-800 text-xs px-2 py-0.5 rounded-full">{{ k }}</span>
+                        }
+                      </div>
+                    </div>
+                  }
+                  @if (my.kawalan_nasihat) {
+                    <div class="mt-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                      <strong>Nasihat:</strong> {{ my.kawalan_nasihat }}
+                    </div>
+                  }
+                </div>
+              }
+
+              @if (my.fizikal_kekuatan?.length || my.fizikal_kelemahan?.length) {
+                <div>
+                  <h4 class="font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                    <span class="material-icons text-sm text-orange-500">fitness_center</span>
+                    Kecergasan Fizikal & Posisi
+                  </h4>
+                  @if (my.fizikal_kekuatan?.length) {
+                    <div class="mb-2">
+                      <span class="text-xs font-semibold text-green-600 uppercase tracking-wide">Kekuatan</span>
+                      <div class="flex flex-wrap gap-1 mt-1">
+                        @for (k of my.fizikal_kekuatan; track k) {
+                          <span class="inline-block bg-green-50 border border-green-200 text-green-800 text-xs px-2 py-0.5 rounded-full">{{ k }}</span>
+                        }
+                      </div>
+                    </div>
+                  }
+                  @if (my.fizikal_kelemahan?.length) {
+                    <div class="mb-2">
+                      <span class="text-xs font-semibold text-red-600 uppercase tracking-wide">Perlu Diperbaiki</span>
+                      <div class="flex flex-wrap gap-1 mt-1">
+                        @for (k of my.fizikal_kelemahan; track k) {
+                          <span class="inline-block bg-red-50 border border-red-200 text-red-800 text-xs px-2 py-0.5 rounded-full">{{ k }}</span>
+                        }
+                      </div>
+                    </div>
+                  }
+                  @if (my.fizikal_nasihat) {
+                    <div class="mt-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                      <strong>Nasihat:</strong> {{ my.fizikal_nasihat }}
+                    </div>
+                  }
+                </div>
+              }
+
+              @if (my.kerjasama_kekuatan?.length || my.kerjasama_kelemahan?.length) {
+                <div>
+                  <h4 class="font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                    <span class="material-icons text-sm text-purple-500">group</span>
+                    Kerjasama Berpasukan
+                  </h4>
+                  @if (my.kerjasama_kekuatan?.length) {
+                    <div class="mb-2">
+                      <span class="text-xs font-semibold text-green-600 uppercase tracking-wide">Kekuatan</span>
+                      <div class="flex flex-wrap gap-1 mt-1">
+                        @for (k of my.kerjasama_kekuatan; track k) {
+                          <span class="inline-block bg-green-50 border border-green-200 text-green-800 text-xs px-2 py-0.5 rounded-full">{{ k }}</span>
+                        }
+                      </div>
+                    </div>
+                  }
+                  @if (my.kerjasama_kelemahan?.length) {
+                    <div class="mb-2">
+                      <span class="text-xs font-semibold text-red-600 uppercase tracking-wide">Perlu Diperbaiki</span>
+                      <div class="flex flex-wrap gap-1 mt-1">
+                        @for (k of my.kerjasama_kelemahan; track k) {
+                          <span class="inline-block bg-red-50 border border-red-200 text-red-800 text-xs px-2 py-0.5 rounded-full">{{ k }}</span>
+                        }
+                      </div>
+                    </div>
+                  }
+                  @if (my.kerjasama_nasihat) {
+                    <div class="mt-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                      <strong>Nasihat:</strong> {{ my.kerjasama_nasihat }}
+                    </div>
+                  }
+                </div>
+              }
+
+              <!-- Ulasan Keseluruhan -->
+              @if (selectedReport.ulasan_keseluruhan) {
+                <div class="bg-gray-50 border rounded-lg p-4">
+                  <h4 class="font-semibold text-gray-700 mb-2">Ulasan Keseluruhan</h4>
+                  <p class="text-sm text-gray-600">{{ selectedReport.ulasan_keseluruhan }}</p>
+                </div>
+              }
+
+              <!-- Catatan Admin -->
+              @if (selectedReport.catatan_admin) {
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <h4 class="font-semibold text-yellow-800 mb-2">Catatan Admin</h4>
+                  <p class="text-sm text-yellow-700">{{ selectedReport.catatan_admin }}</p>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+</div>

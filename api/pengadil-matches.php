@@ -67,8 +67,11 @@ try {
     $matchesStmt = $pdo->prepare("
         SELECT 
             p.id,
+            p.match_group_id,
             p.tarikh,
+            p.masa,
             p.jenis,
+            p.nama_kejohanan,
             p.tempat,
             p.jawatan,
             p.status_pp,
@@ -78,17 +81,28 @@ try {
             p.home_team,
             p.away_team,
             p.lantikan_id,
+            p.submitted_by,
+            p.daerah_perlawanan_id,
+            p.skor_ht_home, p.skor_ht_away,
+            p.skor_ft_home, p.skor_ft_away,
+            p.skor_et_home, p.skor_et_away,
+            p.skor_ps_home, p.skor_ps_away,
+            p.cuaca,
+            d.nama as daerah_perlawanan_nama,
             u_reporter.nama_penuh as reporter_name,
+            u_submitter.nama_penuh as submitter_name,
             u1.nama_penuh as head_referee_name,
             u2.nama_penuh as assistant_referee_1_name,
             u3.nama_penuh as assistant_referee_2_name,
             u4.nama_penuh as fourth_official_name
         FROM perlawanan p
         LEFT JOIN users u_reporter ON p.user_id = u_reporter.id
+        LEFT JOIN users u_submitter ON p.submitted_by = u_submitter.id
         LEFT JOIN users u1 ON p.head_referee_id = u1.id
         LEFT JOIN users u2 ON p.assistant_referee_1_id = u2.id
         LEFT JOIN users u3 ON p.assistant_referee_2_id = u3.id
         LEFT JOIN users u4 ON p.fourth_official_id = u4.id
+        LEFT JOIN districts d ON p.daerah_perlawanan_id = d.id
         WHERE p.user_id = :user_id
         ORDER BY p.tarikh DESC
         LIMIT :limit OFFSET :offset

@@ -30,7 +30,7 @@ function generateR4Pdf($pdf, $data) {
 
     // Form Number and Date
     $pdf->setFont('helvetica', '', 9);
-    $pdf->Cell(100, 6, 'No. Rujukan: PBNP/UK/' . date('Y') . '/' . str_pad(strtoupper($data['id']), 4, '0', STR_PAD_LEFT), 0, 0);
+    $pdf->Cell(100, 6, 'No. Rujukan: PBNP/R4/' . date('Y') . '/' . str_pad($data['id'] ?? 0, 4, '0', STR_PAD_LEFT), 0, 0);
     $pdf->Cell(80, 6, 'Tarikh: ' . date('d/m/Y'), 0, 1, 'R');
     $pdf->ln(3);
 

@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
@@ -42,12 +43,23 @@ export class PengadilBerdaftarComponent implements OnInit {
 
   apiUrl = environment.apiUrl;
 
+  // Type support: 'pengadil_berdaftar' or 'penilai_berdaftar'
+  listType = 'pengadil_berdaftar';
+  typeLabel = 'Pengadil';
+  typeLabelFull = 'Pengadil Berdaftar';
+
   constructor(
     private api: ApiService,
     private toast: ToastService,
+    private route: ActivatedRoute,
   ) {}
 
   ngOnInit(): void {
+    this.listType = this.route.snapshot.data['type'] || 'pengadil_berdaftar';
+    if (this.listType === 'penilai_berdaftar') {
+      this.typeLabel = 'RA';
+      this.typeLabelFull = 'RA Berdaftar';
+    }
     this.generateYears();
     this.loadPersatuanList();
     this.loadReferees();
@@ -73,7 +85,7 @@ export class PengadilBerdaftarComponent implements OnInit {
 
   loadReferees(): void {
     this.loading = true;
-    this.api.get<any>('referees.php', { year: this.yearFilter }).subscribe({
+    this.api.get<any>('referees.php', { year: this.yearFilter, type: this.listType }).subscribe({
       next: (res) => {
         this.referees = res.data || [];
         this.updateStats();
@@ -290,7 +302,13 @@ export class PengadilBerdaftarComponent implements OnInit {
   }
 
   downloadExcel(): void {
-    window.open(`${environment.apiUrl}/download-referees-excel.php?year=${this.yearFilter}`, '_blank');
+    window.open(`${environment.apiUrl}/download-referees-excel.php?year=${this.yearFilter}&type=${this.listType}`, '_blank');
+  }
+
+  private escHtml(str: string): string {
+    const d = document.createElement('div');
+    d.appendChild(document.createTextNode(str));
+    return d.innerHTML;
   }
 
   printList(): void {
@@ -300,20 +318,20 @@ export class PengadilBerdaftarComponent implements OnInit {
     const filterLabel =
       this.genderFilter === 'LELAKI' ? 'Lelaki' :
       this.genderFilter === 'PEREMPUAN' ? 'Perempuan' : 'Semua Jantina';
-    const searchLabel = this.searchQuery ? ` | Carian: "${this.searchQuery}"` : '';
+    const searchLabel = this.searchQuery ? ` | Carian: "${this.escHtml(this.searchQuery)}"` : '';
 
     const rows = this.filtered.map((ref, i) => {
       const jantina = this.getJantinaLabel(ref.jantina);
       const umur = this.getUmurFromIC(ref.no_kp);
       return `<tr>
         <td>${i + 1}</td>
-        <td>${ref.nama_penuh || '-'}</td>
-        <td style="font-family:monospace">${ref.no_kp || '-'}</td>
-        <td>${jantina}</td>
+        <td>${this.escHtml(ref.nama_penuh || '-')}</td>
+        <td style="font-family:monospace">${this.escHtml(ref.no_kp || '-')}</td>
+        <td>${this.escHtml(jantina)}</td>
         <td>${umur ? umur + ' thn' : '-'}</td>
-        <td>${ref.jenis_pengadil || '-'}</td>
-        <td>${ref.persatuan || '-'}</td>
-        <td>${ref.no_telefon || '-'}</td>
+        <td>${this.escHtml(ref.jenis_pengadil || '-')}</td>
+        <td>${this.escHtml(ref.persatuan || '-')}</td>
+        <td>${this.escHtml(ref.no_telefon || '-')}</td>
       </tr>`;
     }).join('');
 
@@ -321,7 +339,7 @@ export class PengadilBerdaftarComponent implements OnInit {
 <html lang="ms">
 <head>
   <meta charset="UTF-8">
-  <title>Senarai Pengadil Berdaftar ${this.yearFilter}</title>
+  <title>Senarai ${this.typeLabelFull} ${this.yearFilter}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: Arial, sans-serif; font-size: 11px; color: #111; padding: 16mm 14mm; }
@@ -345,7 +363,7 @@ export class PengadilBerdaftarComponent implements OnInit {
 <body>
   <div class="header">
     <h1>Persatuan Bola Sepak Pahang</h1>
-    <h2>Senarai Pengadil Berdaftar Tahun ${this.yearFilter}</h2>
+    <h2>Senarai ${this.typeLabelFull} Tahun ${this.yearFilter}</h2>
     <p>Jantina: ${filterLabel}${searchLabel}</p>
   </div>
   <div class="meta">
@@ -353,7 +371,7 @@ export class PengadilBerdaftarComponent implements OnInit {
     <span>Dicetak: ${now}</span>
   </div>
   <div class="stats">
-    <div class="stat-box"><strong>${this.stats.total}</strong><span>Jumlah Pengadil</span></div>
+    <div class="stat-box"><strong>${this.stats.total}</strong><span>Jumlah ${this.typeLabel}</span></div>
     <div class="stat-box"><strong>${this.stats.lelaki}</strong><span>Lelaki</span></div>
     <div class="stat-box"><strong>${this.stats.perempuan}</strong><span>Perempuan</span></div>
   </div>
@@ -386,6 +404,7 @@ export class PengadilBerdaftarComponent implements OnInit {
   getJenisLabel(jenis: string): string {
     const map: Record<string, string> = {
       pengadil_berdaftar: 'Pendaftaran Pengadil',
+      penilai_berdaftar: 'Pendaftaran Penilai (RA)',
       pengadil_futsal: 'Futsal',
       ujian_kecergasan: 'Ujian Kecergasan',
       ujian_bertulis: 'Ujian Kelas III FAM',

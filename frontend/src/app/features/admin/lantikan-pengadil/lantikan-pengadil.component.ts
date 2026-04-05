@@ -25,7 +25,7 @@ export class LantikanPengadilComponent implements OnInit {
   ];
   activeTab = 'kejohanan';
 
-  jawatanList = ['Pengadil Utama', 'Pembantu Pengadil 1', 'Pembantu Pengadil 2', 'Pengadil Keempat', 'Penilai Pengadil'];
+  jawatanList = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4', 'Penilai Pengadil'];
 
   // Kejohanan
   loadingKejohanan = true;
@@ -61,12 +61,22 @@ export class LantikanPengadilComponent implements OnInit {
   // Jadual
   loadingJadual = false;
   jadualList: any[] = [];
+  selectedJadualIds = new Set<number>();
   showJadualModal = false;
   editingJadual: any = null;
   savingJadual = false;
   jadualForm = { no_perlawanan: '', tarikh: '', masa: '', kategori: '', peringkat: '', kumpulan: '', pasukan_home: '', pasukan_away: '', tempat: '' };
   kategoriList = ['B12', 'B15', 'B18'];
   peringkatList = ['Kumpulan', 'XY', 'Suku Akhir', 'Separuh Akhir', '3rd Playoff', 'Final'];
+
+  getKategoriClass(kategori: string): string {
+    switch (kategori?.toUpperCase()) {
+      case 'B12': return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+      case 'B15': return 'bg-sky-50 text-sky-700 border border-sky-200';
+      case 'B18': return 'bg-purple-50 text-purple-700 border border-purple-200';
+      default: return 'bg-slate-100 text-slate-600 border border-slate-200';
+    }
+  }
 
   // Jadual Upload
   showJadualUploadModal = false;
@@ -177,7 +187,7 @@ export class LantikanPengadilComponent implements OnInit {
           this.toast.error(res.message || 'Gagal memuatkan jadual lantikan.');
         }
       },
-      error: () => { this.loadingJadualLantikan = false; this.toast.error('Ralat memuatkan jadual lantikan.'); },
+      error: (err: any) => { this.loadingJadualLantikan = false; this.toast.error(err?.error?.message || 'Ralat memuatkan jadual lantikan.'); },
     });
   }
 
@@ -210,7 +220,7 @@ export class LantikanPengadilComponent implements OnInit {
           this.toast.error(res.message || 'Gagal mengesahkan.');
         }
       },
-      error: () => { this.submittingPengesahan = false; this.toast.error('Ralat semasa mengesahkan.'); },
+      error: (err: any) => { this.submittingPengesahan = false; this.toast.error(err?.error?.message || 'Ralat semasa mengesahkan.'); },
     });
   }
 
@@ -233,7 +243,7 @@ export class LantikanPengadilComponent implements OnInit {
             this.toast.error(res.message || 'Gagal membatalkan.');
           }
         },
-        error: () => { this.batallingPengesahan = false; this.toast.error('Ralat semasa membatalkan.'); },
+        error: (err: any) => { this.batallingPengesahan = false; this.toast.error(err?.error?.message || 'Ralat semasa membatalkan.'); },
       });
     };
     this.showConfirmModal = true;
@@ -246,22 +256,22 @@ export class LantikanPengadilComponent implements OnInit {
 
   getJawatanShort(jawatan: string): string {
     const map: Record<string, string> = {
-      'Pengadil Utama':      'P.U.',
-      'Pembantu Pengadil 1': 'PP 1',
-      'Pembantu Pengadil 2': 'PP 2',
-      'Pengadil Keempat':    'P.4',
-      'Penilai Pengadil':    'Penilai',
+      'Pengadil':             'R',
+      'Penolong Pengadil 1':  'AR1',
+      'Penolong Pengadil 2':  'AR2',
+      'Pegawai ke4':          'P4',
+      'Penilai Pengadil':     'RA',
     };
     return map[jawatan] ?? jawatan;
   }
 
   getJawatanCode(jawatan: string): string {
     const map: Record<string, string> = {
-      'Pengadil Utama':      'R',
-      'Pembantu Pengadil 1': 'AR1',
-      'Pembantu Pengadil 2': 'AR2',
-      'Pengadil Keempat':    'P4',
-      'Penilai Pengadil':    'RA',
+      'Pengadil':             'R',
+      'Penolong Pengadil 1':  'AR1',
+      'Penolong Pengadil 2':  'AR2',
+      'Pegawai ke4':          'P4',
+      'Penilai Pengadil':     'RA',
     };
     return map[jawatan] ?? jawatan;
   }
@@ -543,6 +553,7 @@ export class LantikanPengadilComponent implements OnInit {
 
   loadJadual(kejohananId: number): void {
     this.loadingJadual = true;
+    this.selectedJadualIds.clear();
     this.api.get<any>('jadual-perlawanan.php', { kejohanan_id: kejohananId.toString() }).subscribe({
       next: (res) => { this.jadualList = res.data || []; this.loadingJadual = false; },
       error: () => this.loadingJadual = false,
@@ -591,6 +602,43 @@ export class LantikanPengadilComponent implements OnInit {
       this.api.delete<any>(`jadual-perlawanan.php?id=${id}`).subscribe({
         next: (res) => { this.toast.show(res.message, 'success'); this.loadJadual(this.selectedKejohanan!.id); },
         error: (err) => this.toast.show(err?.error?.message || 'Ralat.', 'error'),
+      });
+    };
+    this.showConfirmModal = true;
+  }
+
+  toggleJadual(id: number): void {
+    if (this.selectedJadualIds.has(id)) this.selectedJadualIds.delete(id);
+    else this.selectedJadualIds.add(id);
+  }
+
+  toggleAllJadual(): void {
+    if (this.isAllJadualSelected()) {
+      this.selectedJadualIds.clear();
+    } else {
+      this.jadualList.forEach(j => this.selectedJadualIds.add(j.id));
+    }
+  }
+
+  isAllJadualSelected(): boolean {
+    return this.jadualList.length > 0 && this.jadualList.every(j => this.selectedJadualIds.has(j.id));
+  }
+
+  bulkDeleteJadual(): void {
+    const ids = Array.from(this.selectedJadualIds);
+    if (ids.length === 0) return;
+    this.confirmTitle = 'Padam Pukal';
+    this.confirmMessage = `Padam ${ids.length} perlawanan yang dipilih?`;
+    this.confirmType = 'danger';
+    this.confirmBtnText = 'Padam';
+    this.confirmFn = () => {
+      this.api.post<any>('jadual-perlawanan.php?action=bulk_delete', { ids }).subscribe({
+        next: (res) => {
+          this.toast.show(res.message, 'success');
+          this.selectedJadualIds.clear();
+          this.loadJadual(this.selectedKejohanan!.id);
+        },
+        error: (err) => this.toast.show(err?.error?.message || 'Ralat memadam.', 'error'),
       });
     };
     this.showConfirmModal = true;
@@ -1025,7 +1073,7 @@ export class LantikanPengadilComponent implements OnInit {
           this.showLaporanModal = false;
         }
       },
-      error: () => { this.loadingLaporanDetail = false; this.showLaporanModal = false; this.toast.error('Gagal memuatkan laporan.'); },
+      error: (err: any) => { this.loadingLaporanDetail = false; this.showLaporanModal = false; this.toast.error(err?.error?.message || 'Gagal memuatkan laporan.'); },
     });
   }
 
@@ -1043,8 +1091,12 @@ export class LantikanPengadilComponent implements OnInit {
           this.toast.error(res.message || 'Gagal mengesahkan laporan.');
         }
       },
-      error: () => { this.submittingSahkan = false; this.toast.error('Ralat semasa mengesahkan.'); },
+      error: (err: any) => { this.submittingSahkan = false; this.toast.error(err?.error?.message || 'Ralat semasa mengesahkan.'); },
     });
+  }
+
+  downloadLaporanPdf(id: number): void {
+    window.open(`${environment.apiUrl}/download-laporan-penilaian.php?id=${id}`, '_blank');
   }
 
   // ===================== HELPERS =====================

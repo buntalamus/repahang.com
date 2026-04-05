@@ -18,7 +18,31 @@
       </div>
     </header>
 
+    <!-- Loading Status Check -->
+    @if (checkingStatus) {
+      <div class="bg-white p-10 rounded-xl shadow-2xl text-center">
+        <span class="material-icons text-4xl text-slate-300 animate-spin">sync</span>
+        <p class="text-slate-500 mt-3">Menyemak status pendaftaran...</p>
+      </div>
+    }
+
+    <!-- Registration Closed Banner -->
+    @else if (registrationClosed) {
+      <div class="bg-white p-10 rounded-xl shadow-2xl text-center space-y-4">
+        <span class="material-icons text-6xl text-amber-500">block</span>
+        <h2 class="text-2xl font-bold text-slate-800">Pendaftaran Ditutup</h2>
+        <p class="text-slate-600 max-w-lg mx-auto">
+          Pendaftaran akaun baru telah ditutup buat sementara waktu. Sila hubungi pentadbir untuk maklumat lanjut.
+        </p>
+        <a routerLink="/login" class="inline-flex items-center gap-2 px-6 py-2.5 bg-pahang-black text-pahang-yellow font-bold rounded-lg hover:bg-gray-800 transition text-sm mt-4">
+          <span class="material-icons text-sm">arrow_back</span>
+          Kembali ke Log Masuk
+        </a>
+      </div>
+    }
+
     <!-- Form -->
+    @else {
     <form (ngSubmit)="onSubmit()" novalidate class="bg-white p-6 md:p-10 rounded-xl shadow-2xl">
 
       <section class="mb-10">
@@ -170,6 +194,7 @@
         </div>
       </section>
     </form>
+    }
   </div>
 
   <!-- Result Modal -->

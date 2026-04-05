@@ -101,13 +101,43 @@ try {
         case 'DELETE':
             // Reset settings to defaults
             $defaultSettings = [
-                'applications_open' => '1',
-                'min_verified_matches' => '20',
-                'payment_amount' => '80.00',
-                'application_year' => date('Y') + 1,
+                'registration_open'         => '1',
+                'registration_open_date'    => '',
+                'registration_close_date'   => '',
+                'registration_fee'          => '0.00',
+                'registration_bank_name'    => 'Bank Kerjasama Rakyat Malaysia',
+                'registration_account_name' => 'Persatuan Bolasepak Negeri Pahang',
+                'registration_account_no'   => '',
+                'applications_open'         => '0',
+                'berdaftar_open'            => '0',
+                'bertulis_open'             => '0',
+                'kelas1_open'               => '0',
+                'penilai_open'              => '0',
+                'berdaftar_open_date'       => '',
+                'berdaftar_close_date'      => '',
+                'bertulis_open_date'        => '',
+                'bertulis_close_date'       => '',
+                'kelas1_open_date'          => '',
+                'kelas1_close_date'         => '',
+                'application_year'          => (string)(date('Y')),
+                'min_verified_matches'      => '20',
+                'payment_amount'            => '80.00',
+                'payment_bank_name'         => 'Bank Kerjasama Rakyat Malaysia',
+                'payment_account_name'      => 'Persatuan Bolasepak Negeri Pahang',
+                'payment_account_no'        => '',
                 'max_applications_per_year' => '1',
-                'require_profile_complete' => '1',
-                'auto_link_matches' => '1'
+                'require_profile_complete'  => '1',
+                'auto_link_matches'         => '1',
+                'application_open_date'     => '',
+                'application_close_date'    => '',
+                'fam_bank_name'             => 'Bank Islam Persatuan Bolasepak Malaysia',
+                'fam_account_no'            => '1213 1010 0061 21',
+                'bertulis_fee'              => '50.00',
+                'bertulis_min_age'          => '15',
+                'bertulis_max_age'          => '40',
+                'kelas1_fee'                => '300.00',
+                'kelas1_max_age'            => '32',
+                'kelas1_min_fitness_rounds' => '7',
             ];
 
             $pdo->beginTransaction();
@@ -124,6 +154,13 @@ try {
                     ');
 
                     $description = match($key) {
+                        'registration_open' => 'Whether new account registration is open (1 = open, 0 = closed)',
+                        'registration_open_date' => 'Registration open date',
+                        'registration_close_date' => 'Registration close date',
+                        'registration_fee' => 'Account registration fee in RM',
+                        'registration_bank_name' => 'Bank name for registration payment',
+                        'registration_account_name' => 'Account name for registration payment',
+                        'registration_account_no' => 'Account number for registration payment',
                         'applications_open' => 'Whether applications are currently open (1 = open, 0 = closed)',
                         'min_verified_matches' => 'Minimum number of verified matches required for application',
                         'payment_amount' => 'Application fee amount in RM',

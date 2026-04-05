@@ -61,7 +61,7 @@ function _getEmailAccount(string $type): array
 /**
  * Low-level SMTP sender using stream_socket_client (Implicit TLS, port 465).
  */
-function _smtpSend(array $account, string $to, string $toName, string $subject, string $htmlBody): bool
+function _smtpSend(array $account, string $to, string $toName, string $subject, string $htmlBody, array $inlineImages = []): bool
 {
     $host      = $account['host'];
     $port      = $account['port'];
@@ -74,7 +74,7 @@ function _smtpSend(array $account, string $to, string $toName, string $subject, 
         'ssl' => [
             'verify_peer'       => true,
             'verify_peer_name'  => true,
-            'allow_self_signed' => true,
+            'allow_self_signed' => false,
         ],
     ]);
 
@@ -178,15 +178,26 @@ function _smtpSend(array $account, string $to, string $toName, string $subject, 
         return false;
     }
 
-    // Build MIME multipart/alternative message
+    // Build MIME message
     $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
     $encodedFrom    = '=?UTF-8?B?' . base64_encode($fromName) . '?=';
     $encodedToName  = '=?UTF-8?B?' . base64_encode($toName ?: $to) . '?=';
-    $boundary       = bin2hex(random_bytes(16));
+    $altBoundary    = bin2hex(random_bytes(16));
     $date           = date('r');
     $msgId          = '<' . bin2hex(random_bytes(8)) . '@' . $host . '>';
 
     $plainText = wordwrap(strip_tags(html_entity_decode($htmlBody)), 76, "\r\n");
+
+    // Build the multipart/alternative part (text + html)
+    $altPart  = "--{$altBoundary}\r\n";
+    $altPart .= "Content-Type: text/plain; charset=UTF-8\r\n";
+    $altPart .= "Content-Transfer-Encoding: base64\r\n\r\n";
+    $altPart .= chunk_split(base64_encode($plainText)) . "\r\n";
+    $altPart .= "--{$altBoundary}\r\n";
+    $altPart .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $altPart .= "Content-Transfer-Encoding: base64\r\n\r\n";
+    $altPart .= chunk_split(base64_encode($htmlBody)) . "\r\n";
+    $altPart .= "--{$altBoundary}--\r\n";
 
     $message  = "Date: {$date}\r\n";
     $message .= "Message-ID: {$msgId}\r\n";
@@ -194,17 +205,32 @@ function _smtpSend(array $account, string $to, string $toName, string $subject, 
     $message .= "To: {$encodedToName} <{$to}>\r\n";
     $message .= "Subject: {$encodedSubject}\r\n";
     $message .= "MIME-Version: 1.0\r\n";
-    $message .= "Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n";
-    $message .= "\r\n";
-    $message .= "--{$boundary}\r\n";
-    $message .= "Content-Type: text/plain; charset=UTF-8\r\n";
-    $message .= "Content-Transfer-Encoding: base64\r\n\r\n";
-    $message .= chunk_split(base64_encode($plainText)) . "\r\n";
-    $message .= "--{$boundary}\r\n";
-    $message .= "Content-Type: text/html; charset=UTF-8\r\n";
-    $message .= "Content-Transfer-Encoding: base64\r\n\r\n";
-    $message .= chunk_split(base64_encode($htmlBody)) . "\r\n";
-    $message .= "--{$boundary}--\r\n";
+
+    if (!empty($inlineImages)) {
+        // multipart/related wrapping multipart/alternative + CID images
+        $relBoundary = bin2hex(random_bytes(16));
+        $message .= "Content-Type: multipart/related; boundary=\"{$relBoundary}\"\r\n";
+        $message .= "\r\n";
+        $message .= "--{$relBoundary}\r\n";
+        $message .= "Content-Type: multipart/alternative; boundary=\"{$altBoundary}\"\r\n";
+        $message .= "\r\n";
+        $message .= $altPart;
+        foreach ($inlineImages as $img) {
+            // $img = ['cid' => 'logo_home', 'mime' => 'image/jpeg', 'data' => <binary>]
+            $message .= "--{$relBoundary}\r\n";
+            $message .= "Content-Type: {$img['mime']}\r\n";
+            $message .= "Content-Transfer-Encoding: base64\r\n";
+            $message .= "Content-ID: <{$img['cid']}>\r\n";
+            $message .= "Content-Disposition: inline\r\n\r\n";
+            $message .= chunk_split(base64_encode($img['data'])) . "\r\n";
+        }
+        $message .= "--{$relBoundary}--\r\n";
+    } else {
+        // Simple multipart/alternative (no images)
+        $message .= "Content-Type: multipart/alternative; boundary=\"{$altBoundary}\"\r\n";
+        $message .= "\r\n";
+        $message .= $altPart;
+    }
 
     // RFC 5321 dot-stuffing: escape lines that start with a dot
     $message = str_replace("\r\n.", "\r\n..", $message);
@@ -444,10 +470,10 @@ function emailStatusBadge(string $text, string $bg, string $color = '#ffffff'): 
             </div>";
 }
 
-function sendEmail(string $to, string $subject, string $html, ?string $toName = null, string $type = 'admin'): bool
+function sendEmail(string $to, string $subject, string $html, ?string $toName = null, string $type = 'admin', array $inlineImages = []): bool
 {
     $account = _getEmailAccount($type);
-    return _smtpSend($account, $to, $toName ?? $to, $subject, $html);
+    return _smtpSend($account, $to, $toName ?? $to, $subject, $html, $inlineImages);
 }
 
 /**
@@ -494,9 +520,29 @@ function sendLantikanEmail(
     $masaFmt   = $masa ? date('H:i', strtotime($masa)) : '-';
     $noMatchFmt = $noMatch ? 'P' . ltrim($noMatch, '0Pp') : '-';
 
-    // ── Logo helpers ─────────────────────────────────────────────────────
-    $makeLogo = function (string $logoPath, string $namaTeam) use ($baseUrl): string {
+    // ── Logo helpers — embed as CID inline images ─────────────────────
+    $inlineImages = [];
+    $projectRoot  = realpath(__DIR__ . '/..');
+
+    $makeLogo = function (string $logoPath, string $namaTeam, string $cidName) use ($projectRoot, &$inlineImages): string {
         if ($logoPath) {
+            // Try to read file from disk and embed as CID
+            $filePath = $projectRoot . $logoPath;
+            if (file_exists($filePath) && ($data = file_get_contents($filePath)) !== false) {
+                $ext  = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+                $mime = match ($ext) {
+                    'jpg', 'jpeg' => 'image/jpeg',
+                    'png'         => 'image/png',
+                    'gif'         => 'image/gif',
+                    'webp'        => 'image/webp',
+                    default       => 'image/png',
+                };
+                $inlineImages[] = ['cid' => $cidName, 'mime' => $mime, 'data' => $data];
+                return "<img src=\"cid:{$cidName}\" alt=\"" . htmlspecialchars($namaTeam) . "\"
+                            width=\"72\" height=\"72\"
+                            style=\"width:72px;height:72px;object-fit:contain;display:block;margin:0 auto;\">";
+            }
+            // Fallback to remote URL if file not readable
             $url = strpos($logoPath, 'http') === 0 ? $logoPath : $baseUrl . $logoPath;
             return "<img src=\"" . htmlspecialchars($url) . "\" alt=\"" . htmlspecialchars($namaTeam) . "\"
                         width=\"72\" height=\"72\"
@@ -543,8 +589,8 @@ function sendLantikanEmail(
     </div>";
 
     // ── Section: Pasukan ──────────────────────────────────────────────────
-    $logoHomeHtml = $makeLogo($logoHome, $pasukanHome);
-    $logoAwayHtml = $makeLogo($logoAway, $pasukanAway);
+    $logoHomeHtml = $makeLogo($logoHome, $pasukanHome, 'logo_home');
+    $logoAwayHtml = $makeLogo($logoAway, $pasukanAway, 'logo_away');
 
     $sectionPasukan = "
     <div style=\"margin:20px 0 0;\">
@@ -705,7 +751,7 @@ function sendLantikanEmail(
              . ' — ' . $tarikhFmt;
 
     $html = buildEmailTemplate('Lantikan Pengadil', '#FADA00', '', $body);
-    return sendEmail($to, $subject, $html, $nama, 'lantikan');
+    return sendEmail($to, $subject, $html, $nama, 'lantikan', $inlineImages);
 }
 
 /**
@@ -734,9 +780,28 @@ function sendBatalEmail(
     $masaFmt    = $masa ? date('H:i', strtotime($masa)) : '-';
     $noMatchFmt = $noMatch ? 'P' . ltrim($noMatch, '0Pp') : '-';
 
-    // ── Logo helper (same as lantikan) ────────────────────────────────────
-    $makeLogo = function (string $logoPath, string $namaTeam) use ($baseUrl): string {
+    // ── Logo helper — embed as CID inline images ───────────────────────
+    $inlineImages = [];
+    $projectRoot  = realpath(__DIR__ . '/..');
+
+    $makeLogo = function (string $logoPath, string $namaTeam, string $cidName) use ($projectRoot, $baseUrl, &$inlineImages): string {
         if ($logoPath) {
+            $filePath = $projectRoot . $logoPath;
+            if (file_exists($filePath) && ($data = file_get_contents($filePath)) !== false) {
+                $ext  = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+                $mime = match ($ext) {
+                    'jpg', 'jpeg' => 'image/jpeg',
+                    'png'         => 'image/png',
+                    'gif'         => 'image/gif',
+                    'webp'        => 'image/webp',
+                    default       => 'image/png',
+                };
+                $inlineImages[] = ['cid' => $cidName, 'mime' => $mime, 'data' => $data];
+                return "<img src=\"cid:{$cidName}\" alt=\"" . htmlspecialchars($namaTeam) . "\"
+                            width=\"72\" height=\"72\"
+                            style=\"width:72px;height:72px;object-fit:contain;display:block;margin:0 auto;
+                                    opacity:0.5;filter:grayscale(100%)\">";
+            }
             $url = strpos($logoPath, 'http') === 0 ? $logoPath : $baseUrl . $logoPath;
             return "<img src=\"" . htmlspecialchars($url) . "\" alt=\"" . htmlspecialchars($namaTeam) . "\"
                         width=\"72\" height=\"72\"
@@ -793,8 +858,8 @@ function sendBatalEmail(
     </div>";
 
     // ── Pasukan section (greyed out) ──────────────────────────────────────
-    $logoHomeHtml = $makeLogo($logoHome, $pasukanHome);
-    $logoAwayHtml = $makeLogo($logoAway, $pasukanAway);
+    $logoHomeHtml = $makeLogo($logoHome, $pasukanHome, 'logo_home');
+    $logoAwayHtml = $makeLogo($logoAway, $pasukanAway, 'logo_away');
     $sectionPasukan = "
     <div style=\"margin:20px 0 0;\">
       <div style=\"background:#6B7280;padding:9px 16px;\">
@@ -857,7 +922,7 @@ function sendBatalEmail(
              . ' — ' . $tarikhFmt;
 
     $html = buildEmailTemplate('Pembatalan Lantikan', '#DC2626', '', $body);
-    return sendEmail($to, $subject, $html, $nama, 'lantikan');
+    return sendEmail($to, $subject, $html, $nama, 'lantikan', $inlineImages);
 }
 
 /**
@@ -892,7 +957,8 @@ function sendPenilaianEmail(
     array   $kelemahan = [],
     string  $nasihat = '',
     string  $ulasan = '',
-    string  $catatanAdmin = ''
+    string  $catatanAdmin = '',
+    string  $reportUrl = ''
 ): bool {
     $tarikhFmt = '-';
     if ($tarikh) {
@@ -961,6 +1027,18 @@ function sendPenilaianEmail(
     // Catatan admin
     if ($catatanAdmin) {
         $body .= emailAlert('#FADA00', '#FFFBEB', 'Catatan Admin', htmlspecialchars($catatanAdmin));
+    }
+
+    // Report download link
+    if ($reportUrl) {
+        $body .= "<div style=\"text-align:center;margin:24px 0;\">
+                    <a href=\"" . htmlspecialchars($reportUrl) . "\" target=\"_blank\"
+                       style=\"display:inline-block;background:#0066cc;color:#fff;padding:12px 32px;
+                              font-weight:700;font-size:14px;text-decoration:none;border-radius:4px;\">
+                      📋 Lihat Laporan Penuh (RA Report)
+                    </a>
+                    <div style=\"font-size:11px;color:#9CA3AF;margin-top:8px;\">Klik untuk melihat dan muat turun laporan penilaian penuh dalam format PDF</div>
+                  </div>";
     }
 
     $body .= emailPara("Sila jadikan maklum balas ini sebagai panduan untuk meningkatkan prestasi pada masa hadapan. Terima kasih atas dedikasi anda.");

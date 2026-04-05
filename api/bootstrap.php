@@ -24,7 +24,7 @@ if (!defined('APP_DEBUG')) {
 }
 
 // Define BASE_URL for redirects
-define('BASE_URL', env('BASE_URL', 'https://refpahang.com/refpahang/'));
+define('BASE_URL', env('BASE_URL', 'https://refpahang.com'));
 
 
 
@@ -50,7 +50,34 @@ try {
 
 }
 
-
+// Auto-migrate: create tables if they don't exist
+$migrationLock = __DIR__ . '/../storage/.migration_done';
+if (!file_exists($migrationLock)) {
+    try {
+        $migrationDir = __DIR__ . '/../docs';
+        $migrationFiles = glob($migrationDir . '/migration_*.sql');
+        if ($migrationFiles) {
+            // Use separate connection for migration to avoid unbuffered query issues
+            $migrationPdo = getDbConnection();
+            foreach ($migrationFiles as $sqlFile) {
+                $sql = file_get_contents($sqlFile);
+                if ($sql) {
+                    $statements = array_filter(array_map('trim', explode(';', $sql)));
+                    foreach ($statements as $stmt) {
+                        if ($stmt && !str_starts_with($stmt, '--')) {
+                            $migrationPdo->exec($stmt);
+                        }
+                    }
+                }
+            }
+            unset($migrationPdo); // Close migration connection
+            @file_put_contents($migrationLock, date('Y-m-d H:i:s') . "\n");
+            error_log('[bootstrap] Auto-migration completed');
+        }
+    } catch (Throwable $e) {
+        error_log('[bootstrap] Auto-migration error: ' . $e->getMessage());
+    }
+}
 
 $logDirectory = __DIR__ . '/../storage/logs';
 
@@ -93,6 +120,30 @@ set_error_handler(static function ($severity, $message, $file, $line): bool {
 
 
     throw new ErrorException($message, 0, $severity, $file, $line);
+
+});
+
+
+
+set_exception_handler(static function (Throwable $e): void {
+
+    $message = sprintf('Uncaught %s [%s:%d]: %s', get_class($e), $e->getFile(), $e->getLine(), $e->getMessage());
+
+    error_log($message);
+
+
+
+    if (!headers_sent()) {
+
+        jsonResponse([
+
+            'error' => true,
+
+            'message' => APP_DEBUG ? $message : 'Ralat pelayan dalaman.',
+
+        ], 500);
+
+    }
 
 });
 
@@ -144,25 +195,35 @@ register_shutdown_function(static function () {
 
 if (session_status() === PHP_SESSION_NONE) {
 
-    session_start([
-        'cookie_httponly' => true,
-        'cookie_secure' => !APP_DEBUG,
-        'cookie_samesite' => 'Lax',
-        'use_strict_mode' => true,
-    ]);
+    try {
+
+        session_start([
+            'cookie_httponly' => true,
+            'cookie_secure' => !APP_DEBUG,
+            'cookie_samesite' => 'Lax',
+            'use_strict_mode' => true,
+        ]);
+
+    } catch (Throwable $e) {
+
+        error_log('Session start failed: ' . $e->getMessage());
+
+        jsonResponse([
+
+            'error' => true,
+
+            'message' => APP_DEBUG ? 'Session error: ' . $e->getMessage() : 'Ralat pelayan dalaman.',
+
+        ], 500);
+
+    }
 
 }
 
 
 
 $allowedOrigins = [
-    'http://localhost:4200',
-    'http://localhost:8000',
-    'http://127.0.0.1:8000',
     'https://refpahang.com',
-    'http://refpahang.com',
-    'https://if0_40314615.infinityfreeapp.com',
-    'http://if0_40314615.infinityfreeapp.com',
 ];
 
 

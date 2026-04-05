@@ -30,21 +30,21 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
 
       <!-- Stat 1 -->
-      <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-between">
+      <a routerLink="/admin/pengadil-berdaftar" class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-gray-300 transition-all cursor-pointer group">
         <div class="flex justify-between items-start mb-4">
-          <p class="text-sm font-medium text-gray-500">Pengadil Aktif</p>
-          <div class="p-1.5 bg-gray-100 text-gray-600 rounded-md">
+          <p class="text-sm font-medium text-gray-500 group-hover:text-gray-700 transition-colors">Pengadil Aktif</p>
+          <div class="p-1.5 bg-gray-100 text-gray-600 rounded-md group-hover:bg-gray-200 transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
           </div>
         </div>
         <h3 class="text-2xl font-semibold text-gray-900">{{ stats.users }}</h3>
-      </div>
+      </a>
 
       <!-- Stat 2 -->
-      <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-between">
+      <a routerLink="/admin/permohonan" class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-gray-300 transition-all cursor-pointer group">
         <div class="flex justify-between items-start mb-4">
           <div class="flex items-center gap-2">
-            <p class="text-sm font-medium text-gray-500">Permohonan Baru</p>
+            <p class="text-sm font-medium text-gray-500 group-hover:text-gray-700 transition-colors">Permohonan Baru</p>
             @if (stats.applications > 0) {
               <span class="flex h-2 w-2">
                 <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-blue-400 opacity-75"></span>
@@ -52,34 +52,34 @@
               </span>
             }
           </div>
-          <div class="p-1.5 bg-gray-100 text-gray-600 rounded-md">
+          <div class="p-1.5 bg-gray-100 text-gray-600 rounded-md group-hover:bg-gray-200 transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
           </div>
         </div>
         <h3 class="text-2xl font-semibold text-gray-900">{{ stats.applications }}</h3>
-      </div>
+      </a>
 
       <!-- Stat 3 -->
-      <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-between">
+      <a routerLink="/admin/lantikan" class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-gray-300 transition-all cursor-pointer group">
         <div class="flex justify-between items-start mb-4">
-          <p class="text-sm font-medium text-gray-500">Laporan Semakan</p>
-          <div class="p-1.5 bg-gray-100 text-gray-600 rounded-md">
+          <p class="text-sm font-medium text-gray-500 group-hover:text-gray-700 transition-colors">Laporan Semakan</p>
+          <div class="p-1.5 bg-gray-100 text-gray-600 rounded-md group-hover:bg-gray-200 transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
           </div>
         </div>
         <h3 class="text-2xl font-semibold text-gray-900">{{ stats.verifyRate }}</h3>
-      </div>
+      </a>
 
       <!-- Stat 4 -->
-      <div class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-between">
+      <a routerLink="/admin/statistik" class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-gray-300 transition-all cursor-pointer group">
         <div class="flex justify-between items-start mb-4">
-          <p class="text-sm font-medium text-gray-500">Perlawanan (Bulan Ini)</p>
-          <div class="p-1.5 bg-gray-100 text-gray-600 rounded-md">
+          <p class="text-sm font-medium text-gray-500 group-hover:text-gray-700 transition-colors">Perlawanan (Bulan Ini)</p>
+          <div class="p-1.5 bg-gray-100 text-gray-600 rounded-md group-hover:bg-gray-200 transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
           </div>
         </div>
         <h3 class="text-2xl font-semibold text-gray-900">{{ stats.matches }}</h3>
-      </div>
+      </a>
 
     </div>
 

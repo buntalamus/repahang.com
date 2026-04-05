@@ -48,6 +48,8 @@
     @if (showForm) {
       <div class="bg-white rounded-xl shadow-sm p-6">
         <h3 class="font-semibold text-lg mb-4">Tambah Perlawanan Baharu</h3>
+
+        <!-- Match Info -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium mb-1">Pasukan Tuan Rumah *</label>
@@ -62,30 +64,140 @@
             <input type="date" [(ngModel)]="form.tarikh" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow" />
           </div>
           <div>
+            <label class="block text-sm font-medium mb-1">Masa</label>
+            <input type="time" [(ngModel)]="form.masa" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow" />
+          </div>
+          <div>
             <label class="block text-sm font-medium mb-1">Jenis</label>
             <select [(ngModel)]="form.jenis" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow">
               <option value="">-- Pilih --</option>
-              <option value="Liga">Liga</option>
-              <option value="Piala">Piala</option>
-              <option value="Persahabatan">Persahabatan</option>
-              <option value="Lain-lain">Lain-lain</option>
+              @for (j of jenisOptions; track j) {
+                <option [value]="j">{{ j }}</option>
+              }
             </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Nama Kejohanan</label>
+            <input [(ngModel)]="form.nama_kejohanan" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow" placeholder="cth: Liga M-League 2026" />
           </div>
           <div>
             <label class="block text-sm font-medium mb-1">Tempat</label>
             <input [(ngModel)]="form.tempat" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow" placeholder="Lokasi perlawanan" />
           </div>
           <div>
-            <label class="block text-sm font-medium mb-1">Jawatan</label>
-            <select [(ngModel)]="form.jawatan" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow">
+            <label class="block text-sm font-medium mb-1">Daerah Perlawanan *</label>
+            <select [(ngModel)]="form.daerah_perlawanan_id" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow">
+              <option value="">-- Pilih Daerah --</option>
+              @for (d of districts; track d.id) {
+                <option [value]="d.id">{{ d.nama }}</option>
+              }
+            </select>
+            <p class="text-xs text-gray-400 mt-1">PP Daerah ini akan terima notifikasi untuk pengesahan</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Cuaca</label>
+            <select [(ngModel)]="form.cuaca" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow">
               <option value="">-- Pilih --</option>
-              <option value="Pengadil">Pengadil</option>
-              <option value="Penolong Pengadil 1">Penolong Pengadil 1</option>
-              <option value="Penolong Pengadil 2">Penolong Pengadil 2</option>
-              <option value="Pengadil Ke-4">Pengadil Ke-4</option>
+              @for (c of cuacaOptions; track c) {
+                <option [value]="c">{{ c }}</option>
+              }
             </select>
           </div>
         </div>
+
+        <!-- Score Section -->
+        <div class="mt-6 border-t pt-4">
+          <h4 class="font-semibold text-sm text-gray-700 mb-3">
+            <span class="material-icons text-sm align-middle mr-1">scoreboard</span>
+            Keputusan Perlawanan
+          </h4>
+          <p class="text-xs text-gray-400 mb-3">Boleh dikosongkan jika keputusan belum diketahui.</p>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="bg-gray-50 rounded-lg p-3 border text-center">
+              <label class="block text-xs text-gray-500 mb-2 font-medium">Separuh Masa (HT)</label>
+              <div class="flex items-center justify-center gap-2">
+                <input type="number" min="0" [(ngModel)]="form.skor_ht_home" class="w-14 border rounded px-2 py-1 text-sm text-center" placeholder="-" />
+                <span class="text-gray-400 font-bold">:</span>
+                <input type="number" min="0" [(ngModel)]="form.skor_ht_away" class="w-14 border rounded px-2 py-1 text-sm text-center" placeholder="-" />
+              </div>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-3 border text-center">
+              <label class="block text-xs text-gray-500 mb-2 font-medium">Penuh Masa (FT)</label>
+              <div class="flex items-center justify-center gap-2">
+                <input type="number" min="0" [(ngModel)]="form.skor_ft_home" class="w-14 border rounded px-2 py-1 text-sm text-center" placeholder="-" />
+                <span class="text-gray-400 font-bold">:</span>
+                <input type="number" min="0" [(ngModel)]="form.skor_ft_away" class="w-14 border rounded px-2 py-1 text-sm text-center" placeholder="-" />
+              </div>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-3 border text-center">
+              <label class="block text-xs text-gray-500 mb-2 font-medium">Masa Tambahan (ET)</label>
+              <div class="flex items-center justify-center gap-2">
+                <input type="number" min="0" [(ngModel)]="form.skor_et_home" class="w-14 border rounded px-2 py-1 text-sm text-center" placeholder="-" />
+                <span class="text-gray-400 font-bold">:</span>
+                <input type="number" min="0" [(ngModel)]="form.skor_et_away" class="w-14 border rounded px-2 py-1 text-sm text-center" placeholder="-" />
+              </div>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-3 border text-center">
+              <label class="block text-xs text-gray-500 mb-2 font-medium">Penalti (PS)</label>
+              <div class="flex items-center justify-center gap-2">
+                <input type="number" min="0" [(ngModel)]="form.skor_ps_home" class="w-14 border rounded px-2 py-1 text-sm text-center" placeholder="-" />
+                <span class="text-gray-400 font-bold">:</span>
+                <input type="number" min="0" [(ngModel)]="form.skor_ps_away" class="w-14 border rounded px-2 py-1 text-sm text-center" placeholder="-" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Officials section (always shown) -->
+        <div class="mt-6 border-t pt-4">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="font-semibold text-sm text-gray-700">
+              <span class="material-icons text-sm align-middle mr-1">group</span>
+              Pegawai Perlawanan
+            </h4>
+            @if (officials.length < 5) {
+              <button (click)="addOfficialSlot()" type="button" class="text-xs text-pahang-yellow hover:underline font-medium">
+                + Tambah Pegawai
+              </button>
+            }
+          </div>
+          <p class="text-xs text-gray-400 mb-3">Seorang pengadil mengisi untuk semua pegawai dalam perlawanan ini. Rekod akan dipaparkan kepada semua pegawai.</p>
+          <div class="space-y-3">
+            @for (o of officials; track $index; let i = $index) {
+              <div class="bg-gray-50 rounded-lg p-3 border">
+                <div class="flex items-center justify-between mb-2">
+                  <label class="text-sm font-medium text-gray-700">Pegawai {{ i + 1 }}</label>
+                  @if (officials.length > 1) {
+                    <button (click)="removeOfficialSlot(i)" type="button" class="text-xs text-red-500 hover:text-red-700">
+                      <span class="material-icons text-sm">remove_circle_outline</span>
+                    </button>
+                  }
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-1">Jawatan</label>
+                    <select [(ngModel)]="o.jawatan" class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow">
+                      <option value="">-- Pilih --</option>
+                      @for (j of jawatanOptions; track j) {
+                        <option [value]="j">{{ j }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-1">Pengadil</label>
+                    <app-referee-search
+                      [excludeIds]="getExcludeIds(i)"
+                      [value]="o.referee"
+                      (refereeSelected)="onOfficialSelected(i, $event)"
+                      (refereeCleared)="onOfficialCleared(i)"
+                    />
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+
         <div class="flex justify-end gap-3 mt-4">
           <button (click)="cancelForm()" class="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Batal</button>
           <button (click)="submitMatch()" [disabled]="submitting" class="px-6 py-2 text-sm font-semibold bg-pahang-yellow text-black rounded-lg hover:bg-yellow-500 disabled:opacity-50">
@@ -103,6 +215,7 @@
             <tr>
               <th class="px-4 py-3 font-semibold text-gray-600">#</th>
               <th class="px-4 py-3 font-semibold text-gray-600">Perlawanan</th>
+              <th class="px-4 py-3 font-semibold text-gray-600">Keputusan</th>
               <th class="px-4 py-3 font-semibold text-gray-600">Jenis</th>
               <th class="px-4 py-3 font-semibold text-gray-600">Tarikh</th>
               <th class="px-4 py-3 font-semibold text-gray-600">Tempat</th>
@@ -120,14 +233,38 @@
                   @if (m.lantikan_id) {
                     <span class="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-50 text-blue-600 border border-blue-200">Lantikan Rasmi</span>
                   }
+                  @if (m.match_group_id) {
+                    <span class="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-purple-50 text-purple-600 border border-purple-200">Kumpulan</span>
+                  }
+                </td>
+                <td class="px-4 py-3 text-xs">
+                  @if (m.skor_ft_home !== null && m.skor_ft_away !== null) {
+                    <span class="font-bold text-sm">{{ m.skor_ft_home }} - {{ m.skor_ft_away }}</span>
+                    @if (m.skor_ht_home !== null) {
+                      <span class="text-gray-400 block">HT: {{ m.skor_ht_home }}-{{ m.skor_ht_away }}</span>
+                    }
+                    @if (m.skor_et_home !== null) {
+                      <span class="text-gray-400 block">ET: {{ m.skor_et_home }}-{{ m.skor_et_away }}</span>
+                    }
+                    @if (m.skor_ps_home !== null) {
+                      <span class="text-gray-400 block">PS: {{ m.skor_ps_home }}-{{ m.skor_ps_away }}</span>
+                    }
+                  } @else {
+                    <span class="text-gray-300">-</span>
+                  }
                 </td>
                 <td class="px-4 py-3">{{ m.jenis || '-' }}</td>
-                <td class="px-4 py-3">{{ m.tarikh }}</td>
-                <td class="px-4 py-3">{{ m.tempat }}</td>
+                <td class="px-4 py-3">{{ m.tarikh }}@if (m.masa) {<span class="text-gray-400 ml-1">{{ m.masa }}</span>}</td>
+                <td class="px-4 py-3">
+                  {{ m.tempat }}
+                  @if (m.daerah_perlawanan_nama) {
+                    <span class="text-xs text-gray-400 block">{{ m.daerah_perlawanan_nama }}</span>
+                  }
+                </td>
                 <td class="px-4 py-3">{{ m.jawatan }}</td>
                 <td class="px-4 py-3">
                   <span class="px-2 py-0.5 text-xs font-semibold rounded-full" [class]="statusClass(m.status_pp)">
-                    {{ m.status_pp }}
+                    {{ m.status_pp || 'Belum Disahkan' }}
                   </span>
                 </td>
                 <td class="px-4 py-3">
@@ -140,7 +277,7 @@
               </tr>
             } @empty {
               <tr>
-                <td colspan="8" class="px-4 py-12 text-center text-gray-400">
+                <td colspan="9" class="px-4 py-12 text-center text-gray-400">
                   <span class="material-icons text-4xl mb-2 block">sports_soccer</span>
                   Tiada rekod perlawanan.
                 </td>

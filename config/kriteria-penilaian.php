@@ -4,16 +4,16 @@
  * Used by both the API and the token-based external form.
  *
  * Structure: jawatan → section → items[]
- * Sections for Pengadil Utama: kawalan, fizikal, kerjasama
- * Sections for Pembantu Pengadil: penolong (single combined section)
- * Sections for Pegawai Keempat: keempat (single combined section)
+ * Sections for Pengadil (R): kawalan, fizikal, kerjasama
+ * Sections for Penolong Pengadil (AR): penolong (single combined section)
+ * Sections for Pegawai ke4 (P4): keempat (single combined section)
  */
 
 function getKriteriaPenilaian(): array
 {
     return [
-        // ── PENGADIL UTAMA ────────────────────────────────────────────
-        'Pengadil Utama' => [
+        // ── PENGADIL (R) ──────────────────────────────────────────────
+        'Pengadil' => [
             'kawalan' => [
                 'label' => 'Kawalan Permainan',
                 'items' => [
@@ -81,8 +81,8 @@ function getKriteriaPenilaian(): array
             ],
         ],
 
-        // ── PEMBANTU PENGADIL (1 & 2) ─────────────────────────────────
-        'Pembantu Pengadil' => [
+        // ── PENOLONG PENGADIL (AR1 & AR2) ─────────────────────────────
+        'Penolong Pengadil' => [
             'penolong' => [
                 'label' => 'Penilaian Penolong Pengadil',
                 'items' => [
@@ -114,8 +114,8 @@ function getKriteriaPenilaian(): array
             ],
         ],
 
-        // ── PEGAWAI KEEMPAT ───────────────────────────────────────────
-        'Pengadil Keempat' => [
+        // ── PEGAWAI KE4 (P4) ─────────────────────────────────────────
+        'Pegawai ke4' => [
             'keempat' => [
                 'label' => 'Penilaian Pegawai Keempat',
                 'items' => [
@@ -141,21 +141,30 @@ function getKriteriaPenilaian(): array
  */
 function getKriteriaKeyForJawatan(string $jawatan): string
 {
-    if (str_contains($jawatan, 'Pembantu') || str_contains($jawatan, 'Penolong')) {
-        return 'Pembantu Pengadil';
+    if (str_contains($jawatan, 'Penolong') || str_contains($jawatan, 'Pembantu')) {
+        return 'Penolong Pengadil';
     }
-    if (str_contains($jawatan, 'Keempat') || str_contains($jawatan, 'Ke 4') || str_contains($jawatan, 'Ke-4')) {
-        return 'Pengadil Keempat';
+    if (str_contains($jawatan, 'ke4') || str_contains($jawatan, 'Keempat') || str_contains($jawatan, 'Ke 4') || str_contains($jawatan, 'Ke-4')) {
+        return 'Pegawai ke4';
     }
-    return 'Pengadil Utama'; // default for Pengadil Utama
+    return 'Pengadil'; // default for Pengadil (R)
 }
 
 /**
  * Get sections for a particular jawatan.
+ * Returns an indexed array where each element has 'key', 'label', 'items'.
+ * This ensures json_encode produces a JSON array (not object), matching
+ * the structure expected by both the standalone penilaian-borang.html
+ * and the Angular frontend.
  */
 function getSectionsForJawatan(string $jawatan): array
 {
     $kriteria = getKriteriaPenilaian();
     $key = getKriteriaKeyForJawatan($jawatan);
-    return $kriteria[$key] ?? [];
+    $sections = $kriteria[$key] ?? [];
+    $result = [];
+    foreach ($sections as $sectionKey => $section) {
+        $result[] = array_merge(['key' => $sectionKey], $section);
+    }
+    return $result;
 }

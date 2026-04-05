@@ -9,15 +9,15 @@ requireRole(['Pengadil', 'Penilai', 'PP Daerah', 'Admin']);
 try {
     $pdo = getDbConnection();
 
-    // Fetch active referees
-    // We get users with role 'Pengadil' or 'PP Daerah' who are active
+    // Fetch active referees, PP Daerah, and Penilai (RA)
+    // We get users with role 'Pengadil', 'PP Daerah', or 'Penilai' who are active
     $stmt = $pdo->prepare("
         SELECT u.id, u.nama_penuh, u.role, u.no_ic as no_kp, u.jenis_pengadil,
                u.no_telefon, u.saiz_baju, u.email, u.url_gambar_profil,
                p.nama_persatuan as persatuan_nama
         FROM users u
         LEFT JOIN persatuan_bolasepak_daerah p ON u.persatuan_id = p.id
-        WHERE u.role IN ('Pengadil', 'PP Daerah') 
+        WHERE u.role IN ('Pengadil', 'PP Daerah', 'Penilai') 
         AND u.aktif = 1 
         ORDER BY u.nama_penuh ASC
     ");

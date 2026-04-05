@@ -1,15 +1,16 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
 import { ChangePasswordComponent } from '../../auth/change-password/change-password.component';
+import { ImageCropComponent } from '../../../shared/components/image-crop/image-crop.component';
 
 @Component({
   selector: 'app-pengadil-profile',
   standalone: true,
-  imports: [FormsModule, LoadingComponent, ChangePasswordComponent],
+  imports: [FormsModule, LoadingComponent, ChangePasswordComponent, ImageCropComponent],
   templateUrl: './profile.component.html',
 })
 export class PengadilProfileComponent implements OnInit {
@@ -21,6 +22,8 @@ export class PengadilProfileComponent implements OnInit {
   notifications: any[] = [];
   unreadCount = 0;
   generatingTgLink = false;
+
+  @ViewChild('imageCrop') imageCrop!: ImageCropComponent;
 
   constructor(
     private api: ApiService,
@@ -73,9 +76,9 @@ export class PengadilProfileComponent implements OnInit {
           this.toast.error(res.message);
         }
       },
-      error: () => {
+      error: (err: any) => {
         this.saving = false;
-        this.toast.error('Gagal mengemaskini profil.');
+        this.toast.error(err?.error?.message || 'Gagal mengemaskini profil.');
       },
     });
   }
@@ -83,8 +86,13 @@ export class PengadilProfileComponent implements OnInit {
   onImageSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (!input.files?.length) return;
+    this.imageCrop.loadImage(input.files[0]);
+    input.value = '';
+  }
+
+  onImageCropped(blob: Blob): void {
     const fd = new FormData();
-    fd.append('image', input.files[0]);
+    fd.append('image', blob, 'profile.jpg');
     this.api.postFormData<any>('upload-profile-image.php', fd).subscribe({
       next: (res) => {
         if (!res.error) {
@@ -111,9 +119,9 @@ export class PengadilProfileComponent implements OnInit {
           this.toast.error(res.message || 'Gagal menjana pautan.');
         }
       },
-      error: () => {
+      error: (err: any) => {
         this.generatingTgLink = false;
-        this.toast.error('Gagal menyambung ke pelayan.');
+        this.toast.error(err?.error?.message || 'Gagal menyambung ke pelayan.');
       },
     });
   }

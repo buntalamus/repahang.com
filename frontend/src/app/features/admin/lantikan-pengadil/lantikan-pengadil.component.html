@@ -328,11 +328,39 @@
     } @else if (loadingJadual) {
       <app-loading message="Memuatkan jadual..." />
     } @else {
+      <!-- Bulk action toolbar -->
+      @if (selectedJadualIds.size > 0) {
+        <div class="bg-slate-800 text-white rounded-xl px-4 py-2.5 mb-3 flex items-center justify-between shadow-lg animate-in">
+          <span class="text-xs font-semibold">
+            {{ selectedJadualIds.size }} perlawanan dipilih
+          </span>
+          <div class="flex items-center gap-2">
+            <button (click)="bulkDeleteJadual()"
+              class="inline-flex items-center gap-1 px-3 py-1.5 bg-rose-500 text-white text-[11px] font-semibold rounded-lg hover:bg-rose-600 transition">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+              Padam {{ selectedJadualIds.size }} Perlawanan
+            </button>
+            <button (click)="selectedJadualIds.clear()"
+              class="px-2 py-1.5 text-slate-300 hover:text-white text-[11px] transition" title="Nyahpilih semua">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      }
+
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="bg-slate-50 border-b border-slate-200">
               <tr>
+                <th class="px-3 py-3 text-center w-10">
+                  <input type="checkbox" [checked]="isAllJadualSelected()" (change)="toggleAllJadual()"
+                    class="w-3.5 h-3.5 rounded border-slate-400 text-pahang-yellow focus:ring-pahang-yellow cursor-pointer" />
+                </th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase w-20">No.</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tarikh & Masa</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Perlawanan</th>
@@ -347,7 +375,11 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
               @for (j of jadualList; track j.id) {
-                <tr class="hover:bg-slate-50 transition-colors">
+                <tr class="hover:bg-slate-50 transition-colors" [class.bg-blue-50]="selectedJadualIds.has(j.id)">
+                  <td class="px-3 py-3 text-center">
+                    <input type="checkbox" [checked]="selectedJadualIds.has(j.id)" (change)="toggleJadual(j.id)"
+                      class="w-3.5 h-3.5 rounded border-slate-400 text-pahang-yellow focus:ring-pahang-yellow cursor-pointer" />
+                  </td>
                   <td class="px-4 py-3 font-semibold text-slate-700 text-xs">{{ j.no_perlawanan }}</td>
                   <td class="px-4 py-3">
                     <p class="text-slate-600 text-xs">{{ j.tarikh | date:'d MMM y' }}</p>
@@ -396,7 +428,7 @@
                   </td>
                   <td class="px-4 py-3">
                     @if (j.kategori) {
-                      <span class="px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700">{{ j.kategori }}</span>
+                      <span class="px-2 py-0.5 rounded text-xs font-medium" [class]="getKategoriClass(j.kategori)">{{ j.kategori }}</span>
                     } @else {
                       <span class="text-slate-400 text-xs">-</span>
                     }
@@ -431,7 +463,7 @@
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="8" class="px-4 py-16 text-center">
+                  <td colspan="11" class="px-4 py-16 text-center">
                     <span class="material-symbols-outlined text-4xl text-slate-300">calendar_month</span>
                     <p class="text-slate-400 text-sm mt-2">Tiada perlawanan. Tambah jadual perlawanan.</p>
                   </td>
@@ -486,7 +518,7 @@
                     </td>
                     <td class="px-4 py-3 hidden sm:table-cell">
                       @if (j.kategori) {
-                        <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700">{{ j.kategori }}</span>
+                        <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold" [class]="getKategoriClass(j.kategori)">{{ j.kategori }}</span>
                       }
                       <p class="text-[10px] text-slate-500 mt-0.5">{{ j.peringkat }}{{ j.kumpulan ? ' ' + j.kumpulan : '' }}</p>
                     </td>
@@ -539,7 +571,7 @@
               <p class="text-[10px] text-slate-400 uppercase tracking-wide font-semibold">Kategori</p>
               <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
                 @if (selectedJadual.kategori) {
-                  <span class="px-2 py-0.5 rounded text-xs font-semibold bg-indigo-50 text-indigo-700">{{ selectedJadual.kategori }}</span>
+                  <span class="px-2 py-0.5 rounded text-xs font-semibold" [class]="getKategoriClass(selectedJadual.kategori)">{{ selectedJadual.kategori }}</span>
                 }
                 @if (selectedJadual.peringkat) {
                   <span class="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600">{{ selectedJadual.peringkat }}</span>
@@ -585,7 +617,6 @@
                   <tr>
                     <th class="px-4 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Jawatan</th>
                     <th class="px-4 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Pengadil</th>
-                    <th class="px-4 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Status</th>
                     <th class="px-4 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wide w-20">Tindakan</th>
                   </tr>
                 </thead>
@@ -626,19 +657,21 @@
                               @if (assignment.komen) {
                                 <p class="text-[10px] text-slate-500 italic mt-0.5">{{ assignment.komen }}</p>
                               }
+                              <!-- Status + tarikh jawab (always visible) -->
+                              <div class="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                <span class="px-1.5 py-0.5 rounded text-[10px] font-medium" [class]="getAssignmentStatusClass(assignment.status)">
+                                  {{ assignment.status }}
+                                </span>
+                                @if (assignment.tarikh_jawab) {
+                                  <span class="text-[9px] text-slate-400">
+                                    {{ assignment.tarikh_jawab | date:'d MMM y, h:mm a' }}
+                                  </span>
+                                }
+                              </div>
                             </div>
                           </div>
                         } @else {
                           <span class="text-xs text-slate-400 italic">Belum dilantik</span>
-                        }
-                      </td>
-                      <td class="px-4 py-3 align-top hidden sm:table-cell">
-                        @if (assignment) {
-                          <span class="px-2 py-0.5 rounded text-[10px] font-medium" [class]="getAssignmentStatusClass(assignment.status)">
-                            {{ assignment.status }}
-                          </span>
-                        } @else {
-                          <span class="text-[10px] text-slate-300">—</span>
                         }
                       </td>
                       <td class="px-4 py-3 align-top text-center">
@@ -1057,7 +1090,7 @@
                         <td [attr.rowspan]="jawatanList.length"
                             class="px-2 py-2 text-center align-middle border border-slate-200 text-[10px] text-slate-600 bg-white uppercase leading-relaxed">
                           @if (j.kategori) {
-                            <span class="block font-bold text-indigo-700">{{ j.kategori }}</span>
+                            <span class="inline-block px-1.5 py-0.5 rounded font-bold" [class]="getKategoriClass(j.kategori)">{{ j.kategori }}</span>
                           }
                           <span class="block font-semibold">{{ j.peringkat }}</span>
                         </td>
@@ -1199,7 +1232,7 @@
                       <div class="flex flex-wrap gap-1">
                         @for (pg of lap.pegawai; track pg.id) {
                           <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
-                            {{ pg.jawatan === 'Pengadil Utama' ? 'PU' : pg.jawatan === 'Pembantu Pengadil 1' ? 'PP1' : pg.jawatan === 'Pembantu Pengadil 2' ? 'PP2' : 'P4' }}
+                            {{ pg.jawatan === 'Pengadil' ? 'R' : pg.jawatan === 'Penolong Pengadil 1' ? 'AR1' : pg.jawatan === 'Penolong Pengadil 2' ? 'AR2' : 'P4' }}
                             <span class="font-bold" [class]="getMarkahClass(pg.markah)">{{ pg.markah ?? '-' }}</span>
                           </span>
                         }
@@ -1214,10 +1247,18 @@
                     </span>
                   </td>
                   <td class="px-4 py-3 text-center">
-                    <button (click)="viewLaporan(lap.id)"
-                      class="px-3 py-1 bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 rounded text-xs transition shadow-sm">
-                      Lihat
-                    </button>
+                    <div class="flex items-center justify-center gap-2">
+                      <button (click)="viewLaporan(lap.id)"
+                        class="px-3 py-1 bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 rounded text-xs transition shadow-sm">
+                        Lihat
+                      </button>
+                      @if (lap.status === 'Disahkan') {
+                        <button (click)="downloadLaporanPdf(lap.id)"
+                          class="px-3 py-1 bg-blue-600 text-white hover:bg-blue-700 rounded text-xs transition shadow-sm">
+                          PDF
+                        </button>
+                      }
+                    </div>
                   </td>
                 </tr>
               } @empty {
@@ -1584,6 +1625,11 @@
           }
         </div>
         <div class="flex items-center gap-3">
+          @if (laporanDetail?.status === 'Disahkan') {
+            <button (click)="downloadLaporanPdf(laporanDetail.id)" class="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition">
+              <span class="material-icons text-sm">download</span> RA Report
+            </button>
+          }
           @if (laporanDetail) {
             <span class="px-2 py-0.5 text-xs font-semibold rounded-full" [class]="getLaporanStatusClass(laporanDetail.status)">{{ laporanDetail.status }}</span>
           }
@@ -1626,7 +1672,7 @@
               @for (pg of laporanDetail.pegawai; track pg.id) {
                 <div class="bg-slate-50 rounded-xl p-3 text-center border">
                   <p class="text-[10px] text-slate-400 uppercase font-semibold">
-                    {{ pg.jawatan === 'Pengadil Utama' ? 'PU' : pg.jawatan === 'Pembantu Pengadil 1' ? 'PP1' : pg.jawatan === 'Pembantu Pengadil 2' ? 'PP2' : 'P4' }}
+                    {{ pg.jawatan === 'Pengadil' ? 'R' : pg.jawatan === 'Penolong Pengadil 1' ? 'AR1' : pg.jawatan === 'Penolong Pengadil 2' ? 'AR2' : 'P4' }}
                   </p>
                   <p class="text-xs font-medium truncate mt-0.5">{{ pg.nama_pengadil }}</p>
                   <p class="text-2xl font-bold mt-1" [class]="getMarkahClass(pg.markah)">{{ pg.markah ?? '-' }}</p>
@@ -1660,7 +1706,7 @@
                   @if (pg.kawalan_kekuatan?.length || pg.kawalan_kelemahan?.length || pg.kawalan_nasihat) {
                     <div class="p-4 space-y-2">
                       <p class="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                        {{ pg.jawatan === 'Pengadil Utama' ? 'Kawalan Permainan' : pg.jawatan.includes('Pembantu') ? 'Penolong Pengadil' : 'Pegawai Keempat' }}
+                        {{ pg.jawatan === 'Pengadil' ? 'Kawalan Permainan' : pg.jawatan.includes('Penolong') ? 'Penolong Pengadil' : 'Pegawai ke4' }}
                       </p>
                       @if (pg.kawalan_kekuatan?.length) {
                         <div>
@@ -1794,7 +1840,14 @@
         </div>
       }
 
-      <div class="px-6 py-4 border-t flex justify-end">
+      <div class="px-6 py-4 border-t flex items-center justify-between">
+        @if (laporanDetail?.status === 'Disahkan') {
+          <button (click)="downloadLaporanPdf(laporanDetail.id)" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition">
+            <span class="material-icons text-sm">download</span> Muat Turun RA Report
+          </button>
+        } @else {
+          <div></div>
+        }
         <button (click)="showLaporanModal = false" class="px-4 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-100">Tutup</button>
       </div>
     </div>

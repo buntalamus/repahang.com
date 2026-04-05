@@ -15,6 +15,62 @@ if (!function_exists('env')) {
 }
 
 /**
+ * Internal helper: POST JSON to a URL using curl (preferred) or file_get_contents fallback.
+ *
+ * @return string|false  Response body or false on failure
+ */
+function tgHttpPost(string $url, array $payload, int $timeout = 10): string|false
+{
+    $json = json_encode($payload, JSON_UNESCAPED_UNICODE);
+
+    // Check curl is truly available (not just loaded but also not in disable_functions)
+    $curlAvailable = function_exists('curl_exec')
+        && !in_array('curl_exec', array_map('trim', explode(',', (string) ini_get('disable_functions'))), true);
+
+    if ($curlAvailable) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => $timeout,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+            CURLOPT_POSTFIELDS     => $json,
+            CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+        $resp = curl_exec($ch);
+        $err  = curl_error($ch);
+        curl_close($ch);
+
+        if ($resp === false) {
+            error_log("[Telegram] curl error: {$err}");
+            return false;
+        }
+        return (string) $resp;
+    }
+
+    // Fallback: file_get_contents
+    $ctx = stream_context_create([
+        'http' => [
+            'method'  => 'POST',
+            'header'  => "Content-Type: application/json\r\n",
+            'content' => $json,
+            'timeout' => $timeout,
+        ],
+        'ssl' => [
+            'verify_peer'      => true,
+            'verify_peer_name' => true,
+        ],
+    ]);
+
+    $resp = @file_get_contents($url, false, $ctx);
+    if ($resp === false) {
+        error_log("[Telegram] file_get_contents error for {$url}");
+        return false;
+    }
+    return $resp;
+}
+
+/**
  * Send a Telegram message to a single chat_id.
  *
  * @param int|string $chatId
@@ -39,21 +95,9 @@ function tgSend(int|string $chatId, string $text, ?array $replyMarkup = null): b
         $payload['reply_markup'] = json_encode($replyMarkup, JSON_UNESCAPED_UNICODE);
     }
 
-    $ch = curl_init("https://api.telegram.org/bot{$token}/sendMessage");
-    curl_setopt_array($ch, [
-        CURLOPT_POST           => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 10,
-        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-        CURLOPT_POSTFIELDS     => json_encode($payload, JSON_UNESCAPED_UNICODE),
-        CURLOPT_SSL_VERIFYPEER => true,
-    ]);
-    $resp = curl_exec($ch);
-    $err  = curl_error($ch);
-    curl_close($ch);
+    $resp = tgHttpPost("https://api.telegram.org/bot{$token}/sendMessage", $payload, 10);
 
     if ($resp === false) {
-        error_log("[Telegram] curl error: {$err}");
         return false;
     }
 
@@ -82,17 +126,7 @@ function tgAnswerCallback(string $callbackQueryId, string $text = '', bool $show
         'show_alert'        => $showAlert,
     ];
 
-    $ch = curl_init("https://api.telegram.org/bot{$token}/answerCallbackQuery");
-    curl_setopt_array($ch, [
-        CURLOPT_POST           => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 5,
-        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-        CURLOPT_POSTFIELDS     => json_encode($payload),
-        CURLOPT_SSL_VERIFYPEER => true,
-    ]);
-    curl_exec($ch);
-    curl_close($ch);
+    tgHttpPost("https://api.telegram.org/bot{$token}/answerCallbackQuery", $payload, 5);
 }
 
 /**
@@ -106,23 +140,15 @@ function tgEditMessage(int|string $chatId, int $messageId, string $text): void
     }
 
     $payload = [
-        'chat_id'    => $chatId,
-        'message_id' => $messageId,
-        'text'       => $text,
-        'parse_mode' => 'HTML',
+        'chat_id'                  => $chatId,
+        'message_id'               => $messageId,
+        'text'                     => $text,
+        'parse_mode'               => 'HTML',
+        'disable_web_page_preview' => true,
+        'reply_markup'             => json_encode(['inline_keyboard' => []], JSON_UNESCAPED_UNICODE),
     ];
 
-    $ch = curl_init("https://api.telegram.org/bot{$token}/editMessageText");
-    curl_setopt_array($ch, [
-        CURLOPT_POST           => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 5,
-        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-        CURLOPT_POSTFIELDS     => json_encode($payload, JSON_UNESCAPED_UNICODE),
-        CURLOPT_SSL_VERIFYPEER => true,
-    ]);
-    curl_exec($ch);
-    curl_close($ch);
+    tgHttpPost("https://api.telegram.org/bot{$token}/editMessageText", $payload, 5);
 }
 
 /**

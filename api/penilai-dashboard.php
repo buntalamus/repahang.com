@@ -1,6 +1,6 @@
 <?php
 
-require_once 'bootstrap.php';
+require_once __DIR__ . '/bootstrap.php';
 
 
 
@@ -60,14 +60,14 @@ try {
 
     // Recent reports
     $recentQuery = "
-        SELECT lp.id, lp.status, lp.markah,
-               jp.tarikh, CONCAT(jp.pasukan_a, ' lwn ', jp.pasukan_b) as pertandingan,
+        SELECT lp.id, lp.status,
+               jp.tarikh, CONCAT(jp.pasukan_home, ' lwn ', jp.pasukan_away) as pertandingan,
                k.nama as kejohanan
         FROM laporan_penilaian lp
         JOIN jadual_perlawanan jp ON lp.jadual_id = jp.id
         JOIN kejohanan k ON jp.kejohanan_id = k.id
         WHERE lp.penilai_id = ?
-        ORDER BY lp.updated_at DESC
+        ORDER BY lp.tarikh_hantar DESC, lp.created_at DESC
         LIMIT 5
     ";
     $stmt = $pdo->prepare($recentQuery);

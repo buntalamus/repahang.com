@@ -14,7 +14,7 @@ require_once __DIR__ . '/bootstrap.php';
 
 $currentUser = requireRole(['Admin']);
 
-$VALID_JAWATAN = ['Pengadil Utama', 'Pembantu Pengadil 1', 'Pembantu Pengadil 2', 'Pengadil Keempat', 'Penilai Pengadil'];
+$VALID_JAWATAN = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4', 'Penilai Pengadil'];
 
 /**
  * Cancel all assignments for given jadual IDs, sending cancellation notifications.
@@ -132,7 +132,7 @@ try {
             LEFT JOIN users u ON lp.pengadil_id = u.id
             LEFT JOIN pengadil_luar pl ON lp.pengadil_luar_id = pl.id
             WHERE lp.jadual_id = :jadual_id
-            ORDER BY FIELD(lp.jawatan,'Pengadil Utama','Pembantu Pengadil 1','Pembantu Pengadil 2','Pengadil Keempat','Penilai Pengadil')
+            ORDER BY FIELD(lp.jawatan,'Pengadil','Penolong Pengadil 1','Penolong Pengadil 2','Pegawai ke4','Penilai Pengadil')
         ");
         $stmt->execute([':jadual_id' => $jadual_id]);
         $assignments = $stmt->fetchAll();
@@ -223,6 +223,7 @@ try {
                        COALESCE(u.nama_penuh, pl.nama) AS nama,
                        COALESCE(u.email, pl.emel)    AS email,
                        lp.pengadil_id,
+                       u.persatuan_id,
                        jp.no_perlawanan, jp.tarikh, jp.masa, jp.tempat,
                        jp.pasukan_home, jp.pasukan_away, jp.kejohanan_id,
                        jp.logo_home, jp.logo_away,
@@ -243,6 +244,8 @@ try {
 
             require_once __DIR__ . '/../config/telegram.php';
             require_once __DIR__ . '/../config/email.php';
+            require_once __DIR__ . '/../config/lantikan-helper.php';
+            require_once __DIR__ . '/../config/lantikan-helper.php';
 
             // Fetch ALL officials for this match (for email display, all statuses)
             $allOffStmt = $pdo->prepare("
@@ -252,8 +255,8 @@ try {
                 LEFT JOIN pengadil_luar pl ON lp.pengadil_luar_id = pl.id
                 WHERE lp.jadual_id = :jid
                 ORDER BY FIELD(lp.jawatan,
-                    'Pengadil Utama','Pembantu Pengadil 1','Pembantu Pengadil 2',
-                    'Pengadil Keempat','Penilai Pengadil')
+                    'Pengadil','Penolong Pengadil 1','Penolong Pengadil 2',
+                    'Pegawai ke4','Penilai Pengadil')
             ");
             $allOffStmt->execute([':jid' => $jadual_id]);
             $allOfficials = $allOffStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -265,6 +268,7 @@ try {
             $tgSent    = 0;
             $tgSkipped = 0;
             $emailSent = 0;
+            $ppNotified = []; // Track PP Daerah already notified (by persatuan_id)
 
             foreach ($assignments as $a) {
                 // Generate a fresh tg_token for Telegram inline buttons
@@ -340,6 +344,21 @@ try {
                     );
                     $emailSent++;
                 }
+
+                // ── Portal notification ───────────────────────────────────
+                if (!empty($a['user_id'])) {
+                    notifyLantikanPortal($pdo, (int)$a['user_id'], $a['jawatan'], $a['kejohanan'],
+                        $a['tarikh'], $a['pasukan_home'], $a['pasukan_away']);
+                }
+
+                // ── PP Daerah notification ────────────────────────────────
+                $pid = (int)($a['persatuan_id'] ?? 0);
+                if ($pid && !isset($ppNotified[$pid])) {
+                    notifyPPDaerahLantikan($pdo, $pid, $a['nama'], $a['jawatan'], $a['kejohanan'],
+                        $a['tarikh'], $a['masa'] ?? '', $a['tempat'] ?? '',
+                        $a['pasukan_home'], $a['pasukan_away'], $a['no_perlawanan'] ?? '');
+                    $ppNotified[$pid] = true;
+                }
             }
 
             // Update jadual status to 'Menunggu Pengesahan'
@@ -405,6 +424,7 @@ try {
 
             require_once __DIR__ . '/../config/telegram.php';
             require_once __DIR__ . '/../config/email.php';
+            require_once __DIR__ . '/../config/lantikan-helper.php';
 
             $totalEmail = 0;
             $totalTgSent = 0;
@@ -412,6 +432,7 @@ try {
             $totalAssignments = 0;
             $totalRenotify = 0;
             $matchesProcessed = 0;
+            $ppNotified = []; // Track PP Daerah already notified
 
             foreach ($jadualIds as $jadual_id) {
                 // Renotify count
@@ -433,6 +454,7 @@ try {
                            COALESCE(u.nama_penuh, pl.nama) AS nama,
                            COALESCE(u.email, pl.emel)    AS email,
                            lp.pengadil_id,
+                           u.persatuan_id,
                            jp.no_perlawanan, jp.tarikh, jp.masa, jp.tempat,
                            jp.pasukan_home, jp.pasukan_away, jp.kejohanan_id,
                            jp.logo_home, jp.logo_away,
@@ -457,8 +479,8 @@ try {
                     LEFT JOIN pengadil_luar pl ON lp.pengadil_luar_id = pl.id
                     WHERE lp.jadual_id = :jid
                     ORDER BY FIELD(lp.jawatan,
-                        'Pengadil Utama','Pembantu Pengadil 1','Pembantu Pengadil 2',
-                        'Pengadil Keempat','Penilai Pengadil')
+                        'Pengadil','Penolong Pengadil 1','Penolong Pengadil 2',
+                        'Pegawai ke4','Penilai Pengadil')
                 ");
                 $allOffStmt->execute([':jid' => $jadual_id]);
                 $allOfficials = $allOffStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -525,6 +547,21 @@ try {
                             $a['no_perlawanan'] ?? '', $logoHome, $logoAway, $allOfficials
                         );
                         $totalEmail++;
+                    }
+
+                    // ── Portal notification ───────────────────────────────
+                    if (!empty($a['user_id'])) {
+                        notifyLantikanPortal($pdo, (int)$a['user_id'], $a['jawatan'], $a['kejohanan'],
+                            $a['tarikh'], $a['pasukan_home'], $a['pasukan_away']);
+                    }
+
+                    // ── PP Daerah notification ────────────────────────────
+                    $pid = (int)($a['persatuan_id'] ?? 0);
+                    if ($pid && !isset($ppNotified[$pid])) {
+                        notifyPPDaerahLantikan($pdo, $pid, $a['nama'], $a['jawatan'], $a['kejohanan'],
+                            $a['tarikh'], $a['masa'] ?? '', $a['tempat'] ?? '',
+                            $a['pasukan_home'], $a['pasukan_away'], $a['no_perlawanan'] ?? '');
+                        $ppNotified[$pid] = true;
                     }
 
                     $totalAssignments++;
@@ -610,14 +647,7 @@ try {
                 VALUES (:jid, :pid, :plid, :jaw, :cb)
             ")->execute([':jid' => $jadual_id, ':pid' => $pengadil_id, ':plid' => $pengadil_luar_id, ':jaw' => $jawatan, ':cb' => (int)$currentUser['id']]);
 
-            // Update jadual status to 'Menunggu Pengesahan' if all 5 roles assigned
-            $countStmt = $pdo->prepare("SELECT COUNT(*) FROM lantikan_pengadil WHERE jadual_id = :jid");
-            $countStmt->execute([':jid' => $jadual_id]);
-            $totalAssigned = (int) $countStmt->fetchColumn();
-            if ($totalAssigned >= 5) {
-                $pdo->prepare("UPDATE jadual_perlawanan SET status = 'Menunggu Pengesahan' WHERE id = :id AND status = 'Belum Lantik'")
-                    ->execute([':id' => $jadual_id]);
-            }
+            // Update jadual status — any assignment means match is being prepared
 
             $pdo->commit();
             jsonResponse(['error' => false, 'message' => 'Pengadil berjaya dilantik.']);
@@ -657,13 +687,13 @@ try {
 
         $pdo->prepare("DELETE FROM lantikan_pengadil WHERE id = :id")->execute([':id' => $id]);
 
-        // Revert jadual status if less than 5 assigned
+        // Revert jadual status if no more assignments remain
         if ($record) {
             $countStmt = $pdo->prepare("SELECT COUNT(*) FROM lantikan_pengadil WHERE jadual_id = :jid");
             $countStmt->execute([':jid' => $record['jadual_id']]);
             $remaining = (int) $countStmt->fetchColumn();
-            if ($remaining < 5) {
-                $pdo->prepare("UPDATE jadual_perlawanan SET status = 'Belum Lantik' WHERE id = :id AND status = 'Menunggu Pengesahan'")
+            if ($remaining === 0) {
+                $pdo->prepare("UPDATE jadual_perlawanan SET status = 'Belum Lantik' WHERE id = :id")
                     ->execute([':id' => $record['jadual_id']]);
             }
 

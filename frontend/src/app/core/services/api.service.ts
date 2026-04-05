@@ -123,9 +123,10 @@ export class ApiService {
     );
   }
 
-  delete<T>(endpoint: string): Observable<T> {
+  delete<T>(endpoint: string, body?: any): Observable<T> {
     return this.http.delete<T>(`${this.baseUrl}/${endpoint}`, {
       withCredentials: true,
+      body,
     }).pipe(
       timeout(this.requestTimeoutMs),
       map((response) => this.normalizeResponse(response)),

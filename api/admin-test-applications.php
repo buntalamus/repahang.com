@@ -12,7 +12,7 @@
 
 
 
-require_once 'bootstrap.php';
+require_once __DIR__ . '/bootstrap.php';
 
 require_once __DIR__ . '/../config/email.php';
 
@@ -489,7 +489,7 @@ function sendTestApprovalEmail($application, $type, $notes)
     $stepsArr[] = "Hubungi pejabat PBNP jika ada sebarang pertanyaan.";
     $body .= emailPara('<strong>Langkah Seterusnya:</strong>');
     $body .= emailOrderedList($stepsArr);
-    $body .= emailButton('https://refpahang.com/pp-dashboard.html', 'Pergi ke Dashboard');
+    $body .= emailButton(env('BASE_URL') . '/pp-daerah', 'Pergi ke Dashboard');
 
     $html = buildEmailTemplate('Permohonan Ujian Diluluskan', '#16A34A', '', $body);
 
@@ -524,7 +524,7 @@ function sendTestRejectionEmail($application, $type, $reason)
     ]);
     $body .= emailAlert('#DC2626', '#FEF2F2', 'Sebab Penolakan', htmlspecialchars($reason));
     $body .= emailPara('Untuk pertanyaan atau rayuan, sila hubungi pejabat PBNP atau emel kepada <a href="mailto:support@refpahang.com" style="color:#2563EB;">support@refpahang.com</a>.');
-    $body .= emailButton('https://refpahang.com/pp-dashboard.html', 'Semak Dashboard');
+    $body .= emailButton(env('BASE_URL') . '/pp-daerah', 'Semak Dashboard');
 
     $html = buildEmailTemplate('Permohonan Ujian Tidak Berjaya', '#DC2626', '', $body);
 
@@ -561,7 +561,7 @@ function sendTestAbsentEmail($application, $type, $notes)
         $body .= emailAlert('#F59E0B', '#FFFBEB', 'Nota', htmlspecialchars($notes));
     }
     $body .= emailAlert('#F59E0B', '#FFFBEB', 'Tindakan Diperlukan', 'Sila hubungi pejabat PBNP <strong>dalam tempoh 7 hari</strong> untuk menjelaskan ketidakhadiran anda dan mendapatkan peluang susulan.');
-    $body .= emailButton('https://refpahang.com/pp-dashboard.html', 'Semak Dashboard');
+    $body .= emailButton(env('BASE_URL') . '/pp-daerah', 'Semak Dashboard');
 
     $html = buildEmailTemplate('Status Tidak Hadir', '#F59E0B', '', $body);
 

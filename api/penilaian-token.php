@@ -98,8 +98,8 @@ try {
             FROM lantikan_pengadil lp
             LEFT JOIN users u ON lp.pengadil_id = u.id
             LEFT JOIN pengadil_luar pl ON lp.pengadil_luar_id = pl.id
-            WHERE lp.jadual_id = :jid AND lp.jawatan != 'Penilai Pengadil' AND lp.status = 'Diterima'
-            ORDER BY FIELD(lp.jawatan,'Pengadil Utama','Pembantu Pengadil 1','Pembantu Pengadil 2','Pengadil Keempat')
+            WHERE lp.jadual_id = :jid AND lp.jawatan != 'Penilai Pengadil' AND lp.status != 'Ditolak'
+            ORDER BY FIELD(lp.jawatan,'Pengadil','Penolong Pengadil 1','Penolong Pengadil 2','Pegawai ke4')
         ");
         $offStmt->execute([':jid' => $penilai['jadual_id']]);
         $officials = $offStmt->fetchAll();
@@ -109,7 +109,7 @@ try {
         }
 
         // Check if report already exists
-        $existStmt = $pdo->prepare("SELECT id, status, tahap_kesukaran, ulasan_keseluruhan FROM laporan_penilaian WHERE lantikan_id = :lid");
+        $existStmt = $pdo->prepare("SELECT id, status, tahap_kesukaran, cuaca, ulasan_keseluruhan, skor_ht_home, skor_ht_away, skor_ft_home, skor_ft_away, skor_et_home, skor_et_away, skor_ps_home, skor_ps_away FROM laporan_penilaian WHERE lantikan_id = :lid");
         $existStmt->execute([':lid' => $penilai['lantikan_id']]);
         $existing = $existStmt->fetch();
 
@@ -144,7 +144,16 @@ try {
                 'id'                  => $existing['id'],
                 'status'              => $existing['status'],
                 'tahap_kesukaran'     => $existing['tahap_kesukaran'],
+                'cuaca'               => $existing['cuaca'],
                 'ulasan_keseluruhan'  => $existing['ulasan_keseluruhan'],
+                'skor_ht_home'        => $existing['skor_ht_home'],
+                'skor_ht_away'        => $existing['skor_ht_away'],
+                'skor_ft_home'        => $existing['skor_ft_home'],
+                'skor_ft_away'        => $existing['skor_ft_away'],
+                'skor_et_home'        => $existing['skor_et_home'],
+                'skor_et_away'        => $existing['skor_et_away'],
+                'skor_ps_home'        => $existing['skor_ps_home'],
+                'skor_ps_away'        => $existing['skor_ps_away'],
                 'pegawai'             => $existingPegawai,
             ] : null,
             'kriteria'      => getKriteriaPenilaian(),
@@ -183,26 +192,41 @@ try {
 
         $penilaiId = $penilai['pengadil_id'] ?: null;
         $tahap = $input['tahap_kesukaran'] ?? 'Normal';
+        $cuaca = !empty($input['cuaca']) ? $input['cuaca'] : null;
         $ulasan = $input['ulasan_keseluruhan'] ?? '';
         $status = $hantar ? 'Dihantar' : 'Draf';
 
+        // Score fields
+        $skorFields = [];
+        foreach (['skor_ht_home','skor_ht_away','skor_ft_home','skor_ft_away','skor_et_home','skor_et_away','skor_ps_home','skor_ps_away'] as $sf) {
+            $skorFields[$sf] = isset($input[$sf]) && $input[$sf] !== '' && $input[$sf] !== null ? (int)$input[$sf] : null;
+        }
+
         if ($existing) {
             $laporanId = (int) $existing['id'];
-            $pdo->prepare("UPDATE laporan_penilaian SET tahap_kesukaran = :tahap, ulasan_keseluruhan = :ulasan, status = :status" .
+            $pdo->prepare("UPDATE laporan_penilaian SET tahap_kesukaran = :tahap, cuaca = :cuaca, ulasan_keseluruhan = :ulasan, status = :status,
+                skor_ht_home = :skor_ht_home, skor_ht_away = :skor_ht_away,
+                skor_ft_home = :skor_ft_home, skor_ft_away = :skor_ft_away,
+                skor_et_home = :skor_et_home, skor_et_away = :skor_et_away,
+                skor_ps_home = :skor_ps_home, skor_ps_away = :skor_ps_away" .
                 ($hantar ? ", tarikh_hantar = NOW()" : "") . " WHERE id = :id")
-                ->execute([':tahap' => $tahap, ':ulasan' => $ulasan, ':status' => $status, ':id' => $laporanId]);
+                ->execute(array_merge([':tahap' => $tahap, ':cuaca' => $cuaca, ':ulasan' => $ulasan, ':status' => $status, ':id' => $laporanId],
+                    array_combine(array_map(fn($k) => ':' . $k, array_keys($skorFields)), array_values($skorFields))));
         } else {
-            $pdo->prepare("INSERT INTO laporan_penilaian (jadual_id, lantikan_id, penilai_id, tahap_kesukaran, ulasan_keseluruhan, status" .
-                ($hantar ? ", tarikh_hantar" : "") . ") VALUES (:jid, :lid, :pid, :tahap, :ulasan, :status" .
+            $pdo->prepare("INSERT INTO laporan_penilaian (jadual_id, lantikan_id, penilai_id, tahap_kesukaran, cuaca, ulasan_keseluruhan, status,
+                skor_ht_home, skor_ht_away, skor_ft_home, skor_ft_away, skor_et_home, skor_et_away, skor_ps_home, skor_ps_away" .
+                ($hantar ? ", tarikh_hantar" : "") . ") VALUES (:jid, :lid, :pid, :tahap, :cuaca, :ulasan, :status,
+                :skor_ht_home, :skor_ht_away, :skor_ft_home, :skor_ft_away, :skor_et_home, :skor_et_away, :skor_ps_home, :skor_ps_away" .
                 ($hantar ? ", NOW()" : "") . ")")
-                ->execute([
+                ->execute(array_merge([
                     ':jid' => $penilai['jadual_id'],
                     ':lid' => $penilai['lantikan_id'],
                     ':pid' => $penilaiId,
                     ':tahap' => $tahap,
+                    ':cuaca' => $cuaca,
                     ':ulasan' => $ulasan,
                     ':status' => $status,
-                ]);
+                ], array_combine(array_map(fn($k) => ':' . $k, array_keys($skorFields)), array_values($skorFields))));
             $laporanId = (int) $pdo->lastInsertId();
         }
 

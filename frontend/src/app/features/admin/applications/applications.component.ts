@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
@@ -25,6 +26,7 @@ export class AdminApplicationsComponent implements OnInit {
   yearFilter = new Date().getFullYear().toString();
   currentPage = 1;
   pageSize = 10;
+  group = 'pengadil';
 
   // Expand row
   expandedId: number | null = null;
@@ -52,22 +54,27 @@ export class AdminApplicationsComponent implements OnInit {
 
   persatuanList: any[] = [];
 
-  tabs = [
-    { key: 'berdaftar', label: 'Pengadil Berdaftar' },
-    { key: 'futsal', label: 'Pengadil Futsal' },
-    { key: 'kecergasan', label: 'Ujian Kecergasan' },
-    { key: 'bertulis', label: 'Ujian Kelas III FAM' },
-    { key: 'kelas1', label: 'Ujian Kelas 1 FAM' },
+  allTabs = [
+    { key: 'berdaftar', label: 'Pengadil Berdaftar', group: 'pengadil' },
+    { key: 'penilai', label: 'RA Berdaftar', group: 'penilai' },
+    { key: 'bertulis', label: 'Ujian Kelas III FAM', group: 'pengadil' },
+    { key: 'kelas1', label: 'Ujian Kelas 1 FAM', group: 'pengadil' },
   ];
+
+  tabs: { key: string; label: string; group: string }[] = [];
 
   stats = { total: 0, pending: 0, approved: 0, rejected: 0 };
 
   constructor(
     private api: ApiService,
     private toast: ToastService,
+    private route: ActivatedRoute,
   ) {}
 
   ngOnInit(): void {
+    this.group = this.route.snapshot.data['group'] || 'pengadil';
+    this.tabs = this.allTabs.filter(t => t.group === this.group);
+    this.activeTab = this.tabs[0]?.key || 'berdaftar';
     this.loadApplications();
     this.api.get<any>('admin-users.php').subscribe({
       next: (res) => { this.persatuanList = res.persatuan || []; },
@@ -197,6 +204,7 @@ export class AdminApplicationsComponent implements OnInit {
           this.toast.error(res.message);
         }
       },
+      error: () => this.toast.error('Gagal meluluskan permohonan.'),
     });
   }
 
@@ -235,6 +243,7 @@ export class AdminApplicationsComponent implements OnInit {
           this.toast.error(res.message);
         }
       },
+      error: () => this.toast.error('Gagal menolak permohonan.'),
     });
   }
 
@@ -277,7 +286,7 @@ export class AdminApplicationsComponent implements OnInit {
           this.toast.error(res.message);
         }
       },
-      error: () => this.toast.error('Gagal mengemaskini status ujian.'),
+      error: (err: any) => this.toast.error(err?.error?.message || 'Gagal mengemaskini status ujian.'),
     });
   }
 
@@ -307,7 +316,7 @@ export class AdminApplicationsComponent implements OnInit {
 
   deleteApplication(app: any): void {
     this.deleteTargetId = app.id;
-    this.deleteTargetName = app.nama;
+    this.deleteTargetName = app.nama_penuh;
     this.showDeleteModal = true;
   }
 
@@ -325,7 +334,7 @@ export class AdminApplicationsComponent implements OnInit {
           this.toast.error(res.message);
         }
       },
-      error: () => this.toast.error('Gagal memadam permohonan.'),
+      error: (err: any) => this.toast.error(err?.error?.message || 'Gagal memadam permohonan.'),
     });
   }
 

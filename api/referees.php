@@ -50,17 +50,39 @@ function handleList(): void
 
 
 
+    // Support type param: pengadil_berdaftar (default) or penilai_berdaftar (RA)
+
+    $allowedTypes = ['pengadil_berdaftar', 'penilai_berdaftar'];
+
+    $type = isset($_GET['type']) && in_array($_GET['type'], $allowedTypes, true) ? $_GET['type'] : 'pengadil_berdaftar';
+
+
+
+    // RA jenis_pengadil values (Penilai Pengadil & Pegawai Pembangunan)
+
+    // All registrations historically use jenis_borang=pengadil_berdaftar,
+
+    // so we filter by jenis_pengadil to correctly categorize
+
+    if ($type === 'penilai_berdaftar') {
+
+        $roleCondition = "AND a.jenis_pengadil IN ('Penilai Pengadil', 'Pegawai Pembangunan')";
+
+    } else {
+
+        $roleCondition = "AND (a.jenis_pengadil NOT IN ('Penilai Pengadil', 'Pegawai Pembangunan') OR a.jenis_pengadil IS NULL)";
+
+    }
+
+
+
     try {
 
         $pdo = getDbConnection();
 
 
 
-        // Get unique users who have at least one approved "pengadil_berdaftar" application
-
-        // in the selected year, then get their main referee application details
-
-        $sql = <<<'SQL'
+        $sql = <<<SQL
 
             SELECT DISTINCT
 
@@ -136,7 +158,8 @@ function handleList(): void
 
             LEFT JOIN persatuan_bolasepak_daerah p ON a.persatuan_id = p.id
 
-            WHERE a.jenis_borang = 'pengadil_berdaftar'
+            WHERE a.jenis_borang IN ('pengadil_berdaftar', 'penilai_berdaftar')
+            {$roleCondition}
 
             AND a.status = 'Approved'
 

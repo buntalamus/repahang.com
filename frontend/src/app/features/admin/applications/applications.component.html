@@ -5,8 +5,8 @@
   <!-- Header -->
   <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
     <div>
-      <h2 class="text-2xl font-bold text-gray-900 tracking-tight">Senarai Permohonan</h2>
-      <p class="text-sm text-gray-500 mt-1">Urus permohonan pendaftaran, ujian kecergasan, Ujian Kelas III FAM dan Ujian Kelas 1 FAM.</p>
+      <h2 class="text-2xl font-bold text-gray-900 tracking-tight">{{ group === 'penilai' ? 'Permohonan RA (Penilai)' : 'Permohonan Pengadil' }}</h2>
+      <p class="text-sm text-gray-500 mt-1">{{ group === 'penilai' ? 'Urus permohonan pendaftaran Referee Assessor (RA).' : 'Urus permohonan pendaftaran pengadil, Ujian Kelas III FAM dan Ujian Kelas 1 FAM.' }}</p>
     </div>
     <button (click)="downloadExcel()" class="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm gap-2">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
@@ -39,6 +39,7 @@
   </div>
 
   <!-- Tabs -->
+  @if (tabs.length > 1) {
   <div class="bg-white border-b border-gray-200 mb-6 rounded-t-xl overflow-hidden">
     <nav class="flex overflow-x-auto p-1 gap-1 bg-gray-50/50">
       @for (tab of tabs; track tab.key) {
@@ -51,6 +52,7 @@
       }
     </nav>
   </div>
+  }
 
   <!-- Filters -->
   <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm mb-6">

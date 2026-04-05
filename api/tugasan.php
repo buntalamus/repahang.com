@@ -8,7 +8,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
 
-$currentUser = requireRole(['Pengadil', 'Penilai']);
+$currentUser = requireRole(['Pengadil', 'Penilai', 'PP Daerah']);
 
 try {
     $pdo = getDbConnection();
@@ -25,7 +25,7 @@ try {
         FROM lantikan_pengadil lp
         JOIN jadual_perlawanan jp ON lp.jadual_id = jp.id
         JOIN kejohanan k ON jp.kejohanan_id = k.id
-        LEFT JOIN lantikan_pengadil pu ON pu.jadual_id = jp.id AND pu.jawatan = 'Pengadil Utama'
+        LEFT JOIN lantikan_pengadil pu ON pu.jadual_id = jp.id AND pu.jawatan = 'Pengadil'
         LEFT JOIN users u_pu ON pu.pengadil_id = u_pu.id
         WHERE lp.pengadil_id = :uid
         ORDER BY jp.tarikh ASC, jp.masa ASC
