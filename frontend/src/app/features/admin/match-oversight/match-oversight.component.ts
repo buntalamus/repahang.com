@@ -6,12 +6,12 @@ import { ToastService } from '../../../core/services/toast.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
 
 @Component({
-  selector: 'app-pp-match-verification',
+  selector: 'app-admin-match-oversight',
   standalone: true,
   imports: [FormsModule, DatePipe, LoadingComponent],
   template: `
     @if (loading) {
-      <app-loading message="Memuatkan senarai perlawanan..." />
+      <app-loading message="Memuatkan rekod perlawanan..." />
     } @else {
       <!-- Stats -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
@@ -39,12 +39,19 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
       <!-- Filter Bar -->
       <div class="flex flex-col sm:flex-row gap-3 mb-4">
         <input type="text" [(ngModel)]="searchQuery" (ngModelChange)="applySearch()"
-          placeholder="Cari pengadil, pasukan, tempat..."
+          placeholder="Cari pasukan, pengadil, tempat, daerah..."
           class="px-4 py-2 border border-slate-300 rounded-lg text-sm flex-1 focus:ring-2 focus:ring-pahang-yellow/30 focus:border-pahang-yellow outline-none" />
+        <select [(ngModel)]="filterDaerahId" (ngModelChange)="setDaerahFilter($event)"
+          class="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pahang-yellow/30 focus:border-pahang-yellow outline-none">
+          <option value="0">Semua Daerah</option>
+          @for (d of districts; track d.id) {
+            <option [value]="d.id">{{ d.nama }}</option>
+          }
+        </select>
         <button (click)="setFilter('')"
           class="px-4 py-2 text-sm font-medium rounded-lg border transition"
           [class]="!filterStatus ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'">
-          Semua
+          Semua Status
         </button>
       </div>
 
@@ -57,7 +64,7 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">#</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Perlawanan</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Tarikh</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Jenis</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Daerah</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Pegawai</th>
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
               </tr>
@@ -68,13 +75,13 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
                   <td class="px-4 py-3 text-slate-400 text-xs">{{ i + 1 }}</td>
                   <td class="px-4 py-3">
                     <p class="font-semibold text-slate-900 text-sm">{{ match.home_team }} vs {{ match.away_team }}</p>
-                    <p class="text-xs text-slate-400 mt-0.5">{{ match.tempat }}@if (match.daerah_perlawanan_nama) { · {{ match.daerah_perlawanan_nama }}}</p>
+                    <p class="text-xs text-slate-400 mt-0.5">{{ match.tempat }}</p>
                   </td>
                   <td class="px-4 py-3 hidden sm:table-cell">
                     <p class="text-slate-700 text-xs">{{ match.tarikh | date:'d MMM yyyy' }}</p>
                     @if (match.masa) {<p class="text-slate-400 text-xs">{{ match.masa }}</p>}
                   </td>
-                  <td class="px-4 py-3 hidden md:table-cell text-xs text-slate-600">{{ match.jenis || '-' }}</td>
+                  <td class="px-4 py-3 hidden md:table-cell text-xs text-slate-600">{{ match.daerah_perlawanan_nama || '-' }}</td>
                   <td class="px-4 py-3 hidden lg:table-cell">
                     @if (match.is_grouped) {
                       <span class="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700">
@@ -94,10 +101,7 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
                 <tr>
                   <td colspan="6" class="px-4 py-12 text-center text-slate-400">
                     <span class="material-icons text-4xl mb-2 block">sports_soccer</span>
-                    @if (filterStatus === 'pending') { Tiada perlawanan menunggu pengesahan. }
-                    @else if (filterStatus === 'verified') { Tiada perlawanan yang disahkan. }
-                    @else if (filterStatus === 'rejected') { Tiada perlawanan yang ditolak. }
-                    @else { Tiada rekod perlawanan ditemui. }
+                    Tiada rekod perlawanan ditemui.
                   </td>
                 </tr>
               }
@@ -128,7 +132,8 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
            (click)="closeModal($event)" role="dialog" aria-modal="true">
         <div class="absolute inset-0 bg-black/40"></div>
 
-        <div class="relative bg-white w-full max-w-lg rounded-xl shadow-xl" (click)="$event.stopPropagation()">
+        <div class="relative bg-white w-full max-w-lg rounded-xl shadow-xl"
+             (click)="$event.stopPropagation()">
 
           <!-- Header -->
           <div class="flex items-start justify-between px-4 pt-4 pb-3 border-b border-slate-100">
@@ -181,7 +186,12 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
                   <span class="font-medium text-slate-700">{{ selectedMatch.submitter_name }}</span>
                 </div>
               }
-              <!-- Score inline -->
+              @if (selectedMatch.verified_by_name) {
+                <div class="flex justify-between border-b border-slate-100 pb-1.5 col-span-2">
+                  <span class="text-slate-400">Diproses oleh</span>
+                  <span class="font-medium text-slate-700">{{ selectedMatch.verified_by_name }} · {{ selectedMatch.verified_at | date:'d MMM yyyy' }}</span>
+                </div>
+              }
               @if (selectedMatch.skor_ft_home !== null && selectedMatch.skor_ft_away !== null) {
                 <div class="flex justify-between border-b border-slate-100 pb-1.5">
                   <span class="text-slate-400">Keputusan (FT)</span>
@@ -214,53 +224,59 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
               </table>
             </div>
 
-            <!-- Notes -->
+            <!-- Existing notes -->
             @if (selectedMatch.catatan_pp) {
               <p class="text-xs text-slate-500 italic border-l-2 border-amber-300 pl-2">{{ selectedMatch.catatan_pp }}</p>
             }
 
-            <!-- Action area -->
-            @if (!selectedMatch.status_pp || selectedMatch.status_pp === 'Belum Disahkan') {
-              <div class="border-t border-slate-100 pt-3">
-                <textarea [(ngModel)]="actionNotes" rows="2"
-                  placeholder="Catatan PP (pilihan)..."
-                  class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs resize-none focus:ring-1 focus:ring-pahang-yellow outline-none mb-2"></textarea>
-                <div class="flex justify-between items-center">
-                  <button (click)="showDeleteConfirm = !showDeleteConfirm"
-                    class="text-xs text-red-500 hover:text-red-700 transition">Padam</button>
-                  <div class="flex gap-2">
-                    <button (click)="submitAction('reject')" [disabled]="processing"
-                      class="px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg disabled:opacity-50">
-                      {{ processing ? '...' : 'Tolak' }}
-                    </button>
-                    <button (click)="submitAction('verify')" [disabled]="processing"
-                      class="px-4 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50">
-                      {{ processing ? 'Memproses...' : (selectedMatch.is_grouped ? 'Sahkan Semua' : 'Sahkan') }}
-                    </button>
-                  </div>
+            <!-- Override action area -->
+            <div class="border-t border-slate-100 pt-3 space-y-2">
+              <div class="flex items-center gap-1.5 mb-1">
+                <span class="material-icons text-sm text-orange-500">admin_panel_settings</span>
+                <span class="text-xs font-semibold text-orange-600">Override Admin</span>
+                <span class="text-xs text-slate-400">(justifikasi wajib)</span>
+              </div>
+              <textarea [(ngModel)]="justification" rows="2"
+                placeholder="Contoh: ralat data, permintaan PP, semakan audit..."
+                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs resize-none focus:ring-1 focus:ring-orange-300 outline-none"></textarea>
+              @if (justificationError) {
+                <p class="text-xs text-red-600">{{ justificationError }}</p>
+              }
+              <div class="flex justify-between items-center">
+                <button (click)="showDeleteConfirm = !showDeleteConfirm; justificationError = ''"
+                  class="text-xs text-red-500 hover:text-red-700 transition">Padam</button>
+                <div class="flex gap-2">
+                  <button (click)="submitOverride('revert')" [disabled]="processing"
+                    class="px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg disabled:opacity-50">
+                    {{ processing ? '...' : 'Kembalikan' }}
+                  </button>
+                  <button (click)="submitOverride('reject')" [disabled]="processing"
+                    class="px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg disabled:opacity-50">
+                    {{ processing ? '...' : 'Tolak' }}
+                  </button>
+                  <button (click)="submitOverride('verify')" [disabled]="processing"
+                    class="px-4 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50">
+                    {{ processing ? 'Memproses...' : (selectedMatch.is_grouped ? 'Sahkan Semua' : 'Sahkan') }}
+                  </button>
                 </div>
               </div>
-            } @else {
-              <div class="border-t border-slate-100 pt-3 flex justify-between items-center">
-                <button (click)="showDeleteConfirm = !showDeleteConfirm"
-                  class="text-xs text-red-500 hover:text-red-700 transition">Padam</button>
-                <button (click)="submitAction('revert')" [disabled]="processing"
-                  class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg disabled:opacity-50">
-                  <span class="material-icons text-sm">undo</span>
-                  {{ processing ? '...' : 'Edit Semula' }}
-                </button>
-              </div>
-            }
+            </div>
 
             <!-- Delete confirm inline -->
             @if (showDeleteConfirm) {
-              <div class="flex items-center justify-between gap-3 bg-red-50 rounded-lg px-3 py-2 text-xs">
-                <span class="text-red-700">Padam perlawanan ini? Tidak boleh dibatalkan.</span>
-                <div class="flex gap-2 shrink-0">
-                  <button (click)="showDeleteConfirm = false" class="text-slate-500 hover:text-slate-700">Tidak</button>
-                  <button (click)="deleteSelectedMatch()" [disabled]="deleting"
-                    class="font-semibold text-red-600 hover:text-red-800 disabled:opacity-50">
-                    {{ deleting ? '...' : 'Ya' }}
+              <div class="space-y-2 bg-red-50 rounded-lg px-3 py-2">
+                <p class="text-xs text-red-700 font-medium">Padam semua rekod perlawanan ini? Tidak boleh dibatalkan.</p>
+                <textarea [(ngModel)]="justification" rows="2"
+                  placeholder="Justifikasi pemadaman (wajib)..."
+                  class="w-full px-3 py-2 border border-red-300 bg-white rounded-lg text-xs resize-none focus:ring-1 focus:ring-red-300 outline-none"></textarea>
+                @if (justificationError) {
+                  <p class="text-xs text-red-600">{{ justificationError }}</p>
+                }
+                <div class="flex justify-end gap-2">
+                  <button (click)="showDeleteConfirm = false; justificationError = ''" class="text-xs text-slate-500 hover:text-slate-700">Batal</button>
+                  <button (click)="deleteMatch()" [disabled]="deleting"
+                    class="text-xs font-semibold text-red-600 hover:text-red-800 disabled:opacity-50">
+                    {{ deleting ? 'Memadam...' : 'Ya, Padam' }}
                   </button>
                 </div>
               </div>
@@ -271,21 +287,25 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
     }
   `,
 })
-export class PpMatchVerificationComponent implements OnInit {
+export class AdminMatchOversightComponent implements OnInit {
   loading = true;
   processing = false;
   deleting = false;
+
   matches: any[] = [];
   filtered: any[] = [];
   stats: any = {};
+  districts: any[] = [];
   pagination: any = { page: 1, total_pages: 1 };
+
   searchQuery = '';
-  filterStatus = 'pending';
+  filterStatus = '';
+  filterDaerahId = 0;
 
   selectedMatch: any = null;
-  showActionForm = false;
-  actionNotes = '';
   showDeleteConfirm = false;
+  justification = '';
+  justificationError = '';
 
   constructor(
     private api: ApiService,
@@ -297,9 +317,7 @@ export class PpMatchVerificationComponent implements OnInit {
   }
 
   @HostListener('document:keydown.escape')
-  onEscape(): void {
-    this.closeModal();
-  }
+  onEscape(): void { this.closeModal(); }
 
   setFilter(status: string): void {
     this.filterStatus = status;
@@ -307,15 +325,22 @@ export class PpMatchVerificationComponent implements OnInit {
     this.loadMatches();
   }
 
+  setDaerahFilter(id: number): void {
+    this.filterDaerahId = +id;
+    this.pagination.page = 1;
+    this.loadMatches();
+  }
+
   loadMatches(): void {
     this.loading = true;
-    const params = `?status=${this.filterStatus}&page=${this.pagination.page}&per_page=50`;
-    this.api.get<any>(`pp-verify-match.php${params}`).subscribe({
+    const params = `?status=${this.filterStatus}&daerah_id=${this.filterDaerahId}&page=${this.pagination.page}&per_page=50`;
+    this.api.get<any>(`admin-matches.php${params}`).subscribe({
       next: (res) => {
         if (!res.error) {
-          this.matches = res.matches || [];
-          this.filtered = [...this.matches];
-          this.stats = res.statistics || {};
+          this.matches   = res.matches   || [];
+          this.filtered  = [...this.matches];
+          this.stats     = res.statistics || {};
+          this.districts = res.districts  || [];
           this.pagination = res.pagination || { page: 1, total_pages: 1 };
         }
         this.loading = false;
@@ -327,35 +352,32 @@ export class PpMatchVerificationComponent implements OnInit {
   applySearch(): void {
     if (!this.searchQuery) { this.filtered = [...this.matches]; return; }
     const q = this.searchQuery.toLowerCase();
-    this.filtered = this.matches.filter(
-      (m) =>
-        (m.home_team || '').toLowerCase().includes(q) ||
-        (m.away_team || '').toLowerCase().includes(q) ||
-        (m.tempat || '').toLowerCase().includes(q) ||
-        (m.jenis || '').toLowerCase().includes(q) ||
-        (m.daerah_perlawanan_nama || '').toLowerCase().includes(q) ||
-        (m.submitter_name || '').toLowerCase().includes(q) ||
-        m.officials?.some((o: any) => (o.nama || '').toLowerCase().includes(q)),
+    this.filtered = this.matches.filter((m) =>
+      (m.home_team || '').toLowerCase().includes(q) ||
+      (m.away_team || '').toLowerCase().includes(q) ||
+      (m.tempat || '').toLowerCase().includes(q) ||
+      (m.jenis || '').toLowerCase().includes(q) ||
+      (m.daerah_perlawanan_nama || '').toLowerCase().includes(q) ||
+      (m.submitter_name || '').toLowerCase().includes(q) ||
+      m.officials?.some((o: any) => (o.nama || '').toLowerCase().includes(q)),
     );
   }
 
-  trackMatch(match: any): string {
-    return match.match_group_id || ('s_' + match.id);
-  }
+  trackMatch(match: any): string { return match.match_group_id || ('s_' + match.id); }
 
   openModal(match: any): void {
-    this.selectedMatch = match;
-    this.showActionForm = false;
-    this.actionNotes = '';
+    this.selectedMatch     = match;
     this.showDeleteConfirm = false;
+    this.justification     = '';
+    this.justificationError = '';
   }
 
   closeModal(event?: MouseEvent): void {
     if (event && event.target !== event.currentTarget) return;
     this.selectedMatch = null;
-    this.showActionForm = false;
-    this.actionNotes = '';
     this.showDeleteConfirm = false;
+    this.justification = '';
+    this.justificationError = '';
   }
 
   hasScore(match: any): boolean {
@@ -374,17 +396,23 @@ export class PpMatchVerificationComponent implements OnInit {
     return status;
   }
 
-  submitAction(action: 'verify' | 'reject' | 'revert'): void {
+  submitOverride(action: 'verify' | 'reject' | 'revert'): void {
+    this.justificationError = '';
+    if (action !== 'revert' && !this.justification.trim()) {
+      this.justificationError = 'Justifikasi wajib diisi.';
+      return;
+    }
     if (!this.selectedMatch) return;
+
     this.processing = true;
-    const payload: any = { action, notes: this.actionNotes };
+    const payload: any = { action, justification: this.justification };
     if (this.selectedMatch.is_grouped && this.selectedMatch.match_group_id) {
       payload.match_group_id = this.selectedMatch.match_group_id;
     } else {
       payload.match_id = this.selectedMatch.id;
     }
 
-    this.api.post<any>('pp-verify-match.php', payload).subscribe({
+    this.api.post<any>('admin-matches.php', payload).subscribe({
       next: (res) => {
         this.processing = false;
         if (!res.error) {
@@ -397,22 +425,28 @@ export class PpMatchVerificationComponent implements OnInit {
       },
       error: (err: any) => {
         this.processing = false;
-        this.toast.error(err?.error?.message || 'Gagal memproses pengesahan.');
+        this.toast.error(err?.error?.message || 'Gagal memproses override.');
       },
     });
   }
 
-  deleteSelectedMatch(): void {
+  deleteMatch(): void {
+    this.justificationError = '';
+    if (!this.justification.trim()) {
+      this.justificationError = 'Justifikasi wajib diisi.';
+      return;
+    }
     if (!this.selectedMatch) return;
+
     this.deleting = true;
-    const payload: any = {};
+    const payload: any = { justification: this.justification };
     if (this.selectedMatch.is_grouped && this.selectedMatch.match_group_id) {
       payload.match_group_id = this.selectedMatch.match_group_id;
     } else {
       payload.match_id = this.selectedMatch.id;
     }
 
-    this.api.delete<any>('pp-verify-match.php', payload).subscribe({
+    this.api.delete<any>('admin-matches.php', payload).subscribe({
       next: (res) => {
         this.deleting = false;
         if (!res.error) {

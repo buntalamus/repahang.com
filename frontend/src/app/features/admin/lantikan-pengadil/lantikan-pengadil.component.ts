@@ -35,7 +35,7 @@ export class LantikanPengadilComponent implements OnInit {
   showKejohananModal = false;
   editingKejohanan: any = null;
   savingKejohanan = false;
-  kejohananForm = { nama: '', tarikh_mula: '', tarikh_akhir: '', tempat: '', anjuran: '', status: 'Draf' };
+  kejohananForm = { nama: '', jenis_kejohanan: 'Persahabatan', peringkat_kejohanan: 'Daerah', tarikh_mula: '', tarikh_akhir: '', tempat: '', anjuran: '', status: 'Draf' };
   kejohananSearch = '';
   kejohananStatusFilter = '';
   kejohananPage = 1;
@@ -341,14 +341,16 @@ export class LantikanPengadilComponent implements OnInit {
 
   openAddKejohanan(): void {
     this.editingKejohanan = null;
-    this.kejohananForm = { nama: '', tarikh_mula: '', tarikh_akhir: '', tempat: '', anjuran: '', status: 'Draf' };
+    this.kejohananForm = { nama: '', jenis_kejohanan: 'Persahabatan', peringkat_kejohanan: 'Daerah', tarikh_mula: '', tarikh_akhir: '', tempat: '', anjuran: '', status: 'Draf' };
     this.showKejohananModal = true;
   }
 
   openEditKejohanan(k: any): void {
     this.editingKejohanan = k;
     this.kejohananForm = {
-      nama: k.nama, tarikh_mula: k.tarikh_mula, tarikh_akhir: k.tarikh_akhir,
+      nama: k.nama, jenis_kejohanan: k.jenis_kejohanan || 'Persahabatan',
+      peringkat_kejohanan: k.peringkat_kejohanan || 'Daerah',
+      tarikh_mula: k.tarikh_mula, tarikh_akhir: k.tarikh_akhir,
       tempat: k.tempat || '', anjuran: k.anjuran || '', status: k.status,
     };
     this.showKejohananModal = true;

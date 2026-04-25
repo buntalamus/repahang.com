@@ -122,7 +122,7 @@ try {
 
         $workflowStatusUpdate = '';
 
-        if (in_array($application['jenis_borang'], ['ujian_kecergasan', 'ujian_bertulis', 'ujian_kelas1_fam'])) {
+        if ($application['jenis_borang'] === 'ujian_kelas1_fam') {
 
             $workflowStatusUpdate = ', workflow_status = \'Approved\'';
 
@@ -224,7 +224,7 @@ try {
 
         $workflowStatusUpdate = '';
 
-        if (in_array($application['jenis_borang'], ['ujian_kecergasan', 'ujian_bertulis', 'ujian_kelas1_fam'])) {
+        if ($application['jenis_borang'] === 'ujian_kelas1_fam') {
 
             $workflowStatusUpdate = ', workflow_status = \'Rejected\'';
 

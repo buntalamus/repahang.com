@@ -13,6 +13,40 @@
 declare(strict_types=1);
 
 /**
+ * Get the auto-accept deadline hours based on jenis_kejohanan.
+ *   - Liga: 48 jam sebelum perlawanan
+ *   - Karnival / Persahabatan: 3 jam sebelum perlawanan
+ */
+function getDeadlineHours(string $jenisKejohanan): int
+{
+    return strtolower($jenisKejohanan) === 'liga' ? 48 : 3;
+}
+
+/**
+ * Get the auto-accept rule text (Malay) for the given jenis_kejohanan.
+ */
+function getDeadlineRuleText(string $jenisKejohanan): string
+{
+    $hours = getDeadlineHours($jenisKejohanan);
+    return "Anda perlu menjawab lantikan ini {$hours} jam sebelum perlawanan bermula. "
+         . "Jika tidak dijawab dalam tempoh tersebut, lantikan akan diterima secara automatik.";
+}
+
+/**
+ * Calculate formatted deadline string from match datetime and jenis_kejohanan.
+ * Returns e.g. "05 Apr 2026, 14:00"
+ */
+function calcDeadlineFormatted(string $tarikh, string $masa, string $jenisKejohanan): string
+{
+    $hours = getDeadlineHours($jenisKejohanan);
+    $matchDt = strtotime("$tarikh $masa");
+    if ($matchDt) {
+        return date('d M Y, H:i', $matchDt - $hours * 3600);
+    }
+    return date('d M Y', strtotime($tarikh));
+}
+
+/**
  * Create a perlawanan record from an accepted lantikan.
  * Populates all official IDs so the pengadil can see the full crew.
  * Skips if record already exists (duplicate-safe via lantikan_id UNIQUE).

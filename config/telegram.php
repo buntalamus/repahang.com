@@ -211,7 +211,8 @@ function tgLantikanMessage(
     string $tempat,
     string $pasukanHome,
     string $pasukanAway,
-    string $noMatch = ''
+    string $noMatch = '',
+    string $jenisKejohanan = 'Persahabatan'
 ): string {
     $tarikhFmt  = date('d M Y', strtotime($tarikh));
     $masaFmt    = $masa ? date('H:i', strtotime($masa)) : '-';
@@ -219,8 +220,10 @@ function tgLantikanMessage(
     $matchLine  = htmlspecialchars($pasukanHome) . ' lwn ' . htmlspecialchars($pasukanAway);
     $noLine     = $noMatchFmt ? "<b>No. Perlawanan:</b> {$noMatchFmt}\n" : '';
 
-    $matchDt    = strtotime("$tarikh $masa");
-    $deadlineDt = $matchDt ? date('d M Y, H:i', $matchDt - 3 * 3600) : date('d M Y', strtotime($tarikh));
+    require_once __DIR__ . '/lantikan-helper.php';
+    $deadlineHours = getDeadlineHours($jenisKejohanan);
+    $deadlineDt    = calcDeadlineFormatted($tarikh, $masa, $jenisKejohanan);
+    $ruleText      = getDeadlineRuleText($jenisKejohanan);
 
     return "<b>\u{1F3DF} Lantikan Pengadil</b>\n\n" .
            "Assalamualaikum <b>" . htmlspecialchars($nama) . "</b>,\n\n" .
@@ -232,5 +235,7 @@ function tgLantikanMessage(
            "<b>Tarikh:</b> {$tarikhFmt}\n" .
            "<b>Masa:</b> {$masaFmt} WIB\n" .
            "<b>Tempat:</b> " . htmlspecialchars($tempat) . "\n\n" .
-           "Sila <b>terima atau tolak</b> tugasan ini <b>sebelum {$deadlineDt}</b> (3 jam sebelum perlawanan).";
+           "\u{26A0}\u{FE0F} <b>Garis Masa Jawapan:</b>\n" .
+           "Sila <b>terima atau tolak</b> tugasan ini <b>sebelum {$deadlineDt}</b> ({$deadlineHours} jam sebelum perlawanan).\n\n" .
+           "\u{2139}\u{FE0F} <i>{$ruleText}</i>";
 }

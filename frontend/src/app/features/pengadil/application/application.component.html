@@ -3,22 +3,8 @@
     <app-loading [message]="'Memuatkan ' + typeLabel + '...'" />
   } @else {
 
-    <!-- Kecergasan: bundled notice -->
-    @if (isKecergasan) {
-      <div class="bg-white border border-slate-200 rounded-xl p-6 flex gap-4 items-start">
-        <span class="material-icons text-pahang-yellow mt-0.5">info</span>
-        <div>
-          <h3 class="font-semibold text-slate-800 mb-1">Ujian Kecergasan Dibundel Bersama Pendaftaran Tahunan</h3>
-          <p class="text-sm text-slate-600">
-            Permohonan Ujian Kecergasan (R4) adalah <strong>sebahagian daripada</strong> Pendaftaran Tahunan Pengadil (R1+R2).
-            Sila hantar permohonan melalui tab <strong>Pendaftaran Tahunan</strong>.
-          </p>
-        </div>
-      </div>
-    }
-
     <!-- Applications closed -->
-    @if (!isKecergasan && !applicationsOpen) {
+    @if (!applicationsOpen) {
       <div class="bg-white border border-slate-200 rounded-xl p-6 flex gap-4 items-start">
         <span class="material-icons text-pahang-yellow mt-0.5">lock</span>
         <div>
@@ -30,21 +16,17 @@
       </div>
     }
 
-    <!-- Eligibility: Ujian Kelas III FAM -->
-    @if (isBertulis && applicationsOpen && !currentApp) {
+    <!-- Eligibility: Kelas III FAM -->
+    @if (isKelas3 && applicationsOpen && !currentApp) {
       <div class="bg-white border border-slate-200 rounded-xl p-5">
         <div class="flex items-center gap-2 mb-3 pb-3 border-b border-slate-100">
           <span class="material-icons text-pahang-yellow">history_edu</span>
-          <h3 class="font-semibold text-slate-800">Syarat Kelayakan &mdash; Ujian Kelas III FAM</h3>
+          <h3 class="font-semibold text-slate-800">Syarat Kelayakan &mdash; Kelas III FAM</h3>
         </div>
         <ul class="space-y-2 text-sm text-slate-700">
           <li class="flex items-start gap-2">
             <span class="material-icons text-sm text-pahang-yellow mt-0.5">check</span>
-            Had umur: <strong>{{ bertulisMinAge }}&ndash;{{ bertulisMaxAge }} tahun</strong> pada tahun {{ applicationYear }}
-          </li>
-          <li class="flex items-start gap-2">
-            <span class="material-icons text-sm text-pahang-yellow mt-0.5">check</span>
-            Yuran peperiksaan: <strong>RM {{ bertulisFee }}</strong>
+            Yuran peperiksaan: <strong>RM {{ kelas1Fee }}</strong>
           </li>
           <li class="flex items-start gap-2">
             <span class="material-icons text-sm text-pahang-yellow mt-0.5">check</span>
@@ -156,8 +138,8 @@
             </div>
           }
 
-          <!-- Payment Card: bertulis/kelas1 (FAM) -->
-          @if (isBertulis || isKelas1) {
+          <!-- Payment Card: kelas3/kelas1 (FAM) -->
+          @if (isKelas3 || isKelas1) {
             <div class="p-6">
               <div class="rounded-xl bg-pahang-black text-white p-5 space-y-4">
                 <div class="flex items-center gap-2">
@@ -171,7 +153,7 @@
                   </div>
                   <div>
                     <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Jumlah Bayaran</p>
-                    <p class="font-bold text-pahang-yellow text-xl">RM {{ isBertulis ? bertulisFee : kelas1Fee }}</p>
+                    <p class="font-bold text-pahang-yellow text-xl">RM {{ kelas1Fee }}</p>
                   </div>
                   <div class="sm:col-span-3">
                     <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">No. Akaun FAM</p>
@@ -324,7 +306,7 @@
           }
 
           <!-- Resit Upload (bertulis / kelas1) -->
-          @if (isBertulis || isKelas1) {
+          @if (isKelas3 || isKelas1) {
             <div class="p-6">
               <h4 class="font-semibold text-slate-800 mb-4 flex items-center gap-2">
                 <span class="material-icons text-pahang-yellow text-lg">upload_file</span>

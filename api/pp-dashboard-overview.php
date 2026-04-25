@@ -201,195 +201,136 @@ function getInactiveRefereesCount(PDO $pdo, int $persatuanId): int
 
 
 
-function getTotalMatchesCount(PDO $pdo, int $persatuanId): int
-
+// Helper: dapatkan district_id PP berdasarkan persatuan_id
+function getPpDistrictId(PDO $pdo, int $persatuanId): int
 {
-
     $stmt = $pdo->prepare("
-
-        SELECT COUNT(*) as count
-
-        FROM perlawanan p
-
-        JOIN permohonan pm ON p.permohonan_id = pm.id
-
-        WHERE pm.persatuan_id = :persatuan_id
-
+        SELECT d.id FROM persatuan_bolasepak_daerah p
+        INNER JOIN districts d ON p.daerah = d.nama
+        WHERE p.id = :persatuan_id LIMIT 1
     ");
-
     $stmt->execute([':persatuan_id' => $persatuanId]);
-
-    $result = $stmt->fetch();
-
-    return $result ? (int) $result['count'] : 0;
-
+    return (int) ($stmt->fetchColumn() ?: 0);
 }
 
+// Scope SQL untuk match queries (sama seperti pp-verify-match.php)
+function ppMatchScope(): string
+{
+    return "(
+        (p.match_group_id IS NOT NULL AND p.daerah_perlawanan_id = :district_id)
+        OR (p.match_group_id IS NULL AND u.persatuan_id = :persatuan_id AND u.role = 'Pengadil')
+    )";
+}
 
+function getTotalMatchesCount(PDO $pdo, int $persatuanId): int
+{
+    $districtId = getPpDistrictId($pdo, $persatuanId);
+    $scope = ppMatchScope();
+    $stmt = $pdo->prepare("
+        SELECT COUNT(DISTINCT COALESCE(p.match_group_id, CAST(p.id AS CHAR))) as count
+        FROM perlawanan p
+        INNER JOIN users u ON p.user_id = u.id
+        WHERE $scope
+    ");
+    $stmt->execute([':district_id' => $districtId, ':persatuan_id' => $persatuanId]);
+    return (int) ($stmt->fetchColumn() ?: 0);
+}
 
 function getMatchesThisMonthCount(PDO $pdo, int $persatuanId): int
-
 {
-
+    $districtId = getPpDistrictId($pdo, $persatuanId);
+    $scope = ppMatchScope();
     $stmt = $pdo->prepare("
-
-        SELECT COUNT(*) as count
-
+        SELECT COUNT(DISTINCT COALESCE(p.match_group_id, CAST(p.id AS CHAR))) as count
         FROM perlawanan p
-
-        JOIN permohonan pm ON p.permohonan_id = pm.id
-
-        WHERE pm.persatuan_id = :persatuan_id
-
+        INNER JOIN users u ON p.user_id = u.id
+        WHERE $scope
         AND YEAR(p.tarikh) = YEAR(CURRENT_DATE)
-
         AND MONTH(p.tarikh) = MONTH(CURRENT_DATE)
-
     ");
-
-    $stmt->execute([':persatuan_id' => $persatuanId]);
-
-    $result = $stmt->fetch();
-
-    return $result ? (int) $result['count'] : 0;
-
+    $stmt->execute([':district_id' => $districtId, ':persatuan_id' => $persatuanId]);
+    return (int) ($stmt->fetchColumn() ?: 0);
 }
-
-
 
 function getVerificationRate(PDO $pdo, int $persatuanId): float
-
 {
-
     $total = getTotalMatchesCount($pdo, $persatuanId);
-
     $verified = getVerifiedMatchesCount($pdo, $persatuanId);
-
     return $total > 0 ? round(($verified / $total) * 100, 1) : 0.0;
-
 }
-
-
 
 function getVerifiedMatchesCount(PDO $pdo, int $persatuanId): int
-
 {
-
+    $districtId = getPpDistrictId($pdo, $persatuanId);
+    $scope = ppMatchScope();
     $stmt = $pdo->prepare("
-
-        SELECT COUNT(*) as count
-
+        SELECT COUNT(DISTINCT COALESCE(p.match_group_id, CAST(p.id AS CHAR))) as count
         FROM perlawanan p
-
-        JOIN permohonan pm ON p.permohonan_id = pm.id
-
-        WHERE pm.persatuan_id = :persatuan_id
-
-        AND p.status_pp = 'Disahkan'
-
+        INNER JOIN users u ON p.user_id = u.id
+        WHERE $scope AND p.status_pp = 'Disahkan'
     ");
-
-    $stmt->execute([':persatuan_id' => $persatuanId]);
-
-    $result = $stmt->fetch();
-
-    return $result ? (int) $result['count'] : 0;
-
+    $stmt->execute([':district_id' => $districtId, ':persatuan_id' => $persatuanId]);
+    return (int) ($stmt->fetchColumn() ?: 0);
 }
 
-
+function getPendingMatchesCount(PDO $pdo, int $persatuanId): int
+{
+    $districtId = getPpDistrictId($pdo, $persatuanId);
+    $scope = ppMatchScope();
+    $stmt = $pdo->prepare("
+        SELECT COUNT(DISTINCT COALESCE(p.match_group_id, CAST(p.id AS CHAR))) as count
+        FROM perlawanan p
+        INNER JOIN users u ON p.user_id = u.id
+        WHERE $scope
+        AND (p.status_pp IS NULL OR p.status_pp = '' OR p.status_pp = 'Belum Disahkan')
+    ");
+    $stmt->execute([':district_id' => $districtId, ':persatuan_id' => $persatuanId]);
+    return (int) ($stmt->fetchColumn() ?: 0);
+}
 
 function getTopRefereesByMatches(PDO $pdo, int $persatuanId): array
-
 {
-
+    $districtId = getPpDistrictId($pdo, $persatuanId);
     $stmt = $pdo->prepare("
-
         SELECT
-
             u.id,
-
             u.nama_penuh,
-
             u.jenis_pengadil,
-
-            COUNT(DISTINCT pp.perlawanan_id) as total_matches,
-
-            COUNT(DISTINCT CASE WHEN p.status_pp = 'Disahkan' THEN pp.perlawanan_id END) as verified_matches
-
+            COUNT(DISTINCT COALESCE(p.match_group_id, CAST(p.id AS CHAR))) AS total_matches,
+            COUNT(DISTINCT CASE WHEN p.status_pp = 'Disahkan'
+                THEN COALESCE(p.match_group_id, CAST(p.id AS CHAR)) END) AS verified_matches
         FROM users u
-
-        JOIN perlawanan_pengadil pp ON u.id = pp.pengadil_id
-
-        JOIN perlawanan p ON pp.perlawanan_id = p.id
-
-        JOIN permohonan pm ON p.permohonan_id = pm.id
-
+        INNER JOIN perlawanan p ON p.user_id = u.id
         WHERE u.role = 'Pengadil'
-
-        AND u.persatuan_id = :persatuan_id
-
+        AND (
+            (p.match_group_id IS NOT NULL AND p.daerah_perlawanan_id = :district_id)
+            OR (p.match_group_id IS NULL AND u.persatuan_id = :persatuan_id)
+        )
         GROUP BY u.id, u.nama_penuh, u.jenis_pengadil
-
         ORDER BY total_matches DESC, verified_matches DESC
-
         LIMIT 5
-
     ");
-
-    $stmt->execute([':persatuan_id' => $persatuanId]);
-
+    $stmt->execute([':district_id' => $districtId, ':persatuan_id' => $persatuanId]);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
-
 }
-
-
 
 function getCurrentAssignments(PDO $pdo, int $persatuanId): array
-
 {
-
-    // Get current/future assignments for referees in this district
-
+    $districtId = getPpDistrictId($pdo, $persatuanId);
+    $scope = ppMatchScope();
     $stmt = $pdo->prepare("
-
-        SELECT
-
-            p.jenis,
-
-            p.tempat,
-
-            p.tarikh,
-
-            p.jawatan,
-
-            u.nama_penuh,
-
-            p.status_pp as status
-
+        SELECT DISTINCT p.match_group_id, p.jenis, p.tempat, p.tarikh,
+            p.home_team, p.away_team, u.nama_penuh, p.jawatan, p.status_pp AS status
         FROM perlawanan p
-
-        JOIN permohonan pm ON p.permohonan_id = pm.id
-
-        JOIN users u ON pm.user_id = u.id
-
-        WHERE pm.persatuan_id = :persatuan_id
-
-        AND u.role = 'Pengadil'
-
-        AND p.tarikh >= CURDATE()
-
+        INNER JOIN users u ON p.user_id = u.id
+        WHERE $scope AND p.tarikh >= CURDATE()
         ORDER BY p.tarikh ASC
-
         LIMIT 10
-
     ");
-
-    $stmt->execute([':persatuan_id' => $persatuanId]);
-
+    $stmt->execute([':district_id' => $districtId, ':persatuan_id' => $persatuanId]);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
-
 }
+
 function getPendingApplicationsCount(PDO $pdo, int $persatuanId): int
 {
     $stmt = $pdo->prepare("
@@ -397,11 +338,10 @@ function getPendingApplicationsCount(PDO $pdo, int $persatuanId): int
         FROM permohonan p
         JOIN users u ON p.user_id = u.id
         WHERE u.persatuan_id = :persatuan_id
-        AND p.status_workflow IN ('Menunggu PP Daerah', 'Menunggu Admin')
+        AND p.status_workflow = 'Menunggu PP Daerah'
     ");
     $stmt->execute([':persatuan_id' => $persatuanId]);
-    $result = $stmt->fetch();
-    return $result ? (int) $result['count'] : 0;
+    return (int) ($stmt->fetchColumn() ?: 0);
 }
 
 function getApprovedApplicationsCount(PDO $pdo, int $persatuanId): int
@@ -414,21 +354,5 @@ function getApprovedApplicationsCount(PDO $pdo, int $persatuanId): int
         AND p.status_workflow = 'Admin Diluluskan'
     ");
     $stmt->execute([':persatuan_id' => $persatuanId]);
-    $result = $stmt->fetch();
-    return $result ? (int) $result['count'] : 0;
-}
-
-function getPendingMatchesCount(PDO $pdo, int $persatuanId): int
-{
-    $stmt = $pdo->prepare("
-        SELECT COUNT(*) as count
-        FROM perlawanan p
-        INNER JOIN users u ON p.user_id = u.id
-        WHERE u.persatuan_id = :persatuan_id
-        AND u.role = 'Pengadil'
-        AND (p.status_pp IS NULL OR p.status_pp = '' OR p.status_pp = 'Menunggu')
-    ");
-    $stmt->execute([':persatuan_id' => $persatuanId]);
-    $result = $stmt->fetch();
-    return $result ? (int) $result['count'] : 0;
+    return (int) ($stmt->fetchColumn() ?: 0);
 }

@@ -84,14 +84,14 @@ try {
         foreach ($settingRows as $sr) { $appSettings[$sr['setting_key']] = $sr['setting_value']; }
         $applicationsOpen     = ($appSettings['applications_open'] ?? '0') === '1';
         $berdaftarOpen        = ($appSettings['berdaftar_open'] ?? '0') === '1';
-        $bertulisOpen         = ($appSettings['bertulis_open']  ?? '0') === '1';
-        $kelas1Open           = ($appSettings['kelas1_open']    ?? '0') === '1';
-        $penilaiOpen          = ($appSettings['penilai_open']   ?? '0') === '1';
+        $kelas3Open           = ($appSettings['kelas3_open']   ?? '0') === '1';
+        $kelas1Open           = ($appSettings['kelas1_open']   ?? '0') === '1';
+        $penilaiOpen          = ($appSettings['penilai_open']  ?? '0') === '1';
         $applicationYear      = (int)($appSettings['application_year'] ?? date('Y'));
         $paymentAmountSetting = (float)($appSettings['payment_amount'] ?? 80.00);
         $minVerifiedMatches   = (int)($appSettings['min_verified_matches'] ?? 20);
-        $bertulisMinAge       = (int)($appSettings['bertulis_min_age'] ?? 15);
-        $bertulisMaxAge       = (int)($appSettings['bertulis_max_age'] ?? 40);
+        $kelas3MinAge         = (int)($appSettings['kelas3_min_age'] ?? 15);
+        $kelas3MaxAge         = (int)($appSettings['kelas3_max_age'] ?? 40);
         $kelas1MaxAge         = (int)($appSettings['kelas1_max_age'] ?? 32);
 
         // Get form data
@@ -101,9 +101,9 @@ try {
 
         // Validate role-to-form-type
         $allowedForRole = [
-            'Pengadil'  => ['pengadil_berdaftar', 'ujian_bertulis', 'ujian_kelas1_fam'],
+            'Pengadil'  => ['pengadil_berdaftar', 'kelas3_fam', 'ujian_kelas1_fam'],
             'Penilai'   => ['penilai_berdaftar'],
-            'PP Daerah' => ['penilai_berdaftar', 'ujian_bertulis', 'ujian_kelas1_fam'],
+            'PP Daerah' => ['penilai_berdaftar', 'kelas3_fam', 'ujian_kelas1_fam'],
         ];
         if (!in_array($jenisBorang, $allowedForRole[$userRole] ?? [], true)) {
             http_response_code(403);
@@ -117,9 +117,9 @@ try {
             echo json_encode(['error' => true, 'message' => 'Maaf, permohonan Pendaftaran Tahunan tidak dibuka pada masa ini.']);
             exit;
         }
-        if ($jenisBorang === 'ujian_bertulis' && !$bertulisOpen) {
+        if ($jenisBorang === 'kelas3_fam' && !$kelas3Open) {
             http_response_code(400);
-            echo json_encode(['error' => true, 'message' => 'Maaf, permohonan Ujian Kelas III FAM tidak dibuka pada masa ini.']);
+            echo json_encode(['error' => true, 'message' => 'Maaf, permohonan Kelas III FAM tidak dibuka pada masa ini.']);
             exit;
         }
         if ($jenisBorang === 'ujian_kelas1_fam' && !$kelas1Open) {
@@ -158,14 +158,14 @@ try {
 
         // Age validation from IC (format: YYMMDD-PB-XXXX, 12 digits)
         $noIc = preg_replace('/\D/', '', $profile['no_ic'] ?? '');
-        if (strlen($noIc) >= 6 && in_array($jenisBorang, ['ujian_bertulis', 'ujian_kelas1_fam'], true)) {
+        if (strlen($noIc) >= 6 && in_array($jenisBorang, ['kelas3_fam', 'ujian_kelas1_fam'], true)) {
             $icYY   = (int)substr($noIc, 0, 2);
             $birthYear = $icYY >= 0 && $icYY <= (int)date('y') ? 2000 + $icYY : 1900 + $icYY;
             $age    = $applicationYear - $birthYear;
-            if ($jenisBorang === 'ujian_bertulis') {
-                if ($age < $bertulisMinAge || $age > $bertulisMaxAge) {
+            if ($jenisBorang === 'kelas3_fam') {
+                if ($age < $kelas3MinAge || $age > $kelas3MaxAge) {
                     http_response_code(400);
-                    echo json_encode(['error' => true, 'message' => "Anda tidak memenuhi syarat umur untuk Ujian Kelas III FAM. Calon mesti berumur antara {$bertulisMinAge} hingga {$bertulisMaxAge} tahun pada tahun {$applicationYear}."]);
+                    echo json_encode(['error' => true, 'message' => "Anda tidak memenuhi syarat umur untuk Kelas III FAM. Calon mesti berumur antara {$kelas3MinAge} hingga {$kelas3MaxAge} tahun pada tahun {$applicationYear}."]);
                     exit;
                 }
             }
@@ -184,7 +184,7 @@ try {
             $kelas3Stmt = $pdo->prepare("
                 SELECT tahun_permohonan FROM permohonan
                 WHERE user_id = :user_id
-                  AND jenis_borang = 'ujian_bertulis'
+                  AND jenis_borang = 'kelas3_fam'
                   AND status_workflow IN ('Lengkap', 'Admin Diluluskan', 'Bayaran Diterima')
                   AND tahun_permohonan <= :deadline_year
                 ORDER BY tahun_permohonan DESC LIMIT 1

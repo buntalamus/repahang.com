@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, OnDestroy, OnInit, Output, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
@@ -18,7 +18,7 @@ export interface RefereeOption {
   standalone: true,
   imports: [FormsModule],
   template: `
-    <div class="relative">
+    <div class="relative" #wrapper>
       <!-- Selected display -->
       @if (selected) {
         <div class="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-3 py-2">
@@ -35,8 +35,8 @@ export interface RefereeOption {
         <!-- Search input -->
         <div class="relative">
           <span class="material-icons absolute left-2.5 top-2 text-gray-400 text-lg">search</span>
-          <input type="text" [(ngModel)]="query" (ngModelChange)="onQueryChange($event)"
-            (focus)="showDropdown = true" (blur)="onBlur()"
+          <input #inputEl type="text" [(ngModel)]="query" (ngModelChange)="onQueryChange($event)"
+            (focus)="onFocus()" (blur)="onBlur()"
             [placeholder]="placeholder"
             [disabled]="disabled"
             class="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-pahang-yellow focus:border-transparent disabled:bg-gray-100" />
@@ -45,9 +45,12 @@ export interface RefereeOption {
           }
         </div>
 
-        <!-- Dropdown results -->
+        <!-- Dropdown results — fixed positioning to escape overflow containers -->
         @if (showDropdown && results.length > 0) {
-          <div class="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          <div class="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
+               [style.width.px]="dropdownWidth"
+               [style.top.px]="dropdownTop"
+               [style.left.px]="dropdownLeft">
             @for (ref of results; track ref.id) {
               <button (mousedown)="selectReferee(ref)" type="button"
                 class="w-full text-left px-3 py-2 hover:bg-pahang-yellow/10 transition border-b border-gray-50 last:border-0"
@@ -65,7 +68,10 @@ export interface RefereeOption {
           </div>
         }
         @if (showDropdown && query.length >= 2 && results.length === 0 && !searching) {
-          <div class="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-center text-sm text-gray-400">
+          <div class="fixed z-[9999] bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-center text-sm text-gray-400"
+               [style.width.px]="dropdownWidth"
+               [style.top.px]="dropdownTop"
+               [style.left.px]="dropdownLeft">
             Tiada padanan ditemui
           </div>
         }
@@ -84,6 +90,8 @@ export class RefereeSearchComponent implements OnInit, OnDestroy {
   @Output() refereeSelected = new EventEmitter<RefereeOption>();
   @Output() refereeCleared = new EventEmitter<void>();
 
+  @ViewChild('inputEl') inputEl?: ElementRef<HTMLInputElement>;
+
   query = '';
   results: RefereeOption[] = [];
   allReferees: RefereeOption[] = [];
@@ -91,6 +99,10 @@ export class RefereeSearchComponent implements OnInit, OnDestroy {
   showDropdown = false;
   searching = false;
   loaded = false;
+
+  dropdownTop = 0;
+  dropdownLeft = 0;
+  dropdownWidth = 200;
 
   private search$ = new Subject<string>();
   private sub?: Subscription;
@@ -107,8 +119,15 @@ export class RefereeSearchComponent implements OnInit, OnDestroy {
     this.sub?.unsubscribe();
   }
 
+  onFocus(): void {
+    this.updateDropdownPosition();
+    this.showDropdown = true;
+  }
+
   onQueryChange(q: string): void {
     if (q.length >= 2) {
+      this.showDropdown = true;
+      this.updateDropdownPosition();
       if (!this.loaded) {
         this.loadAll(q);
       } else {
@@ -117,6 +136,15 @@ export class RefereeSearchComponent implements OnInit, OnDestroy {
     } else {
       this.results = [];
     }
+  }
+
+  private updateDropdownPosition(): void {
+    const el = this.inputEl?.nativeElement;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    this.dropdownWidth = rect.width;
+    this.dropdownLeft = rect.left;
+    this.dropdownTop = rect.bottom + 4;
   }
 
   private loadAll(initialQuery: string): void {
@@ -139,10 +167,13 @@ export class RefereeSearchComponent implements OnInit, OnDestroy {
     this.results = this.allReferees
       .filter(
         (r) =>
-          r.nama_penuh.toLowerCase().includes(lower) ||
+          r.nama_penuh?.toLowerCase().includes(lower) ||
           (r.no_kp && r.no_kp.includes(q)),
       )
       .slice(0, 8);
+    if (this.results.length > 0) {
+      this.showDropdown = true;
+    }
   }
 
   selectReferee(ref: RefereeOption): void {

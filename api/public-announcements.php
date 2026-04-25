@@ -4,6 +4,7 @@
  * Returns active announcements for the login page
  */
 
+define('SKIP_SESSION', true);
 require_once __DIR__ . '/bootstrap.php';
 
 header('Content-Type: application/json');
@@ -15,7 +16,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 try {
-    $pdo = getDbConnection();
 
     $stmt = $pdo->prepare("
         SELECT id, title, content, created_at

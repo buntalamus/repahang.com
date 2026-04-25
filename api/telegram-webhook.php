@@ -165,9 +165,17 @@ try {
         $newStatus = $action === 'accept' ? 'Diterima' : 'Ditolak';
         $lantikanId = (int) $row['id'];
 
-        $pdo->prepare(
-            "UPDATE lantikan_pengadil SET status = :s, tarikh_jawab = NOW(), tg_token = NULL WHERE id = :id"
-        )->execute([':s' => $newStatus, ':id' => $lantikanId]);
+        $updStmt = $pdo->prepare(
+            "UPDATE lantikan_pengadil SET status = :s, tarikh_jawab = NOW(), tg_token = NULL WHERE id = :id AND status = 'Belum Jawab'"
+        );
+        $updStmt->execute([':s' => $newStatus, ':id' => $lantikanId]);
+
+        if ($updStmt->rowCount() === 0) {
+            $already = $action === 'accept' ? 'sudah diterima' : 'sudah ditolak';
+            tgAnswerCallback($cbqId, "Tugasan ini {$already}.", true);
+            http_response_code(200);
+            exit;
+        }
 
         // ── RESPOND TO USER FIRST — before any helpers ──
         // This MUST happen immediately so the Telegram "loading" spinner stops.
@@ -197,7 +205,8 @@ try {
                      "<b>Tarikh:</b> {$tarikhFmt}\n" .
                      "<b>Masa:</b> {$masaFmt} WIB\n" .
                      "<b>Tempat:</b> {$tempat}\n\n" .
-                     "Terima kasih. Sila hadir pada waktu yang ditetapkan. ⚽\n\n" .
+                     "Terima kasih. Sila hadir pada waktu yang ditetapkan.\n\n" .
+                     "⚠️ <b>Sila bawa kelengkapan penuh pengadil.</b> ⚽\n\n" .
                      "🔗 <a href=\"{$dashUrl}\">Lihat Dashboard Pengadil</a>";
         } else {
             $alertText = "❌ Tugasan Ditolak\n\n"

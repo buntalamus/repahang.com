@@ -4,6 +4,7 @@
  * GET: Check if new account registration is open (no auth required)
  */
 declare(strict_types=1);
+define('SKIP_SESSION', true);
 require_once __DIR__ . '/bootstrap.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {

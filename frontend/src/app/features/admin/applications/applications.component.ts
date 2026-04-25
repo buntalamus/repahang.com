@@ -57,8 +57,8 @@ export class AdminApplicationsComponent implements OnInit {
   allTabs = [
     { key: 'berdaftar', label: 'Pengadil Berdaftar', group: 'pengadil' },
     { key: 'penilai', label: 'RA Berdaftar', group: 'penilai' },
-    { key: 'bertulis', label: 'Ujian Kelas III FAM', group: 'pengadil' },
-    { key: 'kelas1', label: 'Ujian Kelas 1 FAM', group: 'pengadil' },
+    { key: 'kelas3', label: 'Kelas III FAM', group: 'pengadil' },
+    { key: 'kelas1', label: 'Ujian Kelas I FAM', group: 'pengadil' },
   ];
 
   tabs: { key: string; label: string; group: string }[] = [];
@@ -257,7 +257,16 @@ export class AdminApplicationsComponent implements OnInit {
   statusUjianAppId = 0;
 
   get isUjianTab(): boolean {
-    return this.activeTab === 'kecergasan' || this.activeTab === 'bertulis' || this.activeTab === 'kelas1';
+    return this.activeTab === 'kelas3' || this.activeTab === 'kelas1';
+  }
+
+  get isUjianButtonAlwaysEnabled(): boolean {
+    return this.activeTab === 'kelas3';
+  }
+
+  isUjianButtonDisabled(app: any): boolean {
+    if (this.isUjianButtonAlwaysEnabled) return false;
+    return app.status !== 'Lengkap' && app.status !== 'Admin Diluluskan' && !app.status_ujian;
   }
 
   openStatusUjian(appId: number): void {

@@ -25,7 +25,7 @@ RewriteRule ^config/ - [L]
 RewriteRule ^ index.html [L]
 
 # Security: block access to sensitive files
-<FilesMatch "^(\.env|composer\.(json|lock))$">
+<FilesMatch "^(\.env|config\.ini|env\.ini|composer\.(json|lock))$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>

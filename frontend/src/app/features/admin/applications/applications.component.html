@@ -190,8 +190,8 @@
                   </button>
                   @if (isUjianTab) {
                     <button (click)="openStatusUjian(app.id)" class="px-2 py-1 bg-white border border-blue-300 text-blue-700 hover:bg-blue-50 rounded text-xs font-medium transition-colors shadow-sm" title="Ubah Keputusan"
-                      [class.opacity-40]="app.status !== 'Lengkap' && app.status !== 'Admin Diluluskan' && !app.status_ujian"
-                      [class.pointer-events-none]="app.status !== 'Lengkap' && app.status !== 'Admin Diluluskan' && !app.status_ujian">
+                      [class.opacity-40]="isUjianButtonDisabled(app)"
+                      [class.pointer-events-none]="isUjianButtonDisabled(app)">
                       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                     </button>
                   } @else {
@@ -429,8 +429,8 @@
           <button (click)="toggleExpand(app.id)" class="flex-1 py-2.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors text-center">Butiran</button>
           @if (isUjianTab) {
             <button (click)="openStatusUjian(app.id)" class="flex-1 py-2.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 transition-colors text-center"
-              [class.opacity-40]="app.status !== 'Lengkap' && app.status !== 'Admin Diluluskan' && !app.status_ujian"
-              [class.pointer-events-none]="app.status !== 'Lengkap' && app.status !== 'Admin Diluluskan' && !app.status_ujian">Ubah</button>
+              [class.opacity-40]="isUjianButtonDisabled(app)"
+              [class.pointer-events-none]="isUjianButtonDisabled(app)">Ubah</button>
           } @else {
             <button (click)="openStatusChange(app)" class="flex-1 py-2.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 transition-colors text-center">Ubah</button>
           }

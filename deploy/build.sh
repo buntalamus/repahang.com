@@ -52,13 +52,9 @@ else
     echo "  ⚠ vendor/ not found — run 'composer install' first"
 fi
 
-# Copy uploads with existing files (user data on server)
-if [ -d "$PROJECT_ROOT/uploads" ]; then
-    cp -r "$PROJECT_ROOT/uploads" "$BUILD_DIR/uploads"
-else
-    mkdir -p "$BUILD_DIR/uploads/profile_images"
-    mkdir -p "$BUILD_DIR/uploads/receipts"
-fi
+# Ensure uploads directory structure exists for security policies
+mkdir -p "$BUILD_DIR/uploads/profile_images"
+mkdir -p "$BUILD_DIR/uploads/receipts"
 
 # Security: block PHP execution in uploads
 cat > "$BUILD_DIR/uploads/.htaccess" << 'UPLOADSHT'
@@ -95,9 +91,10 @@ if [ -d "$PROJECT_ROOT/frontend/src" ]; then
     done
 fi
 
-# Copy .env (production config) — required for the app to work
-[ -f "$PROJECT_ROOT/.env" ] && cp "$PROJECT_ROOT/.env" "$BUILD_DIR/.env"
-[ -f "$PROJECT_ROOT/.env.example" ] && cp "$PROJECT_ROOT/.env.example" "$BUILD_DIR/.env.example"
+# NOTA: config.ini (credentials production) TIDAK disertakan dalam zip.
+# Server admin mesti kekalkan config.ini terus di public_html/ pada server.
+# Ini mengelakkan credentials production ditimpa oleh credentials local semasa deploy.
+[ -f "$PROJECT_ROOT/.env.example" ] && cp "$PROJECT_ROOT/.env.example" "$BUILD_DIR/config.ini.example"
 
 # Copy migration docs
 mkdir -p "$BUILD_DIR/docs"
@@ -140,7 +137,7 @@ RewriteRule ^config/ - [L]
 RewriteRule ^ index.html [L]
 
 # Security: block access to sensitive files
-<FilesMatch "^(\.env|composer\.(json|lock))$">
+<FilesMatch "^(\.env|config\.ini|env\.ini|composer\.(json|lock))$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>

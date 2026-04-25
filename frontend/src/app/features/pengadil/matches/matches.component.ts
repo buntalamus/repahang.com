@@ -47,7 +47,7 @@ export class PengadilMatchesComponent implements OnInit {
   }
 
   loadMatches(): void {
-    this.api.get<any>('pengadil-matches.php').subscribe({
+    this.api.get<any>('pengadil-matches.php?per_page=200').subscribe({
       next: (res) => {
         if (!res.error) {
           this.matches = res.data || res.matches || [];
@@ -202,7 +202,7 @@ export class PengadilMatchesComponent implements OnInit {
 
   deleteMatch(id: number): void {
     if (!confirm('Padam perlawanan ini?')) return;
-    this.api.post<any>('pengadil-match-manage.php', { action: 'delete', id }).subscribe({
+    this.api.post<any>('pengadil-match-manage.php', { action: 'delete', match_id: id }).subscribe({
       next: (res) => {
         if (!res.error) {
           this.toast.success('Perlawanan dipadam.');

@@ -20,6 +20,7 @@ try {
             jp.id AS jadual_id, jp.no_perlawanan, jp.tarikh, jp.masa, jp.hari,
             jp.kumpulan_tahap, jp.pasukan_home, jp.pasukan_away, jp.tempat,
             k.id AS kejohanan_id, k.nama AS nama_kejohanan, k.anjuran,
+            k.jenis_kejohanan, k.peringkat_kejohanan,
             pu.id AS pengadil_utama_lantikan_id, pu.pengadil_id AS pengadil_utama_id,
             u_pu.nama_penuh AS nama_pengadil_utama
         FROM lantikan_pengadil lp

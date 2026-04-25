@@ -26,19 +26,20 @@ import { catchError, finalize } from 'rxjs/operators';
       </div>
 
       <!-- Stat Cards -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
         <!-- Pengadil -->
         <a routerLink="/pp-daerah/pengadil" class="bg-white rounded-xl p-5 border border-slate-200 hover:shadow-md transition group">
           <div class="flex items-center justify-between mb-3">
             <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center group-hover:bg-slate-200 transition">
               <span class="material-icons text-slate-600 text-xl">people</span>
             </div>
+            <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Pengadil</span>
           </div>
           <p class="text-2xl font-bold text-slate-900">{{ overview.total_referees || 0 }}</p>
           <p class="text-xs text-slate-500 mt-1">Pengadil Berdaftar</p>
         </a>
 
-        <!-- Menunggu Pengesahan -->
+        <!-- Menunggu Pengesahan Permohonan -->
         <a routerLink="/pp-daerah/pengesahan" class="bg-white rounded-xl p-5 border border-amber-200 hover:shadow-md transition group relative">
           @if (overview.pending_applications > 0) {
             <div class="absolute top-3 right-3 w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse"></div>
@@ -47,31 +48,54 @@ import { catchError, finalize } from 'rxjs/operators';
             <div class="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center group-hover:bg-amber-100 transition">
               <span class="material-icons text-amber-600 text-xl">pending_actions</span>
             </div>
+            <span class="text-[10px] font-semibold text-amber-400 uppercase tracking-wide">Permohonan</span>
           </div>
           <p class="text-2xl font-bold text-amber-700">{{ overview.pending_applications || 0 }}</p>
-          <p class="text-xs text-amber-600 mt-1">Menunggu Pengesahan</p>
+          <p class="text-xs text-amber-600 mt-1">Permohonan Belum Disahkan</p>
         </a>
 
-        <!-- Diluluskan -->
+        <!-- Diluluskan Permohonan -->
         <div class="bg-white rounded-xl p-5 border border-green-200">
           <div class="flex items-center justify-between mb-3">
             <div class="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
               <span class="material-icons text-green-600 text-xl">check_circle</span>
             </div>
+            <span class="text-[10px] font-semibold text-green-400 uppercase tracking-wide">Permohonan</span>
           </div>
           <p class="text-2xl font-bold text-green-700">{{ overview.approved_applications || 0 }}</p>
-          <p class="text-xs text-green-600 mt-1">Diluluskan</p>
+          <p class="text-xs text-green-600 mt-1">Permohonan Diluluskan</p>
         </div>
 
-        <!-- Perlawanan Bulan Ini -->
-        <div class="bg-white rounded-xl p-5 border border-blue-200">
+        <!-- Rekod Perlawanan Belum Disahkan -->
+        <a routerLink="/pp-daerah/pengesahan-perlawanan"
+          class="rounded-xl p-5 border transition group relative"
+          [class]="overview.pending_matches > 0
+            ? 'bg-blue-50 border-blue-300 hover:bg-blue-100'
+            : 'bg-white border-blue-200 hover:shadow-md'">
+          @if (overview.pending_matches > 0) {
+            <div class="absolute top-3 right-3 w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse"></div>
+          }
           <div class="flex items-center justify-between mb-3">
-            <div class="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
+            <div class="w-10 h-10 rounded-lg flex items-center justify-center transition"
+              [class]="overview.pending_matches > 0 ? 'bg-blue-100 group-hover:bg-blue-200' : 'bg-blue-50 group-hover:bg-blue-100'">
               <span class="material-icons text-blue-600 text-xl">sports_soccer</span>
             </div>
+            <span class="text-[10px] font-semibold text-blue-400 uppercase tracking-wide">Perlawanan</span>
           </div>
-          <p class="text-2xl font-bold text-blue-700">{{ overview.matches_this_month || 0 }}</p>
-          <p class="text-xs text-blue-600 mt-1">Perlawanan Bulan Ini</p>
+          <p class="text-2xl font-bold text-blue-700">{{ overview.pending_matches || 0 }}</p>
+          <p class="text-xs text-blue-600 mt-1">Rekod Belum Disahkan</p>
+        </a>
+
+        <!-- Perlawanan Bulan Ini -->
+        <div class="bg-white rounded-xl p-5 border border-slate-200">
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+              <span class="material-icons text-slate-600 text-xl">calendar_month</span>
+            </div>
+            <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Perlawanan</span>
+          </div>
+          <p class="text-2xl font-bold text-slate-700">{{ overview.matches_this_month || 0 }}</p>
+          <p class="text-xs text-slate-500 mt-1">Perlawanan Bulan Ini</p>
         </div>
       </div>
 

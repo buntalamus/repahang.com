@@ -507,7 +507,8 @@ function sendLantikanEmail(
     string  $noMatch      = '',
     string  $logoHome     = '',
     string  $logoAway     = '',
-    array   $allOfficials = []
+    array   $allOfficials = [],
+    string  $jenisKejohanan = 'Persahabatan'
 ): bool {
     if (!function_exists('env')) {
         require_once __DIR__ . '/env.php';
@@ -666,13 +667,20 @@ function sendLantikanEmail(
     }
 
     // ── Accept / Reject buttons ───────────────────────────────────────────
-    $matchDt    = strtotime("$tarikh $masa");
-    $deadlineDt = $matchDt ? date('d M Y, H:i', $matchDt - 3 * 3600) : date('d M Y', strtotime($tarikh));
+    require_once __DIR__ . '/lantikan-helper.php';
+    $deadlineHours = getDeadlineHours($jenisKejohanan);
+    $deadlineDt    = calcDeadlineFormatted($tarikh, $masa, $jenisKejohanan);
+    $ruleText      = getDeadlineRuleText($jenisKejohanan);
     $buttonsHtml = "
     <div style=\"margin:28px 0 0;\">
-      <p style=\"color:#374151;font-size:13px;line-height:1.8;margin:0 0 16px 0;\">
-        Sila maklumkan penerimaan atau penolakan tugasan ini <strong>sebelum {$deadlineDt}</strong> (3 jam sebelum perlawanan).
+      <p style=\"color:#374151;font-size:13px;line-height:1.8;margin:0 0 10px 0;\">
+        Sila maklumkan penerimaan atau penolakan tugasan ini <strong>sebelum {$deadlineDt}</strong> ({$deadlineHours} jam sebelum perlawanan).
       </p>
+      <div style=\"background:#FEF3C7;border:1px solid #F59E0B;border-left:3px solid #F59E0B;
+                   padding:12px 16px;margin-bottom:16px;\">
+        <span style=\"font-size:12px;font-weight:700;color:#92400E;\">⚠ Peraturan Auto-Terima:</span>
+        <p style=\"font-size:12px;color:#78350F;line-height:1.6;margin:4px 0 0;\">{$ruleText}</p>
+      </div>
       <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">
         <tr>
           <td style=\"padding:0 6px 0 0;\">

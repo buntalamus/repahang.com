@@ -202,7 +202,8 @@ try {
             'Tugasan Diterima',
             "Terima kasih. Anda telah <strong>menerima</strong> tugasan sebagai <strong>{$jawatan}</strong>.<br><br>
              <strong>{$pasukan}</strong><br>{$tarikhFmt}<br>" . htmlspecialchars($row['tempat'] ?? '') . "<br><br>
-             Sila hadir pada masa dan tempat yang ditetapkan.",
+             Sila hadir pada masa dan tempat yang ditetapkan.<br><br>
+             ⚠️ <strong>Sila bawa kelengkapan penuh pengadil.</strong>",
             $dashUrl
         );
     } else {

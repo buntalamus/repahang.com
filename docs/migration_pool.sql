@@ -30,7 +30,7 @@ ALTER TABLE pool_pengadil ADD UNIQUE KEY uq_pool_luar (kejohanan_id, pengadil_lu
 
 -- Modify lantikan_pengadil to support pengadil_luar
 ALTER TABLE lantikan_pengadil MODIFY pengadil_id INT NULL;
-ALTER TABLE lantikan_pengadil ADD COLUMN pengadil_luar_id INT NULL AFTER pengadil_id;
+ALTER TABLE lantikan_pengadil ADD COLUMN IF NOT EXISTS pengadil_luar_id INT NULL AFTER pengadil_id;
 ALTER TABLE lantikan_pengadil ADD CONSTRAINT fk_lantikan_luar FOREIGN KEY (pengadil_luar_id) REFERENCES pengadil_luar(id) ON DELETE CASCADE;
 
 SELECT 'Migration pengadil luar + pool complete' AS status;

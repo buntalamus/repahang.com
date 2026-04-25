@@ -16,6 +16,8 @@ require_once __DIR__ . '/bootstrap.php';
 $currentUser = requireRole(['Admin']);
 
 $VALID_STATUS = ['Draf', 'Aktif', 'Selesai', 'Dibatalkan'];
+$VALID_JENIS = ['Karnival', 'Liga', 'Persahabatan'];
+$VALID_PERINGKAT = ['Daerah', 'Negeri', 'Kebangsaan', 'Asia'];
 
 try {
     $pdo = getDbConnection();
@@ -117,12 +119,19 @@ try {
             jsonResponse(['error' => true, 'message' => 'Status tidak sah.'], 400);
         }
 
+        $jenis = $input['jenis_kejohanan'] ?? 'Persahabatan';
+        if (!in_array($jenis, $VALID_JENIS, true)) $jenis = 'Persahabatan';
+        $peringkat = $input['peringkat_kejohanan'] ?? 'Daerah';
+        if (!in_array($peringkat, $VALID_PERINGKAT, true)) $peringkat = 'Daerah';
+
         $stmt = $pdo->prepare("
-            INSERT INTO kejohanan (nama, tarikh_mula, tarikh_akhir, tempat, anjuran, status, created_by)
-            VALUES (:nama, :tarikh_mula, :tarikh_akhir, :tempat, :anjuran, :status, :created_by)
+            INSERT INTO kejohanan (nama, jenis_kejohanan, peringkat_kejohanan, tarikh_mula, tarikh_akhir, tempat, anjuran, status, created_by)
+            VALUES (:nama, :jenis, :peringkat, :tarikh_mula, :tarikh_akhir, :tempat, :anjuran, :status, :created_by)
         ");
         $stmt->execute([
             ':nama'       => $nama,
+            ':jenis'      => $jenis,
+            ':peringkat'  => $peringkat,
             ':tarikh_mula'  => $tarikh_mula,
             ':tarikh_akhir' => $tarikh_akhir,
             ':tempat'     => trim($input['tempat'] ?? ''),
@@ -146,14 +155,22 @@ try {
             jsonResponse(['error' => true, 'message' => 'Status tidak sah.'], 400);
         }
 
+        $jenis = $input['jenis_kejohanan'] ?? 'Persahabatan';
+        if (!in_array($jenis, $VALID_JENIS, true)) $jenis = 'Persahabatan';
+        $peringkat = $input['peringkat_kejohanan'] ?? 'Daerah';
+        if (!in_array($peringkat, $VALID_PERINGKAT, true)) $peringkat = 'Daerah';
+
         $stmt = $pdo->prepare("
             UPDATE kejohanan
-            SET nama = :nama, tarikh_mula = :tarikh_mula, tarikh_akhir = :tarikh_akhir,
+            SET nama = :nama, jenis_kejohanan = :jenis, peringkat_kejohanan = :peringkat,
+                tarikh_mula = :tarikh_mula, tarikh_akhir = :tarikh_akhir,
                 tempat = :tempat, anjuran = :anjuran, status = :status
             WHERE id = :id
         ");
         $stmt->execute([
             ':nama'       => trim($input['nama'] ?? ''),
+            ':jenis'      => $jenis,
+            ':peringkat'  => $peringkat,
             ':tarikh_mula'  => trim($input['tarikh_mula'] ?? ''),
             ':tarikh_akhir' => trim($input['tarikh_akhir'] ?? ''),
             ':tempat'     => trim($input['tempat'] ?? ''),

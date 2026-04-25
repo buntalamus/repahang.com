@@ -30,9 +30,19 @@ function getDbConnection(): PDO
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_PERSISTENT => false,
-        PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
     ];
+    if (defined('PDO::MYSQL_ATTR_USE_BUFFERED_QUERY')) {
+        $options[PDO::MYSQL_ATTR_USE_BUFFERED_QUERY] = true;
+    }
+    if (defined('PDO::MYSQL_ATTR_CONNECT_TIMEOUT')) {
+        $options[PDO::MYSQL_ATTR_CONNECT_TIMEOUT] = 10;
+    }
 
-    return new PDO($dsn, DB_USER, DB_PASS, $options);
+    $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+
+    // Set session variables for consistency
+    $pdo->exec("SET SESSION sql_mode='STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO'");
+
+    return $pdo;
 }
 

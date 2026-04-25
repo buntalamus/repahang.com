@@ -98,7 +98,7 @@ try {
             $assignment['pasukan_home'], $assignment['pasukan_away'], $komen);
     }
 
-    $msg = $action === 'accept' ? 'Tugasan berjaya diterima.' : 'Tugasan berjaya ditolak.';
+    $msg = $action === 'accept' ? 'Tugasan berjaya diterima. Sila bawa kelengkapan penuh pengadil.' : 'Tugasan berjaya ditolak.';
     jsonResponse(['error' => false, 'message' => $msg, 'status' => $newStatus]);
 
 } catch (Throwable $e) {

@@ -217,27 +217,33 @@ function handleStatistics(): void
 
 
 
-        // ── Match Statistics ──
+        // ── Match Statistics (manual reports by pengadil only) ──
         // Unique matches count (by unique tarikh+tempat+jenis combination)
         $sqlUniqueMatches = <<<'SQL'
-            SELECT COUNT(DISTINCT CONCAT(tarikh, tempat, jenis)) as total 
-            FROM perlawanan WHERE YEAR(tarikh) = :year
+            SELECT COUNT(DISTINCT CONCAT(p.tarikh, p.tempat, p.jenis)) as total 
+            FROM perlawanan p
+            JOIN users u ON p.user_id = u.id
+            WHERE YEAR(p.tarikh) = :year
+            AND p.lantikan_id IS NULL
+            AND u.role = 'pengadil'
         SQL;
         $stmtUnique = $pdo->prepare($sqlUniqueMatches);
         $stmtUnique->execute([':year' => $year]);
         $uniqueMatches = (int) $stmtUnique->fetch()['total'];
 
-        // Get all match entries with jawatan info
+        // Get all match entries with jawatan info (manual reports by pengadil only)
         $sqlMatches = <<<'SQL'
             SELECT
                 p.user_id,
                 p.jawatan,
                 u.nama_penuh as referee_name
             FROM perlawanan p
-            LEFT JOIN users u ON p.user_id = u.id
+            JOIN users u ON p.user_id = u.id
             WHERE YEAR(p.tarikh) = :year
             AND p.user_id IS NOT NULL
             AND p.user_id != 0
+            AND p.lantikan_id IS NULL
+            AND u.role = 'pengadil'
         SQL;
 
         $stmtMatches = $pdo->prepare($sqlMatches);
@@ -415,8 +421,8 @@ function handleStatistics(): void
             FROM permohonan p
             LEFT JOIN users u ON p.user_id = u.id
             LEFT JOIN persatuan_bolasepak_daerah pb ON p.persatuan_id = pb.id
-            WHERE (p.jenis_borang IN ('ujian_kecergasan', 'ujian_bertulis', 'ujian_kelas1_fam') 
-                   OR p.jenis_permohonan IN ('ujian_kecergasan', 'ujian_bertulis', 'ujian_kelas1_fam'))
+            WHERE (p.jenis_borang IN ('ujian_kecergasan', 'ujian_bertulis', 'kelas3_fam', 'ujian_kelas1_fam')
+                   OR p.jenis_permohonan IN ('ujian_kecergasan', 'ujian_bertulis', 'kelas3_fam', 'ujian_kelas1_fam'))
             AND (YEAR(p.tarikh_hantar) = :year OR p.tahun_permohonan = :year)
         SQL;
 
@@ -456,6 +462,10 @@ function handleStatistics(): void
 
         foreach ($exams as $exam) {
             $jenis = $exam['jenis_borang'] ?? $exam['jenis_permohonan'] ?? '';
+            // kelas3_fam disimpan sebagai 'kelas3_fam' tapi dikumpul di bawah 'ujian_bertulis'
+            if ($jenis === 'kelas3_fam') {
+                $jenis = 'ujian_bertulis';
+            }
             if (!isset($examStats[$jenis])) continue;
 
             $examStats[$jenis]['total']++;

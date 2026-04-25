@@ -41,12 +41,10 @@ export class PengadilApplicationComponent implements OnInit {
   typeLabels: Record<string, string> = {
     berdaftar:          'Pendaftaran Tahunan Pengadil (R1+R2)',
     pengadil_berdaftar: 'Pendaftaran Tahunan Pengadil (R1+R2)',
-    kecergasan:         'Ujian Kecergasan (R4)',
-    ujian_kecergasan:   'Ujian Kecergasan (R4)',
-    bertulis:           'Ujian Kelas III FAM (R11)',
-    ujian_bertulis:     'Ujian Kelas III FAM (R11)',
-    kelas1:             'Ujian Kelas I FAM (R11)',
-    ujian_kelas1_fam:   'Ujian Kelas I FAM (R11)',
+    kelas3:             'Peperiksaan Kelas III FAM',
+    kelas3_fam:         'Peperiksaan Kelas III FAM',
+    kelas1:             'Ujian Kelas I FAM',
+    ujian_kelas1_fam:   'Ujian Kelas I FAM',
     penilai_berdaftar:  'Pendaftaran Tahunan Penilai Pengadil Negeri (R4)',
     pp_berdaftar:       'Pendaftaran Tahunan PP Daerah (R1)',
   };
@@ -66,10 +64,10 @@ export class PengadilApplicationComponent implements OnInit {
 
   get typeLabel(): string { return this.typeLabels[this.type] || this.type; }
   get applicationsOpen(): boolean {
-    if (this.isBerdaftar || this.isKecergasan || this.isPpBerdaftar) return this.appSettings.berdaftar_open === '1';
-    if (this.isPenilai)  return this.appSettings.penilai_open  === '1';
-    if (this.isBertulis) return this.appSettings.bertulis_open === '1';
-    if (this.isKelas1)   return this.appSettings.kelas1_open   === '1';
+    if (this.isBerdaftar || this.isPpBerdaftar) return this.appSettings.berdaftar_open === '1';
+    if (this.isPenilai) return this.appSettings.penilai_open === '1';
+    if (this.isKelas3)  return this.appSettings.kelas3_open  === '1';
+    if (this.isKelas1)  return this.appSettings.kelas1_open  === '1';
     return false;
   }
   get applicationYear(): string { return this.appSettings.application_year || String(new Date().getFullYear()); }
@@ -78,8 +76,7 @@ export class PengadilApplicationComponent implements OnInit {
   get accountName(): string { return this.appSettings.payment_account_name || '-'; }
   get accountNo(): string { return this.appSettings.payment_account_no || '-'; }
   get isBerdaftar(): boolean { return this.type === 'berdaftar'; }
-  get isKecergasan(): boolean { return this.type === 'kecergasan'; }
-  get isBertulis(): boolean { return this.type === 'bertulis'; }
+  get isKelas3(): boolean { return this.type === 'kelas3'; }
   get isKelas1(): boolean { return this.type === 'kelas1'; }
   get isPenilai(): boolean { return this.type === 'penilai_berdaftar'; }
   get isPpBerdaftar(): boolean { return this.type === 'pp_berdaftar'; }
@@ -96,7 +93,6 @@ export class PengadilApplicationComponent implements OnInit {
   get kelas1MaxAge(): number { return +(this.appSettings.kelas1_max_age || 32); }
   get kelas1MinFitnessRounds(): number { return +(this.appSettings.kelas1_min_fitness_rounds || 7); }
   get showForm(): boolean {
-    if (this.isKecergasan) return false;
     if (!this.applicationsOpen) return false;
     return !this.currentApp;
   }
@@ -146,7 +142,7 @@ export class PengadilApplicationComponent implements OnInit {
       if (!this.declareHealth1 || !this.declareHealth2 || !this.declareHealth3 || !this.declareHealth4 || !this.declareHealth5) {
         this.toast.error('Sila tandakan semua perakuan kesihatan.'); return;
       }
-    } else if (this.isBertulis || this.isKelas1) {
+    } else if (this.isKelas3 || this.isKelas1) {
       if (!this.selectedResit) { this.toast.error('Sila muat naik resit bayaran FAM.'); return; }
       if (!this.declare1 || !this.declare2) {
         this.toast.error('Sila tandakan semua perakuan.'); return;
@@ -160,7 +156,7 @@ export class PengadilApplicationComponent implements OnInit {
     this.submitting = true;
     const jenisBorangMap: Record<string, string> = {
       berdaftar:         'pengadil_berdaftar',
-      bertulis:          'ujian_bertulis',
+      kelas3:            'kelas3_fam',
       kelas1:            'ujian_kelas1_fam',
       penilai_berdaftar: 'penilai_berdaftar',
       pp_berdaftar:      'pp_berdaftar',
@@ -219,10 +215,8 @@ export class PengadilApplicationComponent implements OnInit {
         endpoint = 'download-borang-pendaftaran.php'; typeParam = 'penilai_berdaftar'; break;
       case 'pp_berdaftar':
         endpoint = 'download-borang-pendaftaran.php'; typeParam = 'pp_berdaftar'; break;
-      case 'kecergasan': case 'ujian_kecergasan':
-        endpoint = 'download-borang-ujian-kecergasan.php'; typeParam = 'ujian_kecergasan'; break;
-      case 'bertulis': case 'ujian_bertulis':
-        endpoint = 'download-borang-pendaftaran.php'; typeParam = 'ujian_bertulis'; break;
+      case 'kelas3': case 'kelas3_fam':
+        endpoint = 'download-borang-pendaftaran.php'; typeParam = 'kelas3_fam'; break;
       case 'kelas1': case 'ujian_kelas1': case 'ujian_kelas1_fam':
         endpoint = 'download-borang-pendaftaran.php'; typeParam = 'ujian_kelas1'; break;
     }

@@ -4,6 +4,7 @@
  * Returns list of active persatuan for registration form
  */
 
+define('SKIP_SESSION', true);
 require_once __DIR__ . '/bootstrap.php';
 
 header('Content-Type: application/json');
@@ -15,7 +16,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 try {
-    $pdo = getDbConnection();
 
     $stmt = $pdo->prepare("
         SELECT id, nama_persatuan, kod_persatuan, daerah

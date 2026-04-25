@@ -57,5 +57,11 @@ function env(string $key, string $default = ''): string
     return $_ENV[$key] ?? getenv($key) ?: $default;
 }
 
-// Auto-load .env from project root
-loadEnv(__DIR__ . '/../.env');
+// Auto-load config from project root
+if (is_readable(__DIR__ . '/../.env')) {
+    loadEnv(__DIR__ . '/../.env');
+} elseif (is_readable(__DIR__ . '/../config.ini')) {
+    loadEnv(__DIR__ . '/../config.ini');
+} elseif (is_readable(__DIR__ . '/../env.ini')) {
+    loadEnv(__DIR__ . '/../env.ini');
+}

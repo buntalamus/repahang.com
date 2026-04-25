@@ -171,10 +171,24 @@ try {
 
             $pdo->commit();
 
-            // Get submitter name
+            // Get submitter name and resolve official names for email
             $userStmt = $pdo->prepare("SELECT nama_penuh FROM users WHERE id = :id");
             $userStmt->execute([':id' => $userId]);
             $submitterName = $userStmt->fetchColumn() ?: 'Pengadil';
+
+            // Fetch names for all officials to enrich email template
+            $officialIds = array_map(fn($o) => (int) $o['user_id'], $officials);
+            $placeholders = implode(',', array_fill(0, count($officialIds), '?'));
+            $nameStmt = $pdo->prepare("SELECT id, nama_penuh FROM users WHERE id IN ($placeholders)");
+            $nameStmt->execute($officialIds);
+            $officialNames = [];
+            foreach ($nameStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $officialNames[(int) $row['id']] = $row['nama_penuh'];
+            }
+            $officialsWithNames = array_map(function ($o) use ($officialNames) {
+                $o['nama'] = $officialNames[(int) $o['user_id']] ?? ('Pengadil #' . $o['user_id']);
+                return $o;
+            }, $officials);
 
             // Send notifications to PP Daerah of the MATCH DISTRICT (not pengadil's district)
             $ppStmt = $pdo->prepare("
@@ -217,7 +231,7 @@ try {
                     $ppUser['nama_penuh'],
                     $submitterName,
                     $input,
-                    $officials,
+                    $officialsWithNames,
                     $daerahName
                 );
                 sendEmail($ppUser['email'], $emailSubject, $emailBody, null, 'pengesahan');

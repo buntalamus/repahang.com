@@ -1,0 +1,1778 @@
+% =============================================================================
+% MANUAL PENGGUNA KOMPREHENSIF
+% Sistem Pengurusan Pengadil Bola Sepak Pahang (RefPahang)
+% Persatuan Bola Sepak Negeri Pahang (PBNP)
+% Versi 3.0 | 5 April 2026
+% =============================================================================
+\documentclass[12pt,a4paper]{report}
+
+% --- Packages ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[bahasam,english]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\usepackage{tikz}
+\usepackage{fontawesome5}
+\usepackage{pifont}
+\usepackage{array}
+\usepackage{colortbl}
+\usepackage{multicol}
+\usepackage{titletoc}
+\usepackage{setspace}
+\usepackage{parskip}
+\usepackage{float}
+
+\usetikzlibrary{arrows.meta,shapes.geometric,positioning,calc,fit}
+\tcbuselibrary{skins,breakable}
+
+% --- Page Geometry ---
+\geometry{
+  top=2.5cm,
+  bottom=2.5cm,
+  left=2.5cm,
+  right=2.5cm,
+  headheight=15pt
+}
+
+% --- Colors ---
+\definecolor{pbnpblue}{HTML}{1E3A5F}
+\definecolor{pbnpgold}{HTML}{D4A843}
+\definecolor{primaryblue}{HTML}{2563EB}
+\definecolor{successgreen}{HTML}{16A34A}
+\definecolor{warningyellow}{HTML}{CA8A04}
+\definecolor{dangered}{HTML}{DC2626}
+\definecolor{infoblue}{HTML}{0284C7}
+\definecolor{lightbg}{HTML}{F8FAFC}
+\definecolor{tablebg}{HTML}{EFF6FF}
+\definecolor{tableheader}{HTML}{1E40AF}
+\definecolor{sectionblue}{HTML}{1E3A5F}
+\definecolor{lightgray}{HTML}{F1F5F9}
+
+% --- Hyperref ---
+\hypersetup{
+  colorlinks=true,
+  linkcolor=pbnpblue,
+  urlcolor=primaryblue,
+  citecolor=pbnpblue,
+  bookmarks=true,
+  bookmarksopen=true,
+  pdftitle={Manual Pengguna RefPahang v3.0},
+  pdfauthor={PBNP},
+  pdfsubject={Sistem Pengurusan Pengadil Bola Sepak Pahang}
+}
+
+% --- Title Formatting ---
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{pbnpblue}}
+  {\chaptertitlename\ \thechapter}{20pt}{\Huge}
+\titlespacing*{\chapter}{0pt}{-20pt}{30pt}
+
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{sectionblue}}
+  {\thesection}{1em}{}
+  [\vspace{-0.5em}\textcolor{pbnpgold}{\rule{\textwidth}{1pt}}]
+
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{pbnpblue!80}}
+  {\thesubsection}{1em}{}
+
+\titleformat{\subsubsection}
+  {\normalfont\normalsize\bfseries\color{pbnpblue!70}}
+  {\thesubsubsection}{1em}{}
+
+% --- Header/Footer ---
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{pbnpblue}{\textbf{RefPahang}} \textcolor{pbnpblue!50}{| Manual Pengguna v3.0}}
+\fancyhead[R]{\small\textcolor{pbnpblue!50}{\leftmark}}
+\fancyfoot[C]{\textcolor{pbnpblue}{\thepage}}
+\fancyfoot[R]{\small\textcolor{pbnpblue!40}{PBNP \the\year}}
+\renewcommand{\headrulewidth}{0.5pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{pbnpgold}\leaders\hrule height \headrulewidth\hfill}}
+\renewcommand{\footrulewidth}{0.3pt}
+\renewcommand{\footrule}{\hbox to\headwidth{\color{pbnpblue!20}\leaders\hrule height \footrulewidth\hfill}}
+
+% --- Custom Box Environments ---
+\newtcolorbox{importantbox}{
+  colback=dangered!5,
+  colframe=dangered!80,
+  coltitle=white,
+  fonttitle=\bfseries,
+  title={\faExclamationTriangle\ Penting},
+  rounded corners,
+  boxrule=0.8pt,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  breakable
+}
+
+\newtcolorbox{infobox}{
+  colback=infoblue!5,
+  colframe=infoblue!60,
+  coltitle=white,
+  fonttitle=\bfseries,
+  title={\faInfoCircle\ Nota},
+  rounded corners,
+  boxrule=0.8pt,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  breakable
+}
+
+\newtcolorbox{tipbox}{
+  colback=successgreen!5,
+  colframe=successgreen!60,
+  coltitle=white,
+  fonttitle=\bfseries,
+  title={\faLightbulb\ Tip},
+  rounded corners,
+  boxrule=0.8pt,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  breakable
+}
+
+\newtcolorbox{stepbox}[1][]{
+  colback=lightbg,
+  colframe=pbnpblue!40,
+  fonttitle=\bfseries\color{pbnpblue},
+  title={#1},
+  rounded corners,
+  boxrule=0.5pt,
+  left=8pt, right=8pt, top=6pt, bottom=6pt,
+  breakable
+}
+
+% --- Custom Table Style ---
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcommand{\tablemark}{\textcolor{successgreen}{\ding{51}}}
+\newcommand{\tablecross}{\textcolor{dangered}{\ding{55}}}
+
+% --- Custom Commands ---
+\newcommand{\menupath}[1]{\textcolor{pbnpblue}{\textbf{#1}}}
+\newcommand{\btn}[1]{\colorbox{primaryblue!10}{\textcolor{primaryblue}{\textbf{#1}}}}
+\newcommand{\status}[2]{\colorbox{#1!15}{\textcolor{#1}{\small\textbf{#2}}}}
+\newcommand{\rolelabel}[2]{\colorbox{#1!15}{\textcolor{#1}{\small\faUser\ \textbf{#2}}}}
+\newcommand{\wajib}{\textcolor{dangered}{\small\textbf{*Wajib}}}
+
+% --- Document ---
+\begin{document}
+
+% =============================================================================
+% TITLE PAGE
+% =============================================================================
+\begin{titlepage}
+\begin{tikzpicture}[remember picture, overlay]
+  % Background
+  \fill[pbnpblue] (current page.south west) rectangle (current page.north east);
+  
+  % Decorative elements
+  \fill[pbnpblue!80] (current page.south west) -- ++(0,8) -- ++(21,0) -- ++(0,-8) -- cycle;
+  \fill[pbnpgold, opacity=0.3] ([yshift=8cm]current page.south west) -- ++(0,2) -- ++(21,0) -- ++(0,-2) -- cycle;
+  
+  % Gold line
+  \draw[pbnpgold, line width=2pt] ([yshift=10cm]current page.south west) -- ++(21,0);
+  \draw[pbnpgold, line width=2pt] ([yshift=8cm]current page.south west) -- ++(21,0);
+  
+  % Title text
+  \node[anchor=center, text=white] at ([yshift=3cm]current page.center) {
+    \begin{minipage}{14cm}
+      \centering
+      {\fontsize{14}{16}\selectfont\textbf{PERSATUAN BOLA SEPAK NEGERI PAHANG (PBNP)}}\\[1.2cm]
+      {\fontsize{36}{42}\selectfont\textbf{MANUAL PENGGUNA}}\\[0.5cm]
+      {\fontsize{36}{42}\selectfont\textbf{KOMPREHENSIF}}\\[1cm]
+      \textcolor{pbnpgold}{\rule{8cm}{2pt}}\\[1cm]
+      {\fontsize{18}{22}\selectfont\textbf{Sistem Pengurusan Pengadil}}\\[0.3cm]
+      {\fontsize{18}{22}\selectfont\textbf{Bola Sepak Pahang}}\\[0.3cm]
+      {\fontsize{24}{28}\selectfont\textcolor{pbnpgold}{\textbf{RefPahang}}}\\[1.5cm]
+      {\fontsize{14}{16}\selectfont Versi 3.0}
+    \end{minipage}
+  };
+  
+  % Bottom section
+  \node[anchor=center, text=white] at ([yshift=3.5cm]current page.south) {
+    \begin{minipage}{14cm}
+      \centering
+      {\fontsize{11}{13}\selectfont Tarikh Kemaskini: 5 April 2026}\\[0.3cm]
+      {\fontsize{10}{12}\selectfont\textcolor{white!70}{Dokumen Rasmi --- Untuk Kegunaan Dalaman}}
+    \end{minipage}
+  };
+\end{tikzpicture}
+\end{titlepage}
+
+% =============================================================================
+% TABLE OF CONTENTS
+% =============================================================================
+\thispagestyle{empty}
+\tableofcontents
+\newpage
+
+% =============================================================================
+% BAB 1: PENGENALAN SISTEM
+% =============================================================================
+\chapter{Pengenalan Sistem}
+
+\section{Apa Itu RefPahang?}
+
+RefPahang adalah sistem pengurusan pengadil bola sepak dalam talian yang dibangunkan khusus untuk Persatuan Bola Sepak Negeri Pahang (PBNP). Sistem ini menguruskan keseluruhan kitaran hayat pengadil --- dari pendaftaran, permohonan tahunan, lantikan tugasan, rekod perlawanan, sehingga penilaian prestasi.
+
+\section{Peranan Pengguna}
+
+Sistem ini mempunyai \textbf{4 peranan} utama:
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{>{\bfseries\color{pbnpblue}}l l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Peranan}} & \textcolor{white}{\textbf{Singkatan}} & \textcolor{white}{\textbf{Tanggungjawab Utama}} \\
+\midrule
+Pentadbir & Admin & Pengurusan keseluruhan sistem, kelulusan permohonan, lantikan pengadil, tetapan \\
+PP Daerah & PP & Pegawai Pembangunan Daerah --- pengesahan permohonan \& perlawanan daerah masing-masing \\
+Pengadil & --- & Pengadil bola sepak --- pendaftaran, permohonan tahunan, rekod perlawanan, terima lantikan \\
+Penilai Pengadil & RA & Referee Assessor --- menilai prestasi pengadil semasa perlawanan \\
+\bottomrule
+\end{tabularx}
+\caption{Peranan pengguna dalam sistem RefPahang}
+\end{table}
+
+\section{Akses Sistem}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Maklumat}} & \textcolor{white}{\textbf{Nilai}} \\
+\midrule
+URL Sistem & \texttt{https://refpahang.com} \\
+Pelayar Disokong & Google Chrome, Mozilla Firefox, Safari, Microsoft Edge (versi terkini) \\
+Peranti & Desktop, tablet, dan telefon pintar (responsif) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Saluran Notifikasi}
+
+Sistem menghantar notifikasi melalui \textbf{3 saluran}:
+
+\begin{enumerate}[label=\textcolor{pbnpblue}{\textbf{\arabic*.}}, leftmargin=2em]
+  \item \textbf{Portal} --- Notifikasi dalam sistem (ikon loceng di bahagian atas)
+  \item \textbf{Emel} --- Dihantar ke emel berdaftar pengguna
+  \item \textbf{Telegram} --- Dihantar melalui bot Telegram RefPahang (perlu dihubungkan terlebih dahulu)
+\end{enumerate}
+
+% =============================================================================
+% BAB 2: PANDUAN UMUM
+% =============================================================================
+\chapter{Panduan Umum (Semua Pengguna)}
+
+\section{Pendaftaran Akaun Baharu}
+
+\subsection{Langkah-langkah}
+
+\begin{stepbox}[Langkah 1: Buka Halaman Pendaftaran]
+Buka laman \texttt{https://refpahang.com} $\rightarrow$ klik \btn{Daftar Akaun Baharu}
+\end{stepbox}
+
+\begin{stepbox}[Langkah 2: Isi Borang Pendaftaran]
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l X c}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Medan}} & \textcolor{white}{\textbf{Penerangan}} & \textcolor{white}{\textbf{Wajib}} \\
+\midrule
+Nama Penuh & Seperti dalam kad pengenalan & \tablemark \\
+No. Kad Pengenalan & 12 digit tanpa sengkang (cth: 900101065432) & \tablemark \\
+Emel & Emel aktif untuk menerima notifikasi & \tablemark \\
+No. Telefon & 10--11 digit (cth: 0123456789) & \tablemark \\
+Jantina & Lelaki / Perempuan & \tablemark \\
+Jenis Pengadil & Pengadil Kebangsaan / Negeri / Penilai / PP & \tablemark \\
+Persatuan Bolasepak Daerah & Pilih daerah (12 daerah di Pahang) & \tablemark \\
+Pengesahan Data & Tandakan kotak persetujuan & \tablemark \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\end{stepbox}
+
+\begin{stepbox}[Langkah 3--5: Penghantaran]
+\begin{enumerate}[label=\textcolor{pbnpblue}{\textbf{\arabic*.}}, start=3]
+  \item Klik \btn{Daftar}
+  \item \textbf{Kata laluan} akan dijana secara automatik dan dihantar ke emel anda
+  \item Modal kejayaan akan dipaparkan --- klik \btn{Buka Telegram} untuk menghubungkan akaun Telegram
+\end{enumerate}
+\end{stepbox}
+
+\begin{importantbox}
+Sila tukar kata laluan anda selepas log masuk pertama kali.
+\end{importantbox}
+
+\subsection{12 Persatuan Bolasepak Daerah (PBD)}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{c l c l}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{\#}} & \textcolor{white}{\textbf{Daerah}} & \textcolor{white}{\textbf{\#}} & \textcolor{white}{\textbf{Daerah}} \\
+\midrule
+1 & Bentong & 7 & Maran \\
+2 & Bera & 8 & Pekan \\
+3 & Cameron Highlands & 9 & Raub \\
+4 & Jerantut & 10 & Rompin \\
+5 & Kuantan & 11 & Temerloh \\
+6 & Lipis & 12 & Muadzam Shah \\
+\bottomrule
+\end{tabularx}
+\caption{Senarai 12 PBD Pahang}
+\end{table}
+
+\subsection{Penentuan Peranan}
+
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}]
+  \item Pilih \textbf{``Pegawai Pembangunan''} $\rightarrow$ Akaun didaftarkan sebagai \rolelabel{primaryblue}{PP Daerah}
+  \item Pilih jenis lain $\rightarrow$ Akaun didaftarkan sebagai \rolelabel{successgreen}{Pengadil}
+\end{itemize}
+
+\begin{infobox}
+Pendaftaran Penilai Pengadil (RA) dilakukan melalui jenis ``Penilai Pengadil'' tetapi peranan akaun tetap Pengadil. Admin akan menaikkan taraf ke peranan Penilai jika perlu.
+\end{infobox}
+
+\section{Log Masuk}
+
+\begin{enumerate}[label=\textcolor{pbnpblue}{\textbf{Langkah \arabic*:}}, leftmargin=3.5em]
+  \item Buka \texttt{https://refpahang.com} $\rightarrow$ halaman log masuk
+  \item Masukkan \textbf{Emel} dan \textbf{Kata Laluan}
+  \item Klik \btn{Log Masuk}
+  \item Sistem mengarahkan anda ke dashboard mengikut peranan:
+    \begin{itemize}
+      \item Admin $\rightarrow$ \texttt{/admin}
+      \item PP Daerah $\rightarrow$ \texttt{/pp-daerah}
+      \item Pengadil $\rightarrow$ \texttt{/pengadil}
+      \item Penilai $\rightarrow$ \texttt{/penilai}
+    \end{itemize}
+\end{enumerate}
+
+\begin{infobox}
+Jika ini adalah log masuk pertama, anda akan diminta menukar kata laluan.
+\end{infobox}
+
+\section{Lupa Kata Laluan}
+
+\begin{enumerate}[label=\textcolor{pbnpblue}{\textbf{\arabic*.}}, leftmargin=2em]
+  \item Di halaman log masuk, klik \btn{Lupa kata laluan?}
+  \item Masukkan emel berdaftar anda
+  \item Klik \btn{Hantar}
+  \item Pautan penetapan semula akan dihantar ke emel anda
+  \item Klik pautan dalam emel $\rightarrow$ tetapkan kata laluan baharu
+\end{enumerate}
+
+\begin{infobox}
+\textbf{Nota Keselamatan:} Mesej kejayaan sentiasa dipaparkan walaupun emel tidak wujud dalam sistem --- ini untuk melindungi privasi pengguna.
+\end{infobox}
+
+\section{Tukar Kata Laluan}
+
+\begin{enumerate}[label=\textcolor{pbnpblue}{\textbf{\arabic*.}}, leftmargin=2em]
+  \item Pergi ke \menupath{Profil Saya} $\rightarrow$ bahagian \textbf{Tukar Kata Laluan}
+  \item Masukkan:
+    \begin{itemize}
+      \item \textbf{Kata Laluan Semasa} --- kata laluan yang sedang digunakan
+      \item \textbf{Kata Laluan Baharu} --- minimum 8 aksara
+      \item \textbf{Sahkan Kata Laluan Baharu} --- mestilah sama dengan di atas
+    \end{itemize}
+  \item Klik \btn{Tukar Kata Laluan}
+\end{enumerate}
+
+\section{Menghubungkan Telegram}
+
+Telegram membolehkan anda menerima notifikasi segera untuk lantikan, permohonan, dan maklumat penting.
+
+\begin{enumerate}[label=\textcolor{pbnpblue}{\textbf{\arabic*.}}, leftmargin=2em]
+  \item Pergi ke \menupath{Profil Saya}
+  \item Cari bahagian \textbf{Telegram} $\rightarrow$ klik \btn{Hubungkan Telegram}
+  \item Sistem akan membuka aplikasi Telegram dengan bot RefPahang
+  \item Tekan \btn{Start} atau hantar mesej \texttt{/start} kepada bot
+  \item Bot akan mengesahkan penyambungan --- Status bertukar menjadi \status{successgreen}{Telegram Berjaya Dihubungkan}
+\end{enumerate}
+
+\begin{tipbox}
+Anda juga boleh menghubungkan Telegram sejurus selepas pendaftaran melalui modal kejayaan.
+\end{tipbox}
+
+\section{Notifikasi}
+
+\subsection{Melihat Notifikasi}
+\begin{enumerate}[label=\textcolor{pbnpblue}{\textbf{\arabic*.}}, leftmargin=2em]
+  \item Klik ikon \textbf{loceng} \faBell\ di bahagian atas
+  \item Senarai 50 notifikasi terkini dipaparkan
+  \item Bilangan notifikasi belum dibaca ditunjukkan pada lencana merah
+\end{enumerate}
+
+\subsection{Menanda Dibaca}
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}]
+  \item Klik pada notifikasi individu $\rightarrow$ ditanda dibaca
+  \item Klik \btn{Tanda Semua Dibaca} $\rightarrow$ semua notifikasi ditanda
+\end{itemize}
+
+\subsection{Jenis Notifikasi}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Jenis}} & \textcolor{white}{\textbf{Penerangan}} \\
+\midrule
+Pendaftaran Berjaya & Akaun baharu berjaya didaftarkan \\
+Lantikan Baru & Tugasan lantikan baharu diterima \\
+Permohonan Disahkan & Permohonan disahkan oleh PP / Admin \\
+Permohonan Ditolak & Permohonan ditolak \\
+Perlawanan Baru & Rekod perlawanan baharu perlu disahkan (untuk PP) \\
+Pengesahan Perlawanan & Perlawanan disahkan/ditolak oleh PP \\
+Rekod Perlawanan & Anda direkodkan dalam perlawanan oleh pengadil lain \\
+Profil Dikemaskini & Profil berjaya dikemaskini \\
+\bottomrule
+\end{tabularx}
+\caption{Jenis notifikasi dalam sistem}
+\end{table}
+
+\section{Kemaskini Profil}
+
+Semua pengguna boleh mengemaskini maklumat profil mereka.
+
+\subsection{Maklumat Yang Boleh Dikemaskini}
+
+\textbf{Maklumat Peribadi:}
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}, nosep]
+  \item Nama Penuh, No. Telefon, Saiz Baju, Tahun Mula Aktif
+  \item Alamat Penuh (Alamat 1, Alamat 2, Poskod, Daerah)
+\end{itemize}
+
+\textbf{Maklumat Pekerjaan:}
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}, nosep]
+  \item Status Kerja, Jawatan, Nama Majikan
+  \item Alamat Majikan (Alamat 1, Alamat 2, Poskod, Daerah, Negeri)
+\end{itemize}
+
+\textbf{Maklumat Waris:}
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}, nosep]
+  \item Nama Waris, Hubungan (Ibu Bapa/Pasangan/Anak/Adik-beradik/Lain-lain), No. Telefon Waris
+\end{itemize}
+
+\textbf{Gambar Profil:}
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}, nosep]
+  \item Klik ikon kamera $\rightarrow$ pilih gambar $\rightarrow$ potong (crop) $\rightarrow$ simpan
+  \item Format: JPEG, PNG, WebP | Saiz maksimum: 5MB
+\end{itemize}
+
+\begin{importantbox}
+\textbf{Maklumat yang TIDAK boleh diubah:} No. Kad Pengenalan, Emel, Jantina, Negeri (ditetapkan Pahang)
+\end{importantbox}
+
+% =============================================================================
+% BAB 3: MANUAL PENGADIL
+% =============================================================================
+\chapter{Manual Pengadil}
+
+\section{Menu Utama Pengadil}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{c l c X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{\#}} & \textcolor{white}{\textbf{Menu}} & \textcolor{white}{\textbf{Ikon}} & \textcolor{white}{\textbf{Fungsi}} \\
+\midrule
+1 & Dashboard & \faChartBar & Paparan ringkasan dan statistik \\
+2 & Profil Saya & \faUser & Pengurusan maklumat peribadi \\
+3 & Tugasan Lantikan & \faClipboardList & Senarai lantikan dari Admin \\
+4 & Rekod Perlawanan & \faFutbol & Rekod perlawanan tidak rasmi \\
+5 & Penilaian Saya & \faStar & Laporan penilaian prestasi \\
+6 & \textbf{Permohonan} & \faEdit & --- \\
+6a & \quad Pendaftaran Tahunan & \faTag & Borang pendaftaran tahunan \\
+6b & \quad Ujian Kecergasan & \faDumbbell & Maklumat ujian kecergasan \\
+6c & \quad Ujian Kelas III FAM & \faEdit & Permohonan ujian Kelas III \\
+6d & \quad Ujian Kelas I FAM & \faMedal & Permohonan ujian Kelas I \\
+\bottomrule
+\end{tabularx}
+\caption{Menu utama Pengadil}
+\end{table}
+
+\section{Dashboard Pengadil}
+
+Dashboard memaparkan ringkasan maklumat penting:
+
+\subsection{Kad Statistik (4 kad)}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Kad}} & \textcolor{white}{\textbf{Penerangan}} \\
+\midrule
+\textbf{Perlawanan (Tahun)} & Jumlah perlawanan tahun semasa \\
+\textbf{Disahkan PP} & Bilangan perlawanan yang telah disahkan oleh PP Daerah \\
+\textbf{Status Kelayakan} & ``Layak'' ($\geq$20 perlawanan disahkan) / ``Belum Layak'' \\
+\textbf{Lantikan Belum Jawab} & Bilangan tugasan lantikan yang belum dijawab \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Bahagian Lain}
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}]
+  \item \textbf{Pautan Pantas} --- Profil, Tugasan Lantikan, Rekod Perlawanan, Pengadil Berdaftar
+  \item \textbf{Notifikasi Terkini} --- 5 notifikasi terbaru
+  \item \textbf{Pengumuman} --- Pengumuman dari PBNP
+  \item \textbf{Perlawanan Terkini} --- Jadual 5 perlawanan terakhir
+\end{itemize}
+
+\section{Permohonan Pendaftaran Tahunan}
+
+\subsection{Tujuan}
+Pengadil perlu membuat pendaftaran tahunan setiap tahun untuk kekal aktif. Pendaftaran ini mewajibkan bayaran yuran dan penyerahan dokumen.
+
+\subsection{Syarat}
+\begin{itemize}[label=\textcolor{dangered}{\faExclamationCircle}]
+  \item Akaun sudah didaftarkan dalam sistem
+  \item Profil telah dilengkapi (alamat, pekerjaan, waris)
+  \item \textbf{Minimum 20 perlawanan disahkan} dalam tahun semasa (untuk pengadil sahaja)
+  \item Tempoh pendaftaran dibuka oleh Admin
+\end{itemize}
+
+\subsection{Langkah-langkah}
+
+\begin{stepbox}[Langkah 1: Buat Bayaran]
+Buat bayaran ke akaun yang dipaparkan (nama bank, no. akaun, jumlah yuran). Simpan resit bayaran (PDF/gambar).
+\end{stepbox}
+
+\begin{stepbox}[Langkah 2: Isi Borang]
+\begin{itemize}[nosep]
+  \item Maklumat peribadi diisi secara automatik dari profil
+  \item Isi/kemaskini \textbf{Maklumat Waris}: Nama, Hubungan, No. Telefon \wajib
+  \item Pilih \textbf{Saiz Baju Rasmi}: XS, S, M, L, XL, XXL, XXXL \wajib
+  \item Muat naik \textbf{Resit Bayaran}: PDF/JPG/JPEG/PNG, maks. 5MB \wajib
+  \item Muat naik \textbf{Gambar Profil Terbaru}: JPG/JPEG/PNG, maks. 5MB \wajib
+\end{itemize}
+\end{stepbox}
+
+\begin{stepbox}[Langkah 3: Deklarasi Kesihatan (5 item --- semua wajib)]
+\begin{enumerate}[label=\textcolor{successgreen}{\faCheckSquare}\ , nosep]
+  \item Status kesihatan fizikal dan mental baik
+  \item Telah melalui pemeriksaan perubatan dan disahkan layak
+  \item Memahami risiko dan melepaskan PBNP dari tuntutan
+  \item Bersetuju memaklumkan sebarang kondisi perubatan
+  \item Memberi kebenaran rawatan kecemasan
+\end{enumerate}
+\end{stepbox}
+
+\begin{stepbox}[Langkah 4: Perakuan Umum (3 item --- semua wajib)]
+\begin{enumerate}[label=\textcolor{successgreen}{\faCheckSquare}\ , nosep]
+  \item Maklumat yang diberikan adalah benar dan tepat
+  \item Sekiranya maklumat palsu, permohonan akan dibatalkan
+  \item Bersetuju mematuhi peraturan dan undang-undang PBNP/FAM
+\end{enumerate}
+\end{stepbox}
+
+\begin{stepbox}[Langkah 5: Hantar]
+Klik \btn{Hantar Permohonan}
+\end{stepbox}
+
+\subsection{Aliran Kelulusan}
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=1.2cm,
+  process/.style={rectangle, rounded corners, draw=pbnpblue, fill=pbnpblue!10, text width=3.8cm, minimum height=1cm, text centered, font=\small},
+  decision/.style={diamond, draw=warningyellow!80!black, fill=warningyellow!10, text width=2cm, minimum height=1cm, text centered, font=\small, aspect=2},
+  success/.style={rectangle, rounded corners, draw=successgreen, fill=successgreen!10, text width=2.8cm, minimum height=0.8cm, text centered, font=\small\bfseries},
+  fail/.style={rectangle, rounded corners, draw=dangered, fill=dangered!10, text width=2.2cm, minimum height=0.8cm, text centered, font=\small\bfseries},
+  arrow/.style={-{Stealth[length=6pt]}, thick, pbnpblue}
+]
+  \node[process] (submit) {Pengadil hantar permohonan};
+  \node[process, below=of submit] (waitpp) {Status: Menunggu PP Daerah};
+  \node[decision, below=of waitpp] (pp) {PP Daerah};
+  \node[process, below left=1.5cm and 0.5cm of pp] (waitadmin) {Status: Menunggu Admin};
+  \node[fail, below right=1.5cm and 0.5cm of pp] (reject1) {Ditolak};
+  \node[decision, below=of waitadmin] (admin) {Admin};
+  \node[success, below left=1.5cm and 0.3cm of admin] (approve) {Lengkap \faCheck};
+  \node[fail, below right=1.5cm and 0.3cm of admin] (reject2) {Ditolak};
+  
+  \draw[arrow] (submit) -- (waitpp);
+  \draw[arrow] (waitpp) -- (pp);
+  \draw[arrow] (pp) -- node[left, font=\scriptsize] {Sahkan} (waitadmin);
+  \draw[arrow] (pp) -- node[right, font=\scriptsize] {Tolak} (reject1);
+  \draw[arrow] (waitadmin) -- (admin);
+  \draw[arrow] (admin) -- node[left, font=\scriptsize] {Luluskan} (approve);
+  \draw[arrow] (admin) -- node[right, font=\scriptsize] {Tolak} (reject2);
+\end{tikzpicture}
+\end{center}
+
+\section{Permohonan Ujian Kelas III FAM}
+
+\subsection{Tujuan}
+Memohon untuk menduduki Ujian Kelas III FAM (ujian bertulis).
+
+\subsection{Syarat Kelayakan}
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}]
+  \item Umur: \textbf{15 hingga 40 tahun} (dikira dari No. KP)
+  \item Yuran: \textbf{RM 50}
+  \item Tempoh permohonan dibuka oleh Admin
+\end{itemize}
+
+\subsection{Langkah-langkah}
+\begin{enumerate}[label=\textcolor{pbnpblue}{\textbf{\arabic*.}}, leftmargin=2em]
+  \item Buat bayaran RM 50 ke akaun FAM yang dipaparkan
+  \item Isi maklumat waris
+  \item Muat naik resit bayaran FAM
+  \item Tandakan 2 perakuan umum
+  \item Klik \btn{Hantar Permohonan}
+\end{enumerate}
+
+\section{Permohonan Ujian Kelas I FAM}
+
+\subsection{Tujuan}
+Memohon untuk menduduki Ujian Kelas I FAM (peningkatan taraf).
+
+\subsection{Syarat Kelayakan}
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}]
+  \item Umur: \textbf{Tidak melebihi 32 tahun}
+  \item Telah \textbf{lulus Ujian Kelas III} sekurang-kurangnya \textbf{2 tahun} yang lalu
+  \item Yuran: \textbf{RM 300}
+  \item Tempoh permohonan dibuka oleh Admin
+\end{itemize}
+
+\begin{importantbox}
+Sistem akan menyemak secara automatik kelayakan umur dan tempoh lulus Kelas III.
+\end{importantbox}
+
+\section{Sejarah Permohonan}
+
+Di setiap halaman permohonan, bahagian \textbf{``Sejarah Permohonan''} memaparkan:
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Lajur}} & \textcolor{white}{\textbf{Penerangan}} \\
+\midrule
+Tarikh Hantar & Tarikh permohonan dihantar \\
+Sesi & Tahun permohonan \\
+Status & Menunggu / Diluluskan / Ditolak / Lulus / Tidak Lulus / Tidak Hadir \\
+Catatan & Nota dari PP Daerah atau Admin \\
+Muat Turun & Pautan muat turun borang PDF (untuk permohonan yang diluluskan) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Tugasan Lantikan}
+
+\subsection{Tujuan}
+Menerima dan menjawab tugasan lantikan rasmi dari Admin untuk kejohanan/perlawanan.
+
+\subsection{Maklumat Dipaparkan}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Medan}} & \textcolor{white}{\textbf{Penerangan}} \\
+\midrule
+Kejohanan & Nama kejohanan \\
+No. Perlawanan & Nombor perlawanan \\
+Tarikh \& Masa & Tarikh dan masa perlawanan \\
+Pasukan & Pasukan tuan rumah vs tetamu \\
+Tempat & Lokasi perlawanan \\
+Jawatan & Pengadil / Penolong Pengadil 1 / Penolong Pengadil 2 / Pegawai Ke-4 \\
+Pengadil Utama & Nama pengadil utama (untuk rujukan) \\
+Status & Belum Jawab / Diterima / Ditolak \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Menjawab Tugasan}
+
+\subsubsection{Melalui Portal (dalam sistem)}
+\begin{enumerate}[label=\textcolor{pbnpblue}{\textbf{\arabic*.}}, leftmargin=2em]
+  \item Pergi ke \menupath{Tugasan Lantikan}
+  \item Cari tugasan dengan status \status{warningyellow}{Belum Jawab}
+  \item Klik \btn{Terima} atau \btn{Tolak}
+    \begin{itemize}
+      \item Jika tolak: Wajib isi sebab penolakan
+    \end{itemize}
+  \item Status akan dikemaskini serta-merta
+\end{enumerate}
+
+\subsubsection{Melalui Pautan Emel/Telegram (tanpa log masuk)}
+\begin{enumerate}[label=\textcolor{pbnpblue}{\textbf{\arabic*.}}, leftmargin=2em]
+  \item Terima notifikasi melalui emel atau Telegram
+  \item Klik pautan \btn{Terima} atau \btn{Tolak} dalam mesej
+  \item Halaman pengesahan akan dipaparkan
+  \item Pautan adalah \textbf{sekali guna} --- selepas digunakan, ia tamat tempoh
+\end{enumerate}
+
+\subsection{Apa Yang Berlaku Selepas Terima}
+\begin{itemize}[label=\textcolor{successgreen}{\faCheckCircle}]
+  \item Rekod perlawanan \textbf{dicipta secara automatik} dengan status \status{successgreen}{Disahkan}
+  \item Jika anda seorang Penilai Pengadil, \textbf{token borang penilaian} akan dijana dan dihantar
+  \item Jika \textbf{semua pegawai} untuk perlawanan tersebut telah menerima, status jadual perlawanan bertukar kepada \status{successgreen}{Disahkan}
+\end{itemize}
+
+\section{Rekod Perlawanan}
+
+\subsection{Tujuan}
+Merekod perlawanan \textbf{tidak rasmi} (persahabatan, perlawanan luar kejohanan) sebagai minit perlawanan. Perlawanan rasmi dari lantikan dicipta secara automatik dan tidak perlu didaftar di sini.
+
+\subsection{Menambah Perlawanan Baharu}
+
+\begin{importantbox}
+Hanya \textbf{seorang pengadil} perlu mengisi borang untuk \textbf{SEMUA pegawai} dalam perlawanan tersebut. Rekod akan dipaparkan kepada semua pegawai yang terlibat.
+\end{importantbox}
+
+\begin{stepbox}[Langkah 1: Maklumat Perlawanan]
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l l c X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Medan}} & \textcolor{white}{\textbf{Jenis}} & \textcolor{white}{\textbf{Wajib}} & \textcolor{white}{\textbf{Pilihan}} \\
+\midrule
+Pasukan Tuan Rumah & Teks & \tablemark & --- \\
+Pasukan Lawan & Teks & \tablemark & --- \\
+Tarikh & Tarikh & \tablemark & --- \\
+Masa & Masa & \tablecross & --- \\
+Jenis & Pilihan & \tablecross & Liga, Piala, Persahabatan, Lain \\
+Nama Kejohanan & Teks & \tablecross & cth: Liga M-League 2026 \\
+Tempat & Teks & \tablecross & Lokasi perlawanan \\
+Daerah Perlawanan & Pilihan & \tablemark & 12 daerah Pahang \\
+Cuaca & Pilihan & \tablecross & Cerah, Mendung, Hujan Renyai, dll. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\end{stepbox}
+
+\begin{stepbox}[Langkah 2: Keputusan Perlawanan]
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Tempoh}} & \textcolor{white}{\textbf{Penerangan}} \\
+\midrule
+Separuh Masa (HT) & Skor home : away \\
+Penuh Masa (FT) & Skor home : away \\
+Masa Tambahan (ET) & Skor home : away (opsional) \\
+Penalti (PS) & Skor home : away (opsional) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\end{stepbox}
+
+\begin{stepbox}[Langkah 3: Pegawai Perlawanan]
+\begin{itemize}[nosep]
+  \item Sistem menyediakan \textbf{4 slot} lalai: Pengadil, Penolong Pengadil 1, Penolong Pengadil 2, Pengadil Ke-4
+  \item Boleh tambah hingga \textbf{5 pegawai} (termasuk Pengadil Ke-5)
+  \item Untuk setiap pegawai: Pilih \textbf{Jawatan}, kemudian \textbf{cari pengadil} (nama atau No. KP)
+  \item Klik \btn{+ Tambah Pegawai} untuk menambah slot
+\end{itemize}
+\end{stepbox}
+
+\subsection{Peraturan Penting}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{>{\bfseries}l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Peraturan}} & \textcolor{white}{\textbf{Penerangan}} \\
+\midrule
+Peraturan 14 Hari & Perlawanan tidak boleh didaftarkan jika tarikh melebihi 14 hari yang lalu \\
+Jawatan Unik & Setiap jawatan hanya boleh diberikan kepada seorang pegawai \\
+Minimum 1 Pegawai & Sekurang-kurangnya seorang pegawai perlu diisi \\
+Daerah Wajib & Daerah perlawanan wajib dipilih --- PP Daerah tersebut akan menerima notifikasi \\
+Tidak Boleh Padam Lantikan & Rekod yang dicipta dari lantikan rasmi tidak boleh dipadamkan \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Penilaian Saya}
+
+\subsection{Tujuan}
+Melihat laporan penilaian prestasi yang telah disahkan oleh Admin.
+
+\subsection{Pengekodan Warna Markah}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Julat}} & \textcolor{white}{\textbf{Warna}} & \textcolor{white}{\textbf{Penerangan}} \\
+\midrule
+\rowcolor{successgreen!10} 8.3 -- 10.0 & \textcolor{successgreen}{\faCircle\ Hijau} & Prestasi baik hingga sangat baik \\
+\rowcolor{primaryblue!10} 8.0 -- 8.2 & \textcolor{primaryblue}{\faCircle\ Biru} & Baik dengan penambahbaikan \\
+\rowcolor{warningyellow!10} 7.5 -- 7.9 & \textcolor{warningyellow}{\faCircle\ Kuning} & Tidak memuaskan \\
+\rowcolor{dangered!10} $<$ 7.5 & \textcolor{dangered}{\faCircle\ Merah} & Buruk \\
+\bottomrule
+\end{tabularx}
+\caption{Pengekodan warna markah penilaian}
+\end{table}
+
+\subsection{Butiran Laporan}
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}]
+  \item Maklumat perlawanan penuh (kejohanan, pasukan, skor, tarikh, penilai)
+  \item Jadual semua pegawai: Jawatan, Nama, Markah, Prestasi
+  \item \textbf{Penilaian anda:} Markah, prestasi, \textcolor{successgreen}{Kekuatan (tag hijau)}, \textcolor{dangered}{Kelemahan (tag merah)}, Nasihat
+  \item Ulasan Keseluruhan dan Catatan Admin
+  \item Butang \btn{Muat Turun PDF}
+\end{itemize}
+
+% =============================================================================
+% BAB 4: MANUAL PP DAERAH
+% =============================================================================
+\chapter{Manual PP Daerah}
+
+\section{Menu Utama PP Daerah}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{c l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{\#}} & \textcolor{white}{\textbf{Menu}} & \textcolor{white}{\textbf{Fungsi}} \\
+\midrule
+1 & Dashboard & Ringkasan daerah \\
+2 & \textbf{Permohonan Saya} & --- \\
+2a & \quad Pendaftaran Tahunan (R4) & Permohonan sendiri \\
+2b & \quad Ujian Kelas III FAM & Permohonan sendiri \\
+2c & \quad Ujian Kelas I FAM & Permohonan sendiri \\
+3 & Pengesahan Permohonan & Sahkan/tolak permohonan daerah \\
+4 & Pengesahan Perlawanan & Sahkan/tolak perlawanan daerah \\
+5 & \textbf{Permohonan} & --- \\
+5a & \quad Pendaftaran Tahunan (R4) & Senarai permohonan daerah \\
+5b & \quad Ujian Kelas III FAM & Senarai permohonan daerah \\
+5c & \quad Ujian Kelas I FAM & Senarai permohonan daerah \\
+6 & Pengadil Berdaftar & Senarai pengadil daerah \\
+7 & RA Berdaftar & Senarai penilai daerah \\
+8 & Laporan Penilaian & Laporan penilaian daerah \\
+9 & Tugasan Lantikan & Tugasan lantikan sendiri \\
+10 & Profil & Pengurusan profil sendiri \\
+\bottomrule
+\end{tabularx}
+\caption{Menu utama PP Daerah}
+\end{table}
+
+\begin{importantbox}
+\textbf{Skop Penting:} Semua data yang dipaparkan kepada PP Daerah \textbf{hanya melibatkan daerah sendiri}. PP Kuantan hanya nampak data Kuantan.
+\end{importantbox}
+
+\section{Dashboard PP Daerah}
+
+\subsection{Kad Statistik (4 kad)}
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Kad}} & \textcolor{white}{\textbf{Penerangan}} \\
+\midrule
+Pengadil Berdaftar & Jumlah pengadil aktif dalam daerah \\
+Menunggu Pengesahan & Permohonan yang perlu disahkan (animasi denyut jika $>$ 0) \\
+Diluluskan & Permohonan yang telah diluluskan \\
+Perlawanan Bulan Ini & Jumlah perlawanan bulan semasa \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Bahagian Lain}
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}]
+  \item \textbf{Sepanduk ambar} jika ada permohonan menunggu $\rightarrow$ pautan ke Pengesahan Permohonan
+  \item \textbf{Sepanduk biru} jika ada perlawanan menunggu $\rightarrow$ pautan ke Pengesahan Perlawanan
+  \item \textbf{Top 5 Pengadil} --- Pengadil paling aktif (berdasarkan jumlah perlawanan)
+  \item \textbf{Perlawanan Akan Datang} --- 10 perlawanan seterusnya dengan pegawai yang dilantik
+\end{itemize}
+
+\section{Pengesahan Permohonan}
+
+\subsection{Tujuan}
+PP Daerah berperanan sebagai pengesah peringkat pertama sebelum permohonan dihantar ke Admin.
+
+\subsection{Aliran Proses}
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=1.2cm,
+  process/.style={rectangle, rounded corners, draw=pbnpblue, fill=pbnpblue!10, text width=4cm, minimum height=0.9cm, text centered, font=\small},
+  arrow/.style={-{Stealth[length=6pt]}, thick, pbnpblue}
+]
+  \node[process] (wait) {Menunggu PP Daerah};
+  \node[process, below left=1.5cm and 1cm of wait] (sahkan) {Menunggu Admin};
+  \node[process, below right=1.5cm and 1cm of wait] (tolak1) {\textcolor{dangered}{Ditolak}};
+  \node[process, below left=1.5cm and 0.2cm of sahkan] (lulus) {\textcolor{successgreen}{Lengkap \faCheck}};
+  \node[process, below right=1.5cm and 0.2cm of sahkan] (tolak2) {\textcolor{dangered}{Ditolak}};
+  
+  \draw[arrow] (wait) -- node[left, font=\scriptsize] {PP Sahkan} (sahkan);
+  \draw[arrow] (wait) -- node[right, font=\scriptsize] {PP Tolak} (tolak1);
+  \draw[arrow] (sahkan) -- node[left, font=\scriptsize] {Admin Luluskan} (lulus);
+  \draw[arrow] (sahkan) -- node[right, font=\scriptsize] {Admin Tolak} (tolak2);
+\end{tikzpicture}
+\end{center}
+
+\subsection{Mengesahkan Permohonan}
+\begin{enumerate}[label=\textcolor{pbnpblue}{\textbf{\arabic*.}}, leftmargin=2em]
+  \item Semak maklumat pengadil dan resit bayaran
+  \item Klik \btn{Sahkan} $\rightarrow$ Dialog pengesahan $\rightarrow$ Klik \btn{Ya}
+  \item Permohonan bertukar kepada status \status{primaryblue}{Menunggu Admin}
+  \item \textbf{Emel dihantar kepada} semua Admin aktif dan pemohon
+\end{enumerate}
+
+\subsection{Menolak Permohonan}
+\begin{enumerate}[label=\textcolor{pbnpblue}{\textbf{\arabic*.}}, leftmargin=2em]
+  \item Klik \btn{Tolak} $\rightarrow$ Modal penolakan dipaparkan
+  \item \textbf{Wajib} isi sebab penolakan dalam kotak teks
+  \item Klik \btn{Hantar Penolakan}
+  \item Permohonan bertukar kepada status \status{dangered}{Ditolak}
+  \item \textbf{Emel dihantar kepada pemohon} --- memberitahu beserta sebab
+\end{enumerate}
+
+\section{Pengesahan Perlawanan}
+
+\subsection{Tujuan}
+PP Daerah mengesahkan atau menolak rekod perlawanan tidak rasmi yang didaftarkan oleh pengadil.
+
+\begin{infobox}
+\textbf{Skop Pengesahan:} Perlawanan berkumpulan disenaraikan berdasarkan \textbf{daerah perlawanan} yang dipilih oleh pengadil (bukan daerah pengadil). Jika pengadil dari Kuantan mendaftar perlawanan di Pekan, PP Pekan yang perlu mengesahkan.
+\end{infobox}
+
+\subsection{Tindakan PP}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Tindakan}} & \textcolor{white}{\textbf{Ikon}} & \textcolor{white}{\textbf{Penerangan}} \\
+\midrule
+Sahkan & \textcolor{successgreen}{\faCheck} & Semua rekod kumpulan disahkan sekaligus \\
+Tolak & \textcolor{dangered}{\faTimes} & Semua rekod kumpulan ditolak \\
+Edit Semula & \textcolor{primaryblue}{\faRedo} & Kembalikan ke ``Belum Disahkan'' \\
+Padam & \textcolor{dangered}{\faTrash} & Padam semua rekod kumpulan (tidak boleh batal) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Senarai Pengadil Berdaftar}
+
+Melihat semua pengadil berdaftar dalam daerah. Klik pada nama untuk melihat profil penuh:
+
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}, nosep]
+  \item Maklumat Peribadi, Alamat, Maklumat Pengadil
+  \item Pekerjaan, Waris, Statistik
+  \item Rekod Perlawanan Terkini (10 perlawanan terakhir)
+\end{itemize}
+
+\section{Laporan Penilaian}
+
+\subsection{Statistik}
+4 angka ringkasan: Jumlah Laporan, Purata Markah, Markah Tertinggi, Markah Terendah
+
+\subsection{Butiran Laporan}
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}]
+  \item Maklumat perlawanan penuh dan keputusan (HT, FT, ET, PS)
+  \item Jadual semua pegawai: Jawatan, Nama, Markah, Prestasi
+  \item Penilaian per pegawai: Kekuatan, Kelemahan, Nasihat (per bahagian)
+  \item Ulasan Keseluruhan
+  \item Butang \btn{Muat Turun PDF}
+\end{itemize}
+
+% =============================================================================
+% BAB 5: MANUAL PENILAI PENGADIL (RA)
+% =============================================================================
+\chapter{Manual Penilai Pengadil (RA)}
+
+\section{Menu Utama Penilai}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{c l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{\#}} & \textcolor{white}{\textbf{Menu}} & \textcolor{white}{\textbf{Fungsi}} \\
+\midrule
+1 & Dashboard & Ringkasan tugasan dan statistik \\
+2 & Penilaian Pengadil & Isi dan hantar laporan penilaian \\
+3 & Pendaftaran Tahunan (R4) & Permohonan pendaftaran tahunan \\
+4 & Tugasan & Senarai tugasan lantikan \\
+5 & Statistik & Statistik penilaian \\
+6 & Profil & Pengurusan profil sendiri \\
+\bottomrule
+\end{tabularx}
+\caption{Menu utama Penilai}
+\end{table}
+
+\section{Penilaian Pengadil}
+
+\subsection{Tujuan}
+Ini adalah fungsi utama Penilai --- menilai prestasi pengadil semasa perlawanan kejohanan.
+
+\subsection{Status Laporan}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Status}} & \textcolor{white}{\textbf{Warna}} & \textcolor{white}{\textbf{Penerangan}} \\
+\midrule
+\rowcolor{dangered!8} Belum Dilengkapi & \textcolor{dangered}{\faCircle} & Belum mula mengisi \\
+\rowcolor{warningyellow!8} Draf & \textcolor{warningyellow}{\faCircle} & Sudah mula, belum dihantar \\
+\rowcolor{primaryblue!8} Dihantar & \textcolor{primaryblue}{\faCircle} & Sudah dihantar ke Admin \\
+\rowcolor{successgreen!8} Disahkan & \textcolor{successgreen}{\faCircle} & Admin telah mengesahkan \\
+\bottomrule
+\end{tabularx}
+\caption{Status laporan penilaian}
+\end{table}
+
+\subsection{Mengisi Borang Penilaian}
+
+\subsubsection{Kaedah Akses}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Kaedah}} & \textcolor{white}{\textbf{Penerangan}} \\
+\midrule
+Melalui Portal & Log masuk $\rightarrow$ Penilaian Pengadil $\rightarrow$ Perlu Dinilai $\rightarrow$ Mula Penilaian \\
+Melalui Pautan Token & Klik pautan dalam emel/Telegram --- tanpa perlu log masuk \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Bahagian Borang Penilaian}
+
+\subsubsection{1. Maklumat Perlawanan (automatik)}
+Kejohanan, Pasukan, No. Perlawanan, Tarikh, Masa, Tempat, Nama Penilai
+
+\subsubsection{2. Keputusan Perlawanan}
+Separuh Masa (HT), Penuh Masa (FT), Masa Tambahan (ET), Penalti (PS)
+
+\subsubsection{3. Tahap Kesukaran Perlawanan}
+Normal / Susah / Sangat Susah
+
+\subsubsection{4. Cuaca}
+Cerah / Mendung / Hujan Renyai / Hujan Lebat / Panas Terik / Berangin
+
+\subsubsection{5. Penilaian Per Pegawai}
+
+\textbf{Kriteria Berbeza Mengikut Jawatan:}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l l c X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Jawatan}} & \textcolor{white}{\textbf{Bahagian}} & \textcolor{white}{\textbf{Bil.}} & \textcolor{white}{\textbf{Contoh}} \\
+\midrule
+\multirow{3}{*}{\textbf{Pengadil (R)}} & Kawalan Permainan & 28 & Penalti, kad kuning/merah, bola tangan \\
+ & Kecergasan Fizikal & 10 & Kelajuan larian, stamina, penempatan \\
+ & Kerjasama Berpasukan & 12 & Komunikasi, konsistensi keputusan \\
+\midrule
+\textbf{Penolong Pengadil} & Penilaian Penolong & 24 & Keputusan offside, isyarat, dsb. \\
+\midrule
+\textbf{Pegawai Ke-4} & Penilaian P4 & 11 & Pengurusan teknikal, dsb. \\
+\bottomrule
+\end{tabularx}
+\caption{Kriteria penilaian mengikut jawatan}
+\end{table}
+
+Untuk setiap bahagian:
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}, nosep]
+  \item \textcolor{successgreen}{\textbf{Kekuatan}} (pilih pelbagai) --- kriteria yang pengadil lakukan dengan baik
+  \item \textcolor{dangered}{\textbf{Kelemahan}} (pilih pelbagai) --- kriteria yang perlu diperbaiki
+  \item \textbf{Nasihat} (teks) --- saranan khusus untuk penambahbaikan
+\end{itemize}
+
+\subsection{Skala Pemarkahan (Rujukan)}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Julat Markah}} & \textcolor{white}{\textbf{Penerangan}} \\
+\midrule
+\rowcolor{successgreen!10} 9.0 -- 10.0 & Prestasi sangat baik, keputusan pada situasi sukar adalah betul \\
+\rowcolor{successgreen!8} 8.5 -- 8.9 & Prestasi sangat baik \\
+\rowcolor{successgreen!5} 8.3 -- 8.4 & Prestasi baik \\
+\rowcolor{primaryblue!8} 8.0 -- 8.2 & Baik dengan penambahbaikan \\
+\rowcolor{warningyellow!8} 7.9 & Tidak memuaskan --- 1 insiden penting (sepatutnya 8.3+) \\
+\rowcolor{warningyellow!10} 7.8 & Tidak memuaskan --- 1 insiden penting (sepatutnya 8.0--8.2) \\
+\rowcolor{warningyellow!12} 7.5 -- 7.7 & Tidak memuaskan --- 2 insiden penting \\
+\rowcolor{dangered!8} 7.4 & Kesilapan mempengaruhi keputusan perlawanan \\
+\rowcolor{dangered!12} 7.0 -- 7.4 & Buruk --- 3 atau lebih insiden penting \\
+\bottomrule
+\end{tabularx}
+\caption{Skala pemarkahan penilaian pengadil}
+\end{table}
+
+\subsection{Simpan dan Hantar}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Tindakan}} & \textcolor{white}{\textbf{Penerangan}} \\
+\midrule
+\textbf{Simpan Draf} & Markah dan maklumat disimpan tetapi belum dihantar. Boleh sambung kemudian. \\
+\textbf{Hantar Laporan} & Semua markah pegawai \textbf{WAJIB} diisi. Status $\rightarrow$ ``Dihantar'' $\rightarrow$ menunggu Admin. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Selepas Admin Sahkan}
+\begin{itemize}[label=\textcolor{successgreen}{\faCheckCircle}]
+  \item Status bertukar kepada \status{successgreen}{Disahkan}
+  \item \textbf{Emel diterima} oleh setiap pegawai yang dinilai (markah, 5 kekuatan, 5 kelemahan, pautan PDF)
+  \item \textbf{Mesej Telegram} dihantar kepada pegawai yang telah menghubungkan Telegram
+  \item Laporan boleh dimuat turun sebagai PDF
+\end{itemize}
+
+% =============================================================================
+% BAB 6: MANUAL PENTADBIR (ADMIN)
+% =============================================================================
+\chapter{Manual Pentadbir (Admin)}
+
+\section{Menu Utama Admin}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{c l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{\#}} & \textcolor{white}{\textbf{Menu}} & \textcolor{white}{\textbf{Fungsi}} \\
+\midrule
+1 & Dashboard & Paparan ringkasan keseluruhan sistem \\
+2 & Permohonan Pengadil & Urus permohonan semua pengadil \\
+3 & Permohonan RA & Urus permohonan penilai \\
+4 & Pengadil Berdaftar & Senarai semua pengadil berdaftar \\
+5 & RA Berdaftar & Senarai semua penilai berdaftar \\
+6 & PP Daerah & Senarai semua PP Daerah \\
+7 & Pengguna & Pengurusan semua pengguna \\
+8 & Lantikan Pengadil & Kejohanan, jadual \& lantikan \\
+9 & Pengadil Luar & Urus pengadil dari negeri lain \\
+10 & Statistik & Analitik dan laporan \\
+11 & Pengumuman & Urus pengumuman awam \\
+12 & Tetapan & Tetapan sistem \\
+13 & Profil Saya & Pengurusan profil Admin \\
+\bottomrule
+\end{tabularx}
+\caption{Menu utama Admin}
+\end{table}
+
+\section{Dashboard Admin}
+
+\subsection{Kad KPI (4 kad)}
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Kad}} & \textcolor{white}{\textbf{Penerangan}} \\
+\midrule
+Pengadil Aktif & Jumlah pengadil aktif dalam sistem \\
+Permohonan Baru & Permohonan menunggu tindakan (animasi denyut jika $>$ 0) \\
+Laporan Semakan & Laporan penilaian yang belum disahkan \\
+Perlawanan Bulan Ini & Jumlah perlawanan dalam bulan semasa \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Widget dan Akses Pantas}
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}]
+  \item \textbf{Perhatian Segera:} Permohonan tertunda + Laporan perlu disemak
+  \item \textbf{Permohonan Terkini:} 5 terbaru dengan butang Luluskan/Tolak terus
+  \item \textbf{Akses Pantas:} Pengumuman, Statistik
+\end{itemize}
+
+\section{Permohonan Pengadil}
+
+\subsection{Tab Permohonan}
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Tab}} & \textcolor{white}{\textbf{Fungsi}} \\
+\midrule
+Pengadil Berdaftar & Pendaftaran tahunan pengadil \\
+Ujian Kelas III FAM & Permohonan ujian bertulis Kelas III \\
+Ujian Kelas I FAM & Permohonan ujian Kelas I \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Tindakan Permohonan}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Tindakan}} & \textcolor{white}{\textbf{Penerangan}} \\
+\midrule
+\textcolor{successgreen}{\textbf{Luluskan}} & Status $\rightarrow$ ``Lengkap''. Emel pengesahan dihantar kepada pemohon. \\
+\textcolor{dangered}{\textbf{Tolak}} & Wajib isi sebab. Status $\rightarrow$ ``Ditolak''. Emel penolakan dihantar. \\
+\textcolor{primaryblue}{\textbf{Lulus}} (Ujian) & Calon lulus ujian \\
+\textcolor{dangered}{\textbf{Tidak Lulus}} (Ujian) & Calon tidak lulus ujian \\
+\textcolor{warningyellow}{\textbf{Tidak Hadir}} (Ujian) & Calon tidak hadir ujian \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Pengadil Berdaftar / RA Berdaftar}
+
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}]
+  \item \textbf{Lihat Profil} --- Modal butiran penuh (3 tab: Maklumat, Sejarah, Perlawanan)
+  \item \textbf{Edit} --- Kemaskini maklumat pengadil
+  \item \textbf{Padam} --- Padam rekod (dengan pengesahan)
+  \item \textbf{Muat Turun Excel} --- Eksport senarai
+  \item \textbf{Cetak} --- Susun atur mesra cetakan
+\end{itemize}
+
+\section{Pengurusan Pengguna}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Tindakan}} & \textcolor{white}{\textbf{Penerangan}} \\
+\midrule
+Tambah Pengguna & Cipta akaun baharu \\
+Edit Profil & Kemaskini maklumat pengguna \\
+Reset Kata Laluan & Hantar pautan reset \\
+Hantar Semula Emel & Hantar semula emel notifikasi \\
+Padam Pengguna & Padam akaun pengguna \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Lantikan Pengadil (5 Tab)}
+
+Ini adalah modul paling kompleks dalam sistem --- mengurus keseluruhan aliran lantikan dari kejohanan hingga penilaian.
+
+\subsection{Tab 1: Kejohanan}
+
+Mendaftar dan mengurus kejohanan bola sepak.
+
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}]
+  \item \textbf{Tambah Kejohanan} --- nama, tarikh mula/akhir, anjuran, logo
+  \item \textbf{Edit / Padam} --- urus kejohanan
+  \item \textbf{Lihat Jadual} --- pergi ke Tab 2
+\end{itemize}
+
+\subsection{Tab 2: Jadual Perlawanan}
+
+Mengurus jadual perlawanan dalam kejohanan.
+
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}]
+  \item \textbf{Tambah Manual} --- isi butiran per perlawanan
+  \item \textbf{Muat Naik Excel} --- muat naik jadual secara pukal
+  \item \textbf{Edit / Padam} --- urus perlawanan
+\end{itemize}
+
+\subsection{Tab 3: Lantikan Pengadil}
+
+\begin{stepbox}[Aliran Kerja Lantikan]
+\begin{enumerate}[label=\textcolor{pbnpblue}{\textbf{\arabic*.}}, leftmargin=2em]
+  \item \textbf{Pilih perlawanan} dari senarai jadual
+  \item Sistem memaparkan \textbf{slot jawatan}: Pengadil, Penolong Pengadil 1 \& 2, Pegawai Ke-4, Penilai Pengadil (RA)
+  \item Lihat \textbf{Pool Pengadil} --- senarai pengadil layak (berdaftar + luar)
+  \item \textbf{Klik pengadil} $\rightarrow$ pilih slot $\rightarrow$ Modal pengesahan
+  \item Klik \btn{Lantik} $\rightarrow$ Rekod lantikan dicipta
+  \item Pengadil menerima notifikasi: \textbf{Portal + Emel + Telegram}
+\end{enumerate}
+\end{stepbox}
+
+\subsection{Tab 4: Jadual Lantikan}
+
+Laporan penuh lantikan untuk keseluruhan kejohanan.
+
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}]
+  \item Semua perlawanan dengan pegawai dan status respons
+  \item \textbf{Pengesahan Jadual}: Isi nama pengesah, jawatan, nota
+  \item \textbf{Muat Turun PDF} --- laporan A4
+\end{itemize}
+
+\subsection{Tab 5: Laporan Penilaian}
+
+Melihat dan mengesahkan laporan penilaian daripada Penilai.
+
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}]
+  \item \textbf{Sahkan Laporan} $\rightarrow$ Emel \& Telegram dihantar kepada pegawai
+  \item \textbf{Muat Turun PDF} --- laporan A4
+\end{itemize}
+
+\section{Statistik \& Analitik}
+
+\subsection{Tab Permohonan}
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}, nosep]
+  \item Carta Bar: Permohonan mengikut jenis borang
+  \item Carta Pai: Taburan status permohonan
+  \item Carta Garisan: Trend bulanan permohonan
+\end{itemize}
+
+\subsection{Tab Pengadil}
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}, nosep]
+  \item Carta Donat: Taburan jantina
+  \item Carta Bar: Status pekerjaan \& taburan daerah
+  \item Carta Garisan: Trend pendaftaran bulanan
+\end{itemize}
+
+\subsection{Tab Lantikan}
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}, nosep]
+  \item Kad: Jumlah, Selesai, Disahkan, Belum
+  \item Jadual: Senarai kejohanan dengan statistik
+\end{itemize}
+
+\section{Pengumuman}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Tindakan}} & \textcolor{white}{\textbf{Penerangan}} \\
+\midrule
+Tambah & Modal borang: tajuk + kandungan \\
+Lihat & Modal paparan penuh \\
+Edit & Kemaskini tajuk / kandungan \\
+Padam & Padam dengan pengesahan \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{infobox}
+Pengumuman dipaparkan di halaman log masuk (carousel), dashboard semua peranan, dan bahagian pengumuman portal.
+\end{infobox}
+
+\section{Tetapan Sistem}
+
+\subsection{Mod Penyelenggaraan}
+\begin{itemize}[label=\textcolor{pbnpblue}{\faChevronRight}]
+  \item \textbf{Aktif}: Hanya Admin boleh akses sistem
+  \item \textbf{Tidak Aktif}: Semua pengguna boleh akses
+  \item Togol suis untuk tukar
+\end{itemize}
+
+\subsection{Status Permohonan Per Jenis}
+
+\begin{table}[H]
+\centering
+\rowcolors{2}{tablebg}{white}
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Jenis}} & \textcolor{white}{\textbf{Kawalan}} \\
+\midrule
+Daftar Akaun Baru & DIBUKA / DITUTUP + tarikh mula \& akhir \\
+Pendaftaran Tahunan (R1+R2+R4) & DIBUKA / DITUTUP + tarikh mula \& akhir \\
+Ujian Kelas III FAM & DIBUKA / DITUTUP + tarikh mula \& akhir \\
+Ujian Kelas I FAM & DIBUKA / DITUTUP + tarikh mula \& akhir \\
+Pendaftaran Penilai (R4) & DIBUKA / DITUTUP + tarikh mula \& akhir \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Maklumat Pembayaran}
+Nama Bank, No. Akaun, Jumlah Yuran
+
+\subsection{Peraturan Kelayakan FAM}
+Umur minimum/maksimum ujian, Bilangan pusingan kecergasan
+
+% =============================================================================
+% BAB 7: CARTA ALIR PROSES
+% =============================================================================
+\chapter{Carta Alir Proses}
+
+\section{Aliran Pendaftaran Akaun Baharu}
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=1cm,
+  process/.style={rectangle, rounded corners=4pt, draw=pbnpblue, fill=pbnpblue!8, text width=9cm, minimum height=0.9cm, text centered, font=\small},
+  decision/.style={diamond, draw=warningyellow!80!black, fill=warningyellow!8, text width=3cm, minimum height=0.8cm, text centered, font=\small, aspect=2.5},
+  arrow/.style={-{Stealth[length=5pt]}, thick, pbnpblue!70}
+]
+  \node[process] (a) {Pengguna baru buka halaman pendaftaran};
+  \node[process, below=of a] (b) {Isi borang (Nama, IC, Emel, Telefon, Jantina, Jenis, PBD)};
+  \node[process, below=of b] (c) {Klik ``Daftar''};
+  \node[decision, below=1.2cm of c] (d) {Jenis?};
+  \node[process, below left=1.2cm and 0.3cm of d, text width=4cm] (e1) {Peranan: PP Daerah};
+  \node[process, below right=1.2cm and 0.3cm of d, text width=4cm] (e2) {Peranan: Pengadil};
+  \node[process, below=3cm of d] (f) {Kata laluan dijana automatik $\rightarrow$ dihantar ke emel};
+  \node[process, below=of f] (g) {Modal kejayaan $\rightarrow$ Pilihan hubungkan Telegram};
+  \node[process, below=of g] (h) {Log masuk $\rightarrow$ Tukar kata laluan $\rightarrow$ Lengkapkan profil};
+  
+  \draw[arrow] (a) -- (b);
+  \draw[arrow] (b) -- (c);
+  \draw[arrow] (c) -- (d);
+  \draw[arrow] (d) -| node[above left, font=\scriptsize] {Pegawai Pembangunan} (e1);
+  \draw[arrow] (d) -| node[above right, font=\scriptsize] {Jenis lain} (e2);
+  \draw[arrow] (e1) |- (f);
+  \draw[arrow] (e2) |- (f);
+  \draw[arrow] (f) -- (g);
+  \draw[arrow] (g) -- (h);
+\end{tikzpicture}
+\end{center}
+
+\section{Aliran Permohonan Pendaftaran Tahunan}
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=1cm,
+  process/.style={rectangle, rounded corners=4pt, draw=pbnpblue, fill=pbnpblue!8, text width=8cm, minimum height=0.9cm, text centered, font=\small},
+  decision/.style={diamond, draw=warningyellow!80!black, fill=warningyellow!8, text width=2.2cm, minimum height=0.8cm, text centered, font=\small, aspect=2.5},
+  success/.style={rectangle, rounded corners=4pt, draw=successgreen, fill=successgreen!10, text width=3cm, minimum height=0.8cm, text centered, font=\small\bfseries},
+  fail/.style={rectangle, rounded corners=4pt, draw=dangered, fill=dangered!10, text width=2.5cm, minimum height=0.8cm, text centered, font=\small\bfseries},
+  arrow/.style={-{Stealth[length=5pt]}, thick, pbnpblue!70}
+]
+  \node[process] (a) {Pastikan profil lengkap + $\geq$20 perlawanan disahkan};
+  \node[process, below=of a] (b) {Buat bayaran yuran tahunan};
+  \node[process, below=of b] (c) {Isi borang + Deklarasi + Hantar permohonan};
+  \node[process, below=of c] (d) {Status: ``Menunggu PP Daerah''};
+  \node[decision, below=1.2cm of d] (pp) {PP Daerah};
+  \node[process, below left=1.5cm and 0.5cm of pp, text width=4.5cm] (waitadmin) {Status: ``Menunggu Admin''};
+  \node[fail, below right=1.5cm and 0.5cm of pp] (rej1) {Ditolak \faTimes};
+  \node[decision, below=1.2cm of waitadmin] (admin) {Admin};
+  \node[success, below left=1.2cm and 0cm of admin] (ok) {Lengkap \faCheck};
+  \node[fail, below right=1.2cm and 0cm of admin] (rej2) {Ditolak \faTimes};
+  
+  \draw[arrow] (a) -- (b);
+  \draw[arrow] (b) -- (c);
+  \draw[arrow] (c) -- (d);
+  \draw[arrow] (d) -- (pp);
+  \draw[arrow] (pp) -- node[left, font=\scriptsize] {Sahkan} (waitadmin);
+  \draw[arrow] (pp) -- node[right, font=\scriptsize] {Tolak} (rej1);
+  \draw[arrow] (waitadmin) -- (admin);
+  \draw[arrow] (admin) -- node[left, font=\scriptsize] {Luluskan} (ok);
+  \draw[arrow] (admin) -- node[right, font=\scriptsize] {Tolak} (rej2);
+\end{tikzpicture}
+\end{center}
+
+\section{Aliran Lantikan Pengadil}
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=1cm,
+  process/.style={rectangle, rounded corners=4pt, draw=pbnpblue, fill=pbnpblue!8, text width=9cm, minimum height=0.9cm, text centered, font=\small},
+  decision/.style={diamond, draw=warningyellow!80!black, fill=warningyellow!8, text width=2.5cm, minimum height=0.8cm, text centered, font=\small, aspect=2.5},
+  success/.style={rectangle, rounded corners=4pt, draw=successgreen, fill=successgreen!10, text width=7cm, minimum height=0.8cm, text centered, font=\small},
+  fail/.style={rectangle, rounded corners=4pt, draw=dangered, fill=dangered!10, text width=5cm, minimum height=0.8cm, text centered, font=\small},
+  arrow/.style={-{Stealth[length=5pt]}, thick, pbnpblue!70}
+]
+  \node[process] (a) {Admin cipta Kejohanan $\rightarrow$ Muat Naik Jadual Perlawanan};
+  \node[process, below=of a] (b) {Pilih perlawanan $\rightarrow$ Lantik pengadil dari pool ke slot jawatan};
+  \node[process, below=of b] (c) {Notifikasi dihantar: Portal + Emel + Telegram};
+  \node[decision, below=1.2cm of c] (d) {Pengadil};
+  \node[success, below left=1.5cm and -1cm of d] (e1) {TERIMA $\rightarrow$ Rekod perlawanan dicipta automatik};
+  \node[fail, below right=1.5cm and -0.5cm of d] (e2) {TOLAK (wajib isi sebab)};
+  \node[success, below=of e1] (f) {Token penilaian dijana untuk Penilai (jika berkenaan)};
+  \node[success, below=of f] (g) {Jika SEMUA terima $\rightarrow$ Jadual perlawanan: ``Disahkan''};
+  
+  \draw[arrow] (a) -- (b);
+  \draw[arrow] (b) -- (c);
+  \draw[arrow] (c) -- (d);
+  \draw[arrow] (d) -- node[left, font=\scriptsize] {Terima} (e1);
+  \draw[arrow] (d) -- node[right, font=\scriptsize] {Tolak} (e2);
+  \draw[arrow] (e1) -- (f);
+  \draw[arrow] (f) -- (g);
+\end{tikzpicture}
+\end{center}
+
+\section{Aliran Rekod Perlawanan (Tidak Rasmi)}
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=1cm,
+  process/.style={rectangle, rounded corners=4pt, draw=pbnpblue, fill=pbnpblue!8, text width=9cm, minimum height=0.9cm, text centered, font=\small},
+  decision/.style={diamond, draw=warningyellow!80!black, fill=warningyellow!8, text width=2cm, minimum height=0.8cm, text centered, font=\small, aspect=2.5},
+  success/.style={rectangle, rounded corners=4pt, draw=successgreen, fill=successgreen!10, text width=4cm, minimum height=0.8cm, text centered, font=\small\bfseries},
+  fail/.style={rectangle, rounded corners=4pt, draw=dangered, fill=dangered!10, text width=4cm, minimum height=0.8cm, text centered, font=\small\bfseries},
+  arrow/.style={-{Stealth[length=5pt]}, thick, pbnpblue!70}
+]
+  \node[process] (a) {Pengadil klik ``Tambah Perlawanan''};
+  \node[process, below=of a] (b) {Isi: Pasukan, Tarikh, Jenis, Tempat, Daerah, Cuaca, Keputusan};
+  \node[process, below=of b] (c) {Pilih pegawai perlawanan (1--5 orang) + jawatan};
+  \node[process, below=of c] (d) {Klik ``Simpan'' $\rightarrow$ Rekod dicipta untuk SETIAP pegawai};
+  \node[process, below=of d] (e) {PP Daerah (daerah perlawanan) menerima notifikasi};
+  \node[decision, below=1.2cm of e] (f) {PP Daerah};
+  \node[success, below left=1.2cm and 0cm of f] (g1) {Disahkan \faCheck};
+  \node[fail, below right=1.2cm and 0cm of f] (g2) {Tidak Disahkan \faTimes};
+  
+  \draw[arrow] (a) -- (b);
+  \draw[arrow] (b) -- (c);
+  \draw[arrow] (c) -- (d);
+  \draw[arrow] (d) -- (e);
+  \draw[arrow] (e) -- (f);
+  \draw[arrow] (f) -- node[left, font=\scriptsize] {Sahkan} (g1);
+  \draw[arrow] (f) -- node[right, font=\scriptsize] {Tolak} (g2);
+\end{tikzpicture}
+\end{center}
+
+\section{Aliran Penilaian Pengadil}
+
+\begin{center}
+\begin{tikzpicture}[
+  node distance=1cm,
+  process/.style={rectangle, rounded corners=4pt, draw=pbnpblue, fill=pbnpblue!8, text width=9cm, minimum height=0.9cm, text centered, font=\small},
+  success/.style={rectangle, rounded corners=4pt, draw=successgreen, fill=successgreen!10, text width=9cm, minimum height=0.8cm, text centered, font=\small},
+  arrow/.style={-{Stealth[length=5pt]}, thick, pbnpblue!70}
+]
+  \node[process] (a) {Admin melantik Penilai Pengadil (RA) ke perlawanan};
+  \node[process, below=of a] (b) {Penilai terima lantikan $\rightarrow$ Token penilaian dijana};
+  \node[process, below=of b] (c) {Penilai mengisi borang (portal atau pautan token)};
+  \node[process, below=of c] (d) {Isi: Keputusan, Kesukaran, Cuaca, Markah per pegawai};
+  \node[process, below=of d] (e) {``Simpan Draf'' atau ``Hantar Laporan''};
+  \node[process, below=of e] (f) {Admin menyemak laporan $\rightarrow$ ``Sahkan''};
+  \node[success, below=of f] (g) {Emel + Telegram kepada pengadil (markah, PDF)};
+  \node[success, below=of g] (h) {Pengadil melihat markah di ``Penilaian Saya''};
+  
+  \draw[arrow] (a) -- (b);
+  \draw[arrow] (b) -- (c);
+  \draw[arrow] (c) -- (d);
+  \draw[arrow] (d) -- (e);
+  \draw[arrow] (e) -- (f);
+  \draw[arrow] (f) -- (g);
+  \draw[arrow] (g) -- (h);
+\end{tikzpicture}
+\end{center}
+
+% =============================================================================
+% BAB 8: PENYELESAIAN MASALAH (TROUBLESHOOT)
+% =============================================================================
+\chapter{Penyelesaian Masalah (Troubleshoot)}
+
+\section{Masalah Log Masuk}
+
+\begin{longtable}{L{4cm} L{3.5cm} L{6.5cm}}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Masalah}} & \textcolor{white}{\textbf{Punca}} & \textcolor{white}{\textbf{Penyelesaian}} \\
+\midrule
+\endhead
+\rowcolor{tablebg}
+``Emel atau kata laluan tidak sah'' & Kata laluan salah atau emel tidak berdaftar & Semak ejaan emel. Guna fungsi ``Lupa Kata Laluan'' untuk tetapkan semula \\
+Tidak boleh log masuk langsung & Akaun tidak aktif & Hubungi Admin untuk mengaktifkan semula akaun \\
+\rowcolor{tablebg}
+Halaman ``Sistem Dalam Penyelenggaraan'' & Mod penyelenggaraan aktif & Hanya Admin boleh akses. Tunggu sehingga mod dimatikan \\
+Selepas log masuk, kembali ke halaman log masuk & Sesi tamat atau cookies disekat & Pastikan cookies dibenarkan. Cuba pelayar lain. Buka dalam mod biasa \\
+\bottomrule
+\end{longtable}
+
+\section{Masalah Pendaftaran}
+
+\begin{longtable}{L{4cm} L{3.5cm} L{6.5cm}}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Masalah}} & \textcolor{white}{\textbf{Punca}} & \textcolor{white}{\textbf{Penyelesaian}} \\
+\midrule
+\endhead
+\rowcolor{tablebg}
+``Pendaftaran Ditutup'' & Admin telah menutup pendaftaran & Hubungi Admin atau tunggu dibuka \\
+``No. KP sudah digunakan'' & Akaun dengan IC sama sudah wujud & Guna ``Lupa Kata Laluan'' untuk akses \\
+\rowcolor{tablebg}
+``Emel sudah digunakan'' & Emel sudah berdaftar & Cuba emel lain atau guna ``Lupa Kata Laluan'' \\
+Tidak terima emel kata laluan & Emel dalam folder spam & Semak folder spam. Hubungi Admin jika perlu \\
+\bottomrule
+\end{longtable}
+
+\section{Masalah Permohonan}
+
+\begin{longtable}{L{4cm} L{3.5cm} L{6.5cm}}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Masalah}} & \textcolor{white}{\textbf{Punca}} & \textcolor{white}{\textbf{Penyelesaian}} \\
+\midrule
+\endhead
+\rowcolor{tablebg}
+``Pendaftaran ditutup'' & Tempoh sudah tamat & Hubungi Admin untuk tarikh pembukaan \\
+``Minimum 20 perlawanan'' & Belum cukup disahkan & Pastikan $\geq$20 disahkan oleh PP \\
+\rowcolor{tablebg}
+``Umur tidak memenuhi syarat'' & Umur di luar lingkungan & Syarat automatik dari No. KP \\
+``Perlu lulus Kelas III 2 tahun'' & Prasyarat belum dipenuhi & Pastikan lulus $\geq$2 tahun lalu \\
+\rowcolor{tablebg}
+``Permohonan sudah dihantar'' & 1 per jenis per tahun & Tunggu permohonan semasa diproses \\
+Fail tidak boleh dimuat naik & Format/saiz tidak sesuai & Guna PDF/JPG/PNG, maks 5MB \\
+\rowcolor{tablebg}
+Status ``Ditolak'' & PP/Admin menolak & Semak catatan, perbaiki, hantar semula \\
+\bottomrule
+\end{longtable}
+
+\section{Masalah Perlawanan}
+
+\begin{longtable}{L{4cm} L{3.5cm} L{6.5cm}}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Masalah}} & \textcolor{white}{\textbf{Punca}} & \textcolor{white}{\textbf{Penyelesaian}} \\
+\midrule
+\endhead
+\rowcolor{tablebg}
+``Rekod melebihi 14 hari'' & Tarikh $>$ 14 hari lalu & Mesti daftar dalam 14 hari \\
+``Jawatan sudah digunakan'' & 2 pegawai jawatan sama & 1 jawatan = 1 pegawai \\
+\rowcolor{tablebg}
+Tidak jumpa pengadil & Belum berdaftar & Pastikan ada akaun aktif \\
+``Sila pilih daerah'' & Daerah tidak dipilih & Pilih daerah lokasi perlawanan \\
+\rowcolor{tablebg}
+Tidak boleh padam & Rekod lantikan rasmi & Lantikan rasmi tidak boleh dipadam \\
+``Tidak Disahkan'' & PP menolak & Semak catatan PP, hubungi PP \\
+\bottomrule
+\end{longtable}
+
+\section{Masalah Lantikan}
+
+\begin{longtable}{L{4cm} L{3.5cm} L{6.5cm}}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Masalah}} & \textcolor{white}{\textbf{Punca}} & \textcolor{white}{\textbf{Penyelesaian}} \\
+\midrule
+\endhead
+\rowcolor{tablebg}
+Tidak terima notifikasi & Telegram tidak dihubungkan & 1) Hubungkan Telegram 2) Semak spam \\
+Pautan ``Sudah Tamat Tempoh'' & Pautan telah digunakan & Log masuk, jawab via ``Tugasan Lantikan'' \\
+\rowcolor{tablebg}
+``Tugasan Sudah Dijawab'' & Sudah jawab saluran lain & Tiada tindakan perlu \\
+Ingin tukar jawapan & Jawapan tidak boleh diubah & Hubungi Admin \\
+\bottomrule
+\end{longtable}
+
+\section{Masalah Penilaian}
+
+\begin{longtable}{L{4cm} L{3.5cm} L{6.5cm}}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Masalah}} & \textcolor{white}{\textbf{Punca}} & \textcolor{white}{\textbf{Penyelesaian}} \\
+\midrule
+\endhead
+\rowcolor{tablebg}
+Tiada perlawanan ``Perlu Dinilai'' & Belum terima/jawab lantikan & Semak ``Tugasan'', tekan ``Terima'' \\
+Tidak boleh hantar laporan & Markah belum lengkap & Isi markah semua pegawai \\
+\rowcolor{tablebg}
+``Laporan Sudah Dihantar'' & Dihantar kaedah lain & Hubungi Admin \\
+Borang token tidak boleh dibuka & Token tidak sah/tamat & Hubungi Admin untuk pautan baharu \\
+\bottomrule
+\end{longtable}
+
+\section{Masalah Profil \& Telegram}
+
+\begin{longtable}{L{4cm} L{3.5cm} L{6.5cm}}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Masalah}} & \textcolor{white}{\textbf{Punca}} & \textcolor{white}{\textbf{Penyelesaian}} \\
+\midrule
+\endhead
+\rowcolor{tablebg}
+Gambar profil tidak bertukar & Cache pelayar & Muat semula (Ctrl+Shift+R) \\
+``Gagal memuat naik gambar'' & Format/saiz & JPEG/PNG/WebP, maks 5MB \\
+\rowcolor{tablebg}
+Bot Telegram tidak bertindak balas & Pautan tamat & Profil $\rightarrow$ ``Hubungkan Telegram'' semula \\
+Status ``Tidak Dihubungkan'' & Proses gagal & Cuba klik pautan sekali lagi \\
+\rowcolor{tablebg}
+Tidak terima mesej Telegram & Bot disekat & Buka semula perbualan, pastikan tidak disekat \\
+\bottomrule
+\end{longtable}
+
+\section{Masalah Umum}
+
+\begin{longtable}{L{5cm} L{9cm}}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Masalah}} & \textcolor{white}{\textbf{Penyelesaian}} \\
+\midrule
+\endhead
+\rowcolor{tablebg}
+Halaman tidak dimuatkan & 1) Muat semula 2) Kosongkan cache 3) Cuba pelayar lain \\
+Data tidak dikemaskini & Muat semula halaman \\
+\rowcolor{tablebg}
+Butang tidak berfungsi & 1) Pastikan JavaScript aktif 2) Kosongkan cache \\
+Ralat ``500'' / ``Ralat Pelayan'' & Cuba lagi selepas beberapa minit. Hubungi Admin jika berterusan \\
+\rowcolor{tablebg}
+Paparan tidak kemas (telefon) & Kemaskini pelayar. Cuba mod landskap untuk jadual \\
+\bottomrule
+\end{longtable}
+
+\vspace{1cm}
+
+\begin{center}
+\textcolor{pbnpgold}{\rule{8cm}{2pt}}
+\end{center}
+
+\vspace{0.5cm}
+
+\section*{Sokongan Teknikal}
+
+Jika masalah tidak dapat diselesaikan, sila hubungi:
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{0.7\textwidth}{l X}
+\toprule
+\rowcolor{tableheader}
+\textcolor{white}{\textbf{Saluran}} & \textcolor{white}{\textbf{Maklumat}} \\
+\midrule
+\rowcolor{tablebg}
+Pentadbir Sistem & Hubungi melalui sistem (notifikasi) \\
+Emel Sokongan & Hubungi Admin melalui emel rasmi PBNP \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\vspace{2cm}
+
+\begin{center}
+{\small\textcolor{pbnpblue!50}{Dokumen ini dijana dari analisis sistem RefPahang versi 3.0}}\\
+{\small\textcolor{pbnpblue!50}{Tarikh: 5 April 2026}}\\[0.3cm]
+{\small\textcolor{pbnpblue!50}{\textcopyright\ Persatuan Bola Sepak Negeri Pahang (PBNP)}}
+\end{center}
+
+\end{document}

@@ -56,6 +56,15 @@
             <tr class="hover:bg-slate-50 transition-colors">
               <td class="px-4 py-3">
                 <p class="font-medium text-slate-800 text-xs">{{ a.nama_kejohanan }}</p>
+                <div class="flex items-center gap-1 mt-0.5">
+                  <span class="px-1 py-0.5 rounded text-[9px] font-semibold"
+                    [class]="a.jenis_kejohanan === 'Liga' ? 'bg-blue-100 text-blue-700' : a.jenis_kejohanan === 'Karnival' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'">
+                    {{ a.jenis_kejohanan || 'Persahabatan' }}
+                  </span>
+                  <span class="px-1 py-0.5 rounded text-[9px] font-medium bg-amber-50 text-amber-600">
+                    {{ a.peringkat_kejohanan || '' }}
+                  </span>
+                </div>
                 <p class="text-slate-400 text-[10px]">{{ a.anjuran || '' }}</p>
               </td>
               <td class="px-4 py-3">
@@ -85,6 +94,12 @@
                       Tolak
                     </button>
                   </div>
+                  <p class="text-[9px] text-amber-600 mt-1 leading-tight">
+                    ⏰ Jawab sebelum {{ getDeadlineText(a) }}
+                  </p>
+                  <p class="text-[9px] text-slate-400 leading-tight">
+                    {{ getAutoAcceptRule(a.jenis_kejohanan) }}
+                  </p>
                 } @else {
                   @if (a.komen) {
                     <span class="text-xs text-slate-400 italic">{{ a.komen | slice:0:30 }}...</span>
@@ -125,8 +140,21 @@
           <p>{{ a.tarikh | date:'d MMM y' }}, {{ a.hari }}, {{ a.masa?.slice(0,5) }}</p>
           <p>{{ a.tempat }}</p>
           <p class="font-medium text-slate-700">Jawatan: {{ a.jawatan }}</p>
+          <div class="flex items-center gap-1 mt-1">
+            <span class="px-1 py-0.5 rounded text-[9px] font-semibold"
+              [class]="a.jenis_kejohanan === 'Liga' ? 'bg-blue-100 text-blue-700' : a.jenis_kejohanan === 'Karnival' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'">
+              {{ a.jenis_kejohanan || 'Persahabatan' }}
+            </span>
+            <span class="px-1 py-0.5 rounded text-[9px] font-medium bg-amber-50 text-amber-600">
+              {{ a.peringkat_kejohanan || '' }}
+            </span>
+          </div>
         </div>
         @if (a.status === 'Belum Jawab') {
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-2 mb-3 text-[10px] text-amber-700 leading-relaxed">
+            <p class="font-semibold">⏰ Jawab sebelum {{ getDeadlineText(a) }}</p>
+            <p>{{ getAutoAcceptRule(a.jenis_kejohanan) }}</p>
+          </div>
           <div class="flex gap-2 pt-2 border-t border-slate-100">
             <button (click)="openAction(a, 'accept')"
               class="flex-1 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 transition">

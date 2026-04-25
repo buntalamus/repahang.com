@@ -8,11 +8,11 @@
 
 -- Tambah kolom baru ke table perlawanan
 ALTER TABLE `perlawanan`
-  ADD COLUMN `match_group_id` CHAR(36) DEFAULT NULL COMMENT 'UUID untuk group semua pegawai dalam satu perlawanan persahabatan' AFTER `id`,
-  ADD COLUMN `masa` TIME DEFAULT NULL COMMENT 'Masa perlawanan' AFTER `tarikh`,
-  ADD COLUMN `nama_kejohanan` VARCHAR(255) DEFAULT NULL COMMENT 'Nama kejohanan/liga' AFTER `jenis`,
-  ADD COLUMN `daerah_perlawanan_id` INT DEFAULT NULL COMMENT 'Daerah tempat perlawanan berlangsung (untuk PP verification)' AFTER `persatuan_id`,
-  ADD COLUMN `submitted_by` INT DEFAULT NULL COMMENT 'Pengadil yang isi borang untuk kumpulan ini' AFTER `user_id`;
+  ADD COLUMN IF NOT EXISTS `match_group_id` CHAR(36) DEFAULT NULL COMMENT 'UUID untuk group semua pegawai dalam satu perlawanan persahabatan' AFTER `id`,
+  ADD COLUMN IF NOT EXISTS `masa` TIME DEFAULT NULL COMMENT 'Masa perlawanan' AFTER `tarikh`,
+  ADD COLUMN IF NOT EXISTS `nama_kejohanan` VARCHAR(255) DEFAULT NULL COMMENT 'Nama kejohanan/liga' AFTER `jenis`,
+  ADD COLUMN IF NOT EXISTS `daerah_perlawanan_id` INT DEFAULT NULL COMMENT 'Daerah tempat perlawanan berlangsung (untuk PP verification)' AFTER `persatuan_id`,
+  ADD COLUMN IF NOT EXISTS `submitted_by` INT DEFAULT NULL COMMENT 'Pengadil yang isi borang untuk kumpulan ini' AFTER `user_id`;
 
 -- Index untuk match_group_id (carian grouped)
 ALTER TABLE `perlawanan`

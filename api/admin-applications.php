@@ -50,6 +50,59 @@ try {
         
         $action = $input['action'] ?? '';
         
+        if ($action === 'blast_kelas3_welcome') {
+            // Jana password baru & hantar emel kelayakan untuk semua kelas3_fam
+            // yang belum tukar password (password_changed = 0)
+            require_once __DIR__ . '/../config/email.php';
+
+            $rows = $pdo->query("
+                SELECT u.id, u.nama_penuh, u.email
+                FROM users u
+                JOIN permohonan p ON p.user_id = u.id
+                WHERE p.jenis_borang = 'kelas3_fam'
+                  AND p.tahun_permohonan = 2026
+                  AND u.password_changed = 0
+                  AND u.aktif = 1
+                GROUP BY u.id
+            ")->fetchAll(PDO::FETCH_ASSOC);
+
+            if (empty($rows)) {
+                echo json_encode(['error' => false, 'message' => 'Tiada akaun yang layak untuk blast (semua sudah tukar password).', 'sent' => 0]);
+                exit;
+            }
+
+            $chars  = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            $update = $pdo->prepare("UPDATE users SET password = ?, tg_link_token = ? WHERE id = ?");
+            $sent   = 0;
+            $failed = 0;
+            $botUsername = env('TELEGRAM_BOT_USERNAME', 'refpahang_bot');
+            $loginUrl    = env('BASE_URL', 'https://refpahang.com') . '/login';
+
+            foreach ($rows as $u) {
+                // Jana password baru
+                $pw = '';
+                $max = strlen($chars) - 1;
+                for ($k = 0; $k < 10; $k++) $pw .= $chars[random_int(0, $max)];
+                $hashed   = password_hash($pw, PASSWORD_DEFAULT);
+                $tgToken  = bin2hex(random_bytes(16));
+
+                $update->execute([$hashed, $tgToken, $u['id']]);
+
+                // Hantar emel
+                $telegramLink = "https://t.me/{$botUsername}?start={$tgToken}";
+                $ok = sendWelcomeEmailKelas3($u['email'], $u['nama_penuh'], $u['email'], $pw, $loginUrl);
+                $ok ? $sent++ : $failed++;
+            }
+
+            echo json_encode([
+                'error'   => false,
+                'message' => "Blast selesai. Berjaya: {$sent}, Gagal: {$failed}.",
+                'sent'    => $sent,
+                'failed'  => $failed,
+            ]);
+            exit;
+        }
+
         if ($action === 'update_status_ujian') {
             $applicationId = $input['id'] ?? 0;
             $statusUjian = $input['status_ujian'] ?? '';
@@ -141,9 +194,9 @@ try {
         // Map tab key to jenis_borang
         $typeMap = [
             'berdaftar' => 'pengadil_berdaftar',
-            'penilai' => 'penilai_berdaftar',
-            'bertulis' => 'ujian_bertulis',
-            'kelas1' => 'ujian_kelas1_fam',
+            'penilai'   => 'penilai_berdaftar',
+            'kelas3'    => 'kelas3_fam',
+            'kelas1'    => 'ujian_kelas1_fam',
         ];
         $jenisBorang = $typeMap[$type] ?? '';
 
@@ -161,27 +214,23 @@ try {
                 
                 p.jenis_borang,
 
-                CASE 
-                    WHEN p.jenis_permohonan = 'penilai_pengadil' THEN 'Permohonan Penilai Pengadil'
-                    WHEN p.jenis_borang = 'pengadil_futsal' THEN 'Pengadil Futsal'
+                CASE
                     WHEN p.jenis_borang = 'pengadil_berdaftar' THEN 'Pengadil Berdaftar'
-                    WHEN p.jenis_borang = 'ujian_kecergasan' THEN 'Ujian Kecergasan'
-                    WHEN p.jenis_borang = 'ujian_bertulis' THEN 'Ujian Kelas III FAM'
-                    WHEN p.jenis_borang = 'ujian_kelas1_fam' THEN 'Ujian Kelas 1 FAM'
-                    WHEN p.jenis_permohonan = 'pendaftaran_pengadil' THEN 'Pendaftaran Pengadil'
-                    ELSE 'Pendaftaran Pengadil'
+                    WHEN p.jenis_borang = 'penilai_berdaftar'  THEN 'RA Berdaftar'
+                    WHEN p.jenis_borang = 'pp_berdaftar'       THEN 'PP Berdaftar'
+                    WHEN p.jenis_borang = 'kelas3_fam'         THEN 'Kelas III FAM'
+                    WHEN p.jenis_borang = 'ujian_kelas1_fam'   THEN 'Ujian Kelas I FAM'
+                    ELSE p.jenis_borang
                 END as jenis_permohonan,
 
-                CASE 
-                    WHEN p.jenis_borang IN ('pengadil_berdaftar', 'pengadil_futsal') THEN p.status_workflow
-                    WHEN p.jenis_borang IN ('ujian_kecergasan', 'ujian_bertulis', 'ujian_kelas1_fam') THEN 
+                CASE
+                    WHEN p.jenis_borang = 'ujian_kelas1_fam' THEN
                         CASE p.workflow_status
                             WHEN 'Pending' THEN 'Menunggu Admin'
                             WHEN 'Approved' THEN 'Lengkap'
                             WHEN 'Rejected' THEN 'Ditolak'
                             ELSE p.workflow_status
                         END
-                    WHEN p.jenis_permohonan IN ('pendaftaran_pengadil', 'penilai_pengadil') THEN p.status_workflow
                     ELSE p.status_workflow
                 END as status,
 
@@ -257,24 +306,17 @@ try {
 
             LEFT JOIN penilai_permohonan penilai_det ON penilai_det.permohonan_id = p.id
 
-            WHERE 
+            WHERE
                 (
-                    CASE 
-
-                        WHEN p.jenis_borang IN ('pengadil_berdaftar', 'pengadil_futsal') THEN p.status_workflow
-
-                        WHEN p.jenis_borang IN ('ujian_kecergasan', 'ujian_bertulis', 'ujian_kelas1_fam') THEN 
+                    CASE
+                        WHEN p.jenis_borang = 'ujian_kelas1_fam' THEN
                             CASE p.workflow_status
                                 WHEN 'Pending' THEN 'Menunggu Admin'
                                 WHEN 'Approved' THEN 'Lengkap'
                                 WHEN 'Rejected' THEN 'Ditolak'
                                 ELSE p.workflow_status
                             END
-
-                        WHEN p.jenis_permohonan IN ('pendaftaran_pengadil', 'penilai_pengadil') THEN p.status_workflow
-
                         ELSE p.status_workflow
-
                     END = ? OR ? = 'all'
                 )
                 AND (p.jenis_borang = ? OR ? = '')
@@ -305,21 +347,21 @@ try {
 
             SELECT 
 
-                SUM(CASE WHEN ((p.jenis_borang IN ('pengadil_berdaftar', 'pengadil_futsal') OR p.jenis_permohonan IN ('pendaftaran_pengadil', 'penilai_pengadil')) AND p.status_workflow = 'Menunggu Admin') OR
+                SUM(CASE WHEN p.status_workflow = 'Menunggu Admin'
+                              OR (p.jenis_borang = 'ujian_kelas1_fam' AND p.workflow_status = 'Pending')
+                         THEN 1 ELSE 0 END) as pending,
 
-                             (p.jenis_borang IN ('ujian_kecergasan', 'ujian_bertulis', 'ujian_kelas1_fam') AND p.workflow_status = 'Pending') THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN (p.status_workflow = 'Lengkap' AND MONTH(p.tarikh_hantar) = MONTH(CURDATE()))
+                              OR (p.jenis_borang = 'ujian_kelas1_fam' AND p.workflow_status = 'Approved' AND MONTH(p.tarikh_hantar) = MONTH(CURDATE()))
+                         THEN 1 ELSE 0 END) as approved_this_month,
 
-                SUM(CASE WHEN ((p.jenis_borang IN ('pengadil_berdaftar', 'pengadil_futsal') OR p.jenis_permohonan IN ('pendaftaran_pengadil', 'penilai_pengadil')) AND p.status_workflow = 'Lengkap' AND MONTH(p.tarikh_hantar) = MONTH(CURDATE())) OR
+                SUM(CASE WHEN p.status_workflow = 'Lengkap'
+                              OR (p.jenis_borang = 'ujian_kelas1_fam' AND p.workflow_status = 'Approved')
+                         THEN 1 ELSE 0 END) as total_approved,
 
-                             (p.jenis_borang IN ('ujian_kecergasan', 'ujian_bertulis', 'ujian_kelas1_fam') AND p.workflow_status = 'Approved' AND MONTH(p.tarikh_hantar) = MONTH(CURDATE())) THEN 1 ELSE 0 END) as approved_this_month,
-
-                SUM(CASE WHEN ((p.jenis_borang IN ('pengadil_berdaftar', 'pengadil_futsal') OR p.jenis_permohonan IN ('pendaftaran_pengadil', 'penilai_pengadil')) AND p.status_workflow = 'Lengkap') OR
-
-                             (p.jenis_borang IN ('ujian_kecergasan', 'ujian_bertulis', 'ujian_kelas1_fam') AND p.workflow_status = 'Approved') THEN 1 ELSE 0 END) as total_approved,
-
-                SUM(CASE WHEN ((p.jenis_borang IN ('pengadil_berdaftar', 'pengadil_futsal') OR p.jenis_permohonan IN ('pendaftaran_pengadil', 'penilai_pengadil')) AND p.status_workflow = 'Ditolak') OR
-
-                             (p.jenis_borang IN ('ujian_kecergasan', 'ujian_bertulis', 'ujian_kelas1_fam') AND p.workflow_status = 'Rejected') THEN 1 ELSE 0 END) as total_rejected
+                SUM(CASE WHEN p.status_workflow = 'Ditolak'
+                              OR (p.jenis_borang = 'ujian_kelas1_fam' AND p.workflow_status = 'Rejected')
+                         THEN 1 ELSE 0 END) as total_rejected
 
             FROM permohonan p
 
@@ -373,3 +415,40 @@ try {
 
 }
 
+
+
+function sendWelcomeEmailKelas3(string $to, string $nama, string $username, string $password, string $loginUrl): bool
+{
+    $subject = "Akaun Sistem RefPahang — Peperiksaan Kelas III FAM 2026";
+
+    $credHtml = '
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;">
+      <tr>
+        <td style="padding:16px 20px;background:#f0f4ff;border-radius:8px;border-left:4px solid #3b5bdb;">
+          <p style="margin:0 0 8px;font-size:13px;color:#666;">Alamat Emel (untuk log masuk)</p>
+          <p style="margin:0 0 16px;font-size:16px;font-weight:700;color:#1a1a2e;font-family:monospace;">' . htmlspecialchars($username) . '</p>
+          <p style="margin:0 0 8px;font-size:13px;color:#666;">Kata Laluan Sementara</p>
+          <p style="margin:0;font-size:22px;font-weight:700;color:#3b5bdb;font-family:monospace;letter-spacing:3px;">' . htmlspecialchars($password) . '</p>
+        </td>
+      </tr>
+    </table>';
+
+    $body  = emailGreeting($nama);
+    $body .= emailPara('Akaun anda dalam <strong>Sistem Pengurusan Pengadil Persatuan Bola Sepak Negeri Pahang</strong> telah didaftarkan untuk <strong>Peperiksaan Kelas III FAM 2026</strong>.');
+    $body .= emailPara('Berikut adalah maklumat log masuk anda:');
+    $body .= $credHtml;
+    $body .= emailAlert('#f59f00', '#fff9db', 'Keputusan Ujian Masih Dalam Proses',
+        'Permohonan anda sedang dalam semakan admin. Keputusan peperiksaan akan dikemas kini dalam sistem setelah diumumkan. Anda akan dimaklumkan melalui emel ini.');
+    $body .= emailPara('Langkah seterusnya:');
+    $body .= emailOrderedList([
+        'Log masuk di <a href="' . $loginUrl . '" style="color:#3b5bdb;">' . $loginUrl . '</a>',
+        'Tukar kata laluan sementara kepada kata laluan pilihan anda.',
+        'Lengkapkan maklumat profil anda.',
+        'Semak status keputusan ujian di bahagian <strong>Permohonan</strong>.',
+    ]);
+    $body .= emailButton($loginUrl, 'Log Masuk Sekarang');
+    $body .= emailPara('<small>Jika ada pertanyaan, hubungi admin di <a href="mailto:admin@refpahang.com">admin@refpahang.com</a></small>');
+
+    $html = buildEmailTemplate('Akaun Berjaya Didaftarkan', '#3b5bdb', '🎉', $body);
+    return sendEmail($to, $subject, $html, $nama, 'daftar');
+}

@@ -87,4 +87,22 @@ export class PengadilTugasanComponent implements OnInit {
     if (status === 'Ditolak') return 'bg-rose-50 text-rose-700';
     return 'bg-amber-50 text-amber-700';
   }
+
+  getDeadlineHours(jenis: string): number {
+    return jenis === 'Liga' ? 48 : 3;
+  }
+
+  getDeadlineText(a: any): string {
+    const hours = this.getDeadlineHours(a.jenis_kejohanan || 'Persahabatan');
+    if (!a.tarikh || !a.masa) return `${hours} jam sebelum perlawanan`;
+    const matchDt = new Date(`${a.tarikh}T${a.masa}`);
+    const deadline = new Date(matchDt.getTime() - hours * 3600000);
+    return deadline.toLocaleDateString('ms-MY', { day: '2-digit', month: 'short', year: 'numeric' })
+      + ', ' + deadline.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+
+  getAutoAcceptRule(jenis: string): string {
+    const hours = this.getDeadlineHours(jenis || 'Persahabatan');
+    return `Jika tidak dijawab ${hours} jam sebelum perlawanan, lantikan diterima secara automatik.`;
+  }
 }

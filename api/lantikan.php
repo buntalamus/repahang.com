@@ -227,7 +227,8 @@ try {
                        jp.no_perlawanan, jp.tarikh, jp.masa, jp.tempat,
                        jp.pasukan_home, jp.pasukan_away, jp.kejohanan_id,
                        jp.logo_home, jp.logo_away,
-                       COALESCE(kj.nama, '') AS kejohanan
+                       COALESCE(kj.nama, '') AS kejohanan,
+                       COALESCE(kj.jenis_kejohanan, 'Persahabatan') AS jenis_kejohanan
                 FROM lantikan_pengadil lp
                 JOIN jadual_perlawanan jp ON lp.jadual_id = jp.id
                 LEFT JOIN kejohanan kj ON jp.kejohanan_id = kj.id
@@ -304,7 +305,8 @@ try {
                         $a['nama'], $a['jawatan'], $a['kejohanan'],
                         $a['tarikh'], $a['masa'] ?? '', $a['tempat'] ?? '',
                         $a['pasukan_home'], $a['pasukan_away'],
-                        $a['no_perlawanan'] ?? ''
+                        $a['no_perlawanan'] ?? '',
+                        $a['jenis_kejohanan'] ?? 'Persahabatan'
                     );
                     $sent = tgSend((int) $a['telegram_chat_id'], $msg, tgLantikanKeyboard($tgToken));
                     if ($sent) {
@@ -340,7 +342,8 @@ try {
                         $a['no_perlawanan'] ?? '',
                         $logoHome,
                         $logoAway,
-                        $allOfficials
+                        $allOfficials,
+                        $a['jenis_kejohanan'] ?? 'Persahabatan'
                     );
                     $emailSent++;
                 }
@@ -458,7 +461,8 @@ try {
                            jp.no_perlawanan, jp.tarikh, jp.masa, jp.tempat,
                            jp.pasukan_home, jp.pasukan_away, jp.kejohanan_id,
                            jp.logo_home, jp.logo_away,
-                           COALESCE(kj.nama, '') AS kejohanan
+                           COALESCE(kj.nama, '') AS kejohanan,
+                           COALESCE(kj.jenis_kejohanan, 'Persahabatan') AS jenis_kejohanan
                     FROM lantikan_pengadil lp
                     JOIN jadual_perlawanan jp ON lp.jadual_id = jp.id
                     LEFT JOIN kejohanan kj ON jp.kejohanan_id = kj.id
@@ -519,7 +523,8 @@ try {
                             $a['nama'], $a['jawatan'], $a['kejohanan'],
                             $a['tarikh'], $a['masa'] ?? '', $a['tempat'] ?? '',
                             $a['pasukan_home'], $a['pasukan_away'],
-                            $a['no_perlawanan'] ?? ''
+                            $a['no_perlawanan'] ?? '',
+                            $a['jenis_kejohanan'] ?? 'Persahabatan'
                         );
                         $sent = tgSend((int) $a['telegram_chat_id'], $msg, tgLantikanKeyboard($tgToken));
                         if ($sent) {
@@ -544,7 +549,8 @@ try {
                             $a['tarikh'], $a['masa'] ?? '', $a['tempat'] ?? '',
                             $a['pasukan_home'], $a['pasukan_away'],
                             $emailToken, $tgLinkUrl, !empty($a['pengadil_id']),
-                            $a['no_perlawanan'] ?? '', $logoHome, $logoAway, $allOfficials
+                            $a['no_perlawanan'] ?? '', $logoHome, $logoAway, $allOfficials,
+                            $a['jenis_kejohanan'] ?? 'Persahabatan'
                         );
                         $totalEmail++;
                     }
