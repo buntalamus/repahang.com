@@ -5,6 +5,7 @@ import { ToastService } from '../../../core/services/toast.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
 import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
+import { ProfileModalService } from '../../../core/services/profile-modal.service';
 
 @Component({
   selector: 'app-admin-users',
@@ -41,6 +42,7 @@ export class AdminUsersComponent implements OnInit {
   constructor(
     private api: ApiService,
     private toast: ToastService,
+    public profileModal: ProfileModalService,
   ) {}
 
   ngOnInit(): void {

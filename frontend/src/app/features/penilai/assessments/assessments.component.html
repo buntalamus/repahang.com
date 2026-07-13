@@ -133,7 +133,11 @@
                             @for (p of r.pegawai; track p.id) {
                               <div class="flex items-center gap-2">
                                 <span class="text-xs font-mono bg-gray-100 px-1.5 py-0.5 rounded">{{ getJawatanShort(p.jawatan) }}</span>
-                                <span class="text-sm">{{ p.nama_pengadil }}</span>
+                                <span class="text-sm"
+                                      [class.cursor-pointer]="p.pengadil_id"
+                                      [class.hover:text-blue-600]="p.pengadil_id"
+                                      [class.hover:underline]="p.pengadil_id"
+                                      (click)="p.pengadil_id && profileModal.open(p.pengadil_id)">{{ p.nama_pengadil }}</span>
                                 @if (p.markah != null) {
                                   <span class="text-xs font-bold" [class]="getMarkahClass(+p.markah)">{{ p.markah }}</span>
                                 }
@@ -255,7 +259,10 @@
                       <div class="flex items-center gap-3 bg-pahang-black rounded-xl p-3 text-white">
                         <span class="material-icons text-pahang-yellow text-2xl">{{ getJawatanIcon(pg.jawatan) }}</span>
                         <div>
-                          <p class="font-bold">{{ pg.nama_pengadil }}</p>
+                          <p class="font-bold"
+                             [class.cursor-pointer]="pg.pengadil_id"
+                             [class.hover:underline]="pg.pengadil_id"
+                             (click)="pg.pengadil_id && profileModal.open(pg.pengadil_id)">{{ pg.nama_pengadil }}</p>
                           <p class="text-xs text-gray-300">{{ pg.jawatan }}</p>
                         </div>
                       </div>

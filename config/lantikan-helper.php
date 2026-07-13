@@ -12,10 +12,15 @@
 
 declare(strict_types=1);
 
+// Komen penanda untuk lantikan yang ditolak secara automatik (tiada jawapan
+// dalam tempoh). Juga digunakan sebagai flag machine-readable oleh saluran
+// jawapan untuk memaparkan mesej "tempoh tamat" dan bukan "sudah dijawab".
+const LANTIKAN_AUTO_TOLAK_KOMEN = 'Ditolak automatik - tiada jawapan dalam tempoh';
+
 /**
- * Get the auto-accept deadline hours based on jenis_kejohanan.
- *   - Liga: 48 jam sebelum perlawanan
- *   - Karnival / Persahabatan: 3 jam sebelum perlawanan
+ * Get the answer-window hours based on jenis_kejohanan.
+ *   - Liga: 48 jam selepas notifikasi dihantar
+ *   - Karnival / Persahabatan: 3 jam selepas notifikasi dihantar
  */
 function getDeadlineHours(string $jenisKejohanan): int
 {
@@ -23,27 +28,160 @@ function getDeadlineHours(string $jenisKejohanan): int
 }
 
 /**
- * Get the auto-accept rule text (Malay) for the given jenis_kejohanan.
+ * Get the auto-reject rule text (Malay) for the given jenis_kejohanan.
  */
 function getDeadlineRuleText(string $jenisKejohanan): string
 {
     $hours = getDeadlineHours($jenisKejohanan);
-    return "Anda perlu menjawab lantikan ini {$hours} jam sebelum perlawanan bermula. "
-         . "Jika tidak dijawab dalam tempoh tersebut, lantikan akan diterima secara automatik.";
+    return "Anda perlu menjawab lantikan ini dalam masa {$hours} jam selepas notifikasi dihantar. "
+         . "Jika tidak dijawab dalam tempoh tersebut, lantikan akan DITOLAK secara automatik.";
 }
 
 /**
- * Calculate formatted deadline string from match datetime and jenis_kejohanan.
+ * Calculate formatted deadline string from the notification timestamp.
+ * Deadline = tarikh_notif + N jam (Liga 48, lain 3).
+ * Defaults to "now" for use at send time.
  * Returns e.g. "05 Apr 2026, 14:00"
  */
-function calcDeadlineFormatted(string $tarikh, string $masa, string $jenisKejohanan): string
+function calcDeadlineFromNotif(string $jenisKejohanan, ?string $tarikhNotif = null): string
 {
-    $hours = getDeadlineHours($jenisKejohanan);
-    $matchDt = strtotime("$tarikh $masa");
-    if ($matchDt) {
-        return date('d M Y, H:i', $matchDt - $hours * 3600);
+    $hours  = getDeadlineHours($jenisKejohanan);
+    $notifTs = $tarikhNotif !== null ? strtotime($tarikhNotif) : time();
+    if (!$notifTs) {
+        $notifTs = time();
     }
-    return date('d M Y', strtotime($tarikh));
+    return date('d M Y, H:i', $notifTs + $hours * 3600);
+}
+
+/**
+ * Auto-TOLAK lantikan tertunggak: status 'Belum Jawab' yang tempoh jawapannya
+ * (tarikh_notif + N jam) sudah tamat. Baris yang belum dinotifikasi
+ * (notif_hantar=0 / tarikh_notif NULL) tidak disentuh. Token TIDAK
+ * dikosongkan supaya pautan lama boleh dikenal pasti dan halaman
+ * "Tamat Tempoh" yang tepat dipaparkan.
+ *
+ * Perbandingan masa dibuat sepenuhnya di sisi SQL (tarikh_notif lawan NOW())
+ * supaya kalis perbezaan timezone PHP/DB.
+ *
+ * @param array $scope Skop pilihan: 'id', 'jadual_id', 'pengadil_id', 'kejohanan_id'
+ * @return int Bilangan baris yang ditukar kepada 'Ditolak'
+ */
+function autoTolakLantikanTertunggak(PDO $pdo, array $scope = []): int
+{
+    $where  = '';
+    $params = [
+        ':komen'  => LANTIKAN_AUTO_TOLAK_KOMEN,
+        ':hLiga1' => getDeadlineHours('Liga'),
+        ':hLain1' => getDeadlineHours('Persahabatan'),
+        ':hLiga2' => getDeadlineHours('Liga'),
+        ':hLain2' => getDeadlineHours('Persahabatan'),
+    ];
+    if (isset($scope['id'])) {
+        $where .= ' AND lp.id = :sid';
+        $params[':sid'] = (int) $scope['id'];
+    }
+    if (isset($scope['jadual_id'])) {
+        $where .= ' AND lp.jadual_id = :sjid';
+        $params[':sjid'] = (int) $scope['jadual_id'];
+    }
+    if (isset($scope['pengadil_id'])) {
+        $where .= ' AND lp.pengadil_id = :suid';
+        $params[':suid'] = (int) $scope['pengadil_id'];
+    }
+    if (isset($scope['kejohanan_id'])) {
+        $where .= ' AND jp.kejohanan_id = :skid';
+        $params[':skid'] = (int) $scope['kejohanan_id'];
+    }
+
+    $stmt = $pdo->prepare("
+        UPDATE lantikan_pengadil lp
+        JOIN jadual_perlawanan jp ON jp.id = lp.jadual_id
+        LEFT JOIN kejohanan kj    ON kj.id = jp.kejohanan_id
+        SET lp.status = 'Ditolak',
+            lp.komen  = :komen,
+            lp.tarikh_jawab = DATE_ADD(lp.tarikh_notif, INTERVAL
+                (CASE WHEN LOWER(COALESCE(kj.jenis_kejohanan,'')) = 'liga' THEN :hLiga1 ELSE :hLain1 END) HOUR)
+        WHERE lp.status = 'Belum Jawab'
+          AND lp.notif_hantar = 1
+          AND lp.tarikh_notif IS NOT NULL
+          AND DATE_ADD(lp.tarikh_notif, INTERVAL
+                (CASE WHEN LOWER(COALESCE(kj.jenis_kejohanan,'')) = 'liga' THEN :hLiga2 ELSE :hLain2 END) HOUR) <= NOW()
+          {$where}
+    ");
+    $stmt->execute($params);
+    return $stmt->rowCount();
+}
+
+/**
+ * Normalize a kategori string into a no_perlawanan prefix.
+ * e.g. "b12" / " B12 " → "B12". Falls back to "P" when kategori is empty.
+ */
+function katPrefix(string $kategori): string
+{
+    $prefix = strtoupper(preg_replace('/\s+/', '', $kategori));
+    return $prefix !== '' ? $prefix : 'P';
+}
+
+/**
+ * Generate the next no_perlawanan for a (kejohanan, kategori) pair.
+ * Format: {PREFIX}-{NN} e.g. "B12-01".
+ * Sequence is derived from the highest existing numeric suffix for that prefix
+ * (not COUNT) to avoid collisions after deletions.
+ */
+function nextNoPerlawanan(PDO $pdo, int $kejohananId, string $kategori): string
+{
+    $prefix = katPrefix($kategori);
+    $stmt = $pdo->prepare("
+        SELECT no_perlawanan FROM jadual_perlawanan
+        WHERE kejohanan_id = :kid AND no_perlawanan LIKE :pat
+    ");
+    $stmt->execute([':kid' => $kejohananId, ':pat' => $prefix . '-%']);
+    $max = 0;
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $no) {
+        if (preg_match('/-(\d+)$/', (string) $no, $m)) {
+            $max = max($max, (int) $m[1]);
+        }
+    }
+    return $prefix . '-' . str_pad((string) ($max + 1), 2, '0', STR_PAD_LEFT);
+}
+
+/**
+ * Renumber ALL matches for a kejohanan: group by kategori, order by
+ * (tarikh, masa, id), and assign no_perlawanan = {PREFIX}-{NN} starting at 01
+ * within each kategori. Runs in a single transaction (joins an outer one if any).
+ *
+ * @return int Number of rows updated
+ */
+function renumberNoPerlawanan(PDO $pdo, int $kejohananId): int
+{
+    $stmt = $pdo->prepare("
+        SELECT id, kategori FROM jadual_perlawanan
+        WHERE kejohanan_id = :kid
+        ORDER BY kategori ASC, tarikh ASC, masa ASC, id ASC
+    ");
+    $stmt->execute([':kid' => $kejohananId]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $update = $pdo->prepare("UPDATE jadual_perlawanan SET no_perlawanan = :no WHERE id = :id");
+
+    $seq = [];
+    $count = 0;
+    $ownTransaction = !$pdo->inTransaction();
+    if ($ownTransaction) $pdo->beginTransaction();
+    try {
+        foreach ($rows as $r) {
+            $prefix = katPrefix((string) ($r['kategori'] ?? ''));
+            $seq[$prefix] = ($seq[$prefix] ?? 0) + 1;
+            $no = $prefix . '-' . str_pad((string) $seq[$prefix], 2, '0', STR_PAD_LEFT);
+            $update->execute([':no' => $no, ':id' => (int) $r['id']]);
+            $count++;
+        }
+        if ($ownTransaction) $pdo->commit();
+    } catch (Throwable $e) {
+        if ($ownTransaction && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+    return $count;
 }
 
 /**

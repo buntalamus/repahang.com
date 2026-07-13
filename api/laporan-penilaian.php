@@ -23,7 +23,13 @@ $isAdmin = ($currentUser['user_role'] ?? $currentUser['role'] ?? '') === 'Admin'
 /* ────────────── helpers ────────────── */
 
 function fetchPegawaiForLaporan(PDO $pdo, int $laporanId): array {
-    $stmt = $pdo->prepare("SELECT * FROM laporan_penilaian_pegawai WHERE laporan_id = :lid ORDER BY FIELD(jawatan,'Pengadil','Penolong Pengadil 1','Penolong Pengadil 2','Pegawai ke4')");
+    $stmt = $pdo->prepare("
+        SELECT lpp.*, lp.pengadil_id
+        FROM laporan_penilaian_pegawai lpp
+        LEFT JOIN lantikan_pengadil lp ON lpp.lantikan_pengadil_id = lp.id
+        WHERE lpp.laporan_id = :lid
+        ORDER BY FIELD(lpp.jawatan,'Pengadil','Penolong Pengadil 1','Penolong Pengadil 2','Pegawai ke4')
+    ");
     $stmt->execute([':lid' => $laporanId]);
     $rows = $stmt->fetchAll();
     foreach ($rows as &$r) {

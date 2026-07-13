@@ -669,16 +669,16 @@ function sendLantikanEmail(
     // ── Accept / Reject buttons ───────────────────────────────────────────
     require_once __DIR__ . '/lantikan-helper.php';
     $deadlineHours = getDeadlineHours($jenisKejohanan);
-    $deadlineDt    = calcDeadlineFormatted($tarikh, $masa, $jenisKejohanan);
+    $deadlineDt    = calcDeadlineFromNotif($jenisKejohanan);
     $ruleText      = getDeadlineRuleText($jenisKejohanan);
     $buttonsHtml = "
     <div style=\"margin:28px 0 0;\">
       <p style=\"color:#374151;font-size:13px;line-height:1.8;margin:0 0 10px 0;\">
-        Sila maklumkan penerimaan atau penolakan tugasan ini <strong>sebelum {$deadlineDt}</strong> ({$deadlineHours} jam sebelum perlawanan).
+        Sila maklumkan penerimaan atau penolakan tugasan ini <strong>sebelum {$deadlineDt}</strong> ({$deadlineHours} jam selepas notifikasi ini dihantar).
       </p>
       <div style=\"background:#FEF3C7;border:1px solid #F59E0B;border-left:3px solid #F59E0B;
                    padding:12px 16px;margin-bottom:16px;\">
-        <span style=\"font-size:12px;font-weight:700;color:#92400E;\">⚠ Peraturan Auto-Terima:</span>
+        <span style=\"font-size:12px;font-weight:700;color:#92400E;\">⚠ Peraturan Auto-Tolak:</span>
         <p style=\"font-size:12px;color:#78350F;line-height:1.6;margin:4px 0 0;\">{$ruleText}</p>
       </div>
       <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\">
@@ -751,6 +751,7 @@ function sendLantikanEmail(
         "<p style=\"color:#9CA3AF;font-size:11px;margin:24px 0 0;line-height:1.6;\">
            Pautan Terima/Tolak di atas hanya boleh digunakan sekali sahaja. Jika anda telah
            menjawab melalui Telegram atau dashboard, pautan ini tidak akan berfungsi lagi.
+           Pautan ini juga akan terbatal selepas tempoh menjawab tamat.
          </p>";
 
     $subject = 'Lantikan Perlawanan: ' . $kejohanan

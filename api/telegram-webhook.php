@@ -24,6 +24,7 @@ date_default_timezone_set('Asia/Kuala_Lumpur');
 require_once __DIR__ . '/../config/env.php';
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../config/telegram.php';
+require_once __DIR__ . '/../config/lantikan-helper.php';
 
 // Logging only — do NOT throw on warnings
 $logDir = __DIR__ . '/../storage/logs';
@@ -67,12 +68,30 @@ try {
             $parts     = explode(' ', $text, 2);
             $linkToken = isset($parts[1]) ? trim($parts[1]) : '';
 
+            // Adakah chat ini sudah terhubung dengan mana-mana akaun?
+            $linkedStmt = $pdo->prepare(
+                "SELECT nama_penuh FROM users WHERE telegram_chat_id = :cid
+                 UNION
+                 SELECT nama AS nama_penuh FROM pengadil_luar WHERE telegram_chat_id = :cid
+                 LIMIT 1"
+            );
+            $linkedStmt->execute([':cid' => $chatId]);
+            $linkedNama = $linkedStmt->fetchColumn();
+
             if ($linkToken === '') {
-                tgSend($chatId,
-                    "<b>Sistem Pengurusan Pengadil Pahang FA</b>\n\n" .
-                    "Bot ini digunakan untuk menerima notifikasi lantikan perlawanan.\n\n" .
-                    "Sila minta pentadbir untuk menghantar pautan pendaftaran Telegram kepada anda."
-                );
+                if ($linkedNama) {
+                    tgSend($chatId,
+                        "✅ <b>Akaun anda sudah dihubungkan</b>\n\n" .
+                        "Selamat kembali, <b>" . htmlspecialchars((string) $linkedNama) . "</b>.\n\n" .
+                        "Anda akan menerima notifikasi Telegram apabila dilantik untuk bertugas."
+                    );
+                } else {
+                    tgSend($chatId,
+                        "<b>Sistem Pengurusan Pengadil Pahang FA</b>\n\n" .
+                        "Bot ini digunakan untuk menerima notifikasi lantikan perlawanan.\n\n" .
+                        "Sila minta pentadbir untuk menghantar pautan pendaftaran Telegram kepada anda."
+                    );
+                }
             } else {
                 // Look up the link token
                 $stmt = $pdo->prepare(
@@ -85,7 +104,23 @@ try {
                 $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
                 if (!$row) {
-                    tgSend($chatId, "⚠️ Pautan tidak sah atau sudah tamat tempoh. Sila hubungi pentadbir.");
+                    // Token sudah digunakan / digantikan — bukan "tamat tempoh".
+                    // Jika chat ini sememangnya sudah terhubung, tiada masalah.
+                    if ($linkedNama) {
+                        tgSend($chatId,
+                            "✅ <b>Akaun anda sudah dihubungkan</b>\n\n" .
+                            "Selamat kembali, <b>" . htmlspecialchars((string) $linkedNama) . "</b>. " .
+                            "Pautan pendaftaran itu sudah digunakan, jadi tiada tindakan lanjut diperlukan.\n\n" .
+                            "Anda akan menerima notifikasi Telegram apabila dilantik untuk bertugas."
+                        );
+                    } else {
+                        tgSend($chatId,
+                            "⚠️ <b>Pautan Pendaftaran Tidak Aktif</b>\n\n" .
+                            "Pautan ini sudah tidak aktif — kemungkinan ia telah digunakan sebelum ini " .
+                            "atau digantikan dengan pautan baharu.\n\n" .
+                            "Sila minta pentadbir menghantar pautan pendaftaran Telegram yang terbaharu kepada anda."
+                        );
+                    }
                 } else {
                     $table = $row['tbl'] === 'user' ? 'users' : 'pengadil_luar';
                     $idCol = 'id';
@@ -126,7 +161,7 @@ try {
 
         // Look up the assignment
         $stmt = $pdo->prepare("
-            SELECT lp.id, lp.status, lp.jawatan, lp.pengadil_id,
+            SELECT lp.id, lp.status, lp.komen, lp.tarikh_notif, lp.jawatan, lp.pengadil_id,
                    jp.tarikh, jp.pasukan_home, jp.pasukan_away, jp.tempat, jp.masa,
                    kj.nama AS kejohanan,
                    COALESCE(u.telegram_chat_id, pl.telegram_chat_id) AS owner_chat_id,
@@ -143,7 +178,19 @@ try {
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$row) {
-            tgAnswerCallback($cbqId, 'Lantikan tidak ditemui.', true);
+            // Token tidak wujud: tugasan telah dijawab melalui saluran lain,
+            // notifikasi ini sudah lapuk, atau lantikan dikemaskini pentadbir.
+            tgAnswerCallback($cbqId,
+                "\u{26A0}\u{FE0F} Butang ini sudah tidak aktif.\n\n"
+                . "Tugasan mungkin telah dijawab melalui saluran lain, atau lantikan telah dikemaskini oleh pentadbir. "
+                . "Sila semak dashboard atau notifikasi terbaru anda.", true);
+            if ($msgId) {
+                tgEditMessage($chatId, $msgId,
+                    "\u{26A0}\u{FE0F} <b>Notifikasi Lapuk</b>\n\n"
+                    . "Butang pada notifikasi ini sudah tidak aktif. Tugasan mungkin telah dijawab "
+                    . "melalui saluran lain, atau lantikan telah dikemaskini oleh pentadbir.\n\n"
+                    . "Sila semak dashboard atau notifikasi terbaru anda.");
+            }
             http_response_code(200);
             exit;
         }
@@ -151,6 +198,20 @@ try {
         // Security: make sure this chat_id owns the token
         if ((int) $row['owner_chat_id'] !== $chatId) {
             tgAnswerCallback($cbqId, 'Anda tidak dibenarkan untuk tugasan ini.', true);
+            http_response_code(200);
+            exit;
+        }
+
+        // Kuatkuasa tempoh jawapan — auto-tolak jika sudah tamat
+        if (autoTolakLantikanTertunggak($pdo, ['id' => (int) $row['id']]) > 0
+            || ($row['status'] === 'Ditolak' && ($row['komen'] ?? '') === LANTIKAN_AUTO_TOLAK_KOMEN)) {
+            tgAnswerCallback($cbqId, '⏰ Tempoh menjawab telah tamat. Lantikan telah ditolak secara automatik.', true);
+            if ($msgId) {
+                tgEditMessage($chatId, $msgId,
+                    "⏰ <b>Tempoh Menjawab Tamat</b>\n\n" .
+                    "Lantikan ini telah <b>ditolak secara automatik</b> kerana tiada jawapan dalam tempoh ditetapkan.\n" .
+                    "Sila hubungi pentadbir jika anda masih boleh bertugas.");
+            }
             http_response_code(200);
             exit;
         }

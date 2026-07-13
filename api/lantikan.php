@@ -11,6 +11,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/../config/lantikan-helper.php';
 
 $currentUser = requireRole(['Admin']);
 
@@ -104,6 +105,9 @@ try {
         if (!$jadual_id) {
             jsonResponse(['error' => true, 'message' => 'jadual_id diperlukan.'], 400);
         }
+
+        // Auto-tolak lantikan yang tempoh jawapannya sudah tamat
+        autoTolakLantikanTertunggak($pdo, ['jadual_id' => $jadual_id]);
 
         $stmt = $pdo->prepare("
             SELECT lp.id, lp.jawatan, lp.status, lp.komen, lp.tarikh_jawab, lp.notif_hantar, lp.tg_notif_hantar, lp.tarikh_notif, lp.created_at,
@@ -204,7 +208,11 @@ try {
                 jsonResponse(['error' => true, 'message' => 'jadual_id diperlukan.'], 400);
             }
 
-            // Check if any assignment already notified (token overwrite warning)
+            // Auto-tolak dulu — baris yang sudah tamat tempoh tidak boleh
+            // "dihidupkan semula" oleh hantar semula
+            autoTolakLantikanTertunggak($pdo, ['jadual_id' => $jadual_id]);
+
+            // Check if any assignment already notified (re-send: window restarts)
             $alreadyNotifiedStmt = $pdo->prepare("
                 SELECT COUNT(*) FROM lantikan_pengadil
                 WHERE jadual_id = :jid AND notif_hantar = 1 AND status = 'Belum Jawab'
@@ -216,6 +224,7 @@ try {
             $stmt = $pdo->prepare("
                 SELECT lp.id AS lantikan_id,
                        lp.jawatan, lp.tg_notif_hantar,
+                       lp.tg_token, lp.email_token,
                        COALESCE(u.telegram_chat_id, pl.telegram_chat_id) AS telegram_chat_id,
                        COALESCE(u.tg_link_token,    pl.tg_link_token)    AS tg_link_token,
                        COALESCE(u.id, NULL)          AS user_id,
@@ -245,8 +254,6 @@ try {
 
             require_once __DIR__ . '/../config/telegram.php';
             require_once __DIR__ . '/../config/email.php';
-            require_once __DIR__ . '/../config/lantikan-helper.php';
-            require_once __DIR__ . '/../config/lantikan-helper.php';
 
             // Fetch ALL officials for this match (for email display, all statuses)
             $allOffStmt = $pdo->prepare("
@@ -272,10 +279,10 @@ try {
             $ppNotified = []; // Track PP Daerah already notified (by persatuan_id)
 
             foreach ($assignments as $a) {
-                // Generate a fresh tg_token for Telegram inline buttons
-                $tgToken    = bin2hex(random_bytes(16));
-                // Generate a fresh email_token for email accept/reject links
-                $emailToken = bin2hex(random_bytes(16));
+                // Guna semula token sedia ada supaya pautan dalam emel/Telegram
+                // lama kekal sah bila notifikasi dihantar semula
+                $tgToken    = !empty($a['tg_token'])    ? $a['tg_token']    : bin2hex(random_bytes(16));
+                $emailToken = !empty($a['email_token']) ? $a['email_token'] : bin2hex(random_bytes(16));
 
                 // Auto-generate tg_link_token if referee doesn't have one yet (for Telegram account linking)
                 $tgLinkToken = $a['tg_link_token'];
@@ -373,7 +380,7 @@ try {
             if ($emailSent > 0) $parts[] = "{$emailSent} emel dihantar.";
             if ($tgSent > 0)    $parts[] = "{$tgSent} notifikasi Telegram dihantar.";
             if ($tgSkipped > 0) $parts[] = "{$tgSkipped} pengadil belum mendaftar Telegram (pautan disertakan dalam emel).";
-            if ($renotifyCount > 0) $parts[] = "Nota: {$renotifyCount} pengadil dihantar semula (token lama tidak lagi sah).";
+            if ($renotifyCount > 0) $parts[] = "Nota: {$renotifyCount} pengadil dihantar semula (pautan asal masih sah; tempoh jawapan dikira semula dari notifikasi terbaru).";
 
             jsonResponse([
                 'error'        => false,
@@ -396,6 +403,10 @@ try {
             $filterIds = !empty($input['jadual_ids']) && is_array($input['jadual_ids'])
                 ? array_map('intval', $input['jadual_ids'])
                 : [];
+
+            // Auto-tolak dulu — baris yang sudah tamat tempoh tidak boleh
+            // "dihidupkan semula" oleh hantar semula
+            autoTolakLantikanTertunggak($pdo, ['kejohanan_id' => $kejohanan_id]);
 
             // Get all jadual IDs with pending (Belum Jawab) assignments
             $sql = "
@@ -427,7 +438,6 @@ try {
 
             require_once __DIR__ . '/../config/telegram.php';
             require_once __DIR__ . '/../config/email.php';
-            require_once __DIR__ . '/../config/lantikan-helper.php';
 
             $totalEmail = 0;
             $totalTgSent = 0;
@@ -450,6 +460,7 @@ try {
                 $stmt = $pdo->prepare("
                     SELECT lp.id AS lantikan_id,
                            lp.jawatan, lp.tg_notif_hantar,
+                           lp.tg_token, lp.email_token,
                            COALESCE(u.telegram_chat_id, pl.telegram_chat_id) AS telegram_chat_id,
                            COALESCE(u.tg_link_token,    pl.tg_link_token)    AS tg_link_token,
                            COALESCE(u.id, NULL)          AS user_id,
@@ -493,8 +504,9 @@ try {
                 $logoAway = $assignments[0]['logo_away'] ?? '';
 
                 foreach ($assignments as $a) {
-                    $tgToken    = bin2hex(random_bytes(16));
-                    $emailToken = bin2hex(random_bytes(16));
+                    // Guna semula token sedia ada supaya pautan lama kekal sah
+                    $tgToken    = !empty($a['tg_token'])    ? $a['tg_token']    : bin2hex(random_bytes(16));
+                    $emailToken = !empty($a['email_token']) ? $a['email_token'] : bin2hex(random_bytes(16));
 
                     $tgLinkToken = $a['tg_link_token'];
                     if (empty($tgLinkToken) && empty($a['telegram_chat_id'])) {
@@ -583,7 +595,7 @@ try {
             if ($totalEmail > 0)     $parts[] = "{$totalEmail} emel dihantar.";
             if ($totalTgSent > 0)    $parts[] = "{$totalTgSent} Telegram dihantar.";
             if ($totalTgSkipped > 0) $parts[] = "{$totalTgSkipped} pengadil belum mendaftar Telegram.";
-            if ($totalRenotify > 0)  $parts[] = "Nota: {$totalRenotify} pengadil dihantar semula.";
+            if ($totalRenotify > 0)  $parts[] = "Nota: {$totalRenotify} pengadil dihantar semula (pautan asal masih sah; tempoh jawapan dikira semula dari notifikasi terbaru).";
 
             jsonResponse([
                 'error'             => false,
@@ -640,9 +652,11 @@ try {
             $existing = $checkStmt->fetch();
 
         if ($existing) {
+            // Token WAJIB dikosongkan: pautan emel/Telegram pengadil lama tidak
+            // boleh digunakan untuk menjawab lantikan pengadil baru
             $pdo->prepare("
                 UPDATE lantikan_pengadil
-                SET pengadil_id = :pid, pengadil_luar_id = :plid, status = 'Belum Jawab', komen = NULL, tarikh_jawab = NULL, notif_hantar = 0, tarikh_notif = NULL, created_by = :cb
+                SET pengadil_id = :pid, pengadil_luar_id = :plid, status = 'Belum Jawab', komen = NULL, tarikh_jawab = NULL, notif_hantar = 0, tarikh_notif = NULL, tg_token = NULL, email_token = NULL, created_by = :cb
                 WHERE id = :id
             ")->execute([':pid' => $pengadil_id, ':plid' => $pengadil_luar_id, ':cb' => (int)$currentUser['id'], ':id' => $existing['id']]);
             $pdo->commit();

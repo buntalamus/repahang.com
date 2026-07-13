@@ -94,11 +94,13 @@
                       Tolak
                     </button>
                   </div>
-                  <p class="text-[9px] text-amber-600 mt-1 leading-tight">
-                    ⏰ Jawab sebelum {{ getDeadlineText(a) }}
-                  </p>
+                  @if (a.tarikh_notif) {
+                    <p class="text-[9px] text-amber-600 mt-1 leading-tight">
+                      ⏰ Jawab sebelum {{ getDeadlineText(a) }}
+                    </p>
+                  }
                   <p class="text-[9px] text-slate-400 leading-tight">
-                    {{ getAutoAcceptRule(a.jenis_kejohanan) }}
+                    {{ getAutoRejectRule(a.jenis_kejohanan) }}
                   </p>
                 } @else {
                   @if (a.komen) {
@@ -152,8 +154,10 @@
         </div>
         @if (a.status === 'Belum Jawab') {
           <div class="bg-amber-50 border border-amber-200 rounded-lg p-2 mb-3 text-[10px] text-amber-700 leading-relaxed">
-            <p class="font-semibold">⏰ Jawab sebelum {{ getDeadlineText(a) }}</p>
-            <p>{{ getAutoAcceptRule(a.jenis_kejohanan) }}</p>
+            @if (a.tarikh_notif) {
+              <p class="font-semibold">⏰ Jawab sebelum {{ getDeadlineText(a) }}</p>
+            }
+            <p>{{ getAutoRejectRule(a.jenis_kejohanan) }}</p>
           </div>
           <div class="flex gap-2 pt-2 border-t border-slate-100">
             <button (click)="openAction(a, 'accept')"

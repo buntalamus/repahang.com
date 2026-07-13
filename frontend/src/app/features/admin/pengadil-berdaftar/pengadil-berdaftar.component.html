@@ -61,12 +61,50 @@
     }
   </div>
 
+  <!-- Bar tindakan batch taraf (melekat di bawah pada mobile) -->
+  @if (selectedIds.size > 0) {
+    <div class="bg-slate-900 text-white rounded-xl px-4 py-3 mb-4 print:hidden
+                max-md:fixed max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:z-40
+                max-md:rounded-none max-md:rounded-t-xl max-md:mb-0 max-md:shadow-2xl">
+      <div class="flex items-center justify-between gap-3 mb-2 md:mb-0 md:hidden">
+        <span class="text-sm font-semibold">{{ selectedIds.size }} dipilih</span>
+        <button (click)="selectedIds.clear()" class="text-xs text-slate-400 hover:text-white underline">
+          Batal pilihan
+        </button>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 md:gap-3">
+        <span class="text-sm font-semibold hidden md:inline">{{ selectedIds.size }} dipilih</span>
+        <select [(ngModel)]="batchTaraf"
+          class="flex-1 md:flex-none px-3 py-2 md:py-1.5 rounded-lg text-xs text-slate-900 bg-white border-0">
+          <option value="kebangsaan">Pengadil Kebangsaan</option>
+          <option value="negeri">Pengadil Negeri</option>
+          <option value="daerah">Pengadil Daerah</option>
+        </select>
+        <button (click)="applyBatchTaraf(1)" [disabled]="batchSaving"
+          class="flex-1 md:flex-none px-3 py-2 md:py-1.5 bg-amber-400 text-slate-900 text-xs font-bold rounded-lg hover:bg-amber-300 transition disabled:opacity-50 whitespace-nowrap">
+          Tetapkan
+        </button>
+        <button (click)="applyBatchTaraf(0)" [disabled]="batchSaving"
+          class="flex-1 md:flex-none px-3 py-2 md:py-1.5 bg-slate-600 text-white text-xs font-semibold rounded-lg hover:bg-slate-500 transition disabled:opacity-50 whitespace-nowrap">
+          Buang
+        </button>
+        <button (click)="selectedIds.clear()" class="ml-auto text-xs text-slate-400 hover:text-white underline hidden md:inline">
+          Batal pilihan
+        </button>
+      </div>
+    </div>
+  }
+
   <!-- Jadual Desktop -->
   <div id="printArea" class="bg-white rounded-xl shadow-sm border border-slate-200 hidden md:block">
     <div class="overflow-x-auto">
       <table class="w-full text-sm">
         <thead class="bg-slate-50 border-b border-slate-200">
           <tr>
+            <th class="px-3 py-3 w-10 print:hidden">
+              <input type="checkbox" [checked]="allPagedSelected()" (change)="toggleSelectAll()"
+                class="w-4 h-4 rounded border-slate-300" title="Pilih semua di halaman ini" />
+            </th>
             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase w-12">#</th>
             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Nama</th>
             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">No. KP</th>
@@ -80,7 +118,11 @@
         </thead>
         <tbody class="divide-y divide-slate-100">
           @for (ref of paged; track ref.user_id; let i = $index) {
-            <tr class="hover:bg-slate-50 transition-colors">
+            <tr class="hover:bg-slate-50 transition-colors" [class.bg-amber-50]="isSelected(ref.user_id)">
+              <td class="px-3 py-3 print:hidden">
+                <input type="checkbox" [checked]="isSelected(ref.user_id)" (change)="toggleSelect(ref.user_id)"
+                  class="w-4 h-4 rounded border-slate-300" />
+              </td>
               <td class="px-4 py-3 text-slate-400 text-xs">{{ getGlobalIndex(i) }}</td>
               <td class="px-4 py-3">
                 <div class="flex items-center gap-3">
@@ -95,7 +137,21 @@
                       {{ (ref.nama_penuh || '?')[0] }}
                     </div>
                   }
-                  <span class="font-medium text-slate-900">{{ ref.nama_penuh }}</span>
+                  <div>
+                    <span class="font-medium text-slate-900 cursor-pointer hover:text-blue-600 hover:underline"
+                          (click)="profileModal.open(ref.user_id)">{{ ref.nama_penuh }}</span>
+                    <div class="flex gap-1 mt-0.5">
+                      @if (+ref.pengadil_kebangsaan) {
+                        <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-amber-400 text-slate-900 leading-none">KEBANGSAAN</span>
+                      }
+                      @if (+ref.pengadil_negeri) {
+                        <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-blue-500 text-white leading-none">NEGERI</span>
+                      }
+                      @if (+ref.pengadil_daerah) {
+                        <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-slate-500 text-white leading-none">DAERAH</span>
+                      }
+                    </div>
+                  </div>
                 </div>
               </td>
               <td class="px-4 py-3 text-slate-600 font-mono text-xs">{{ ref.no_kp }}</td>
@@ -125,7 +181,7 @@
             </tr>
           } @empty {
             <tr>
-              <td colspan="9" class="px-4 py-16 text-center">
+              <td colspan="10" class="px-4 py-16 text-center">
                 <span class="material-symbols-outlined text-4xl text-slate-300 mb-2">person_off</span>
                 <p class="text-slate-400 text-sm">Tiada {{ typeLabel.toLowerCase() }} berdaftar ditemui.</p>
               </td>
@@ -139,11 +195,14 @@
   </div>
 
   <!-- Paparan Kad Mobil -->
-  <div class="md:hidden space-y-3">
+  <div class="md:hidden space-y-3" [class.pb-28]="selectedIds.size > 0">
     @for (ref of paged; track ref.user_id; let i = $index) {
-      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+      <div class="bg-white rounded-xl shadow-sm border p-4 transition"
+        [class]="isSelected(ref.user_id) ? 'border-amber-400 ring-1 ring-amber-200' : 'border-slate-200'">
         <div class="flex items-start justify-between mb-3">
           <div class="flex items-center gap-3">
+            <input type="checkbox" [checked]="isSelected(ref.user_id)" (change)="toggleSelect(ref.user_id)"
+              class="w-5 h-5 rounded border-slate-300 shrink-0" [attr.aria-label]="'Pilih ' + ref.nama_penuh" />
             @if (ref.url_gambar_profil) {
               <img [src]="getProfileImage(ref.url_gambar_profil)" class="w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
@@ -155,12 +214,24 @@
                 {{ (ref.nama_penuh || '?')[0] }}
               </div>
             }
-            <div>
-              <p class="font-medium text-slate-900 text-sm">{{ ref.nama_penuh }}</p>
+            <div class="min-w-0">
+              <p class="font-medium text-slate-900 text-sm cursor-pointer hover:text-blue-600 underline decoration-dotted"
+                 (click)="profileModal.open(ref.user_id)">{{ ref.nama_penuh }}</p>
               <p class="text-xs text-slate-500 font-mono">{{ ref.no_kp }}</p>
+              <div class="flex flex-wrap gap-1 mt-1">
+                @if (+ref.pengadil_kebangsaan) {
+                  <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-amber-400 text-slate-900 leading-none">KEBANGSAAN</span>
+                }
+                @if (+ref.pengadil_negeri) {
+                  <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-blue-500 text-white leading-none">NEGERI</span>
+                }
+                @if (+ref.pengadil_daerah) {
+                  <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-slate-500 text-white leading-none">DAERAH</span>
+                }
+              </div>
             </div>
           </div>
-          <span class="text-xs text-slate-400">#{{ getGlobalIndex(i) }}</span>
+          <span class="text-xs text-slate-400 shrink-0">#{{ getGlobalIndex(i) }}</span>
         </div>
         <div class="grid grid-cols-2 gap-2 text-xs mb-3">
           <div><span class="text-slate-500">Jantina:</span> <span class="font-medium">{{ getJantinaLabel(ref.jantina) }}</span></div>

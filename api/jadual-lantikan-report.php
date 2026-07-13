@@ -12,6 +12,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/../config/lantikan-helper.php';
 
 $currentUser = requireRole(['Admin']);
 
@@ -33,6 +34,9 @@ try {
         if (!$kejohananId) {
             jsonResponse(['error' => true, 'message' => 'kejohanan_id diperlukan.'], 400);
         }
+
+        // Auto-tolak lantikan yang tempoh jawapannya sudah tamat
+        autoTolakLantikanTertunggak($pdo, ['kejohanan_id' => $kejohananId]);
 
         // 1. Kejohanan info
         $stmt = $pdo->prepare("SELECT id, nama, tarikh_mula, tarikh_akhir, tempat, anjuran, logo_kiri, logo_kanan, status FROM kejohanan WHERE id = ?");
@@ -59,7 +63,7 @@ try {
                    pasukan_home, pasukan_away, tempat, status
             FROM jadual_perlawanan
             WHERE kejohanan_id = ?
-            ORDER BY tarikh ASC, masa ASC, no_perlawanan ASC
+            ORDER BY kategori ASC, tarikh ASC, masa ASC, no_perlawanan ASC
         ");
         $stmt->execute([$kejohananId]);
         $jadualList = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -67,6 +71,7 @@ try {
         // 4. All assignments for this kejohanan
         $stmt = $pdo->prepare("
             SELECT lp.jadual_id, lp.jawatan, lp.status AS status_lantikan,
+                   lp.pengadil_id,
                    COALESCE(p.nama_penuh, pl.nama) AS nama_penuh,
                    COALESCE(p.jenis_pengadil, pl.jenis_pengadil) AS jenis_pengadil,
                    COALESCE(p.negeri, pl.negeri) AS negeri,

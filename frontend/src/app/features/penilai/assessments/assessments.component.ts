@@ -6,9 +6,11 @@ import { ToastService } from '../../../core/services/toast.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
 import { getSectionsForJawatan, KriteriaSection, SKALA_PEMARKAHAN, TAHAP_KESUKARAN } from '../../../shared/data/kriteria-penilaian';
 import { environment } from '../../../../environments/environment';
+import { ProfileModalService } from '../../../core/services/profile-modal.service';
 
 interface PegawaiForm {
   lantikan_pengadil_id: number | null;
+  pengadil_id: number | null;
   jawatan: string;
   nama_pengadil: string;
   markah: number | null;
@@ -72,6 +74,7 @@ export class PenilaiAssessmentsComponent implements OnInit {
   constructor(
     private api: ApiService,
     private toast: ToastService,
+    public profileModal: ProfileModalService,
   ) {}
 
   ngOnInit(): void {
@@ -162,6 +165,7 @@ export class PenilaiAssessmentsComponent implements OnInit {
     const sections = getSectionsForJawatan(official.jawatan);
     return {
       lantikan_pengadil_id: official.lantikan_id,
+      pengadil_id: official.pengadil_id ? +official.pengadil_id : null,
       jawatan: official.jawatan,
       nama_pengadil: official.nama_pengadil || '-',
       markah: existing?.markah != null ? +existing.markah : null,

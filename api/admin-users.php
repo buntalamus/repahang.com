@@ -55,6 +55,8 @@ try {
                     u.nama_waris, u.hubungan_waris, u.telefon_waris,
                     u.url_gambar_profil, u.jenis_pengadil, u.jenis_penilai,
                     u.tahun_mula_aktif, u.saiz_baju, u.aktif,
+                    u.tahun_mohon_kelas3, u.tahun_lulus_kelas3,
+                    u.pengadil_kebangsaan, u.pengadil_negeri, u.pengadil_daerah,
                     u.password_changed, u.last_login, u.created_at, u.updated_at, u.umur, u.telegram_chat_id,
                     p.nama_persatuan as persatuan_nama,
                     p.kod_persatuan

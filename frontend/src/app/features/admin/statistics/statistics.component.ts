@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
+import { ProfileModalService } from '../../../core/services/profile-modal.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
 
 declare const Chart: any;
@@ -213,6 +214,78 @@ declare const Chart: any;
                   </div>
                 }
 
+                @if (s.lantikanDaerah?.length) {
+                  <div>
+                    <h4 class="text-sm font-semibold text-slate-700 mb-3">Pecahan Tugasan Mengikut Daerah</h4>
+                    <div class="rounded-lg border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                      @for (d of s.lantikanDaerah; track d.daerah) {
+                        <div>
+                          <!-- Baris daerah (klik untuk kembang) -->
+                          <button (click)="toggleDaerah(d.daerah)"
+                            class="w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 bg-slate-50 hover:bg-slate-100 transition text-left">
+                            <span class="text-slate-400 text-xs w-3 shrink-0">{{ expandedDaerah === d.daerah ? '▾' : '▸' }}</span>
+                            <span class="font-semibold text-slate-800 text-xs sm:text-sm flex-1 min-w-0 truncate">{{ d.daerah }}</span>
+                            <span class="text-[10px] text-slate-400 hidden sm:inline shrink-0">{{ d.pengadil.length }} pengadil</span>
+                            <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-xs font-bold shrink-0">{{ d.total }}</span>
+                            <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 text-xs font-semibold hidden md:inline">✓ {{ d.diterima }}</span>
+                            <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-700 text-xs font-semibold hidden md:inline">✗ {{ d.ditolak }}</span>
+                            <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-700 text-xs font-semibold hidden md:inline">? {{ d.belum }}</span>
+                          </button>
+                          <!-- Senarai pengadil dalam daerah -->
+                          @if (expandedDaerah === d.daerah) {
+                            <!-- Kad (mobile) -->
+                            <div class="sm:hidden divide-y divide-slate-50">
+                              @for (pg of d.pengadil; track $index) {
+                                <div class="px-3 py-2.5 pl-8">
+                                  <div class="flex items-center justify-between gap-2">
+                                    <span class="text-xs min-w-0 truncate"
+                                          [class]="pg.id ? 'cursor-pointer text-slate-800 hover:text-blue-600 underline decoration-dotted font-medium' : 'text-slate-600'"
+                                          (click)="pg.id && profileModal.open(pg.id)">{{ pg.nama }}</span>
+                                    <span class="text-xs font-bold text-slate-700 shrink-0">{{ pg.total }}</span>
+                                  </div>
+                                  <div class="flex gap-2 mt-1 text-[10px]">
+                                    <span class="text-emerald-600">✓ {{ pg.diterima }}</span>
+                                    <span class="text-rose-500">✗ {{ pg.ditolak }}</span>
+                                    <span class="text-amber-600">? {{ pg.belum }}</span>
+                                  </div>
+                                </div>
+                              }
+                            </div>
+                            <!-- Jadual (desktop) -->
+                            <div class="hidden sm:block overflow-x-auto">
+                              <table class="w-full text-xs">
+                                <thead>
+                                  <tr class="text-slate-400 border-b border-slate-100">
+                                    <th class="text-left px-4 py-1.5 font-medium pl-11">Pengadil</th>
+                                    <th class="text-center px-2 py-1.5 font-medium">Jumlah</th>
+                                    <th class="text-center px-2 py-1.5 font-medium">Diterima</th>
+                                    <th class="text-center px-2 py-1.5 font-medium">Ditolak</th>
+                                    <th class="text-center px-2 py-1.5 font-medium">Belum</th>
+                                  </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-50">
+                                  @for (pg of d.pengadil; track $index) {
+                                    <tr class="hover:bg-slate-50/50">
+                                      <td class="px-4 py-2 pl-11">
+                                        <span [class]="pg.id ? 'cursor-pointer text-slate-800 hover:text-blue-600 hover:underline font-medium' : 'text-slate-600'"
+                                              (click)="pg.id && profileModal.open(pg.id)">{{ pg.nama }}</span>
+                                      </td>
+                                      <td class="px-2 py-2 text-center font-bold text-slate-700">{{ pg.total }}</td>
+                                      <td class="px-2 py-2 text-center text-emerald-600">{{ pg.diterima }}</td>
+                                      <td class="px-2 py-2 text-center text-rose-500">{{ pg.ditolak }}</td>
+                                      <td class="px-2 py-2 text-center text-amber-600">{{ pg.belum }}</td>
+                                    </tr>
+                                  }
+                                </tbody>
+                              </table>
+                            </div>
+                          }
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+
                 <div>
                   <h4 class="text-sm font-semibold text-slate-700 mb-3">Pecahan Lantikan</h4>
                   <div class="h-64 max-w-sm mx-auto"><canvas id="chartLantikan"></canvas></div>
@@ -271,6 +344,67 @@ declare const Chart: any;
                     <div class="h-64"><canvas id="chartMatchBreakdown"></canvas></div>
                   </div>
                 </div>
+
+                @if (s.perlawananDaerah?.length) {
+                  <div>
+                    <h4 class="text-sm font-semibold text-slate-700 mb-3">Pecahan Perlawanan Didaftarkan Mengikut Daerah</h4>
+                    <div class="rounded-lg border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                      @for (d of s.perlawananDaerah; track d.daerah) {
+                        <div>
+                          <button (click)="togglePerlawananDaerah(d.daerah)"
+                            class="w-full flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 bg-slate-50 hover:bg-slate-100 transition text-left">
+                            <span class="text-slate-400 text-xs w-3 shrink-0">{{ expandedPerlawananDaerah === d.daerah ? '▾' : '▸' }}</span>
+                            <span class="font-semibold text-slate-800 text-xs sm:text-sm flex-1 min-w-0 truncate">{{ d.daerah }}</span>
+                            <span class="text-[10px] text-slate-400 hidden sm:inline shrink-0">{{ d.pengadil.length }} pengadil</span>
+                            <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-xs font-bold shrink-0 whitespace-nowrap">
+                              {{ d.total }}<span class="hidden sm:inline"> perlawanan</span>
+                            </span>
+                            <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 text-xs font-semibold hidden md:inline">✓ {{ d.disahkan }} disahkan</span>
+                          </button>
+                          @if (expandedPerlawananDaerah === d.daerah) {
+                            <!-- Kad (mobile) -->
+                            <div class="sm:hidden divide-y divide-slate-50">
+                              @for (pg of d.pengadil; track pg.id) {
+                                <div class="px-3 py-2.5 pl-8 flex items-center justify-between gap-2">
+                                  <span class="text-xs min-w-0 truncate cursor-pointer text-slate-800 hover:text-blue-600 underline decoration-dotted font-medium"
+                                        (click)="profileModal.open(pg.id)">{{ pg.nama }}</span>
+                                  <span class="text-[10px] shrink-0 flex gap-2">
+                                    <span class="font-bold text-slate-700">{{ pg.total }}</span>
+                                    <span class="text-emerald-600">✓ {{ pg.disahkan }}</span>
+                                  </span>
+                                </div>
+                              }
+                            </div>
+                            <!-- Jadual (desktop) -->
+                            <div class="hidden sm:block overflow-x-auto">
+                              <table class="w-full text-xs">
+                                <thead>
+                                  <tr class="text-slate-400 border-b border-slate-100">
+                                    <th class="text-left px-4 py-1.5 font-medium pl-11">Pengadil</th>
+                                    <th class="text-center px-2 py-1.5 font-medium">Perlawanan</th>
+                                    <th class="text-center px-2 py-1.5 font-medium">Disahkan</th>
+                                  </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-50">
+                                  @for (pg of d.pengadil; track pg.id) {
+                                    <tr class="hover:bg-slate-50/50">
+                                      <td class="px-4 py-2 pl-11">
+                                        <span class="cursor-pointer text-slate-800 hover:text-blue-600 hover:underline font-medium"
+                                              (click)="profileModal.open(pg.id)">{{ pg.nama }}</span>
+                                      </td>
+                                      <td class="px-2 py-2 text-center font-bold text-slate-700">{{ pg.total }}</td>
+                                      <td class="px-2 py-2 text-center text-emerald-600">{{ pg.disahkan }}</td>
+                                    </tr>
+                                  }
+                                </tbody>
+                              </table>
+                            </div>
+                          }
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
               </div>
             }
 
@@ -447,7 +581,18 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
   employmentItems: { label: string; value: number; pct: number }[] = [];
   examCards: { key: string; label: string; icon: string; color: string; total: number; lulus: number; tidakLulus: number; belum: number; passRate: number | null }[] = [];
 
-  constructor(private api: ApiService, private toast: ToastService, public router: Router) {}
+  constructor(private api: ApiService, private toast: ToastService, public router: Router, public profileModal: ProfileModalService) {}
+
+  expandedDaerah: string | null = null;
+  expandedPerlawananDaerah: string | null = null;
+
+  toggleDaerah(daerah: string): void {
+    this.expandedDaerah = this.expandedDaerah === daerah ? null : daerah;
+  }
+
+  togglePerlawananDaerah(daerah: string): void {
+    this.expandedPerlawananDaerah = this.expandedPerlawananDaerah === daerah ? null : daerah;
+  }
 
   ngOnInit(): void {
     const yr = new Date().getFullYear();

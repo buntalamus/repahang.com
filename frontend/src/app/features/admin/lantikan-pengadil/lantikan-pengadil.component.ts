@@ -4,6 +4,7 @@ import { environment } from '../../../../environments/environment';
 import { DatePipe, SlicePipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
+import { ProfileModalService } from '../../../core/services/profile-modal.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
 import * as XLSX from 'xlsx';
@@ -54,9 +55,12 @@ export class LantikanPengadilComponent implements OnInit {
   poolTab: 'berdaftar' | 'luar' = 'berdaftar';
   availableBerdaftar: any[] = [];
   availableLuar: any[] = [];
-  selectedPoolIds: Set<number> = new Set();
+  selectedBerdaftarIds = new Set<number>();
+  selectedLuarIds = new Set<number>();
   poolSearchText = '';
   addingToPool = false;
+  // Auto-tick dari Excel
+  poolMatchSummary: { matched: number; berdaftar: number; luar: number; alreadyInPool: number; notFound: string[] } | null = null;
 
   // Jadual
   loadingJadual = false;
@@ -170,7 +174,25 @@ export class LantikanPengadilComponent implements OnInit {
   showPengesahanForm = false;
   submittingPengesahan = false;
   batallingPengesahan = false;
+  renumbering = false;
   pengesahanForm = { nama_penyahkan: '', jawatan_penyahkan: '', nota: '' };
+
+  /** Group the (backend-sorted) report jadual by kategori for sectioned display. */
+  get jadualLantikanGrouped(): { kategori: string; matches: any[] }[] {
+    const jadual = this.jadualLantikanData?.jadual ?? [];
+    const groups: { kategori: string; matches: any[] }[] = [];
+    for (const j of jadual) {
+      const kat = (j.kategori || '').trim() || 'Lain-lain';
+      let group = groups.length > 0 && groups[groups.length - 1].kategori === kat
+        ? groups[groups.length - 1] : null;
+      if (!group) {
+        group = { kategori: kat, matches: [] };
+        groups.push(group);
+      }
+      group.matches.push(j);
+    }
+    return groups;
+  }
 
   loadJadualLantikan(): void {
     if (!this.selectedKejohananId) return;
@@ -254,6 +276,32 @@ export class LantikanPengadilComponent implements OnInit {
     window.open(`${environment.apiUrl}/download-jadual-lantikan.php?kejohanan_id=${this.selectedKejohananId}`, '_blank');
   }
 
+  renumberJadual(): void {
+    if (!this.selectedKejohananId) return;
+    this.confirmTitle = 'Nombor Semula Perlawanan?';
+    this.confirmMessage = 'Semua perlawanan akan dinomborkan semula mengikut kategori & masa (cth B12-01, B12-02 ...). Tindakan ini menukar nombor perlawanan sedia ada. Teruskan?';
+    this.confirmType = 'warning';
+    this.confirmBtnText = 'Nombor Semula';
+    this.confirmFn = () => {
+      this.renumbering = true;
+      this.api.post<any>('jadual-perlawanan.php?action=renumber', {
+        kejohanan_id: this.selectedKejohananId,
+      }).subscribe({
+        next: (res) => {
+          this.renumbering = false;
+          if (!res.error) {
+            this.toast.success(res.message || 'Perlawanan dinomborkan semula.');
+            this.loadJadualLantikan();
+          } else {
+            this.toast.error(res.message || 'Gagal menomborkan semula.');
+          }
+        },
+        error: (err: any) => { this.renumbering = false; this.toast.error(err?.error?.message || 'Ralat semasa menomborkan semula.'); },
+      });
+    };
+    this.showConfirmModal = true;
+  }
+
   getJawatanShort(jawatan: string): string {
     const map: Record<string, string> = {
       'Pengadil':             'R',
@@ -293,7 +341,7 @@ export class LantikanPengadilComponent implements OnInit {
   confirmBtnText = 'Ya';
   private confirmFn: (() => void) | null = null;
 
-  constructor(private api: ApiService, private toast: ToastService) {}
+  constructor(private api: ApiService, private toast: ToastService, public profileModal: ProfileModalService) {}
 
   ngOnInit(): void {
     this.loadKejohanan();
@@ -465,8 +513,10 @@ export class LantikanPengadilComponent implements OnInit {
 
   openPoolModal(): void {
     this.poolTab = 'berdaftar';
-    this.selectedPoolIds = new Set();
+    this.selectedBerdaftarIds = new Set();
+    this.selectedLuarIds = new Set();
     this.poolSearchText = '';
+    this.poolMatchSummary = null;
     this.showPoolModal = true;
     this.loadAvailableForPool();
   }
@@ -500,32 +550,140 @@ export class LantikanPengadilComponent implements OnInit {
     });
   }
 
+  private currentPoolSet(): Set<number> {
+    return this.poolTab === 'berdaftar' ? this.selectedBerdaftarIds : this.selectedLuarIds;
+  }
+
+  isPoolSelected(id: number): boolean {
+    return this.currentPoolSet().has(id);
+  }
+
   togglePoolSelect(id: number): void {
-    if (this.selectedPoolIds.has(id)) {
-      this.selectedPoolIds.delete(id);
-    } else {
-      this.selectedPoolIds.add(id);
-    }
+    const set = this.currentPoolSet();
+    if (set.has(id)) set.delete(id);
+    else set.add(id);
+  }
+
+  get totalPoolSelected(): number {
+    return this.selectedBerdaftarIds.size + this.selectedLuarIds.size;
   }
 
   addToPool(): void {
-    if (this.selectedPoolIds.size === 0) return;
+    const items = [
+      ...Array.from(this.selectedBerdaftarIds).map(id => ({ pengadil_id: id })),
+      ...Array.from(this.selectedLuarIds).map(id => ({ pengadil_luar_id: id })),
+    ];
+    if (items.length === 0) return;
     this.addingToPool = true;
-    const items = Array.from(this.selectedPoolIds).map(id => {
-      return this.poolTab === 'berdaftar'
-        ? { pengadil_id: id }
-        : { pengadil_luar_id: id };
-    });
     this.api.post<any>('pool-pengadil.php', { kejohanan_id: this.selectedKejohanan!.id, items }).subscribe({
       next: (res) => {
         this.toast.show(res.message, 'success');
         this.addingToPool = false;
-        this.selectedPoolIds = new Set();
+        this.selectedBerdaftarIds = new Set();
+        this.selectedLuarIds = new Set();
+        this.poolMatchSummary = null;
         this.loadPool(this.selectedKejohanan!.id);
         this.loadAvailableForPool();
       },
       error: (err) => { this.toast.show(err?.error?.message || 'Ralat.', 'error'); this.addingToPool = false; },
     });
+  }
+
+  downloadPoolMatchTemplate(): void {
+    const header = ['Nama', 'No IC', 'No Tel', 'Emel'];
+    const sample = [
+      ['Ahmad bin Ali', '880101015523', '0123456789', 'ahmad@email.com'],
+      ['Muthu a/l Raju', '', '0198765432', ''],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([header, ...sample]);
+    ws['!cols'] = [{ wch: 30 }, { wch: 16 }, { wch: 15 }, { wch: 25 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Senarai Pengadil');
+    XLSX.writeFile(wb, 'template-pool-pengadil.xlsx');
+  }
+
+  /** Upload Excel → auto-tick padanan dalam senarai berdaftar & luar (client-side). */
+  onPoolExcelSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const data = new Uint8Array(e.target?.result as ArrayBuffer);
+      const wb = XLSX.read(data, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      if (rows.length < 2) {
+        this.toast.show('Fail kosong atau tiada data selepas header.', 'error');
+        return;
+      }
+
+      const headerRow = rows[0].map((h: any) => String(h).toLowerCase().trim());
+      const col: Record<string, number> = {};
+      headerRow.forEach((h: string, idx: number) => {
+        if (h.includes('nama')) col['nama'] = idx;
+        else if (h.includes('ic') || h.includes('kp')) col['ic'] = idx;
+        else if (h.includes('tel') || h.includes('phone') || h.includes('telefon')) col['tel'] = idx;
+        else if (h.includes('emel') || h.includes('email')) col['emel'] = idx;
+      });
+      if (!('nama' in col) && !('ic' in col)) {
+        this.toast.show('Header "Nama" atau "No IC" diperlukan dalam fail.', 'error');
+        return;
+      }
+
+      const digits = (s: any) => String(s ?? '').replace(/[^0-9]/g, '');
+      const norm = (s: any) => String(s ?? '').toLowerCase().trim();
+
+      // Indeks senarai tersedia (yang belum dalam pool)
+      const regByIc = new Map<string, any>(), regByPhone = new Map<string, any>(), regByEmail = new Map<string, any>(), regByName = new Map<string, any>();
+      for (const r of this.availableBerdaftar) {
+        const ic = digits(r.no_kp ?? r.no_ic); if (ic) regByIc.set(ic, r);
+        const ph = digits(r.no_telefon); if (ph) regByPhone.set(ph, r);
+        const em = norm(r.email); if (em) regByEmail.set(em, r);
+        const nm = norm(r.nama_penuh); if (nm) regByName.set(nm, r);
+      }
+      const luarByPhone = new Map<string, any>(), luarByEmail = new Map<string, any>(), luarByName = new Map<string, any>();
+      for (const l of this.availableLuar) {
+        const ph = digits(l.no_tel); if (ph) luarByPhone.set(ph, l);
+        const em = norm(l.emel); if (em) luarByEmail.set(em, l);
+        const nm = norm(l.nama); if (nm) luarByName.set(nm, l);
+      }
+      // Untuk kesan "sudah dalam pool" (dikecualikan dari senarai tersedia)
+      const poolNames = new Set(this.poolList.map(p => norm(p.nama)));
+      const poolPhones = new Set(this.poolList.map(p => digits(p.no_tel)).filter(Boolean));
+
+      let berdaftar = 0, luar = 0, alreadyInPool = 0;
+      const notFound: string[] = [];
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length === 0) continue;
+        const nama = 'nama' in col ? String(row[col['nama']] ?? '').trim() : '';
+        const ic = 'ic' in col ? digits(row[col['ic']]) : '';
+        const tel = 'tel' in col ? digits(row[col['tel']]) : '';
+        const em = 'emel' in col ? norm(row[col['emel']]) : '';
+        if (!nama && !ic && !tel && !em) continue;
+        const nm = norm(nama);
+
+        // Padan berdaftar: IC → telefon → emel → nama
+        const reg = (ic && regByIc.get(ic)) || (tel && regByPhone.get(tel)) || (em && regByEmail.get(em)) || (nm && regByName.get(nm));
+        if (reg) { this.selectedBerdaftarIds.add(reg.id); berdaftar++; continue; }
+        // Padan luar: telefon → emel → nama
+        const lr = (tel && luarByPhone.get(tel)) || (em && luarByEmail.get(em)) || (nm && luarByName.get(nm));
+        if (lr) { this.selectedLuarIds.add(lr.id); luar++; continue; }
+        // Tiada dalam senarai tersedia — mungkin sudah dalam pool
+        if ((nm && poolNames.has(nm)) || (tel && poolPhones.has(tel))) { alreadyInPool++; continue; }
+        notFound.push(nama || ic || tel || em);
+      }
+
+      this.poolMatchSummary = { matched: berdaftar + luar, berdaftar, luar, alreadyInPool, notFound };
+      const parts = [`${berdaftar + luar} dipadan & ditanda (${berdaftar} Pahang, ${luar} luar).`];
+      if (alreadyInPool > 0) parts.push(`${alreadyInPool} sudah dalam pool.`);
+      if (notFound.length > 0) parts.push(`${notFound.length} tidak dijumpai.`);
+      this.toast.show(parts.join(' '), notFound.length ? 'info' : 'success');
+    };
+    reader.readAsArrayBuffer(file);
+    input.value = '';
   }
 
   removeFromPool(poolId: number): void {
@@ -539,8 +697,8 @@ export class LantikanPengadilComponent implements OnInit {
   }
 
   switchPoolTab(tab: 'berdaftar' | 'luar'): void {
+    // Kekalkan pilihan merentas tab (penting untuk auto-tick dari Excel)
     this.poolTab = tab;
-    this.selectedPoolIds = new Set();
   }
 
   // ===================== JADUAL =====================

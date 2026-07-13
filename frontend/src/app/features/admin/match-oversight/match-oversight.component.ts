@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
+import { ProfileModalService } from '../../../core/services/profile-modal.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
 
 @Component({
@@ -88,7 +89,11 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
                         <span class="material-icons text-[10px]">group</span>{{ match.officials.length }}
                       </span>
                     } @else {
-                      <span class="text-xs text-slate-600">{{ match.officials[0]?.nama || '-' }}</span>
+                      <span class="text-xs text-slate-600"
+                            [class.cursor-pointer]="match.officials[0]?.user_id"
+                            [class.hover:text-blue-600]="match.officials[0]?.user_id"
+                            [class.hover:underline]="match.officials[0]?.user_id"
+                            (click)="match.officials[0]?.user_id && profileModal.open(match.officials[0].user_id); $event.stopPropagation()">{{ match.officials[0]?.nama || '-' }}</span>
                     }
                   </td>
                   <td class="px-4 py-3">
@@ -215,7 +220,10 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
                     <tr class="border-b border-slate-100 last:border-0">
                       <td class="py-1 text-slate-500 w-1/2">{{ o.jawatan }}</td>
                       <td class="py-1 font-medium text-slate-800">
-                        {{ o.nama }}
+                        <span [class.cursor-pointer]="o.user_id"
+                              [class.hover:text-blue-600]="o.user_id"
+                              [class.hover:underline]="o.user_id"
+                              (click)="o.user_id && profileModal.open(o.user_id)">{{ o.nama }}</span>
                         @if (o.jenis_pengadil) {<span class="text-slate-400 font-normal"> ({{ o.jenis_pengadil }})</span>}
                       </td>
                     </tr>
@@ -310,6 +318,7 @@ export class AdminMatchOversightComponent implements OnInit {
   constructor(
     private api: ApiService,
     private toast: ToastService,
+    public profileModal: ProfileModalService,
   ) {}
 
   ngOnInit(): void {

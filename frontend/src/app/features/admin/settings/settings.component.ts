@@ -648,7 +648,7 @@ export class AdminSettingsComponent implements OnInit {
     if (!confirm(`Hantar emel pengaktifan Telegram kepada ${this.tgStats?.not_linked} pengguna?`)) return;
     this.tgBlasting = true;
     this.tgBlastResult = null;
-    this.api.post<any>('admin-telegram-blast.php', {}).subscribe({
+    this.api.post<any>('admin-telegram-blast.php', {}, 300_000).subscribe({
       next: (res) => {
         this.tgBlasting = false;
         if (!res.error) {

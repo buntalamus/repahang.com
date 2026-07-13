@@ -96,11 +96,11 @@ export class ApiService {
     );
   }
 
-  post<T>(endpoint: string, body: unknown): Observable<T> {
+  post<T>(endpoint: string, body: unknown, timeoutMs?: number): Observable<T> {
     return this.http.post<T>(`${this.baseUrl}/${endpoint}`, body, {
       withCredentials: true,
     }).pipe(
-      timeout(this.requestTimeoutMs),
+      timeout(timeoutMs ?? this.requestTimeoutMs),
       map((response) => this.normalizeResponse(response)),
     );
   }

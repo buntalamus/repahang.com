@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
+import { ProfileModalService } from '../../../core/services/profile-modal.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
 
 @Component({
@@ -280,7 +281,7 @@ export class PpRaBerdaftarComponent implements OnInit {
   profileMatches: any[] = [];
   profileLoading = false;
 
-  constructor(private api: ApiService) {}
+  constructor(private api: ApiService, private profileModal: ProfileModalService) {}
 
   ngOnInit(): void {
     this.api.get<any>('pp-referees.php', { role: 'Penilai' }).subscribe({
@@ -309,22 +310,8 @@ export class PpRaBerdaftarComponent implements OnInit {
   }
 
   openProfile(ref: any): void {
-    this.selectedRef = ref;
-    this.profileDetail = null;
-    this.profileMatches = [];
-    this.profileLoading = true;
-
-    this.api.get<any>(`pp-referees.php`, { single: ref.id.toString(), role: 'Penilai' }).subscribe({
-      next: (res) => {
-        if (!res.error) {
-          const data = res.referees?.[0] || {};
-          this.profileDetail = data;
-          this.profileMatches = data.perlawanan || [];
-        }
-        this.profileLoading = false;
-      },
-      error: () => (this.profileLoading = false),
-    });
+    // Guna modal profil global (maklumat penuh + sejarah bertab)
+    this.profileModal.open(ref.id);
   }
 
   closeProfile(): void {

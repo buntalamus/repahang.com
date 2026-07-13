@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
+import { ProfileModalService } from '../../../core/services/profile-modal.service';
 
 @Component({
   selector: 'app-pp-penilaian',
@@ -218,7 +219,11 @@ import { FormsModule } from '@angular/forms';
                       @for (pg of selectedReport.pegawai || []; track pg.jawatan) {
                         <tr class="hover:bg-slate-50/50">
                           <td class="px-3 py-2 font-medium text-slate-700">{{ pg.jawatan }}</td>
-                          <td class="px-3 py-2 text-slate-800">{{ pg.nama_pengadil || '-' }}</td>
+                          <td class="px-3 py-2 text-slate-800"
+                              [class.cursor-pointer]="pg.pengadil_id"
+                              [class.hover:text-blue-600]="pg.pengadil_id"
+                              [class.hover:underline]="pg.pengadil_id"
+                              (click)="pg.pengadil_id && profileModal.open(pg.pengadil_id)">{{ pg.nama_pengadil || '-' }}</td>
                           <td class="px-3 py-2 text-center font-bold" [style.color]="markahColor(pg.markah)">
                             {{ pg.markah ? (+pg.markah).toFixed(1) : '-' }}
                           </td>
@@ -307,7 +312,7 @@ export class PpPenilaianComponent implements OnInit {
   maxMarkah: number | null = null;
   minMarkah: number | null = null;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, public profileModal: ProfileModalService) {}
 
   ngOnInit(): void {
     this.loadReports();

@@ -88,7 +88,8 @@
                       {{ (user.nama_penuh || '?')[0] }}
                     </div>
                   }
-                  <span class="font-medium text-slate-900">{{ user.nama_penuh }}</span>
+                  <span class="font-medium text-slate-900 cursor-pointer hover:text-blue-600 hover:underline"
+                        (click)="profileModal.open(user.id)">{{ user.nama_penuh }}</span>
                 </div>
               </td>
               <td class="px-4 py-3">
@@ -156,7 +157,8 @@
               </div>
             }
             <div>
-              <p class="font-medium text-slate-900 text-sm">{{ user.nama_penuh }}</p>
+              <p class="font-medium text-slate-900 text-sm cursor-pointer hover:text-blue-600 hover:underline"
+                 (click)="profileModal.open(user.id)">{{ user.nama_penuh }}</p>
               <p class="text-xs text-slate-500">{{ user.email || '-' }}</p>
             </div>
           </div>

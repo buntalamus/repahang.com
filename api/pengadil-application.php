@@ -404,7 +404,18 @@ try {
         ]);
         
         $applicationId = $pdo->lastInsertId();
-        
+
+        // Auto-isi tahun mohon Kelas 3 FAM dalam profil (kekalkan tahun terawal).
+        // Guna tahun semasa (tahun permohonan sebenar dihantar), bukan
+        // $applicationYear dari tetapan 'application_year' yang boleh menunjuk
+        // tahun kitaran hadapan.
+        if ($jenisBorang === 'kelas3_fam') {
+            $pdo->prepare("
+                UPDATE users SET tahun_mohon_kelas3 = COALESCE(tahun_mohon_kelas3, :tahun)
+                WHERE id = :uid
+            ")->execute(['tahun' => (int) date('Y'), 'uid' => $userId]);
+        }
+
         // Link all verified matches to this application
         $linkStmt = $pdo->prepare("
             UPDATE perlawanan 

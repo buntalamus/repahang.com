@@ -595,6 +595,125 @@ function handleStatistics(): void
         $stmtLantikan->execute([':year' => $year]);
         $lantikanStats = $stmtLantikan->fetch();
 
+        // ── Pecahan tugasan (lantikan) mengikut daerah → pengadil ──
+        $sqlLantikanDaerah = <<<'SQL'
+            SELECT COALESCE(p.daerah, 'Tanpa Daerah') AS daerah,
+                   u.id AS pengadil_id, u.nama_penuh,
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN lp.status = 'Diterima' THEN 1 ELSE 0 END) AS diterima,
+                   SUM(CASE WHEN lp.status = 'Ditolak' THEN 1 ELSE 0 END) AS ditolak,
+                   SUM(CASE WHEN lp.status = 'Belum Jawab' THEN 1 ELSE 0 END) AS belum
+            FROM lantikan_pengadil lp
+            JOIN jadual_perlawanan jp ON lp.jadual_id = jp.id
+            JOIN users u ON lp.pengadil_id = u.id
+            LEFT JOIN persatuan_bolasepak_daerah p ON u.persatuan_id = p.id
+            WHERE YEAR(jp.tarikh) = :year
+            GROUP BY daerah, u.id, u.nama_penuh
+            ORDER BY daerah ASC, total DESC
+        SQL;
+        $stmtLD = $pdo->prepare($sqlLantikanDaerah);
+        $stmtLD->execute([':year' => $year]);
+        $daerahRows = $stmtLD->fetchAll();
+
+        // Pengadil luar (tiada akaun/daerah) — kumpulan berasingan
+        $sqlLantikanLuar = <<<'SQL'
+            SELECT pl.nama AS nama_penuh,
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN lp.status = 'Diterima' THEN 1 ELSE 0 END) AS diterima,
+                   SUM(CASE WHEN lp.status = 'Ditolak' THEN 1 ELSE 0 END) AS ditolak,
+                   SUM(CASE WHEN lp.status = 'Belum Jawab' THEN 1 ELSE 0 END) AS belum
+            FROM lantikan_pengadil lp
+            JOIN jadual_perlawanan jp ON lp.jadual_id = jp.id
+            JOIN pengadil_luar pl ON lp.pengadil_luar_id = pl.id
+            WHERE YEAR(jp.tarikh) = :year
+            GROUP BY pl.id, pl.nama
+            ORDER BY total DESC
+        SQL;
+        $stmtLL = $pdo->prepare($sqlLantikanLuar);
+        $stmtLL->execute([':year' => $year]);
+        $luarRows = $stmtLL->fetchAll();
+
+        $lantikanDaerah = [];
+        foreach ($daerahRows as $r) {
+            $d = $r['daerah'];
+            if (!isset($lantikanDaerah[$d])) {
+                $lantikanDaerah[$d] = [
+                    'daerah' => $d, 'total' => 0, 'diterima' => 0,
+                    'ditolak' => 0, 'belum' => 0, 'pengadil' => [],
+                ];
+            }
+            $lantikanDaerah[$d]['total']    += (int) $r['total'];
+            $lantikanDaerah[$d]['diterima'] += (int) $r['diterima'];
+            $lantikanDaerah[$d]['ditolak']  += (int) $r['ditolak'];
+            $lantikanDaerah[$d]['belum']    += (int) $r['belum'];
+            $lantikanDaerah[$d]['pengadil'][] = [
+                'id'       => (int) $r['pengadil_id'],
+                'nama'     => $r['nama_penuh'],
+                'total'    => (int) $r['total'],
+                'diterima' => (int) $r['diterima'],
+                'ditolak'  => (int) $r['ditolak'],
+                'belum'    => (int) $r['belum'],
+            ];
+        }
+        if (!empty($luarRows)) {
+            $luar = ['daerah' => 'Pengadil Luar', 'total' => 0, 'diterima' => 0,
+                     'ditolak' => 0, 'belum' => 0, 'pengadil' => []];
+            foreach ($luarRows as $r) {
+                $luar['total']    += (int) $r['total'];
+                $luar['diterima'] += (int) $r['diterima'];
+                $luar['ditolak']  += (int) $r['ditolak'];
+                $luar['belum']    += (int) $r['belum'];
+                $luar['pengadil'][] = [
+                    'id'       => null,
+                    'nama'     => $r['nama_penuh'],
+                    'total'    => (int) $r['total'],
+                    'diterima' => (int) $r['diterima'],
+                    'ditolak'  => (int) $r['ditolak'],
+                    'belum'    => (int) $r['belum'],
+                ];
+            }
+            $lantikanDaerah['Pengadil Luar'] = $luar;
+        }
+        // Susun ikut jumlah menurun; jadikan senarai berindeks untuk JSON
+        $lantikanDaerah = array_values($lantikanDaerah);
+        usort($lantikanDaerah, fn($a, $b) => $b['total'] <=> $a['total']);
+
+        // ── Pecahan perlawanan DIDAFTARKAN mengikut daerah → pengadil ──
+        $sqlPerlawananDaerah = <<<'SQL'
+            SELECT COALESCE(pb.daerah, 'Tanpa Daerah') AS daerah,
+                   u.id AS pengadil_id, u.nama_penuh,
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN pr.status_pp = 'Disahkan' THEN 1 ELSE 0 END) AS disahkan
+            FROM perlawanan pr
+            JOIN users u ON pr.user_id = u.id
+            LEFT JOIN persatuan_bolasepak_daerah pb ON u.persatuan_id = pb.id
+            WHERE YEAR(pr.tarikh) = :year
+            GROUP BY daerah, u.id, u.nama_penuh
+            ORDER BY daerah ASC, total DESC
+        SQL;
+        $stmtPD = $pdo->prepare($sqlPerlawananDaerah);
+        $stmtPD->execute([':year' => $year]);
+
+        $perlawananDaerah = [];
+        foreach ($stmtPD->fetchAll() as $r) {
+            $d = $r['daerah'];
+            if (!isset($perlawananDaerah[$d])) {
+                $perlawananDaerah[$d] = [
+                    'daerah' => $d, 'total' => 0, 'disahkan' => 0, 'pengadil' => [],
+                ];
+            }
+            $perlawananDaerah[$d]['total']    += (int) $r['total'];
+            $perlawananDaerah[$d]['disahkan'] += (int) $r['disahkan'];
+            $perlawananDaerah[$d]['pengadil'][] = [
+                'id'       => (int) $r['pengadil_id'],
+                'nama'     => $r['nama_penuh'],
+                'total'    => (int) $r['total'],
+                'disahkan' => (int) $r['disahkan'],
+            ];
+        }
+        $perlawananDaerah = array_values($perlawananDaerah);
+        usort($perlawananDaerah, fn($a, $b) => $b['total'] <=> $a['total']);
+
         // ── Kejohanan Stats ──
         $sqlKejohanan = <<<'SQL'
             SELECT k.nama, k.status, k.anjuran, COUNT(jp.id) AS jum_perlawanan,
@@ -628,6 +747,8 @@ function handleStatistics(): void
                 'disahkan' => (int) ($lantikanStats['disahkan'] ?? 0),
                 'belum'    => (int) ($lantikanStats['belum'] ?? 0),
             ],
+            'lantikanDaerah' => $lantikanDaerah,
+            'perlawananDaerah' => $perlawananDaerah,
             'kejohanan' => $kejohananList,
         ];
 

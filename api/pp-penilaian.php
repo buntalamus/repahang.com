@@ -60,7 +60,13 @@ try {
             }
 
             // Verify that at least one pegawai in this report belongs to our district
-            $pgStmt = $pdo->prepare("SELECT * FROM laporan_penilaian_pegawai WHERE laporan_id = :lid ORDER BY FIELD(jawatan,'Pengadil','Penolong Pengadil 1','Penolong Pengadil 2','Pegawai ke4')");
+            $pgStmt = $pdo->prepare("
+                SELECT lpp.*, lp.pengadil_id
+                FROM laporan_penilaian_pegawai lpp
+                LEFT JOIN lantikan_pengadil lp ON lpp.lantikan_pengadil_id = lp.id
+                WHERE lpp.laporan_id = :lid
+                ORDER BY FIELD(lpp.jawatan,'Pengadil','Penolong Pengadil 1','Penolong Pengadil 2','Pegawai ke4')
+            ");
             $pgStmt->execute([':lid' => $id]);
             $pegawaiList = $pgStmt->fetchAll();
 

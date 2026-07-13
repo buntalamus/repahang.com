@@ -12,6 +12,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/../config/lantikan-helper.php';
+require_once __DIR__ . '/../config/pasukan-logo-helper.php';
 
 $currentUser = requireRole(['Admin']);
 
@@ -44,39 +46,70 @@ try {
             jsonResponse(['error' => true, 'message' => 'Saiz fail melebihi 2MB.'], 400);
         }
 
+        $col = $side === 'home' ? 'logo_home' : 'logo_away';
+        $namaCol = $side === 'home' ? 'pasukan_home' : 'pasukan_away';
+
+        // Dapatkan nama pasukan & logo lama untuk perlawanan ini
+        $rowStmt = $pdo->prepare("SELECT {$namaCol} AS nama, {$col} AS logo_lama FROM jadual_perlawanan WHERE id = :id");
+        $rowStmt->execute([':id' => $id]);
+        $row = $rowStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            jsonResponse(['error' => true, 'message' => 'Perlawanan tidak dijumpai.'], 404);
+        }
+        $namaPasukan = trim((string) ($row['nama'] ?? ''));
+        $logoLama    = (string) ($row['logo_lama'] ?? '');
+
         $ext = match ($mime) {
             'image/jpeg' => 'jpeg', 'image/png' => 'png', 'image/webp' => 'webp',
             'image/gif' => 'gif', 'image/svg+xml' => 'svg', default => 'png',
         };
         $dir = __DIR__ . '/../uploads/logos';
         if (!is_dir($dir)) mkdir($dir, 0755, true);
-        $filename = "jadual_{$id}_{$side}_" . time() . ".{$ext}";
+        $slug = $namaPasukan !== ''
+            ? substr(preg_replace('/[^a-z0-9]+/', '-', strtolower($namaPasukan)), 0, 60)
+            : "jadual_{$id}_{$side}";
+        $filename = "pasukan_{$slug}_" . time() . ".{$ext}";
         $dest = $dir . '/' . $filename;
 
         if (!move_uploaded_file($file['tmp_name'], $dest)) {
             jsonResponse(['error' => true, 'message' => 'Gagal menyimpan fail.'], 500);
         }
 
-        $col = $side === 'home' ? 'logo_home' : 'logo_away';
         $logoPath = '/uploads/logos/' . $filename;
 
-        // Delete old file
-        $oldStmt = $pdo->prepare("SELECT {$col} FROM jadual_perlawanan WHERE id = :id");
-        $oldStmt->execute([':id' => $id]);
-        $old = $oldStmt->fetchColumn();
-        if ($old && file_exists(__DIR__ . '/..' . $old)) {
-            @unlink(__DIR__ . '/..' . $old);
+        if ($namaPasukan !== '') {
+            // Simpan dalam registri + padankan ke SEMUA perlawanan pasukan sama
+            $count = simpanDanPadanLogoPasukan($pdo, $namaPasukan, $logoPath);
+            $message = "Logo {$namaPasukan} dipadankan ke {$count} perlawanan.";
+        } else {
+            // Tiada nama pasukan — kemaskini perlawanan ini sahaja
+            $pdo->prepare("UPDATE jadual_perlawanan SET {$col} = :path WHERE id = :id")
+                ->execute([':path' => $logoPath, ':id' => $id]);
+            $message = 'Logo berjaya dimuat naik.';
         }
 
-        $pdo->prepare("UPDATE jadual_perlawanan SET {$col} = :path WHERE id = :id")
-            ->execute([':path' => $logoPath, ':id' => $id]);
+        // Padam fail lama hanya jika tiada lagi rujukan (perlawanan lain / registri)
+        if ($logoLama && $logoLama !== $logoPath) {
+            $refStmt = $pdo->prepare("
+                SELECT (SELECT COUNT(*) FROM jadual_perlawanan WHERE logo_home = :p1 OR logo_away = :p2)
+                     + (SELECT COUNT(*) FROM pasukan_logo WHERE logo_path = :p3)
+            ");
+            $refStmt->execute([':p1' => $logoLama, ':p2' => $logoLama, ':p3' => $logoLama]);
+            if ((int) $refStmt->fetchColumn() === 0 && file_exists(__DIR__ . '/..' . $logoLama)) {
+                @unlink(__DIR__ . '/..' . $logoLama);
+            }
+        }
 
-        jsonResponse(['error' => false, 'message' => 'Logo berjaya dimuat naik.', 'logo_path' => $logoPath]);
+        jsonResponse(['error' => false, 'message' => $message, 'logo_path' => $logoPath]);
     }
 
     if ($method === 'GET') {
         if (isset($_GET['id'])) {
             $id = (int) $_GET['id'];
+
+            // Auto-tolak lantikan yang tempoh jawapannya sudah tamat
+            autoTolakLantikanTertunggak($pdo, ['jadual_id' => $id]);
+
             $stmt = $pdo->prepare("
                 SELECT jp.*,
                     k.nama AS nama_kejohanan
@@ -110,13 +143,17 @@ try {
             jsonResponse(['error' => false, 'perlawanan' => $match]);
         } elseif (isset($_GET['kejohanan_id'])) {
             $kid = (int) $_GET['kejohanan_id'];
+
+            // Auto-tolak supaya kiraan jumlah_terima sentiasa tepat
+            autoTolakLantikanTertunggak($pdo, ['kejohanan_id' => $kid]);
+
             $stmt = $pdo->prepare("
                 SELECT jp.*,
                     (SELECT COUNT(*) FROM lantikan_pengadil lp WHERE lp.jadual_id = jp.id) AS jumlah_lantikan,
                     (SELECT COUNT(*) FROM lantikan_pengadil lp WHERE lp.jadual_id = jp.id AND lp.status = 'Diterima') AS jumlah_terima
                 FROM jadual_perlawanan jp
                 WHERE jp.kejohanan_id = :kid
-                ORDER BY jp.tarikh ASC, jp.masa ASC, jp.no_perlawanan ASC
+                ORDER BY jp.kategori ASC, jp.tarikh ASC, jp.masa ASC, jp.no_perlawanan ASC
             ");
             $stmt->execute([':kid' => $kid]);
             jsonResponse(['error' => false, 'data' => $stmt->fetchAll()]);
@@ -149,6 +186,17 @@ try {
         jsonResponse(['error' => false, 'message' => "$count perlawanan berjaya dipadam."]);
     }
 
+    /* ── Renumber no_perlawanan per kategori (ikut masa) ── */
+    if ($method === 'POST' && ($_GET['action'] ?? '') === 'renumber') {
+        $input = getJsonInput();
+        $kejohanan_id = (int) ($input['kejohanan_id'] ?? 0);
+        if (!$kejohanan_id) {
+            jsonResponse(['error' => true, 'message' => 'kejohanan_id diperlukan.'], 400);
+        }
+        $count = renumberNoPerlawanan($pdo, $kejohanan_id);
+        jsonResponse(['error' => false, 'message' => "$count perlawanan dinomborkan semula ikut kategori & masa."]);
+    }
+
     if ($method === 'POST') {
         $input = getJsonInput();
         $kejohanan_id = (int) ($input['kejohanan_id'] ?? 0);
@@ -163,13 +211,10 @@ try {
         $hariList = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
         $hari = $hariList[(int) date('w', strtotime($tarikh))];
 
-        // Auto generate no_perlawanan if not provided
+        // Auto generate no_perlawanan (per kategori, berprefiks: cth B12-01) if not provided
         $no_perlawanan = trim($input['no_perlawanan'] ?? '');
         if (!$no_perlawanan) {
-            $countStmt = $pdo->prepare("SELECT COUNT(*) FROM jadual_perlawanan WHERE kejohanan_id = :kid");
-            $countStmt->execute([':kid' => $kejohanan_id]);
-            $count = (int) $countStmt->fetchColumn();
-            $no_perlawanan = 'P' . str_pad((string)($count + 1), 3, '0', STR_PAD_LEFT);
+            $no_perlawanan = nextNoPerlawanan($pdo, $kejohanan_id, trim($input['kategori'] ?? ''));
         }
 
         $stmt = $pdo->prepare("
@@ -190,6 +235,10 @@ try {
             ':tempat'         => trim($input['tempat'] ?? ''),
         ]);
         $id = (int) $pdo->lastInsertId();
+
+        // Auto-isi logo dari registri pasukan (ikut nama)
+        isiLogoDariRegistri($pdo, null, $id);
+
         jsonResponse(['error' => false, 'message' => 'Perlawanan berjaya ditambah.', 'id' => $id, 'no_perlawanan' => $no_perlawanan]);
     }
 
@@ -224,6 +273,10 @@ try {
             ':tempat'         => trim($input['tempat'] ?? ''),
             ':id'             => $id,
         ]);
+
+        // Auto-isi logo dari registri jika nama pasukan berubah
+        isiLogoDariRegistri($pdo, null, $id);
+
         jsonResponse(['error' => false, 'message' => 'Perlawanan berjaya dikemaskini.']);
     }
 

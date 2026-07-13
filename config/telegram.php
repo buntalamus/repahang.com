@@ -222,7 +222,7 @@ function tgLantikanMessage(
 
     require_once __DIR__ . '/lantikan-helper.php';
     $deadlineHours = getDeadlineHours($jenisKejohanan);
-    $deadlineDt    = calcDeadlineFormatted($tarikh, $masa, $jenisKejohanan);
+    $deadlineDt    = calcDeadlineFromNotif($jenisKejohanan);
     $ruleText      = getDeadlineRuleText($jenisKejohanan);
 
     return "<b>\u{1F3DF} Lantikan Pengadil</b>\n\n" .
@@ -236,6 +236,6 @@ function tgLantikanMessage(
            "<b>Masa:</b> {$masaFmt} WIB\n" .
            "<b>Tempat:</b> " . htmlspecialchars($tempat) . "\n\n" .
            "\u{26A0}\u{FE0F} <b>Garis Masa Jawapan:</b>\n" .
-           "Sila <b>terima atau tolak</b> tugasan ini <b>sebelum {$deadlineDt}</b> ({$deadlineHours} jam sebelum perlawanan).\n\n" .
+           "Sila <b>terima atau tolak</b> tugasan ini <b>sebelum {$deadlineDt}</b> ({$deadlineHours} jam selepas notifikasi ini).\n\n" .
            "\u{2139}\u{FE0F} <i>{$ruleText}</i>";
 }

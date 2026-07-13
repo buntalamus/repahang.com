@@ -654,7 +654,11 @@
                               {{ (assignment.nama_penuh || '?')[0].toUpperCase() }}
                             </div>
                             <div class="min-w-0">
-                              <p class="text-xs font-semibold text-slate-900">{{ assignment.nama_penuh }}</p>
+                              <p class="text-xs font-semibold text-slate-900"
+                                 [class.cursor-pointer]="assignment.pengadil_id"
+                                 [class.hover:text-blue-600]="assignment.pengadil_id"
+                                 [class.hover:underline]="assignment.pengadil_id"
+                                 (click)="assignment.pengadil_id && profileModal.open(assignment.pengadil_id)">{{ assignment.nama_penuh }}</p>
                               <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                 <span class="px-1.5 py-0.5 rounded border text-[10px] font-medium leading-none" [class]="getJenisBadgeClass(assignment.jenis_pengadil)">
                                   {{ assignment.jenis_pengadil || assignment.jenis_sumber }}
@@ -778,7 +782,11 @@
                         </div>
                         <!-- Details -->
                         <div class="min-w-0">
-                          <p class="text-xs font-semibold text-slate-900 truncate">{{ ref.nama_penuh }}</p>
+                          <p class="text-xs font-semibold text-slate-900 truncate"
+                             [class.cursor-pointer]="ref.pengadil_id"
+                             [class.hover:text-blue-600]="ref.pengadil_id"
+                             [class.hover:underline]="ref.pengadil_id"
+                             (click)="ref.pengadil_id && profileModal.open(ref.pengadil_id)">{{ ref.nama_penuh }}</p>
                           <div class="flex flex-wrap items-center gap-1 mt-0.5">
                             <span class="px-1.5 py-0.5 rounded border text-[10px] font-medium leading-none" [class]="getJenisBadgeClass(ref.jenis_pengadil)">
                               {{ ref.jenis_pengadil || ref.jenis_sumber }}
@@ -863,6 +871,14 @@
           }
         </div>
         <div class="flex items-center gap-2">
+          <button (click)="renumberJadual()" [disabled]="renumbering"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-amber-300 text-amber-700 text-xs rounded-lg hover:bg-amber-50 disabled:opacity-50 transition"
+            title="Nombor semula perlawanan ikut kategori & masa">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m5-4v12m0 0l-3-3m3 3l3-3"/>
+            </svg>
+            Nombor Semula
+          </button>
           <button (click)="loadJadualLantikan()"
             class="px-3 py-1.5 border border-slate-300 text-slate-600 text-xs rounded-lg hover:bg-slate-50 transition">
             <svg class="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1052,7 +1068,14 @@
                 </tr>
               </thead>
               <tbody>
-                @for (j of jadual; track j.id) {
+                @for (group of jadualLantikanGrouped; track group.kategori) {
+                  <tr class="bg-slate-800">
+                    <td colspan="12" class="px-3 py-1.5 text-xs font-bold text-amber-300 uppercase tracking-wide border border-slate-700">
+                      Kategori {{ group.kategori }}
+                      <span class="text-slate-400 font-normal normal-case ml-1">· {{ group.matches.length }} perlawanan</span>
+                    </td>
+                  </tr>
+                  @for (j of group.matches; track j.id) {
                   @for (jaw of jawatanList; track jaw; let ji = $index) {
                     <tr class="hover:bg-amber-50/30 transition-colors"
                         [class.border-b-2]="ji === jawatanList.length - 1"
@@ -1136,7 +1159,11 @@
                           [class.bg-emerald-50]="a?.status_lantikan === 'Diterima'"
                           [class.bg-rose-50]="a?.status_lantikan === 'Ditolak'">
                         @if (a) {
-                          <span class="uppercase">{{ a.nama_penuh }}</span>
+                          <span class="uppercase"
+                                [class.cursor-pointer]="a.pengadil_id"
+                                [class.hover:text-blue-600]="a.pengadil_id"
+                                [class.hover:underline]="a.pengadil_id"
+                                (click)="a.pengadil_id && profileModal.open(a.pengadil_id)">{{ a.nama_penuh }}</span>
                           @if (a.status_lantikan === 'Diterima') {
                             <svg class="w-3 h-3 text-emerald-600 inline ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
@@ -1187,6 +1214,7 @@
                         </td>
                       }
                     </tr>
+                  }
                   }
                 }
               </tbody>
@@ -1310,7 +1338,7 @@
               <option value="Persahabatan">Persahabatan</option>
             </select>
             <p class="text-[10px] mt-1" [class]="kejohananForm.jenis_kejohanan === 'Liga' ? 'text-amber-600' : 'text-slate-400'">
-              {{ kejohananForm.jenis_kejohanan === 'Liga' ? 'Auto-terima: 48 jam sebelum perlawanan' : 'Auto-terima: 3 jam sebelum perlawanan' }}
+              {{ kejohananForm.jenis_kejohanan === 'Liga' ? 'Auto-tolak: jawab dalam 48 jam selepas notifikasi' : 'Auto-tolak: jawab dalam 3 jam selepas notifikasi' }}
             </p>
           </div>
           <div>
@@ -1373,7 +1401,7 @@
         <div class="grid grid-cols-3 gap-4">
           <div>
             <label class="block text-xs text-gray-500 mb-1">No. Perlawanan</label>
-            <input type="text" [(ngModel)]="jadualForm.no_perlawanan" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Auto (P001)" />
+            <input type="text" [(ngModel)]="jadualForm.no_perlawanan" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Auto (cth B12-01)" />
           </div>
           <div>
             <label class="block text-xs text-gray-500 mb-1">Kategori</label>
@@ -1586,6 +1614,39 @@
         </button>
       </div>
 
+      <!-- Auto-tick dari Excel -->
+      <div class="px-6 pt-3 shrink-0">
+        <div class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-semibold text-amber-800">Tanda automatik dari Excel</p>
+            <p class="text-[11px] text-amber-700 leading-snug">Muat naik senarai nama — sistem auto-tanda pengadil sepadan (Pahang &amp; luar) dalam kedua-dua tab.</p>
+          </div>
+          <button (click)="downloadPoolMatchTemplate()"
+            class="px-2.5 py-1.5 text-[11px] font-semibold text-amber-800 border border-amber-300 rounded-lg hover:bg-amber-100 whitespace-nowrap">
+            Template
+          </button>
+          <label class="px-2.5 py-1.5 text-[11px] font-semibold bg-pahang-black text-pahang-yellow rounded-lg hover:bg-gray-800 cursor-pointer whitespace-nowrap">
+            Muat Naik
+            <input type="file" accept=".xlsx,.xls" (change)="onPoolExcelSelected($event)" class="hidden" />
+          </label>
+        </div>
+        @if (poolMatchSummary) {
+          <div class="mt-2 text-[11px] text-slate-600">
+            <span class="font-semibold text-emerald-700">{{ poolMatchSummary.matched }} ditanda</span>
+            ({{ poolMatchSummary.berdaftar }} Pahang, {{ poolMatchSummary.luar }} luar)
+            @if (poolMatchSummary.alreadyInPool > 0) {
+              <span class="text-slate-500"> · {{ poolMatchSummary.alreadyInPool }} sudah dalam pool</span>
+            }
+            @if (poolMatchSummary.notFound.length > 0) {
+              <span class="text-rose-600"> · {{ poolMatchSummary.notFound.length }} tidak dijumpai</span>
+            }
+          </div>
+          @if (poolMatchSummary.notFound.length > 0) {
+            <p class="mt-1 text-[10px] text-rose-500 leading-snug">Tidak dijumpai: {{ poolMatchSummary.notFound.join(', ') }}</p>
+          }
+        }
+      </div>
+
       <!-- Search -->
       <div class="px-6 pt-3 shrink-0">
         <input type="text" [(ngModel)]="poolSearchText" placeholder="Cari nama atau negeri..."
@@ -1598,8 +1659,8 @@
           <div class="space-y-1">
             @for (p of filteredAvailable; track p.id) {
               <label class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 cursor-pointer transition"
-                [class.bg-blue-50]="selectedPoolIds.has(p.id)" [class.ring-1]="selectedPoolIds.has(p.id)" [class.ring-blue-300]="selectedPoolIds.has(p.id)">
-                <input type="checkbox" [checked]="selectedPoolIds.has(p.id)" (change)="togglePoolSelect(p.id)"
+                [class.bg-blue-50]="isPoolSelected(p.id)" [class.ring-1]="isPoolSelected(p.id)" [class.ring-blue-300]="isPoolSelected(p.id)">
+                <input type="checkbox" [checked]="isPoolSelected(p.id)" (change)="togglePoolSelect(p.id)"
                   class="w-4 h-4 rounded border-slate-300 text-blue-600" />
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-medium text-slate-800 truncate">{{ p.nama_penuh || p.nama }}</p>
@@ -1625,10 +1686,10 @@
 
       <!-- Footer -->
       <div class="px-6 py-4 border-t flex items-center justify-between shrink-0">
-        <span class="text-xs text-slate-500">{{ selectedPoolIds.size }} dipilih</span>
+        <span class="text-xs text-slate-500">{{ totalPoolSelected }} dipilih</span>
         <div class="flex gap-2">
           <button (click)="showPoolModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Batal</button>
-          <button (click)="addToPool()" [disabled]="selectedPoolIds.size === 0 || addingToPool"
+          <button (click)="addToPool()" [disabled]="totalPoolSelected === 0 || addingToPool"
             class="px-4 py-2 text-sm bg-pahang-black text-pahang-yellow font-semibold rounded-lg hover:bg-gray-800 disabled:opacity-50">
             {{ addingToPool ? 'Menambah...' : 'Tambah ke Pool' }}
           </button>

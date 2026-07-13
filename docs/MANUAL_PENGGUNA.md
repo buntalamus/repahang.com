@@ -1604,7 +1604,8 @@ Pengadil melihat markah di "Penilaian Saya" + boleh muat turun PDF
 | Masalah | Punca | Penyelesaian |
 |---------|-------|-------------|
 | Tidak terima notifikasi lantikan | Telegram tidak dihubungkan / emel dalam spam | 1) Hubungkan Telegram 2) Semak folder spam |
-| Pautan terima/tolak "Sudah Tamat Tempoh" | Pautan telah digunakan sebelum ini | Log masuk ke sistem dan jawab melalui "Tugasan Lantikan" |
+| Pautan terima/tolak "Pautan Tidak Sah" | Tugasan telah dijawab melalui saluran lain atau lantikan dikemaskini oleh pentadbir | Log masuk ke sistem dan semak melalui "Tugasan Lantikan" |
+| "Tempoh Menjawab Telah Tamat" | Tidak menjawab dalam tempoh ditetapkan (Liga: 48 jam, lain: 3 jam selepas notifikasi) — lantikan ditolak secara automatik | Hubungi Admin jika masih boleh bertugas (Admin boleh lantik semula dan hantar notifikasi baru) |
 | "Tugasan Sudah Dijawab" | Sudah menjawab melalui saluran lain | Tiada tindakan perlu — jawapan telah direkodkan |
 | Ingin tukar jawapan selepas menjawab | Jawapan tidak boleh diubah | Hubungi Admin untuk bantuan |
 

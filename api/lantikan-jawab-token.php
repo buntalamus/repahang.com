@@ -85,11 +85,15 @@ try {
         );
     }
 
+    $baseUrl = env('BASE_URL', 'https://refpahang.com');
+    $dashUrl = $baseUrl . '/pengadil-dashboard.html';
+
     // Look up assignment by email_token
     $stmt = $pdo->prepare("
-        SELECT lp.id, lp.status, lp.jawatan, lp.jadual_id,
+        SELECT lp.id, lp.status, lp.komen, lp.tarikh_notif, lp.jawatan, lp.jadual_id,
                jp.tarikh, jp.masa, jp.tempat, jp.pasukan_home, jp.pasukan_away,
                COALESCE(kj.nama, '') AS kejohanan,
+               COALESCE(kj.jenis_kejohanan, 'Persahabatan') AS jenis_kejohanan,
                lp.pengadil_id,
                u.nama_penuh, u.persatuan_id
         FROM lantikan_pengadil lp
@@ -105,8 +109,31 @@ try {
     if (!$row) {
         renderPage(
             'Pautan Tidak Sah', '⚠️', '#F59E0B',
-            'Pautan Sudah Tamat Tempoh',
-            'Pautan ini sudah tidak aktif. Kemungkinan tugasan ini sudah dijawab sebelum ini.'
+            'Pautan Tidak Sah',
+            'Pautan ini tidak dapat dikenal pasti. Kemungkinan tugasan telah dijawab melalui
+             saluran lain atau lantikan telah dikemaskini oleh pentadbir.
+             Sila semak dashboard anda atau hubungi pentadbir.',
+            $dashUrl
+        );
+    }
+
+    // Kuatkuasa tempoh jawapan — auto-tolak jika sudah tamat
+    require_once __DIR__ . '/../config/lantikan-helper.php';
+    $expiredNow = autoTolakLantikanTertunggak($pdo, ['id' => (int) $row['id']]);
+    if ($expiredNow > 0
+        || ($row['status'] === 'Ditolak' && ($row['komen'] ?? '') === LANTIKAN_AUTO_TOLAK_KOMEN)) {
+        $deadlineHours = getDeadlineHours($row['jenis_kejohanan']);
+        $deadlineDt    = $row['tarikh_notif']
+            ? calcDeadlineFromNotif($row['jenis_kejohanan'], $row['tarikh_notif'])
+            : '';
+        $deadlineLine  = $deadlineDt ? " pada <strong>{$deadlineDt}</strong>" : '';
+        renderPage(
+            'Tempoh Menjawab Tamat', '⏰', '#F59E0B',
+            'Tempoh Menjawab Telah Tamat',
+            "Tempoh menjawab ({$deadlineHours} jam selepas notifikasi) telah tamat{$deadlineLine}.
+             Lantikan ini telah <strong>DITOLAK secara automatik</strong>.
+             Sila hubungi pentadbir jika anda masih boleh bertugas.",
+            $dashUrl
         );
     }
 
@@ -115,7 +142,8 @@ try {
         renderPage(
             'Sudah Dijawab', 'ℹ️', '#3B82F6',
             'Tugasan Sudah Dijawab',
-            "Tugasan ini telah <strong>{$already}</strong> sebelum ini. Tiada tindakan lanjut diperlukan."
+            "Tugasan ini telah <strong>{$already}</strong> sebelum ini. Tiada tindakan lanjut diperlukan.",
+            $dashUrl
         );
     }
 
@@ -141,7 +169,6 @@ try {
         }
 
         // Auto-create perlawanan + update jadual status if ALL accepted
-        require_once __DIR__ . '/../config/lantikan-helper.php';
         if ($newStatus === 'Diterima') {
             createPerlawananFromLantikan($pdo, (int) $row['id']);
             generatePenilaianToken($pdo, (int) $row['id']);
@@ -169,9 +196,8 @@ try {
     $pasukan   = htmlspecialchars($row['pasukan_home'] . ' lwn ' . $row['pasukan_away']);
     $jawatan   = htmlspecialchars($row['jawatan']);
 
-    // Determine dashboard URL (only for registered referees)
-    $baseUrl  = env('BASE_URL', 'https://refpahang.com');
-    $dashUrl  = !empty($row['pengadil_id']) ? $baseUrl . '/pengadil-dashboard.html' : '';
+    // Dashboard button on success pages only for registered referees
+    $dashUrl = !empty($row['pengadil_id']) ? $baseUrl . '/pengadil-dashboard.html' : '';
 
     // ── Notify admin(s) & PP Daerah ───────────────────────────────────
     $namaPengadil = $row['nama_penuh'] ?? 'Pengadil';

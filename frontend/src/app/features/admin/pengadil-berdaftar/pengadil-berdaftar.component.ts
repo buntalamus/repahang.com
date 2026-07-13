@@ -6,6 +6,7 @@ import { ToastService } from '../../../core/services/toast.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
 import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
+import { ProfileModalService } from '../../../core/services/profile-modal.service';
 import { environment } from '../../../../environments/environment';
 
 @Component({
@@ -41,6 +42,11 @@ export class PengadilBerdaftarComponent implements OnInit {
   deleteTargetId = 0;
   deleteTargetName = '';
 
+  // Batch toggle taraf pengadil
+  selectedIds = new Set<number>();
+  batchTaraf: 'kebangsaan' | 'negeri' | 'daerah' = 'kebangsaan';
+  batchSaving = false;
+
   apiUrl = environment.apiUrl;
 
   // Type support: 'pengadil_berdaftar' or 'penilai_berdaftar'
@@ -52,6 +58,7 @@ export class PengadilBerdaftarComponent implements OnInit {
     private api: ApiService,
     private toast: ToastService,
     private route: ActivatedRoute,
+    public profileModal: ProfileModalService,
   ) {}
 
   ngOnInit(): void {
@@ -143,6 +150,50 @@ export class PengadilBerdaftarComponent implements OnInit {
 
   getGlobalIndex(i: number): number {
     return (this.currentPage - 1) * this.pageSize + i + 1;
+  }
+
+  // ── Batch toggle taraf ──────────────────────────────────────────────
+  isSelected(userId: number): boolean {
+    return this.selectedIds.has(+userId);
+  }
+
+  toggleSelect(userId: number): void {
+    const id = +userId;
+    if (this.selectedIds.has(id)) this.selectedIds.delete(id);
+    else this.selectedIds.add(id);
+  }
+
+  allPagedSelected(): boolean {
+    return this.paged.length > 0 && this.paged.every((r) => this.selectedIds.has(+r.user_id));
+  }
+
+  toggleSelectAll(): void {
+    if (this.allPagedSelected()) {
+      this.paged.forEach((r) => this.selectedIds.delete(+r.user_id));
+    } else {
+      this.paged.forEach((r) => this.selectedIds.add(+r.user_id));
+    }
+  }
+
+  applyBatchTaraf(value: 0 | 1): void {
+    if (this.selectedIds.size === 0) return;
+    this.batchSaving = true;
+    this.api.post<any>('pengadil-taraf.php', {
+      user_ids: Array.from(this.selectedIds),
+      taraf: this.batchTaraf,
+      value,
+    }).subscribe({
+      next: (res) => {
+        this.toast.show(res.message || 'Taraf dikemaskini.', 'success');
+        this.selectedIds.clear();
+        this.batchSaving = false;
+        this.loadReferees();
+      },
+      error: (err) => {
+        this.toast.show(err?.error?.message || 'Ralat mengemaskini taraf.', 'error');
+        this.batchSaving = false;
+      },
+    });
   }
 
   getProfileImage(url: string | null): string {

@@ -93,16 +93,16 @@ export class PengadilTugasanComponent implements OnInit {
   }
 
   getDeadlineText(a: any): string {
+    if (!a.tarikh_notif) return '';
     const hours = this.getDeadlineHours(a.jenis_kejohanan || 'Persahabatan');
-    if (!a.tarikh || !a.masa) return `${hours} jam sebelum perlawanan`;
-    const matchDt = new Date(`${a.tarikh}T${a.masa}`);
-    const deadline = new Date(matchDt.getTime() - hours * 3600000);
+    const notifDt = new Date(String(a.tarikh_notif).replace(' ', 'T'));
+    const deadline = new Date(notifDt.getTime() + hours * 3600000);
     return deadline.toLocaleDateString('ms-MY', { day: '2-digit', month: 'short', year: 'numeric' })
       + ', ' + deadline.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', hour12: false });
   }
 
-  getAutoAcceptRule(jenis: string): string {
+  getAutoRejectRule(jenis: string): string {
     const hours = this.getDeadlineHours(jenis || 'Persahabatan');
-    return `Jika tidak dijawab ${hours} jam sebelum perlawanan, lantikan diterima secara automatik.`;
+    return `Jika tidak dijawab dalam masa ${hours} jam selepas notifikasi dihantar, lantikan akan ditolak secara automatik.`;
   }
 }

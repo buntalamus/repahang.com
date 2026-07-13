@@ -150,6 +150,16 @@ function handleList(): void
 
                 a.tarikh_hantar,
 
+                u.tahun_mohon_kelas3,
+
+                u.tahun_lulus_kelas3,
+
+                u.pengadil_kebangsaan,
+
+                u.pengadil_negeri,
+
+                u.pengadil_daerah,
+
                 p.nama_persatuan as persatuan
 
             FROM users u

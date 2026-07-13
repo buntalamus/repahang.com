@@ -28,9 +28,16 @@ try {
         jsonResponse(['error' => true, 'message' => 'Sila berikan sebab penolakan.'], 400);
     }
 
+    // Kuatkuasa tempoh jawapan — auto-tolak jika sudah tamat
+    require_once __DIR__ . '/../config/lantikan-helper.php';
+    if (autoTolakLantikanTertunggak($pdo, ['id' => $lantikan_id]) > 0) {
+        jsonResponse(['error' => true, 'message' => 'Tempoh menjawab telah tamat. Lantikan ini telah ditolak secara automatik.'], 400);
+    }
+
     // Verify this assignment belongs to current user
     $stmt = $pdo->prepare("
-        SELECT lp.id, lp.status, lp.jawatan,
+        SELECT lp.id, lp.status, lp.komen,
+               lp.jawatan,
                jp.tarikh, jp.masa, jp.tempat, jp.pasukan_home, jp.pasukan_away, jp.no_perlawanan,
                COALESCE(kj.nama, '') AS kejohanan
         FROM lantikan_pengadil lp
@@ -45,7 +52,10 @@ try {
         jsonResponse(['error' => true, 'message' => 'Lantikan tidak dijumpai atau bukan milik anda.'], 404);
     }
     if ($assignment['status'] !== 'Belum Jawab') {
-        jsonResponse(['error' => true, 'message' => 'Lantikan ini sudah dijawab.'], 400);
+        $msg = ($assignment['status'] === 'Ditolak' && ($assignment['komen'] ?? '') === LANTIKAN_AUTO_TOLAK_KOMEN)
+            ? 'Tempoh menjawab telah tamat. Lantikan ini telah ditolak secara automatik.'
+            : 'Lantikan ini sudah dijawab.';
+        jsonResponse(['error' => true, 'message' => $msg], 400);
     }
 
     $newStatus = $action === 'accept' ? 'Diterima' : 'Ditolak';
@@ -66,7 +76,6 @@ try {
         }
 
         // Create perlawanan record if accepted; generate penilaian token for RA
-        require_once __DIR__ . '/../config/lantikan-helper.php';
         if ($newStatus === 'Diterima') {
             createPerlawananFromLantikan($pdo, $lantikan_id);
             generatePenilaianToken($pdo, $lantikan_id);

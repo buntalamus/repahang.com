@@ -8,6 +8,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/../config/lantikan-helper.php';
+require_once __DIR__ . '/../config/pasukan-logo-helper.php';
 
 $currentUser = requireRole(['Admin']);
 
@@ -47,11 +49,6 @@ try {
         INSERT INTO jadual_perlawanan (kejohanan_id, no_perlawanan, tarikh, masa, hari, kategori, peringkat, kumpulan, pasukan_home, pasukan_away, tempat)
         VALUES (:kejohanan_id, :no_perlawanan, :tarikh, :masa, :hari, :kategori, :peringkat, :kumpulan, :pasukan_home, :pasukan_away, :tempat)
     ");
-
-    // Get current count for auto-numbering
-    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM jadual_perlawanan WHERE kejohanan_id = :kid");
-    $countStmt->execute([':kid' => $kejohanan_id]);
-    $existingCount = (int) $countStmt->fetchColumn();
 
     $inserted = 0;
     $skipped = 0;
@@ -101,10 +98,10 @@ try {
         // Auto hari
         $hari = $hariList[(int) date('w', $dateTs)];
 
-        // Auto no_perlawanan if not provided
+        // Auto no_perlawanan (per kategori, berprefiks: cth B12-01) if not provided.
+        // Re-derives from DB each time, so prior inserts in this batch are counted.
         if ($no_per === '') {
-            $existingCount++;
-            $no_per = 'P' . str_pad((string) $existingCount, 3, '0', STR_PAD_LEFT);
+            $no_per = nextNoPerlawanan($pdo, $kejohanan_id, $kategori);
         }
 
         try {
@@ -130,7 +127,13 @@ try {
 
     $pdo->commit();
 
+    // Auto-isi logo dari registri pasukan (ikut nama)
+    $logosFilled = $inserted > 0 ? isiLogoDariRegistri($pdo, $kejohanan_id) : 0;
+
     $message = "$inserted perlawanan berjaya ditambah.";
+    if ($logosFilled > 0) {
+        $message .= " $logosFilled logo pasukan diisi secara automatik.";
+    }
     if ($skipped > 0) {
         $message .= " $skipped baris dilangkau.";
     }

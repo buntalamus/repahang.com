@@ -56,7 +56,7 @@ try {
             require_once __DIR__ . '/../config/email.php';
 
             $rows = $pdo->query("
-                SELECT u.id, u.nama_penuh, u.email
+                SELECT u.id, u.nama_penuh, u.email, u.tg_link_token, u.telegram_chat_id
                 FROM users u
                 JOIN permohonan p ON p.user_id = u.id
                 WHERE p.jenis_borang = 'kelas3_fam'
@@ -83,8 +83,14 @@ try {
                 $pw = '';
                 $max = strlen($chars) - 1;
                 for ($k = 0; $k < 10; $k++) $pw .= $chars[random_int(0, $max)];
-                $hashed   = password_hash($pw, PASSWORD_DEFAULT);
-                $tgToken  = bin2hex(random_bytes(16));
+                $hashed = password_hash($pw, PASSWORD_DEFAULT);
+
+                // Guna semula tg_link_token sedia ada supaya pautan pendaftaran
+                // Telegram yang sudah dihantar sebelum ini kekal berfungsi.
+                // Akaun yang sudah terhubung tidak perlu token langsung.
+                $tgToken = !empty($u['telegram_chat_id'])
+                    ? null
+                    : (!empty($u['tg_link_token']) ? $u['tg_link_token'] : bin2hex(random_bytes(16)));
 
                 $update->execute([$hashed, $tgToken, $u['id']]);
 
@@ -125,7 +131,38 @@ try {
                     'status_ujian' => $statusUjian,
                     'id' => $applicationId
                 ]);
-                
+
+                // Auto-isi tahun Kelas 3 FAM dalam profil pengguna.
+                // Guna tahun permohonan DIHANTAR (bukan tahun kitaran dari
+                // tetapan 'application_year', yang boleh menunjuk tahun hadapan).
+                $appStmt = $pdo->prepare("
+                    SELECT user_id, jenis_borang,
+                           COALESCE(YEAR(tarikh_hantar), tahun_permohonan) AS tahun_sebenar
+                    FROM permohonan WHERE id = :id
+                ");
+                $appStmt->execute(['id' => $applicationId]);
+                $app = $appStmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($app && !empty($app['user_id'])
+                    && in_array($app['jenis_borang'], ['kelas3_fam', 'ujian_bertulis'], true)) {
+                    $uid   = (int) $app['user_id'];
+                    $tahun = (int) $app['tahun_sebenar'];
+                    if ($statusUjian === 'Lulus') {
+                        $pdo->prepare("
+                            UPDATE users
+                            SET tahun_lulus_kelas3 = :tahun,
+                                tahun_mohon_kelas3 = COALESCE(tahun_mohon_kelas3, :tahun2)
+                            WHERE id = :uid
+                        ")->execute(['tahun' => $tahun, 'tahun2' => $tahun, 'uid' => $uid]);
+                    } else {
+                        // Keputusan diubah dari Lulus — kosongkan hanya jika tahun sepadan
+                        $pdo->prepare("
+                            UPDATE users SET tahun_lulus_kelas3 = NULL
+                            WHERE id = :uid AND tahun_lulus_kelas3 = :tahun
+                        ")->execute(['uid' => $uid, 'tahun' => $tahun]);
+                    }
+                }
+
                 echo json_encode([
                     'error' => false,
                     'message' => 'Status ujian berjaya dikemaskini.',

@@ -7,6 +7,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/../config/lantikan-helper.php';
 
 $currentUser = requireRole(['Pengadil', 'Penilai', 'PP Daerah']);
 
@@ -14,9 +15,12 @@ try {
     $pdo = getDbConnection();
     $uid = (int) $currentUser['id'];
 
+    // Auto-tolak lantikan yang tempoh jawapannya sudah tamat
+    autoTolakLantikanTertunggak($pdo, ['pengadil_id' => $uid]);
+
     $stmt = $pdo->prepare("
         SELECT
-            lp.id, lp.jawatan, lp.status, lp.komen, lp.tarikh_jawab, lp.notif_hantar, lp.created_at,
+            lp.id, lp.jawatan, lp.status, lp.komen, lp.tarikh_jawab, lp.notif_hantar, lp.tarikh_notif, lp.created_at,
             jp.id AS jadual_id, jp.no_perlawanan, jp.tarikh, jp.masa, jp.hari,
             jp.kumpulan_tahap, jp.pasukan_home, jp.pasukan_away, jp.tempat,
             k.id AS kejohanan_id, k.nama AS nama_kejohanan, k.anjuran,

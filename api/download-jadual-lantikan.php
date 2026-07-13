@@ -86,7 +86,7 @@ $stmt = $pdo->prepare("
            pasukan_home, pasukan_away, tempat, status
     FROM jadual_perlawanan
     WHERE kejohanan_id = ?
-    ORDER BY tarikh ASC, masa ASC, no_perlawanan ASC
+    ORDER BY kategori ASC, tarikh ASC, masa ASC, no_perlawanan ASC
 ");
 $stmt->execute([$kejohananId]);
 $jadualList = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -438,14 +438,25 @@ $tarikhTamat = $kejohanan['tarikh_akhir'] ? fDate($kejohanan['tarikh_akhir']) : 
           </td>
         </tr>
       <?php endif; ?>
+      <?php $currentKat = null; ?>
       <?php foreach ($jadualList as $j):
-        $rowKatClass = match(strtoupper($j['kategori'] ?? '')) {
+        $katNorm = strtoupper(trim($j['kategori'] ?? ''));
+        $rowKatClass = match($katNorm) {
           'B12' => 'background:#f0fdf4;',
           'B15' => 'background:#f0f9ff;',
           'B18' => 'background:#faf5ff;',
           default => '',
         };
+        if ($katNorm !== $currentKat):
+          $currentKat = $katNorm;
       ?>
+        <tr>
+          <td colspan="<?= 6 + count($JAWATAN_LIST) ?>"
+              style="background:#1a1a1a;color:#FFD700;font-weight:bold;font-size:8.5pt;padding:5px 8px;text-transform:uppercase;letter-spacing:0.5px;">
+            Kategori <?= escHtml($j['kategori'] ?: 'Lain-lain') ?>
+          </td>
+        </tr>
+      <?php endif; ?>
         <tr style="<?= $rowKatClass ?>">
           <td class="center bold"><?= escHtml($j['no_perlawanan']) ?></td>
           <td class="center">
