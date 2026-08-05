@@ -18,6 +18,8 @@ require_once __DIR__ . '/../config/kriteria-penilaian.php';
 $token     = trim($_GET['token'] ?? '');
 $laporanId = (int) ($_GET['id'] ?? 0);
 $autoprint = isset($_GET['print']);
+$sessionUserId = 0;
+$sessionRole = '';
 
 try {
     $pdo = getDbConnection();
@@ -60,8 +62,9 @@ if ($token) {
         echo '<p style="font-family:sans-serif;color:red;padding:20px;">Sila log masuk terlebih dahulu.</p>';
         exit;
     }
+    $sessionUserId = (int) $_SESSION['user_id'];
     $sessionRole = $_SESSION['user_role'] ?? '';
-    if (!in_array($sessionRole, ['Admin', 'Penilai', 'PP Daerah'], true)) {
+    if (!in_array($sessionRole, ['Admin', 'Penilai', 'PP Daerah', 'Pengadil'], true)) {
         http_response_code(403);
         echo '<p style="font-family:sans-serif;color:red;padding:20px;">Akses tidak dibenarkan untuk peranan anda.</p>';
         exit;
@@ -96,6 +99,25 @@ if (!$report) {
     http_response_code(404);
     echo '<p style="font-family:sans-serif;color:red;padding:20px;">Laporan tidak dijumpai atau belum disahkan.</p>';
     exit;
+}
+
+// Pengadil may download only a report belonging to an appointment in which
+// they are one of the KUP officials. Other privileged roles retain their
+// existing report access.
+if (!$token && $sessionRole === 'Pengadil') {
+    $accessStmt = $pdo->prepare("
+        SELECT 1
+        FROM laporan_penilaian_pegawai lpp
+        JOIN lantikan_pengadil la ON la.id = lpp.lantikan_pengadil_id
+        WHERE lpp.laporan_id = :lid AND la.pengadil_id = :uid
+        LIMIT 1
+    ");
+    $accessStmt->execute([':lid' => $laporanId, ':uid' => $sessionUserId]);
+    if (!$accessStmt->fetchColumn()) {
+        http_response_code(403);
+        echo '<p style="font-family:sans-serif;color:red;padding:20px;">Anda tidak mempunyai akses kepada laporan ini.</p>';
+        exit;
+    }
 }
 
 /* ── Fetch pegawai data ── */
@@ -273,7 +295,11 @@ if ($skorHTHome !== '-' && $skor2H !== '-') {
 <title>Laporan Penilai Pengadil — <?= $pasukan_home ?> vs <?= $pasukan_away ?></title>
 <style>
   @page { size: A4 portrait; margin: 12mm 15mm; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  * {
+    margin: 0; padding: 0; box-sizing: border-box;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 9pt; color: #111; background: #f5f5f5; }
   .page { width: 210mm; min-height: 280mm; margin: 0 auto; background: #fff; padding: 10mm 12mm; }
   @media print {
@@ -310,10 +336,10 @@ if ($skorHTHome !== '-' && $skor2H !== '-') {
   .info-table td.label { font-weight: 700; width: 100px; background: #f0f0f0; }
   .score-table { margin: 6px auto; width: 70%; }
   .score-table td, .score-table th { padding: 3px 8px; border: 1px solid #999; text-align: center; }
-  .score-table th { background: #e0e0e0; font-weight: 700; }
+  .score-table th { background: #e5e7eb !important; color: #111827; font-weight: 700; }
 
   .officials-table td, .officials-table th { padding: 3px 6px; border: 1px solid #999; }
-  .officials-table th { background: #e0e0e0; font-weight: 700; text-align: center; }
+  .officials-table th { background: #e5e7eb !important; color: #111827; font-weight: 700; text-align: center; }
 
   /* Evaluation sections */
   .eval-section { margin: 8px 0; }
@@ -322,11 +348,25 @@ if ($skorHTHome !== '-' && $skor2H !== '-') {
   .eval-points table td { padding: 2px 6px; border: 1px solid #ccc; vertical-align: top; }
   .eval-points table td.num { width: 20px; text-align: center; font-weight: 700; }
   .eval-points table td.item { width: auto; }
-  .advise-box { background: #f9f9f9; border: 1px solid #ccc; padding: 4px 8px; margin: 2px 0 6px; font-size: 8.5pt; }
+  .advise-box {
+    background: #fef2f2 !important; color: #b91c1c !important;
+    border: 1px solid #fecaca; padding: 5px 8px; margin: 2px 0 6px;
+    font-size: 8.5pt; font-weight: 700;
+  }
 
   .eval-scale { margin: 10px 0; }
   .eval-scale td { padding: 2px 6px; border: 1px solid #999; font-size: 8pt; }
   .eval-scale td:first-child { font-weight: 700; width: 70px; }
+  .table-heading td { background: #e5e7eb !important; color: #111827; font-weight: 700; }
+  .scale-excellent td { background: #166534 !important; color: #fff; }
+  .scale-very-good td { background: #22c55e !important; color: #052e16; }
+  .scale-good td { background: #86efac !important; color: #052e16; }
+  .scale-satisfactory td { background: #d9f99d !important; color: #1a2e05; }
+  .scale-watch td { background: #fef08a !important; color: #422006; }
+  .scale-warning td { background: #fdba74 !important; color: #431407; }
+  .scale-low td { background: #fca5a5 !important; color: #450a0a; }
+  .scale-critical td { background: #dc2626 !important; color: #fff; }
+  .scale-unacceptable td { background: #7f1d1d !important; color: #fff; }
 
   .difficulty-table td { padding: 2px 8px; border: 1px solid #999; font-size: 8pt; }
   .difficulty-table td:first-child { font-weight: 700; width: 100px; }
@@ -454,21 +494,21 @@ if ($skorHTHome !== '-' && $skor2H !== '-') {
 
 <!-- EVALUATION SCALE -->
 <table class="eval-scale" style="margin:8px 0;">
-  <tr><td colspan="2" style="font-weight:700;background:#e0e0e0;">Skala Penilaian</td></tr>
-  <tr><td style="background:#006400;color:#fff;">9.0 - 10</td><td>Cemerlang</td></tr>
-  <tr><td style="background:#228B22;color:#fff;">8.5 - 8.9</td><td>Sangat Baik</td></tr>
-  <tr><td style="background:#3CB371;color:#fff;">8.3 - 8.4</td><td>Baik (tahap yang dijangkakan)</td></tr>
-  <tr><td style="background:#7CCD7C;color:#000;">8.2</td><td>Memuaskan dengan beberapa perkara kecil yang perlu diperbaiki</td></tr>
-  <tr><td style="background:#B8D430;color:#000;">8.0 - 8.1</td><td>Memuaskan dengan beberapa perkara penting yang perlu diperbaiki</td></tr>
-  <tr><td style="background:#FFD700;color:#000;">7.9</td><td>Kesilapan ketara yang penting, jika tidak 8.3 atau lebih</td></tr>
-  <tr><td style="background:#FFA500;color:#000;">7.8</td><td>Kesilapan ketara yang penting, jika tidak 8.0 - 8.2</td></tr>
-  <tr><td style="background:#FF6347;color:#fff;">7.5 - 7.7</td><td>Di bawah jangkaan, perkara yang jelas perlu diperbaiki</td></tr>
-  <tr><td style="background:#DC143C;color:#fff;">7.0 - 7.4</td><td>Mengecewakan. Di bawah jangkaan dengan satu kesilapan</td></tr>
-  <tr><td style="background:#8B0000;color:#fff;">6.0 - 6.9</td><td>Tidak boleh diterima</td></tr>
+  <tr class="table-heading"><td colspan="2">Skala Penilaian</td></tr>
+  <tr class="scale-excellent"><td>9.0 - 10</td><td>Cemerlang</td></tr>
+  <tr class="scale-very-good"><td>8.5 - 8.9</td><td>Sangat Baik</td></tr>
+  <tr class="scale-good"><td>8.3 - 8.4</td><td>Baik (tahap yang dijangkakan)</td></tr>
+  <tr class="scale-satisfactory"><td>8.2</td><td>Memuaskan dengan beberapa perkara kecil yang perlu diperbaiki</td></tr>
+  <tr class="scale-satisfactory"><td>8.0 - 8.1</td><td>Memuaskan dengan beberapa perkara penting yang perlu diperbaiki</td></tr>
+  <tr class="scale-watch"><td>7.9</td><td>Kesilapan ketara yang penting, jika tidak 8.3 atau lebih</td></tr>
+  <tr class="scale-warning"><td>7.8</td><td>Kesilapan ketara yang penting, jika tidak 8.0 - 8.2</td></tr>
+  <tr class="scale-low"><td>7.5 - 7.7</td><td>Di bawah jangkaan, perkara yang jelas perlu diperbaiki</td></tr>
+  <tr class="scale-critical"><td>7.0 - 7.4</td><td>Mengecewakan. Di bawah jangkaan dengan satu kesilapan</td></tr>
+  <tr class="scale-unacceptable"><td>6.0 - 6.9</td><td>Tidak boleh diterima</td></tr>
 </table>
 
 <table class="difficulty-table" style="margin:4px 0 10px;">
-  <tr><td colspan="2" style="font-weight:700;background:#e0e0e0;">Tahap kesukaran mesti disepadukan dengan markah dan dinilai untuk setiap Pegawai Perlawanan secara individu</td></tr>
+  <tr class="table-heading"><td colspan="2">Tahap kesukaran mesti disepadukan dengan markah dan dinilai untuk setiap Pegawai Perlawanan secara individu</td></tr>
   <tr><td style="background:#3CB371;color:#fff;">Normal</td><td>Perlawanan biasa untuk Pegawai Perlawanan, sedikit situasi mencabar</td></tr>
   <tr><td style="background:#FFA500;color:#000;">Sukar</td><td>Perlawanan sukar dengan beberapa keputusan yang sukar untuk pegawai perlawanan</td></tr>
   <tr><td style="background:#DC143C;color:#fff;">Sangat Sukar</td><td>Perlawanan sangat sukar dengan banyak situasi sukar untuk pegawai perlawanan</td></tr>

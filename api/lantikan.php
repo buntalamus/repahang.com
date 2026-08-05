@@ -18,9 +18,9 @@ $currentUser = requireRole(['Admin']);
 $VALID_JAWATAN = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4', 'Penilai Pengadil'];
 
 /**
- * Cancel all assignments for given jadual IDs, sending cancellation notifications.
+ * Mark all assignments for given matches as cancelled/postponed and notify officials.
  */
-function batalLantikanByJadual(PDO $pdo, array $jadualIds): array
+function batalLantikanByJadual(PDO $pdo, array $jadualIds, string $status, string $sebab): array
 {
     if (empty($jadualIds)) return ['message' => 'Tiada perlawanan.'];
 
@@ -54,43 +54,37 @@ function batalLantikanByJadual(PDO $pdo, array $jadualIds): array
 
     $notifCount = 0;
     foreach ($records as $r) {
-        if (!empty($r['notif_hantar'])) {
-            // Telegram cancellation
-            if (!empty($r['telegram_chat_id'])) {
-                $msg = tgBatalMessage(
-                    $r['nama'], $r['jawatan'], $r['kejohanan'],
-                    $r['tarikh'], $r['masa'] ?? '', $r['tempat'] ?? '',
-                    $r['pasukan_home'], $r['pasukan_away'],
-                    $r['no_perlawanan'] ?? ''
-                );
-                tgSend((int) $r['telegram_chat_id'], $msg);
-            }
-            // Email cancellation
-            if (!empty($r['email'])) {
-                sendBatalEmail(
-                    $r['email'], $r['nama'], $r['jawatan'], $r['kejohanan'],
-                    $r['tarikh'], $r['masa'] ?? '', $r['tempat'] ?? '',
-                    $r['pasukan_home'], $r['pasukan_away'],
-                    $r['no_perlawanan'] ?? '',
-                    $r['logo_home'] ?? '', $r['logo_away'] ?? '',
-                    !empty($r['pengadil_id'])
-                );
-            }
-            $notifCount++;
+        if (!empty($r['telegram_chat_id'])) {
+            $msg = tgBatalMessage($r['nama'], $r['jawatan'], $r['kejohanan'], $r['tarikh'],
+                $r['masa'] ?? '', $r['tempat'] ?? '', $r['pasukan_home'], $r['pasukan_away'],
+                $r['no_perlawanan'] ?? '', $status, $sebab);
+            tgSend((int) $r['telegram_chat_id'], $msg);
         }
+        if (!empty($r['email'])) {
+            sendBatalEmail($r['email'], $r['nama'], $r['jawatan'], $r['kejohanan'], $r['tarikh'],
+                $r['masa'] ?? '', $r['tempat'] ?? '', $r['pasukan_home'], $r['pasukan_away'],
+                $r['no_perlawanan'] ?? '', $r['logo_home'] ?? '', $r['logo_away'] ?? '',
+                !empty($r['pengadil_id']), $status, $sebab);
+        }
+        if (!empty($r['pengadil_id'])) {
+            $subject = "Perlawanan {$status}: {$r['pasukan_home']} lwn {$r['pasukan_away']}";
+            $message = "Lantikan anda sebagai {$r['jawatan']} telah " . strtolower($status)
+                . ". Sebab: {$sebab}";
+            createPortalNotification($pdo, (int) $r['pengadil_id'], 'Status Perlawanan', $subject, $message);
+        }
+        $notifCount++;
     }
 
-    // Delete all assignments
-    $pdo->prepare("DELETE FROM lantikan_pengadil WHERE jadual_id IN ({$placeholders})")
-        ->execute($jadualIds);
+    // Preserve each appointment for dashboard and audit history.
+    $pdo->prepare("UPDATE lantikan_pengadil SET status = ?, sebab_status = ?, status_dikemaskini_at = NOW() WHERE jadual_id IN ({$placeholders})")
+        ->execute(array_merge([$status, $sebab], $jadualIds));
 
-    // Reset jadual status
-    $pdo->prepare("UPDATE jadual_perlawanan SET status = 'Belum Lantik' WHERE id IN ({$placeholders})")
-        ->execute($jadualIds);
+    $pdo->prepare("UPDATE jadual_perlawanan SET status = ?, sebab_status = ?, status_dikemaskini_at = NOW() WHERE id IN ({$placeholders})")
+        ->execute(array_merge([$status, $sebab], $jadualIds));
 
     $matchCount = count($jadualIds);
     $totalDeleted = count($records);
-    $msg = "{$totalDeleted} lantikan dibatalkan untuk {$matchCount} perlawanan.";
+    $msg = "{$totalDeleted} lantikan ditanda {$status} untuk {$matchCount} perlawanan.";
     if ($notifCount > 0) $msg .= " {$notifCount} notifikasi pembatalan dihantar.";
 
     return ['message' => $msg];
@@ -143,10 +137,16 @@ try {
 
         // Get pool-based referees for this kejohanan
         // First get kejohanan_id from jadual
-        $kjStmt = $pdo->prepare("SELECT kejohanan_id FROM jadual_perlawanan WHERE id = :jid");
+        $kjStmt = $pdo->prepare("
+            SELECT jp.kejohanan_id, COALESCE(k.peringkat_kejohanan, 'Daerah') AS peringkat_kejohanan
+            FROM jadual_perlawanan jp
+            LEFT JOIN kejohanan k ON jp.kejohanan_id = k.id
+            WHERE jp.id = :jid
+        ");
         $kjStmt->execute([':jid' => $jadual_id]);
         $kjRow = $kjStmt->fetch();
         $kejohanan_id = $kjRow ? (int) $kjRow['kejohanan_id'] : 0;
+        $peringkatKejohanan = $kjRow['peringkat_kejohanan'] ?? 'Daerah';
 
         $referees = [];
         if ($kejohanan_id) {
@@ -176,8 +176,12 @@ try {
                         WHEN pp.pengadil_luar_id IS NOT NULL THEN 'Luar'
                     END AS jenis_sumber,
                     CASE
+                        WHEN pp.pengadil_id IS NOT NULL THEN u.daerah
                         WHEN pp.pengadil_luar_id IS NOT NULL THEN pl.negeri
-                        ELSE 'Pahang'
+                    END AS daerah,
+                    CASE
+                        WHEN pp.pengadil_id IS NOT NULL THEN u.negeri
+                        WHEN pp.pengadil_luar_id IS NOT NULL THEN pl.negeri
                     END AS negeri,
                     (
                         SELECT COUNT(*) FROM lantikan_pengadil lp2
@@ -192,10 +196,21 @@ try {
                 ORDER BY nama_penuh ASC
             ");
             $refStmt->execute([':kid' => $kejohanan_id]);
-            $referees = $refStmt->fetchAll();
+            $referees = $refStmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($referees as &$referee) {
+                $referee['wilayah'] = $peringkatKejohanan === 'Negeri'
+                    ? ($referee['daerah'] ?: $referee['negeri'])
+                    : $referee['negeri'];
+            }
+            unset($referee);
         }
 
-        jsonResponse(['error' => false, 'data' => $assignments, 'referees' => $referees]);
+        jsonResponse([
+            'error' => false,
+            'data' => $assignments,
+            'referees' => $referees,
+            'region_label' => $peringkatKejohanan === 'Negeri' ? 'Daerah' : 'Negeri',
+        ]);
     }
 
     if ($method === 'POST') {
@@ -611,10 +626,15 @@ try {
         // ── Cancel all assignments for a single match ────────────────────────
         if ($action === 'batal_jadual') {
             $jadual_id = (int) ($input['jadual_id'] ?? 0);
+            $status = trim($input['status'] ?? 'Dibatalkan');
+            $sebab = trim($input['sebab'] ?? '');
             if (!$jadual_id) {
                 jsonResponse(['error' => true, 'message' => 'jadual_id diperlukan.'], 400);
             }
-            $result = batalLantikanByJadual($pdo, [$jadual_id]);
+            if (!in_array($status, ['Dibatalkan', 'Ditangguhkan'], true) || $sebab === '' || mb_strlen($sebab) > 500) {
+                jsonResponse(['error' => true, 'message' => 'Status dan sebab (maksimum 500 aksara) diperlukan.'], 400);
+            }
+            $result = batalLantikanByJadual($pdo, [$jadual_id], $status, $sebab);
             jsonResponse(['error' => false, 'message' => $result['message']]);
         }
 
@@ -623,10 +643,15 @@ try {
             $jadualIds = !empty($input['jadual_ids']) && is_array($input['jadual_ids'])
                 ? array_map('intval', $input['jadual_ids'])
                 : [];
+            $status = trim($input['status'] ?? 'Dibatalkan');
+            $sebab = trim($input['sebab'] ?? '');
             if (empty($jadualIds)) {
                 jsonResponse(['error' => true, 'message' => 'jadual_ids diperlukan.'], 400);
             }
-            $result = batalLantikanByJadual($pdo, $jadualIds);
+            if (!in_array($status, ['Dibatalkan', 'Ditangguhkan'], true) || $sebab === '' || mb_strlen($sebab) > 500) {
+                jsonResponse(['error' => true, 'message' => 'Status dan sebab (maksimum 500 aksara) diperlukan.'], 400);
+            }
+            $result = batalLantikanByJadual($pdo, $jadualIds, $status, $sebab);
             jsonResponse(['error' => false, 'message' => $result['message']]);
         }
 

@@ -168,7 +168,9 @@ function tgBatalMessage(
     string $tempat,
     string $pasukanHome,
     string $pasukanAway,
-    string $noMatch = ''
+    string $noMatch = '',
+    string $status = 'Dibatalkan',
+    string $sebab = ''
 ): string {
     $tarikhFmt  = date('d M Y', strtotime($tarikh));
     $masaFmt    = $masa ? date('H:i', strtotime($masa)) : '-';
@@ -176,17 +178,22 @@ function tgBatalMessage(
     $matchLine  = htmlspecialchars($pasukanHome) . ' lwn ' . htmlspecialchars($pasukanAway);
     $noLine     = $noMatchFmt ? "<b>No. Perlawanan:</b> {$noMatchFmt}\n" : '';
 
-    return "<b>\u{26D4} Pembatalan Lantikan</b>\n\n" .
+        $isPostponed = $status === 'Ditangguhkan';
+        $tajuk = $isPostponed ? 'Penangguhan Perlawanan' : 'Pembatalan Perlawanan';
+        $statusText = $isPostponed ? 'ditangguhkan' : 'dibatalkan';
+        $sebabText = $sebab !== '' ? "\n<b>Sebab:</b> " . htmlspecialchars($sebab) . "\n" : '';
+
+        return "<b>\u{26D4} {$tajuk}</b>\n\n" .
            "Assalamualaikum <b>" . htmlspecialchars($nama) . "</b>,\n\n" .
            "Lantikan anda sebagai <b>" . htmlspecialchars($jawatan) . "</b> " .
-           "untuk perlawanan berikut telah <b>dibatalkan</b>:\n\n" .
+            "untuk perlawanan berikut telah <b>{$statusText}</b>:\n\n" .
            "<b>Kejohanan:</b> " . htmlspecialchars($kejohanan) . "\n" .
            $noLine .
            "<b>Perlawanan:</b> {$matchLine}\n" .
            "<b>Tarikh:</b> {$tarikhFmt}\n" .
            "<b>Masa:</b> {$masaFmt} WIB\n" .
-           "<b>Tempat:</b> " . htmlspecialchars($tempat) . "\n\n" .
-           "<i>Sila hubungi pengurus kejohanan untuk maklumat lanjut.</i>";
+           "<b>Tempat:</b> " . htmlspecialchars($tempat) . "\n" .
+           $sebabText . "\n<i>Sila hubungi pengurus kejohanan untuk maklumat lanjut.</i>";
 }
 
 function tgLantikanKeyboard(string $token): array

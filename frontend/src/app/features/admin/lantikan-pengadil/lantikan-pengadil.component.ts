@@ -122,6 +122,23 @@ export class LantikanPengadilComponent implements OnInit {
     return [...new Set(this.refereeList.map(r => r.jenis_pengadil).filter(Boolean))];
   }
 
+  getRegionLabel(kejohanan: any = this.selectedKejohanan): string {
+    return kejohanan?.peringkat_kejohanan === 'Negeri' ? 'Daerah' : 'Negeri';
+  }
+
+  getRegionValue(referee: any, kejohanan: any = this.selectedKejohanan): string {
+    if (referee?.wilayah) return referee.wilayah;
+    const value = this.getRegionLabel(kejohanan) === 'Daerah'
+      ? (referee?.daerah || referee?.negeri)
+      : referee?.negeri;
+    return value || '-';
+  }
+
+  getJadualRegionLabel(): string {
+    return this.jadualLantikanData?.region_label
+      || this.getRegionLabel(this.jadualLantikanData?.kejohanan);
+  }
+
   isAssignedToCurrentMatch(ref: any): boolean {
     return this.lantikanList.some(a =>
       (ref.pengadil_id && a.pengadil_id === ref.pengadil_id) ||
@@ -171,6 +188,11 @@ export class LantikanPengadilComponent implements OnInit {
   loadingJadualLantikan = false;
   jadualLantikanData: any = null;
   selectedMatchIds = new Set<number>();
+  showMatchStatusModal = false;
+  matchStatusForm: { jadualIds: number[]; status: 'Dibatalkan' | 'Ditangguhkan'; sebab: '' } = {
+    jadualIds: [], status: 'Dibatalkan', sebab: '',
+  };
+  updatingMatchStatus = false;
   showPengesahanForm = false;
   submittingPengesahan = false;
   batallingPengesahan = false;
@@ -545,8 +567,8 @@ export class LantikanPengadilComponent implements OnInit {
     if (!s) return list;
     return list.filter(p => {
       const nama = (p.nama_penuh || p.nama || '').toLowerCase();
-      const negeri = (p.negeri || '').toLowerCase();
-      return nama.includes(s) || negeri.includes(s);
+      const wilayah = `${p.daerah || ''} ${p.negeri || ''}`.toLowerCase();
+      return nama.includes(s) || wilayah.includes(s);
     });
   }
 
@@ -1148,45 +1170,45 @@ export class LantikanPengadilComponent implements OnInit {
   }
 
   batalMatchLantikan(jadualId: number, noPer: string): void {
-    this.confirmTitle = 'Batal Semua Lantikan';
-    this.confirmMessage = `Batalkan semua lantikan untuk perlawanan ${noPer}? Notifikasi pembatalan akan dihantar kepada pengadil yang telah dimaklumkan.`;
-    this.confirmType = 'danger';
-    this.confirmBtnText = 'Batal Lantikan';
-    this.confirmFn = () => {
-      this.api.post<any>('lantikan.php', { action: 'batal_jadual', jadual_id: jadualId }).subscribe({
-        next: (res) => {
-          this.toast.show(res.message, 'success');
-          this.loadJadualLantikan();
-        },
-        error: (err) => this.toast.show(err?.error?.message || 'Ralat.', 'error'),
-      });
-    };
-    this.showConfirmModal = true;
+    this.openMatchStatusModal([jadualId], `Perlawanan ${noPer}`);
   }
 
   batalBulkLantikan(): void {
     const ids = Array.from(this.selectedMatchIds);
     if (ids.length === 0) return;
-    const matchLabel = ids.length === 1 ? '1 perlawanan' : `${ids.length} perlawanan`;
-    this.confirmTitle = 'Batal Lantikan (Pukal)';
-    this.confirmMessage = `Batalkan semua lantikan untuk ${matchLabel} yang dipilih? Notifikasi pembatalan akan dihantar kepada pengadil yang telah dimaklumkan.`;
-    this.confirmType = 'danger';
-    this.confirmBtnText = 'Batal Semua';
-    this.confirmFn = () => {
-      this.api.post<any>('lantikan.php', {
-        action: 'batal_bulk',
-        kejohanan_id: this.selectedKejohananId,
-        jadual_ids: ids,
-      }).subscribe({
-        next: (res) => {
-          this.toast.show(res.message, 'success');
-          this.selectedMatchIds.clear();
-          this.loadJadualLantikan();
-        },
-        error: (err) => this.toast.show(err?.error?.message || 'Ralat.', 'error'),
-      });
-    };
-    this.showConfirmModal = true;
+    this.openMatchStatusModal(ids, ids.length === 1 ? '1 perlawanan' : `${ids.length} perlawanan`);
+  }
+
+  openMatchStatusModal(jadualIds: number[], label: string): void {
+    this.matchStatusForm = { jadualIds, status: 'Dibatalkan', sebab: '' };
+    this.confirmMessage = label;
+    this.showMatchStatusModal = true;
+  }
+
+  submitMatchStatus(): void {
+    const { jadualIds, status, sebab } = this.matchStatusForm;
+    if (!sebab.trim()) {
+      this.toast.show('Sila nyatakan sebab pembatalan atau penangguhan.', 'error');
+      return;
+    }
+    this.updatingMatchStatus = true;
+    const action = jadualIds.length === 1 ? 'batal_jadual' : 'batal_bulk';
+    const payload: any = { action, status, sebab: sebab.trim() };
+    if (jadualIds.length === 1) payload.jadual_id = jadualIds[0];
+    else payload.jadual_ids = jadualIds;
+    this.api.post<any>('lantikan.php', payload).subscribe({
+      next: (res) => {
+        this.toast.show(res.message, 'success');
+        this.showMatchStatusModal = false;
+        this.updatingMatchStatus = false;
+        this.selectedMatchIds.clear();
+        this.loadJadualLantikan();
+      },
+      error: (err) => {
+        this.toast.show(err?.error?.message || 'Ralat mengemaskini status perlawanan.', 'error');
+        this.updatingMatchStatus = false;
+      },
+    });
   }
 
   gantiPengadil(id: number, jawatan: string): void {

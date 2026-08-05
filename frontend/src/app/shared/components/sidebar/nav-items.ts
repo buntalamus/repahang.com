@@ -55,7 +55,7 @@ export const PP_DAERAH_NAV: NavItem[] = [
 export const PENGADIL_NAV: NavItem[] = [
   { label: 'Dashboard', icon: 'dashboard', route: '/pengadil' },
   { label: 'Profil Saya', icon: 'person', route: '/pengadil/profil' },
-  { label: 'Tugasan Lantikan', icon: 'assignment_ind', route: '/pengadil/tugasan' },
+  { label: 'Notifikasi Lantikan', icon: 'notifications_active', route: '/pengadil/notifikasi-lantikan' },
   { label: 'Rekod Perlawanan', icon: 'sports', route: '/pengadil/perlawanan' },
   { label: 'Penilaian Saya', icon: 'rate_review', route: '/pengadil/penilaian' },
   {

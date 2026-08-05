@@ -4,6 +4,53 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [5–6 Ogos 2026]
+
+### 1. Menu Notifikasi Lantikan & Pasukan Pegawai Perlawanan
+
+- Menu khusus **Notifikasi Lantikan** ditambah pada sidebar dan pautan pantas Dashboard Pengadil (`/pengadil/notifikasi-lantikan`). Laluan lama `/pengadil/tugasan` kekal berfungsi.
+- Pengadil kini boleh melihat nama dan jawatan semua pegawai yang dilantik untuk perlawanan sama, termasuk Pengadil, Penolong Pengadil, Pegawai Keempat, dan Penilai.
+- Paparan notifikasi kini mempunyai penapis serta kiraan untuk **Belum Jawab, Diterima, Ditolak, Dibatalkan,** dan **Ditangguhkan**.
+- Maklumat rakan bertugas hanya memaparkan nama dan jawatan; nombor telefon serta maklumat peribadi tidak didedahkan.
+
+**Fail:** `api/tugasan.php`, `frontend/src/app/app.routes.ts`, `frontend/src/app/shared/components/sidebar/nav-items.ts`, `frontend/src/app/features/pengadil/dashboard/`, `frontend/src/app/features/pengadil/tugasan/`
+
+---
+
+### 2. Pembatalan / Penangguhan Perlawanan Dengan Sebab & Rekod Kekal
+
+**Masalah:** Membatalkan lantikan memadam rekod `lantikan_pengadil`, menyebabkan pengadil yang telah menerima tugasan tidak lagi melihat rekod itu dalam dashboard.
+
+**Perubahan:**
+- Admin kini boleh memilih **Batalkan** atau **Tangguhkan** perlawanan, secara individu atau pukal, dan wajib mengisi sebab (maksimum 500 aksara).
+- Lantikan tidak lagi dipadam. Ia disimpan sebagai status `Dibatalkan` atau `Ditangguhkan`, bersama sebab dan masa kemaskini, untuk rekod dashboard dan audit.
+- Status serta sebab yang sama turut direkod pada `jadual_perlawanan`.
+- Semua pegawai dilantik menerima makluman melalui notifikasi portal, Telegram, dan e-mel. Mesej serta e-mel membezakan pembatalan daripada penangguhan dan memaparkan sebab admin.
+
+**Fail:** `api/lantikan.php`, `config/email.php`, `config/telegram.php`, `frontend/src/app/features/admin/lantikan-pengadil/`, `docs/migration_status_perlawanan_lantikan.sql`
+
+---
+
+### 3. Laporan Penilaian RA Untuk Seluruh Pasukan KUP
+
+- Setiap ahli KUP yang dilantik dalam perlawanan kini boleh melihat laporan penilaian RA penuh untuk semua pegawai dalam pasukan tersebut, dengan penanda jelas untuk penilaian sendiri.
+- Kawalan akses server dikuatkuasakan: hanya ahli KUP yang tersenarai dalam laporan boleh melihat atau memuat turun laporan; pengadil daripada lantikan lain ditolak.
+- Fail cetakan/muat turun laporan diperkemas dengan skala markah berwarna, tajuk jadual yang lebih jelas, dan nota tahap kesukaran.
+
+**Fail:** `api/pengadil-penilaian.php`, `api/download-laporan-penilaian.php`, `frontend/src/app/features/pengadil/penilaian/`
+
+---
+
+### 4. Ketahanan Jawapan Lantikan & Rekod Auto-Tolak
+
+- Jawapan melalui pautan e-mel kini tidak gagal hanya kerana notifikasi sampingan kepada admin, portal, atau PP Daerah mengalami ralat; jawapan lantikan kekal disimpan.
+- Terima/tolak melalui pautan e-mel kini menghantar makluman kepada Admin, PP Daerah, dan portal pengadil secara setara dengan jawapan dari dashboard.
+- Lantikan yang ditolak automatik direkod dengan tarikh jawapan pada deadline sebenar, untuk audit yang lebih tepat.
+
+**Fail:** `api/lantikan-jawab-token.php`, `config/lantikan-helper.php`
+
+---
+
 ## [12–13 Julai 2026]
 
 ### 1. Peraturan Lantikan: 48 Jam Selepas Notifikasi + Auto-Tolak
@@ -138,6 +185,7 @@ Jalankan mengikut turutan:
 |---|---|---|
 | `docs/migration_profil_taraf_pasukan_logo.sql` | Kolum tahun Kelas 3 + taraf pengadil + jadual `pasukan_logo` (termasuk backfill) | ✅ Sudah dijalankan |
 | `docs/fix_tahun_kelas3_ikut_tarikh_hantar.sql` | Betulkan tahun Kelas 3 supaya ikut tarikh hantar sebenar | ⚠️ Perlu dijalankan |
+| `docs/migration_status_perlawanan_lantikan.sql` | Status pembatalan/penangguhan + sebab bagi `lantikan_pengadil` dan `jadual_perlawanan` | ⚠️ Perlu dijalankan sebelum deploy |
 
 Versi PHP CLI setara juga tersedia: `docs/migration_profil_taraf_pasukan_logo.php`.
 

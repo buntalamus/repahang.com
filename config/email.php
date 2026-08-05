@@ -779,7 +779,9 @@ function sendBatalEmail(
     string  $noMatch  = '',
     string  $logoHome = '',
     string  $logoAway = '',
-    bool    $isDashboard = false
+    bool    $isDashboard = false,
+    string  $status = 'Dibatalkan',
+    string  $sebab = ''
 ): bool {
     if (!function_exists('env')) {
         require_once __DIR__ . '/env.php';
@@ -823,15 +825,21 @@ function sendBatalEmail(
                              line-height:72px;text-align:center;\">{$initial}</div>";
     };
 
-    // ── Cancellation notice ───────────────────────────────────────────────
+    $isPostponed = $status === 'Ditangguhkan';
+    $title = $isPostponed ? 'Perlawanan Ditangguhkan' : 'Perlawanan Dibatalkan';
+    $statusText = $isPostponed ? 'ditangguhkan' : 'dibatalkan';
+    $accent = $isPostponed ? '#D97706' : '#DC2626';
+
+    // ── Cancellation / postponement notice ─────────────────────────────────
     $noticeBanner = "
-    <div style=\"background:#FEF2F2;border:1px solid #FECACA;border-left:4px solid #DC2626;
+    <div style=\"background:#FEF2F2;border:1px solid #FECACA;border-left:4px solid {$accent};
                  padding:16px 20px;margin:0 0 4px;\">
       <div style=\"font-weight:700;font-size:12px;color:#991B1B;text-transform:uppercase;
-                   letter-spacing:.8px;margin-bottom:6px;\">⊗ &nbsp;Lantikan Dibatalkan</div>
+                   letter-spacing:.8px;margin-bottom:6px;\">⊗ &nbsp;{$title}</div>
       <p style=\"color:#7F1D1D;font-size:13px;line-height:1.7;margin:0;\">
         Lantikan anda sebagai <strong>" . htmlspecialchars($jawatan) . "</strong>
-        telah dibatalkan oleh pengurus kejohanan.
+        telah {$statusText} oleh pengurus kejohanan."
+        . ($sebab !== '' ? "<br><strong>Sebab:</strong> " . nl2br(htmlspecialchars($sebab)) : '') . "
       </p>
     </div>";
 
@@ -925,12 +933,12 @@ function sendBatalEmail(
            sebarang pertanyaan berkenaan pembatalan ini.
          </p>";
 
-    $subject = 'Pembatalan Lantikan: ' . $kejohanan
+    $subject = ($isPostponed ? 'Penangguhan Perlawanan: ' : 'Pembatalan Perlawanan: ') . $kejohanan
              . ($noMatchFmt !== '-' ? ' (No: ' . $noMatchFmt . ')' : '')
              . ' — ' . $pasukanHome . ' vs ' . $pasukanAway
              . ' — ' . $tarikhFmt;
 
-    $html = buildEmailTemplate('Pembatalan Lantikan', '#DC2626', '', $body);
+    $html = buildEmailTemplate($title, $accent, '', $body);
     return sendEmail($to, $subject, $html, $nama, 'lantikan', $inlineImages);
 }
 

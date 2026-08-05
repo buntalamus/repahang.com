@@ -12,8 +12,8 @@ try {
     // Fetch active referees, PP Daerah, and Penilai (RA)
     // We get users with role 'Pengadil', 'PP Daerah', or 'Penilai' who are active
     $stmt = $pdo->prepare("
-        SELECT u.id, u.nama_penuh, u.role, u.no_ic as no_kp, u.jenis_pengadil,
-               u.no_telefon, u.saiz_baju, u.email, u.url_gambar_profil,
+         SELECT u.id, u.nama_penuh, u.role, u.no_ic as no_kp, u.jenis_pengadil,
+             u.no_telefon, u.saiz_baju, u.email, u.url_gambar_profil, u.daerah, u.negeri,
                p.nama_persatuan as persatuan_nama
         FROM users u
         LEFT JOIN persatuan_bolasepak_daerah p ON u.persatuan_id = p.id

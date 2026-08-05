@@ -39,7 +39,7 @@ try {
         autoTolakLantikanTertunggak($pdo, ['kejohanan_id' => $kejohananId]);
 
         // 1. Kejohanan info
-        $stmt = $pdo->prepare("SELECT id, nama, tarikh_mula, tarikh_akhir, tempat, anjuran, logo_kiri, logo_kanan, status FROM kejohanan WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT id, nama, tarikh_mula, tarikh_akhir, tempat, anjuran, logo_kiri, logo_kanan, status, COALESCE(peringkat_kejohanan, 'Daerah') AS peringkat_kejohanan FROM kejohanan WHERE id = ?");
         $stmt->execute([$kejohananId]);
         $kejohanan = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$kejohanan) {
@@ -74,6 +74,7 @@ try {
                    lp.pengadil_id,
                    COALESCE(p.nama_penuh, pl.nama) AS nama_penuh,
                    COALESCE(p.jenis_pengadil, pl.jenis_pengadil) AS jenis_pengadil,
+                   COALESCE(p.daerah, pl.negeri) AS daerah,
                    COALESCE(p.negeri, pl.negeri) AS negeri,
                    COALESCE(p.no_telefon, pl.no_tel) AS no_telefon,
                    CASE WHEN lp.pengadil_id IS NOT NULL THEN 'Berdaftar' ELSE 'Luar' END AS jenis_sumber,
@@ -86,6 +87,13 @@ try {
         ");
         $stmt->execute([$kejohananId]);
         $allAssignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $regionLabel = $kejohanan['peringkat_kejohanan'] === 'Negeri' ? 'Daerah' : 'Negeri';
+        foreach ($allAssignments as &$assignment) {
+            $assignment['wilayah'] = $regionLabel === 'Daerah'
+                ? ($assignment['daerah'] ?: $assignment['negeri'])
+                : $assignment['negeri'];
+        }
+        unset($assignment);
 
         // Group assignments by jadual_id → jawatan
         $assignmentMap = [];
@@ -130,6 +138,7 @@ try {
         jsonResponse([
             'error'      => false,
             'kejohanan'  => $kejohanan,
+            'region_label' => $regionLabel,
             'pengesahan' => $pengesahan,
             'stats'      => $stats,
             'jadual'     => $jadualList,

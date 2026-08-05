@@ -200,26 +200,32 @@ try {
     $dashUrl = !empty($row['pengadil_id']) ? $baseUrl . '/pengadil-dashboard.html' : '';
 
     // ── Notify admin(s) & PP Daerah ───────────────────────────────────
-    $namaPengadil = $row['nama_penuh'] ?? 'Pengadil';
-    notifyAdminLantikanResponse($pdo, $action, $namaPengadil,
-        $row['jawatan'], $row['kejohanan'], $row['tarikh'],
-        $row['pasukan_home'], $row['pasukan_away']);
+    // Jawapan lantikan sudah berjaya disimpan. Kegagalan notifikasi sampingan
+    // tidak boleh menukar halaman kejayaan kepada "Ralat Dalaman".
+    try {
+        $namaPengadil = $row['nama_penuh'] ?? 'Pengadil';
+        notifyAdminLantikanResponse($pdo, $action, $namaPengadil,
+            $row['jawatan'], $row['kejohanan'], $row['tarikh'],
+            $row['pasukan_home'], $row['pasukan_away']);
 
-    if (!empty($row['pengadil_id'])) {
-        // Portal notification for the pengadil
-        $statusLabel = $action === 'accept' ? 'diterima' : 'ditolak';
-        createPortalNotification($pdo, (int) $row['pengadil_id'], 'Lantikan ' . ucfirst($statusLabel),
-            "Lantikan {$row['pasukan_home']} lwn {$row['pasukan_away']}",
-            "Anda telah {$statusLabel} lantikan sebagai {$row['jawatan']} untuk {$row['pasukan_home']} lwn {$row['pasukan_away']} ({$row['kejohanan']})."
-        );
+        if (!empty($row['pengadil_id'])) {
+            // Portal notification for the pengadil
+            $statusLabel = $action === 'accept' ? 'diterima' : 'ditolak';
+            createPortalNotification($pdo, (int) $row['pengadil_id'], 'Lantikan ' . ucfirst($statusLabel),
+                "Lantikan {$row['pasukan_home']} lwn {$row['pasukan_away']}",
+                "Anda telah {$statusLabel} lantikan sebagai {$row['jawatan']} untuk {$row['pasukan_home']} lwn {$row['pasukan_away']} ({$row['kejohanan']})."
+            );
 
-        // PP Daerah notification
-        $persatuanId = (int)($row['persatuan_id'] ?? 0);
-        if ($persatuanId) {
-            notifyPPDaerahResponse($pdo, $action, $persatuanId, $namaPengadil,
-                $row['jawatan'], $row['kejohanan'], $row['tarikh'],
-                $row['pasukan_home'], $row['pasukan_away']);
+            // PP Daerah notification
+            $persatuanId = (int)($row['persatuan_id'] ?? 0);
+            if ($persatuanId) {
+                notifyPPDaerahResponse($pdo, $action, $persatuanId, $namaPengadil,
+                    $row['jawatan'], $row['kejohanan'], $row['tarikh'],
+                    $row['pasukan_home'], $row['pasukan_away']);
+            }
         }
+    } catch (Throwable $notificationError) {
+        error_log('[lantikan-jawab-token] notification error: ' . $notificationError->getMessage());
     }
 
     if ($action === 'accept') {

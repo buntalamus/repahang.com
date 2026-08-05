@@ -70,6 +70,7 @@ if (!$kejohanan) {
     echo '<p>Kejohanan tidak dijumpai.</p>';
     exit;
 }
+$regionLabel = ($kejohanan['peringkat_kejohanan'] ?? 'Daerah') === 'Negeri' ? 'Daerah' : 'Negeri';
 
 $stmt = $pdo->prepare("SELECT * FROM jadual_lantikan_pengesahan WHERE kejohanan_id = ?");
 $stmt->execute([$kejohananId]);
@@ -95,6 +96,7 @@ $stmt = $pdo->prepare("
     SELECT lp.jadual_id, lp.jawatan, lp.status AS status_lantikan,
            COALESCE(p.nama_penuh, pl.nama) AS nama_penuh,
            COALESCE(p.jenis_pengadil, pl.jenis_pengadil) AS jenis_pengadil,
+           COALESCE(p.daerah, pl.negeri) AS daerah,
            COALESCE(p.negeri, pl.negeri) AS negeri,
            COALESCE(p.no_telefon, pl.no_tel) AS no_telefon,
            CASE WHEN lp.pengadil_id IS NOT NULL THEN 'Berdaftar' ELSE 'Luar' END AS jenis_sumber
@@ -106,6 +108,12 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$kejohananId]);
 $allAssignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+foreach ($allAssignments as &$assignment) {
+  $assignment['wilayah'] = $regionLabel === 'Daerah'
+    ? ($assignment['daerah'] ?: $assignment['negeri'])
+    : $assignment['negeri'];
+}
+unset($assignment);
 
 $assignmentMap = [];
 foreach ($allAssignments as $a) {
@@ -501,7 +509,7 @@ $tarikhTamat = $kejohanan['tarikh_akhir'] ? fDate($kejohanan['tarikh_akhir']) : 
                   <span class="chip chip-luar">Luar</span>
                 <?php endif; ?>
                 <span class="ref-jenis"><?= escHtml($a['jenis_pengadil'] ?? '') ?></span>
-                <span class="ref-negeri"><?= escHtml($a['negeri'] ?? '') ?></span>
+                <span class="ref-negeri"><?= escHtml($regionLabel) ?>: <?= escHtml($a['wilayah'] ?? '') ?></span>
               <?php else: ?>
                 <span class="ref-empty">—</span>
               <?php endif; ?>

@@ -50,10 +50,12 @@ if (isset($_GET['id'])) {
         jsonResponse(['error' => true, 'message' => 'Laporan tidak dijumpai.'], 404);
     }
 
-    // Fetch all pegawai in this report
+    // Fetch all KUP officials in this report. Each KUP member for the same
+    // appointment may read the complete RA assessment for the whole team.
     $pegStmt = $pdo->prepare("
-        SELECT lpp.*
+        SELECT lpp.*, la.pengadil_id
         FROM laporan_penilaian_pegawai lpp
+        LEFT JOIN lantikan_pengadil la ON lpp.lantikan_pengadil_id = la.id
         WHERE lpp.laporan_id = :lid
         ORDER BY FIELD(lpp.jawatan, 'Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4')
     ");
@@ -68,19 +70,14 @@ if (isset($_GET['id'])) {
                 $p[$col] = json_decode($p[$col], true) ?: [];
             }
         }
-        // Check if this is the current pengadil's entry
-        if ($p['lantikan_pengadil_id']) {
-            $lpCheck = $pdo->prepare("SELECT pengadil_id FROM lantikan_pengadil WHERE id = :lpid");
-            $lpCheck->execute([':lpid' => $p['lantikan_pengadil_id']]);
-            $lpRow = $lpCheck->fetch();
-            if ($lpRow && (int)$lpRow['pengadil_id'] === $userId) {
-                $myEntry = $p;
-            }
+        if ((int) ($p['pengadil_id'] ?? 0) === $userId) {
+            $myEntry = $p;
         }
     }
     unset($p);
 
-    // Security check: user must be one of the officials
+    // Security check: user must be one of the four KUP officials recorded in
+    // this report. Officials from another appointment cannot read it.
     if (!$myEntry) {
         jsonResponse(['error' => true, 'message' => 'Anda tidak mempunyai akses kepada laporan ini.'], 403);
     }

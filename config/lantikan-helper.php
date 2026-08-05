@@ -70,11 +70,7 @@ function autoTolakLantikanTertunggak(PDO $pdo, array $scope = []): int
 {
     $where  = '';
     $params = [
-        ':komen'  => LANTIKAN_AUTO_TOLAK_KOMEN,
-        ':hLiga1' => getDeadlineHours('Liga'),
-        ':hLain1' => getDeadlineHours('Persahabatan'),
-        ':hLiga2' => getDeadlineHours('Liga'),
-        ':hLain2' => getDeadlineHours('Persahabatan'),
+        ':komen' => LANTIKAN_AUTO_TOLAK_KOMEN,
     ];
     if (isset($scope['id'])) {
         $where .= ' AND lp.id = :sid';
@@ -99,13 +95,19 @@ function autoTolakLantikanTertunggak(PDO $pdo, array $scope = []): int
         LEFT JOIN kejohanan kj    ON kj.id = jp.kejohanan_id
         SET lp.status = 'Ditolak',
             lp.komen  = :komen,
-            lp.tarikh_jawab = DATE_ADD(lp.tarikh_notif, INTERVAL
-                (CASE WHEN LOWER(COALESCE(kj.jenis_kejohanan,'')) = 'liga' THEN :hLiga1 ELSE :hLain1 END) HOUR)
+            lp.tarikh_jawab = CASE
+                WHEN LOWER(COALESCE(kj.jenis_kejohanan, '')) = 'liga'
+                    THEN DATE_ADD(lp.tarikh_notif, INTERVAL 48 HOUR)
+                ELSE DATE_ADD(lp.tarikh_notif, INTERVAL 3 HOUR)
+            END
         WHERE lp.status = 'Belum Jawab'
           AND lp.notif_hantar = 1
           AND lp.tarikh_notif IS NOT NULL
-          AND DATE_ADD(lp.tarikh_notif, INTERVAL
-                (CASE WHEN LOWER(COALESCE(kj.jenis_kejohanan,'')) = 'liga' THEN :hLiga2 ELSE :hLain2 END) HOUR) <= NOW()
+          AND CASE
+                WHEN LOWER(COALESCE(kj.jenis_kejohanan, '')) = 'liga'
+                    THEN DATE_ADD(lp.tarikh_notif, INTERVAL 48 HOUR)
+                ELSE DATE_ADD(lp.tarikh_notif, INTERVAL 3 HOUR)
+              END <= NOW()
           {$where}
     ");
     $stmt->execute($params);

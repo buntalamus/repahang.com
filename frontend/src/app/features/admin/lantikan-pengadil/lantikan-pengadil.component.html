@@ -252,7 +252,7 @@
               <thead class="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Nama</th>
-                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Negeri</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase">{{ getRegionLabel() }}</th>
                   <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Jenis</th>
                   <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Sumber</th>
                   <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase">No. Tel</th>
@@ -263,7 +263,7 @@
                 @for (p of poolList; track p.pool_id) {
                   <tr class="hover:bg-slate-50">
                     <td class="px-3 py-2 font-medium text-slate-800 text-xs">{{ p.nama }}</td>
-                    <td class="px-3 py-2 text-xs text-slate-600">{{ p.negeri || '-' }}</td>
+                    <td class="px-3 py-2 text-xs text-slate-600">{{ getRegionValue(p) }}</td>
                     <td class="px-3 py-2">
                       <span class="px-1.5 py-0.5 rounded text-[10px] font-medium"
                         [class]="p.jenis_pengadil === 'Pengadil Kebangsaan' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'">
@@ -740,7 +740,7 @@
                   <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                   </svg>
-                  <input type="text" [(ngModel)]="refereeSearch" placeholder="Cari nama, negeri..."
+                  <input type="text" [(ngModel)]="refereeSearch" placeholder="Cari nama, daerah atau negeri..."
                     class="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs" />
                 </div>
                 @if (uniqueJenisList.length > 1) {
@@ -796,7 +796,7 @@
                             }
                           </div>
                           <div class="flex items-center gap-2 mt-1">
-                            <span class="text-[10px] text-slate-500">{{ ref.negeri }}</span>
+                            <span class="text-[10px] text-slate-500">{{ getRegionValue(ref) }}</span>
                             @if (ref.no_telefon) {
                               <span class="text-[10px] text-slate-400">· {{ ref.no_telefon }}</span>
                             }
@@ -1034,7 +1034,7 @@
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                 </svg>
-                Batal Lantikan
+                Status Perlawanan
               </button>
               <button (click)="selectedMatchIds.clear()"
                 class="px-2 py-1.5 text-slate-300 hover:text-white text-[11px] transition" title="Nyahpilih semua">
@@ -1063,7 +1063,7 @@
                   <th class="px-2 py-2.5 text-center font-bold border border-slate-300 w-16 uppercase text-[10px] tracking-wide">Masa</th>
                   <th class="px-2 py-2.5 text-left font-bold border border-slate-300 w-36 uppercase text-[10px] tracking-wide">Venue</th>
                   <th class="px-2 py-2.5 text-center font-bold border border-slate-300 w-36 uppercase text-[10px] tracking-wide" colspan="2">Pegawai</th>
-                  <th class="px-2 py-2.5 text-center font-bold border border-slate-300 w-24 uppercase text-[10px] tracking-wide">Negeri</th>
+                  <th class="px-2 py-2.5 text-center font-bold border border-slate-300 w-24 uppercase text-[10px] tracking-wide">{{ getJadualRegionLabel() }}</th>
                   <th class="px-2 py-2.5 text-center font-bold border border-slate-300 w-20 uppercase text-[10px] tracking-wide">Tindakan</th>
                 </tr>
               </thead>
@@ -1182,7 +1182,7 @@
                           [class.bg-amber-50]="a?.status_lantikan === 'Belum Jawab'"
                           [class.bg-emerald-50]="a?.status_lantikan === 'Diterima'"
                           [class.bg-rose-50]="a?.status_lantikan === 'Ditolak'">
-                        {{ a?.negeri || '' }}
+                        {{ a?.wilayah || '' }}
                       </td>
                       <!-- Tindakan (rowspan) -->
                       @if (ji === 0) {
@@ -1206,8 +1206,8 @@
                             @if (j.jumlah_lantikan > 0) {
                               <button (click)="batalMatchLantikan(j.id, j.no_perlawanan)"
                                 class="w-full px-1.5 py-1 bg-rose-50 text-rose-600 text-[9px] font-semibold rounded hover:bg-rose-100 transition whitespace-nowrap"
-                                title="Batalkan semua lantikan perlawanan ini">
-                                Batal
+                                title="Batalkan atau tangguhkan perlawanan ini">
+                                Status
                               </button>
                             }
                           </div>
@@ -1384,6 +1384,56 @@
             {{ savingKejohanan ? 'Menyimpan...' : 'Simpan' }}
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Modal: Pembatalan / Penangguhan Perlawanan -->
+@if (showMatchStatusModal) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="showMatchStatusModal = false">
+    <div class="absolute inset-0 bg-black/50"></div>
+    <div class="relative w-full max-w-md bg-white rounded-xl shadow-xl" (click)="$event.stopPropagation()">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+        <div>
+          <h3 class="text-base font-semibold text-slate-900">Status Perlawanan</h3>
+          <p class="text-xs text-slate-500 mt-0.5">{{ confirmMessage }}</p>
+        </div>
+        <button (click)="showMatchStatusModal = false" class="text-slate-400 hover:text-slate-600" aria-label="Tutup">&#x2715;</button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-slate-700 mb-1.5">Tindakan</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button (click)="matchStatusForm.status = 'Dibatalkan'"
+              class="px-3 py-2 text-sm font-semibold border rounded-lg transition"
+              [class]="matchStatusForm.status === 'Dibatalkan' ? 'bg-red-600 border-red-600 text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-50'">
+              Batalkan
+            </button>
+            <button (click)="matchStatusForm.status = 'Ditangguhkan'"
+              class="px-3 py-2 text-sm font-semibold border rounded-lg transition"
+              [class]="matchStatusForm.status === 'Ditangguhkan' ? 'bg-orange-500 border-orange-500 text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-50'">
+              Tangguhkan
+            </button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-700 mb-1.5">Sebab <span class="text-red-600">*</span></label>
+          <textarea [(ngModel)]="matchStatusForm.sebab" rows="4" maxlength="500"
+            placeholder="Contoh: cuaca buruk, padang tidak boleh digunakan, arahan penganjur..."
+            class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg resize-none outline-none focus:ring-2 focus:ring-pahang-yellow/30 focus:border-pahang-yellow"></textarea>
+          <p class="mt-1 text-right text-[10px] text-slate-400">{{ matchStatusForm.sebab.length }}/500</p>
+        </div>
+        <p class="text-xs text-slate-500">Semua pegawai yang dilantik akan menerima notifikasi portal, Telegram atau e-mel. Rekod lantikan kekal dalam dashboard.</p>
+      </div>
+      <div class="flex justify-end gap-2 px-5 py-4 border-t border-slate-200">
+        <button (click)="showMatchStatusModal = false" [disabled]="updatingMatchStatus"
+          class="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Tutup</button>
+        <button (click)="submitMatchStatus()" [disabled]="updatingMatchStatus"
+          class="px-4 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-60"
+          [class]="matchStatusForm.status === 'Dibatalkan' ? 'bg-red-600 hover:bg-red-700' : 'bg-orange-500 hover:bg-orange-600'">
+          {{ updatingMatchStatus ? 'Menyimpan...' : (matchStatusForm.status === 'Dibatalkan' ? 'Sahkan Batal' : 'Sahkan Tangguh') }}
+        </button>
       </div>
     </div>
   </div>
@@ -1649,7 +1699,7 @@
 
       <!-- Search -->
       <div class="px-6 pt-3 shrink-0">
-        <input type="text" [(ngModel)]="poolSearchText" placeholder="Cari nama atau negeri..."
+        <input type="text" [(ngModel)]="poolSearchText" placeholder="Cari nama, daerah atau negeri..."
           class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
       </div>
 
@@ -1665,7 +1715,7 @@
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-medium text-slate-800 truncate">{{ p.nama_penuh || p.nama }}</p>
                   <p class="text-xs text-slate-500">
-                    {{ p.negeri || 'Pahang' }}
+                    {{ getRegionValue(p) }}
                     @if (p.jenis_pengadil) { · {{ p.jenis_pengadil }} }
                     @if (p.no_tel || p.no_telefon) { · {{ p.no_tel || p.no_telefon }} }
                   </p>

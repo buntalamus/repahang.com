@@ -2,7 +2,7 @@
   <app-loading message="Memuatkan tugasan..." />
 } @else {
   <!-- Stats -->
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
     <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
       <p class="text-sm text-gray-500 mb-1">Jumlah</p>
       <p class="text-2xl font-bold text-slate-900">{{ stats.total }}</p>
@@ -22,12 +22,22 @@
       <p class="text-sm text-rose-600 mb-1">Ditolak</p>
       <p class="text-2xl font-bold text-rose-600">{{ stats.ditolak }}</p>
     </div>
+    <div class="bg-white p-4 rounded-xl border border-red-200 shadow-sm cursor-pointer"
+      (click)="filterStatus = 'Dibatalkan'; applyFilter()">
+      <p class="text-sm text-red-600 mb-1">Dibatalkan</p>
+      <p class="text-2xl font-bold text-red-600">{{ stats.dibatalkan }}</p>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-orange-200 shadow-sm cursor-pointer"
+      (click)="filterStatus = 'Ditangguhkan'; applyFilter()">
+      <p class="text-sm text-orange-600 mb-1">Ditangguhkan</p>
+      <p class="text-2xl font-bold text-orange-600">{{ stats.ditangguhkan }}</p>
+    </div>
   </div>
 
   <!-- Filter -->
   <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
     <div class="flex gap-2">
-      @for (opt of [{v:'all',l:'Semua'},{v:'Belum Jawab',l:'Belum Jawab'},{v:'Diterima',l:'Diterima'},{v:'Ditolak',l:'Ditolak'}]; track opt.v) {
+      @for (opt of [{v:'all',l:'Semua'},{v:'Belum Jawab',l:'Belum Jawab'},{v:'Diterima',l:'Diterima'},{v:'Ditolak',l:'Ditolak'},{v:'Dibatalkan',l:'Dibatalkan'},{v:'Ditangguhkan',l:'Ditangguhkan'}]; track opt.v) {
         <button (click)="filterStatus = opt.v; applyFilter()"
           class="px-3 py-1.5 rounded-lg text-sm font-medium transition"
           [class]="filterStatus === opt.v ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
@@ -111,6 +121,21 @@
                 }
               </td>
             </tr>
+            <tr @if (a.sebab_status || a.rakan_tugasan?.length) { class="bg-slate-50/70" }>
+              <td colspan="6" class="px-4 pb-3 pt-0">
+                @if (a.sebab_status) {
+                  <p class="text-xs text-red-700"><span class="font-semibold">Sebab {{ a.status === 'Ditangguhkan' ? 'penangguhan' : 'pembatalan' }}:</span> {{ a.sebab_status }}</p>
+                }
+                @if (a.rakan_tugasan?.length) {
+                  <div class="mt-1.5 text-xs text-slate-600">
+                    <span class="font-semibold text-slate-700">Pegawai bertugas bersama:</span>
+                    @for (rakan of a.rakan_tugasan; track rakan.id; let last = $last) {
+                      <span>{{ rakan.jawatan }}: {{ rakan.nama }}{{ last ? '' : ' · ' }}</span>
+                    }
+                  </div>
+                }
+              </td>
+            </tr>
           } @empty {
             <tr>
               <td colspan="6" class="px-4 py-16 text-center">
@@ -168,6 +193,17 @@
               class="flex-1 py-2 border border-rose-300 text-rose-600 text-sm font-semibold rounded-lg hover:bg-rose-50 transition">
               Tolak
             </button>
+          </div>
+        }
+        @if (a.sebab_status) {
+          <p class="text-xs text-red-700 mb-2"><span class="font-semibold">Sebab {{ a.status === 'Ditangguhkan' ? 'penangguhan' : 'pembatalan' }}:</span> {{ a.sebab_status }}</p>
+        }
+        @if (a.rakan_tugasan?.length) {
+          <div class="border-t border-slate-100 pt-2 text-xs text-slate-600">
+            <p class="font-semibold text-slate-700 mb-1">Pegawai bertugas bersama</p>
+            @for (rakan of a.rakan_tugasan; track rakan.id) {
+              <p>{{ rakan.jawatan }}: {{ rakan.nama }}</p>
+            }
           </div>
         }
       </div>

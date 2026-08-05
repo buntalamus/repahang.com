@@ -35,9 +35,14 @@ try {
                     WHEN pp.pengadil_luar_id IS NOT NULL THEN 'Luar'
                 END AS jenis_sumber,
                 CASE
-                    WHEN pp.pengadil_id IS NOT NULL THEN 'Pahang'
+                    WHEN pp.pengadil_id IS NOT NULL THEN u.daerah
+                    WHEN pp.pengadil_luar_id IS NOT NULL THEN pl.negeri
+                END AS daerah,
+                CASE
+                    WHEN pp.pengadil_id IS NOT NULL THEN u.negeri
                     WHEN pp.pengadil_luar_id IS NOT NULL THEN pl.negeri
                 END AS negeri,
+                COALESCE(k.peringkat_kejohanan, 'Daerah') AS peringkat_kejohanan,
                 CASE
                     WHEN pp.pengadil_id IS NOT NULL THEN u.no_telefon
                     WHEN pp.pengadil_luar_id IS NOT NULL THEN pl.no_tel
@@ -51,13 +56,20 @@ try {
                     WHEN pp.pengadil_luar_id IS NOT NULL THEN pl.jenis_pengadil
                 END AS jenis_pengadil
             FROM pool_pengadil pp
+            JOIN kejohanan k ON pp.kejohanan_id = k.id
             LEFT JOIN users u ON pp.pengadil_id = u.id
             LEFT JOIN pengadil_luar pl ON pp.pengadil_luar_id = pl.id
             WHERE pp.kejohanan_id = :kid
             ORDER BY nama ASC
         ");
         $stmt->execute([':kid' => $kejohanan_id]);
-        $pool = $stmt->fetchAll();
+        $pool = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($pool as &$member) {
+            $member['wilayah'] = $member['peringkat_kejohanan'] === 'Negeri'
+                ? ($member['daerah'] ?: $member['negeri'])
+                : $member['negeri'];
+        }
+        unset($member);
 
         jsonResponse(['error' => false, 'data' => $pool]);
     }

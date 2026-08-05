@@ -15,7 +15,7 @@ export class PengadilTugasanComponent implements OnInit {
   loading = true;
   assignments: any[] = [];
   filtered: any[] = [];
-  stats = { total: 0, belum_jawab: 0, diterima: 0, ditolak: 0 };
+  stats = { total: 0, belum_jawab: 0, diterima: 0, ditolak: 0, dibatalkan: 0, ditangguhkan: 0 };
   filterStatus = 'all';
 
   showModal = false;
@@ -85,6 +85,8 @@ export class PengadilTugasanComponent implements OnInit {
   getStatusClass(status: string): string {
     if (status === 'Diterima') return 'bg-emerald-50 text-emerald-700';
     if (status === 'Ditolak') return 'bg-rose-50 text-rose-700';
+    if (status === 'Dibatalkan') return 'bg-red-50 text-red-700';
+    if (status === 'Ditangguhkan') return 'bg-orange-50 text-orange-700';
     return 'bg-amber-50 text-amber-700';
   }
 

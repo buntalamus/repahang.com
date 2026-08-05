@@ -193,6 +193,11 @@ export const routes: Routes = [
         data: { type: 'lantikan' },
       },
       {
+        path: 'notifikasi-lantikan',
+        loadComponent: () =>
+          import('./features/pengadil/tugasan/tugasan.component').then((m) => m.PengadilTugasanComponent),
+      },
+      {
         path: 'tugasan',
         loadComponent: () =>
           import('./features/pengadil/tugasan/tugasan.component').then((m) => m.PengadilTugasanComponent),
