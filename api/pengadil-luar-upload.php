@@ -8,6 +8,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/../config/pengadil-luar-helper.php';
 
 $currentUser = requireRole(['Admin']);
 
@@ -29,34 +30,11 @@ try {
         jsonResponse(['error' => true, 'message' => 'Maksimum 500 rekod sekali muat naik.'], 400);
     }
 
-    $validNegeri = [
-        'Johor', 'Kedah', 'Kelantan', 'Melaka', 'Negeri Sembilan',
-        'Pahang', 'Perak', 'Perlis', 'Pulau Pinang', 'Sabah',
-        'Sarawak', 'Selangor', 'Terengganu',
-        'WP Kuala Lumpur', 'WP Putrajaya', 'WP Labuan',
-    ];
-    $validJenis = ['Pengadil Negeri', 'Pengadil Kebangsaan', 'Kelas 1', 'Kelas 2', 'Kelas 3'];
-
-    // Short-form jenis mapping
-    $jenisMap = [
-        'keb'                 => 'Pengadil Kebangsaan',
-        'kebangsaan'          => 'Pengadil Kebangsaan',
-        'pengadil kebangsaan' => 'Pengadil Kebangsaan',
-        'negeri'              => 'Pengadil Negeri',
-        'pengadil negeri'     => 'Pengadil Negeri',
-        'kelas 1'             => 'Kelas 1',
-        'kelas 2'             => 'Kelas 2',
-        'kelas 3'             => 'Kelas 3',
-        'k1'                  => 'Kelas 1',
-        'k2'                  => 'Kelas 2',
-        'k3'                  => 'Kelas 3',
-    ];
-
     // Pre-load registered referees for matching (by phone, email, name)
     $regStmt = $pdo->query("
-        SELECT id, nama_penuh, no_telefon, email, negeri, jenis_pengadil
+        SELECT id, nama_penuh, no_telefon, email, daerah, negeri, jenis_pengadil
         FROM users
-        WHERE role IN ('Pengadil', 'PP Daerah') AND aktif = 1
+        WHERE role IN ('Pengadil', 'Penilai', 'PP Daerah') AND aktif = 1
     ");
     $registeredList = $regStmt->fetchAll();
 
@@ -80,8 +58,8 @@ try {
     }
 
     $stmt = $pdo->prepare("
-        INSERT INTO pengadil_luar (nama, negeri, no_tel, emel, jenis_pengadil)
-        VALUES (:nama, :negeri, :no_tel, :emel, :jenis)
+        INSERT INTO pengadil_luar (nama, daerah, negeri, no_tel, emel, jenis_pengadil)
+        VALUES (:nama, :daerah, :negeri, :no_tel, :emel, :jenis)
     ");
 
     $inserted = 0;
@@ -94,36 +72,21 @@ try {
     foreach ($rows as $i => $row) {
         $rowNum = $i + 1;
         $nama   = trim((string) ($row['nama'] ?? ''));
+        $daerah = trim((string) ($row['daerah'] ?? ''));
         $negeri = trim((string) ($row['negeri'] ?? ''));
         $no_tel = trim((string) ($row['no_tel'] ?? ''));
         $emel   = trim((string) ($row['emel'] ?? ''));
         $jenis  = trim((string) ($row['jenis_pengadil'] ?? 'Pengadil Negeri'));
 
         // Validate required fields
-        if ($nama === '' || $negeri === '') {
-            $errors[] = "Baris $rowNum: Nama dan negeri diperlukan.";
+        if ($nama === '' || $daerah === '' || $negeri === '') {
+            $errors[] = "Baris $rowNum: Nama, daerah dan negeri diperlukan.";
             $skipped++;
             continue;
         }
 
         // Validate negeri (case-insensitive)
-        $negeriMatch = null;
-        foreach ($validNegeri as $vn) {
-            if (strcasecmp($negeri, $vn) === 0) {
-                $negeriMatch = $vn;
-                break;
-            }
-            // Handle short forms: "Kuala Lumpur" -> "WP Kuala Lumpur"
-            if (strcasecmp($negeri, 'Kuala Lumpur') === 0 || strcasecmp($negeri, 'KL') === 0) {
-                $negeriMatch = 'WP Kuala Lumpur'; break;
-            }
-            if (strcasecmp($negeri, 'Putrajaya') === 0) {
-                $negeriMatch = 'WP Putrajaya'; break;
-            }
-            if (strcasecmp($negeri, 'Labuan') === 0) {
-                $negeriMatch = 'WP Labuan'; break;
-            }
-        }
+        $negeriMatch = normalizePengadilLuarNegeri($negeri);
         if (!$negeriMatch) {
             $errors[] = "Baris $rowNum: Negeri '$negeri' tidak sah.";
             $skipped++;
@@ -132,12 +95,13 @@ try {
         $negeri = $negeriMatch;
 
         // Normalize jenis pengadil
-        $jenisLower = strtolower(trim($jenis));
-        if (isset($jenisMap[$jenisLower])) {
-            $jenis = $jenisMap[$jenisLower];
-        } elseif (!in_array($jenis, $validJenis, true)) {
-            $jenis = 'Pengadil Negeri';
+        $jenisMatch = normalizePengadilLuarJenis($jenis);
+        if ($jenisMatch === null) {
+            $errors[] = "Baris $rowNum: Jenis pengadil '$jenis' tidak sah.";
+            $skipped++;
+            continue;
         }
+        $jenis = $jenisMatch;
 
         // Validate email format if provided
         if ($emel !== '' && !filter_var($emel, FILTER_VALIDATE_EMAIL)) {
@@ -171,6 +135,7 @@ try {
                 'match_by'    => $matchBy,
                 'pengadil_id' => (int) $matchedReg['id'],
                 'nama_penuh'  => $matchedReg['nama_penuh'],
+                'daerah'      => $matchedReg['daerah'] ?? '',
                 'negeri'      => $matchedReg['negeri'] ?? 'Pahang',
                 'no_telefon'  => $matchedReg['no_telefon'] ?? '',
                 'email'       => $matchedReg['email'] ?? '',
@@ -183,6 +148,7 @@ try {
         try {
             $stmt->execute([
                 ':nama'   => $nama,
+                ':daerah' => $daerah,
                 ':negeri' => $negeri,
                 ':no_tel' => $no_tel,
                 ':emel'   => $emel,

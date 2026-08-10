@@ -108,6 +108,7 @@ export class LantikanPengadilComponent implements OnInit {
       const s = this.refereeSearch.toLowerCase();
       list = list.filter(r =>
         (r.nama_penuh || '').toLowerCase().includes(s) ||
+        (r.daerah || '').toLowerCase().includes(s) ||
         (r.negeri || '').toLowerCase().includes(s) ||
         (r.no_telefon || '').includes(s)
       );
@@ -129,7 +130,7 @@ export class LantikanPengadilComponent implements OnInit {
   getRegionValue(referee: any, kejohanan: any = this.selectedKejohanan): string {
     if (referee?.wilayah) return referee.wilayah;
     const value = this.getRegionLabel(kejohanan) === 'Daerah'
-      ? (referee?.daerah || referee?.negeri)
+      ? referee?.daerah
       : referee?.negeri;
     return value || '-';
   }
@@ -137,6 +138,11 @@ export class LantikanPengadilComponent implements OnInit {
   getJadualRegionLabel(): string {
     return this.jadualLantikanData?.region_label
       || this.getRegionLabel(this.jadualLantikanData?.kejohanan);
+  }
+
+  isAutoTolak(assignment: any): boolean {
+    return assignment?.status_lantikan === 'Ditolak'
+      && Number(assignment?.is_auto_tolak) === 1;
   }
 
   isAssignedToCurrentMatch(ref: any): boolean {
@@ -1080,6 +1086,7 @@ export class LantikanPengadilComponent implements OnInit {
   getSelectableMatches(): any[] {
     if (!this.jadualLantikanData?.jadual) return [];
     return this.jadualLantikanData.jadual.filter((j: any) => {
+      if (j.is_started) return false;
       const assignments = j.assignments || {};
       return Object.values(assignments).some((a: any) => a && a.status_lantikan === 'Belum Jawab');
     });

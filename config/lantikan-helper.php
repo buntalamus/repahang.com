@@ -54,14 +54,69 @@ function calcDeadlineFromNotif(string $jenisKejohanan, ?string $tarikhNotif = nu
 }
 
 /**
- * Auto-TOLAK lantikan tertunggak: status 'Belum Jawab' yang tempoh jawapannya
- * (tarikh_notif + N jam) sudah tamat. Baris yang belum dinotifikasi
- * (notif_hantar=0 / tarikh_notif NULL) tidak disentuh. Token TIDAK
- * dikosongkan supaya pautan lama boleh dikenal pasti dan halaman
- * "Tamat Tempoh" yang tepat dipaparkan.
+ * Convert the local Malaysia match date/time into an absolute timestamp.
+ */
+function getMatchKickoffTimestamp(string $tarikh, string $masa): ?int
+{
+    $masa = trim($masa);
+    if (preg_match('/^\d{2}:\d{2}$/', $masa)) {
+        $masa .= ':00';
+    }
+
+    $kickoff = DateTimeImmutable::createFromFormat(
+        '!Y-m-d H:i:s',
+        trim($tarikh) . ' ' . $masa,
+        new DateTimeZone('Asia/Kuala_Lumpur')
+    );
+    $errors = DateTimeImmutable::getLastErrors();
+    if ($kickoff === false || (is_array($errors) && ($errors['warning_count'] > 0 || $errors['error_count'] > 0))) {
+        return null;
+    }
+
+    return $kickoff->getTimestamp();
+}
+
+function hasMatchStarted(string $tarikh, string $masa, ?int $nowTimestamp = null): bool
+{
+    $kickoffTimestamp = getMatchKickoffTimestamp($tarikh, $masa);
+    return $kickoffTimestamp !== null && ($nowTimestamp ?? time()) >= $kickoffTimestamp;
+}
+
+function shouldAutoRejectAppointment(
+    int $notifTimestamp,
+    string $jenisKejohanan,
+    int $kickoffTimestamp,
+    int $nowTimestamp
+): bool {
+    if ($notifTimestamp <= 0 || $kickoffTimestamp <= 0) {
+        return false;
+    }
+
+    $deadlineTimestamp = $notifTimestamp + getDeadlineHours($jenisKejohanan) * 3600;
+    return $deadlineTimestamp <= $nowTimestamp && $deadlineTimestamp < $kickoffTimestamp;
+}
+
+function matchStartedMessage(string $tarikh, string $masa): string
+{
+    $kickoffTimestamp = getMatchKickoffTimestamp($tarikh, $masa);
+    $kickoff = $kickoffTimestamp !== null
+        ? (new DateTimeImmutable('@' . $kickoffTimestamp))
+            ->setTimezone(new DateTimeZone('Asia/Kuala_Lumpur'))
+            ->format('d M Y, H:i')
+        : trim($tarikh . ' ' . $masa);
+
+    return "Lantikan atau notifikasi tidak dibenarkan kerana perlawanan telah bermula ({$kickoff}).";
+}
+
+/**
+ * Auto-TOLAK lantikan tertunggak hanya apabila seluruh tempoh jawapan tamat
+ * sebelum sepak mula. Notifikasi lewat yang tempohnya melangkaui sepak mula
+ * kekal "Belum Jawab" untuk semakan pentadbir dan tidak ditanda seolah-olah
+ * pengadil menolak tugasan.
  *
- * Perbandingan masa dibuat sepenuhnya di sisi SQL (tarikh_notif lawan NOW())
- * supaya kalis perbezaan timezone PHP/DB.
+ * UNIX_TIMESTAMP(tarikh_notif) memberikan masa mutlak dari MySQL. Waktu
+ * sepak mula pula ditafsir secara jelas dalam Asia/Kuala_Lumpur supaya semakan
+ * tidak bergantung pada timezone pelayan pangkalan data.
  *
  * @param array $scope Skop pilihan: 'id', 'jadual_id', 'pengadil_id', 'kejohanan_id'
  * @return int Bilangan baris yang ditukar kepada 'Ditolak'
@@ -69,9 +124,7 @@ function calcDeadlineFromNotif(string $jenisKejohanan, ?string $tarikhNotif = nu
 function autoTolakLantikanTertunggak(PDO $pdo, array $scope = []): int
 {
     $where  = '';
-    $params = [
-        ':komen' => LANTIKAN_AUTO_TOLAK_KOMEN,
-    ];
+    $params = [];
     if (isset($scope['id'])) {
         $where .= ' AND lp.id = :sid';
         $params[':sid'] = (int) $scope['id'];
@@ -90,28 +143,71 @@ function autoTolakLantikanTertunggak(PDO $pdo, array $scope = []): int
     }
 
     $stmt = $pdo->prepare("
-        UPDATE lantikan_pengadil lp
+        SELECT lp.id,
+               UNIX_TIMESTAMP(lp.tarikh_notif) AS notif_timestamp,
+               COALESCE(kj.jenis_kejohanan, '') AS jenis_kejohanan,
+               jp.tarikh, jp.masa
+        FROM lantikan_pengadil lp
         JOIN jadual_perlawanan jp ON jp.id = lp.jadual_id
         LEFT JOIN kejohanan kj    ON kj.id = jp.kejohanan_id
-        SET lp.status = 'Ditolak',
-            lp.komen  = :komen,
-            lp.tarikh_jawab = CASE
-                WHEN LOWER(COALESCE(kj.jenis_kejohanan, '')) = 'liga'
-                    THEN DATE_ADD(lp.tarikh_notif, INTERVAL 48 HOUR)
-                ELSE DATE_ADD(lp.tarikh_notif, INTERVAL 3 HOUR)
-            END
         WHERE lp.status = 'Belum Jawab'
           AND lp.notif_hantar = 1
           AND lp.tarikh_notif IS NOT NULL
-          AND CASE
-                WHEN LOWER(COALESCE(kj.jenis_kejohanan, '')) = 'liga'
-                    THEN DATE_ADD(lp.tarikh_notif, INTERVAL 48 HOUR)
-                ELSE DATE_ADD(lp.tarikh_notif, INTERVAL 3 HOUR)
-              END <= NOW()
           {$where}
     ");
     $stmt->execute($params);
-    return $stmt->rowCount();
+    $pending = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $nowTimestamp = time();
+    $expired = [];
+    foreach ($pending as $row) {
+        $notifTimestamp = (int) ($row['notif_timestamp'] ?? 0);
+        $kickoffTimestamp = getMatchKickoffTimestamp(
+            (string) ($row['tarikh'] ?? ''),
+            (string) ($row['masa'] ?? '')
+        );
+        if ($notifTimestamp <= 0 || $kickoffTimestamp === null) {
+            continue;
+        }
+
+        $jenisKejohanan = (string) ($row['jenis_kejohanan'] ?? '');
+        $deadlineTimestamp = $notifTimestamp + getDeadlineHours($jenisKejohanan) * 3600;
+        if (shouldAutoRejectAppointment(
+            $notifTimestamp,
+            $jenisKejohanan,
+            $kickoffTimestamp,
+            $nowTimestamp
+        )) {
+            $expired[] = [
+                'id' => (int) $row['id'],
+                'deadline' => $deadlineTimestamp,
+            ];
+        }
+    }
+
+    if ($expired === []) {
+        return 0;
+    }
+
+    $update = $pdo->prepare("
+        UPDATE lantikan_pengadil
+        SET status = 'Ditolak',
+            komen = :komen,
+            tarikh_jawab = FROM_UNIXTIME(:deadline)
+        WHERE id = :id AND status = 'Belum Jawab'
+    ");
+
+    $updated = 0;
+    foreach ($expired as $row) {
+        $update->execute([
+            ':komen' => LANTIKAN_AUTO_TOLAK_KOMEN,
+            ':deadline' => $row['deadline'],
+            ':id' => $row['id'],
+        ]);
+        $updated += $update->rowCount();
+    }
+
+    return $updated;
 }
 
 /**

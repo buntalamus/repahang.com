@@ -2,7 +2,7 @@
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
     <div>
       <h1 class="text-xl font-bold text-slate-900">Pengadil Luar</h1>
-      <p class="text-sm text-slate-500 mt-0.5">Pengadil tidak berdaftar dari negeri lain</p>
+      <p class="text-sm text-slate-500 mt-0.5">Pegawai perlawanan yang tidak berdaftar dengan RefPahang</p>
     </div>
     <div class="flex gap-2">
       <button (click)="openUploadModal()"
@@ -25,8 +25,15 @@
   <!-- Filters -->
   <div class="flex flex-col sm:flex-row gap-3">
     <input type="text" [(ngModel)]="searchText" (ngModelChange)="applyFilter()"
-      placeholder="Cari nama, emel atau no. tel..."
+      placeholder="Cari nama, daerah, negeri, emel atau no. tel..."
       class="flex-1 px-4 py-2 border border-slate-300 rounded-lg text-sm" />
+    <select [(ngModel)]="filterDaerah" (ngModelChange)="applyFilter()"
+      class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white min-w-[180px]">
+      <option value="">Semua Daerah</option>
+      @for (d of daerahList; track d) {
+        <option [value]="d">{{ d }}</option>
+      }
+    </select>
     <select [(ngModel)]="filterNegeri" (ngModelChange)="applyFilter()"
       class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white min-w-[180px]">
       <option value="">Semua Negeri</option>
@@ -62,6 +69,7 @@
               </th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">#</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Nama</th>
+              <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Daerah</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Negeri</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">No. Tel</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Emel</th>
@@ -78,6 +86,7 @@
                 </td>
                 <td class="px-4 py-3 text-xs text-slate-400">{{ i + 1 }}</td>
                 <td class="px-4 py-3 font-medium text-slate-800 text-sm">{{ p.nama }}</td>
+                <td class="px-4 py-3 text-xs text-slate-600">{{ p.daerah || '-' }}</td>
                 <td class="px-4 py-3 text-xs text-slate-600">{{ p.negeri }}</td>
                 <td class="px-4 py-3 text-xs text-slate-600">{{ p.no_tel || '-' }}</td>
                 <td class="px-4 py-3 text-xs text-slate-600">{{ p.emel || '-' }}</td>
@@ -97,7 +106,7 @@
               </tr>
             } @empty {
               <tr>
-                <td colspan="8" class="px-4 py-16 text-center">
+                <td colspan="9" class="px-4 py-16 text-center">
                   <span class="material-symbols-outlined text-4xl text-slate-300">person_off</span>
                   <p class="text-slate-400 text-sm mt-2">Tiada pengadil luar. Klik "Tambah Pengadil Luar" untuk mula.</p>
                 </td>
@@ -113,17 +122,28 @@
 <!-- Modal: Tambah/Edit Pengadil Luar -->
 @if (showModal) {
   <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" (click)="showModal = false">
-    <div class="bg-white rounded-2xl max-w-lg w-full" (click)="$event.stopPropagation()">
+    <div class="bg-white rounded-2xl max-w-2xl w-full" (click)="$event.stopPropagation()">
       <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
         <h3 class="text-base font-semibold">{{ editing ? 'Edit' : 'Tambah' }} Pengadil Luar</h3>
-        <button (click)="showModal = false" class="text-slate-400 hover:text-slate-600">&#x2715;</button>
+        <button (click)="showModal = false" aria-label="Tutup" class="text-slate-400 hover:text-slate-600">&#x2715;</button>
       </div>
       <div class="p-6 space-y-4">
         <div>
           <label class="block text-xs text-gray-500 mb-1">Nama Penuh <span class="text-rose-500">*</span></label>
           <input type="text" [(ngModel)]="form.nama" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
         </div>
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Daerah <span class="text-rose-500">*</span></label>
+            <input type="text" [(ngModel)]="form.daerah" list="daerah-pengadil-options"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              placeholder="Pilih atau taip daerah" />
+            <datalist id="daerah-pengadil-options">
+              @for (d of daerahList; track d) {
+                <option [value]="d"></option>
+              }
+            </datalist>
+          </div>
           <div>
             <label class="block text-xs text-gray-500 mb-1">Negeri <span class="text-rose-500">*</span></label>
             <select [(ngModel)]="form.negeri" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
@@ -133,6 +153,8 @@
               }
             </select>
           </div>
+        </div>
+        <div class="grid sm:grid-cols-2 gap-4">
           <div>
             <label class="block text-xs text-gray-500 mb-1">Jenis Pengadil</label>
             <select [(ngModel)]="form.jenis_pengadil" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
@@ -141,18 +163,17 @@
               <option value="Kelas 1">Kelas 1</option>
               <option value="Kelas 2">Kelas 2</option>
               <option value="Kelas 3">Kelas 3</option>
+              <option value="Penilai Pengadil">Penilai Pengadil</option>
             </select>
           </div>
-        </div>
-        <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-xs text-gray-500 mb-1">No. Telefon (WhatsApp)</label>
             <input type="text" [(ngModel)]="form.no_tel" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="cth: 0123456789" />
           </div>
-          <div>
-            <label class="block text-xs text-gray-500 mb-1">Emel</label>
-            <input type="email" [(ngModel)]="form.emel" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Emel</label>
+          <input type="email" [(ngModel)]="form.emel" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
         </div>
         <div class="flex justify-end gap-3 pt-2">
           <button (click)="showModal = false" class="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Batal</button>
@@ -180,7 +201,7 @@
           <h3 class="text-base font-semibold">Muat Naik Excel — Pengadil Luar</h3>
           <p class="text-xs text-slate-500 mt-0.5">Muat naik fail .xlsx / .xls / .csv</p>
         </div>
-        <button (click)="showUploadModal = false" class="text-slate-400 hover:text-slate-600">&#x2715;</button>
+        <button (click)="showUploadModal = false" aria-label="Tutup" class="text-slate-400 hover:text-slate-600">&#x2715;</button>
       </div>
 
       <div class="p-6 space-y-4 overflow-y-auto flex-1">
@@ -191,7 +212,7 @@
           </svg>
           <div class="flex-1">
             <p class="text-sm font-medium text-slate-800">Format fail</p>
-            <p class="text-xs text-slate-600 mt-1">Header yang diperlukan: <strong>Nama</strong>, <strong>Negeri</strong>. Pilihan: No Tel, Emel, Jenis Pengadil.</p>
+            <p class="text-xs text-slate-600 mt-1">Header yang diperlukan: <strong>Nama</strong>, <strong>Daerah</strong>, <strong>Negeri</strong>. Pilihan: No Tel, Emel, Jenis Pengadil.</p>
             <button (click)="downloadTemplate()" class="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-pahang-black text-pahang-yellow text-xs font-semibold rounded-lg hover:bg-gray-800 transition">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
@@ -243,6 +264,7 @@
                     <th class="px-3 py-2 text-left font-semibold text-emerald-700">Baris</th>
                     <th class="px-3 py-2 text-left font-semibold text-emerald-700">Nama Upload</th>
                     <th class="px-3 py-2 text-left font-semibold text-emerald-700">Nama Berdaftar</th>
+                    <th class="px-3 py-2 text-left font-semibold text-emerald-700">Daerah</th>
                     <th class="px-3 py-2 text-left font-semibold text-emerald-700">Negeri</th>
                     <th class="px-3 py-2 text-left font-semibold text-emerald-700">Padanan</th>
                   </tr>
@@ -253,6 +275,7 @@
                       <td class="px-3 py-1.5 text-slate-500">{{ m.baris }}</td>
                       <td class="px-3 py-1.5 text-slate-700">{{ m.upload_nama }}</td>
                       <td class="px-3 py-1.5 font-medium text-emerald-800">{{ m.nama_penuh }}</td>
+                      <td class="px-3 py-1.5 text-slate-600">{{ m.daerah || '-' }}</td>
                       <td class="px-3 py-1.5 text-slate-600">{{ m.negeri }}</td>
                       <td class="px-3 py-1.5">
                         <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700">
@@ -277,6 +300,7 @@
                   <tr>
                     <th class="px-3 py-2 text-left font-semibold text-slate-500">#</th>
                     <th class="px-3 py-2 text-left font-semibold text-slate-500">Nama</th>
+                    <th class="px-3 py-2 text-left font-semibold text-slate-500">Daerah</th>
                     <th class="px-3 py-2 text-left font-semibold text-slate-500">Negeri</th>
                     <th class="px-3 py-2 text-left font-semibold text-slate-500">No. Tel</th>
                     <th class="px-3 py-2 text-left font-semibold text-slate-500">Emel</th>
@@ -288,6 +312,7 @@
                     <tr class="hover:bg-slate-50">
                       <td class="px-3 py-1.5 text-slate-400">{{ i + 1 }}</td>
                       <td class="px-3 py-1.5 text-slate-800 font-medium">{{ r.nama }}</td>
+                      <td class="px-3 py-1.5 text-slate-600">{{ r.daerah }}</td>
                       <td class="px-3 py-1.5 text-slate-600">{{ r.negeri }}</td>
                       <td class="px-3 py-1.5 text-slate-600">{{ r.no_tel || '-' }}</td>
                       <td class="px-3 py-1.5 text-slate-600">{{ r.emel || '-' }}</td>

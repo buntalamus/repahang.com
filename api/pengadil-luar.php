@@ -11,6 +11,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/../config/pengadil-luar-helper.php';
 
 $currentUser = requireRole(['Admin']);
 
@@ -31,16 +32,23 @@ try {
 
         // List all with optional search
         $search = trim($_GET['search'] ?? '');
+        $daerah = trim($_GET['daerah'] ?? '');
         $negeri = trim($_GET['negeri'] ?? '');
 
         $sql = "SELECT * FROM pengadil_luar WHERE 1=1";
         $params = [];
 
         if ($search) {
-            $sql .= " AND (nama LIKE :s OR emel LIKE :s2 OR no_tel LIKE :s3)";
+            $sql .= " AND (nama LIKE :s OR daerah LIKE :s2 OR negeri LIKE :s3 OR emel LIKE :s4 OR no_tel LIKE :s5)";
             $params[':s'] = "%$search%";
             $params[':s2'] = "%$search%";
             $params[':s3'] = "%$search%";
+            $params[':s4'] = "%$search%";
+            $params[':s5'] = "%$search%";
+        }
+        if ($daerah) {
+            $sql .= " AND daerah = :daerah";
+            $params[':daerah'] = $daerah;
         }
         if ($negeri) {
             $sql .= " AND negeri = :negeri";
@@ -56,22 +64,36 @@ try {
     if ($method === 'POST') {
         $input = getJsonInput();
         $nama = trim($input['nama'] ?? '');
-        $negeri = trim($input['negeri'] ?? '');
+        $daerah = trim($input['daerah'] ?? '');
+        $negeriInput = trim($input['negeri'] ?? '');
+        $negeri = normalizePengadilLuarNegeri($negeriInput);
+        $jenis = normalizePengadilLuarJenis((string) ($input['jenis_pengadil'] ?? ''));
+        $emel = trim($input['emel'] ?? '');
 
-        if (!$nama || !$negeri) {
-            jsonResponse(['error' => true, 'message' => 'Nama dan negeri diperlukan.'], 400);
+        if ($nama === '' || $daerah === '' || $negeriInput === '') {
+            jsonResponse(['error' => true, 'message' => 'Nama, daerah dan negeri diperlukan.'], 400);
+        }
+        if ($negeri === null) {
+            jsonResponse(['error' => true, 'message' => 'Negeri tidak sah.'], 400);
+        }
+        if ($jenis === null) {
+            jsonResponse(['error' => true, 'message' => 'Jenis pengadil tidak sah.'], 400);
+        }
+        if ($emel !== '' && !filter_var($emel, FILTER_VALIDATE_EMAIL)) {
+            jsonResponse(['error' => true, 'message' => 'Format emel tidak sah.'], 400);
         }
 
         $stmt = $pdo->prepare("
-            INSERT INTO pengadil_luar (nama, negeri, no_tel, emel, jenis_pengadil)
-            VALUES (:nama, :negeri, :no_tel, :emel, :jenis)
+            INSERT INTO pengadil_luar (nama, daerah, negeri, no_tel, emel, jenis_pengadil)
+            VALUES (:nama, :daerah, :negeri, :no_tel, :emel, :jenis)
         ");
         $stmt->execute([
             ':nama'   => $nama,
+            ':daerah' => $daerah,
             ':negeri' => $negeri,
             ':no_tel' => trim($input['no_tel'] ?? ''),
-            ':emel'   => trim($input['emel'] ?? ''),
-            ':jenis'  => $input['jenis_pengadil'] ?? 'Pengadil Negeri',
+            ':emel'   => $emel,
+            ':jenis'  => $jenis,
         ]);
         jsonResponse(['error' => false, 'message' => 'Pengadil luar berjaya ditambah.', 'id' => (int) $pdo->lastInsertId()]);
     }
@@ -80,23 +102,38 @@ try {
         $input = getJsonInput();
         $id = (int) ($input['id'] ?? 0);
         $nama = trim($input['nama'] ?? '');
-        $negeri = trim($input['negeri'] ?? '');
+        $daerah = trim($input['daerah'] ?? '');
+        $negeriInput = trim($input['negeri'] ?? '');
+        $negeri = normalizePengadilLuarNegeri($negeriInput);
+        $jenis = normalizePengadilLuarJenis((string) ($input['jenis_pengadil'] ?? ''));
+        $emel = trim($input['emel'] ?? '');
 
-        if (!$id || !$nama || !$negeri) {
-            jsonResponse(['error' => true, 'message' => 'ID, nama dan negeri diperlukan.'], 400);
+        if (!$id || $nama === '' || $daerah === '' || $negeriInput === '') {
+            jsonResponse(['error' => true, 'message' => 'ID, nama, daerah dan negeri diperlukan.'], 400);
+        }
+        if ($negeri === null) {
+            jsonResponse(['error' => true, 'message' => 'Negeri tidak sah.'], 400);
+        }
+        if ($jenis === null) {
+            jsonResponse(['error' => true, 'message' => 'Jenis pengadil tidak sah.'], 400);
+        }
+        if ($emel !== '' && !filter_var($emel, FILTER_VALIDATE_EMAIL)) {
+            jsonResponse(['error' => true, 'message' => 'Format emel tidak sah.'], 400);
         }
 
         $stmt = $pdo->prepare("
             UPDATE pengadil_luar
-            SET nama = :nama, negeri = :negeri, no_tel = :no_tel, emel = :emel, jenis_pengadil = :jenis
+            SET nama = :nama, daerah = :daerah, negeri = :negeri,
+                no_tel = :no_tel, emel = :emel, jenis_pengadil = :jenis
             WHERE id = :id
         ");
         $stmt->execute([
             ':nama'   => $nama,
+            ':daerah' => $daerah,
             ':negeri' => $negeri,
             ':no_tel' => trim($input['no_tel'] ?? ''),
-            ':emel'   => trim($input['emel'] ?? ''),
-            ':jenis'  => $input['jenis_pengadil'] ?? 'Pengadil Negeri',
+            ':emel'   => $emel,
+            ':jenis'  => $jenis,
             ':id'     => $id,
         ]);
         jsonResponse(['error' => false, 'message' => 'Pengadil luar berjaya dikemaskini.']);

@@ -179,7 +179,9 @@ cd "$BUILD_DIR"
 zip -r -q "$ZIP_PATH" . \
     -x "*.DS_Store" \
     -x "__MACOSX/*" \
-    -x "api/test-*.php"
+    -x "api/test-*.php" \
+    -x "api/diagnose.php" \
+    -x "api/connection-debug.php"
 cd "$PROJECT_ROOT"
 
 # Cleanup staging
@@ -199,9 +201,14 @@ echo "  Path:  $ZIP_PATH"
 echo "============================================"
 echo ""
 echo "Deployment steps:"
-echo "  1. Upload zip to hosting (cPanel File Manager / FTP)"
-echo "  2. Extract to public_html/"
-echo "  3. Copy .env.example to .env and configure"
-echo "  4. Run migration SQL if needed: docs/migration_perlawanan_v2.sql"
-echo "  5. Verify: https://refpahang.com/api/check-maintenance.php"
+echo "  1. Back up the production database"
+echo "  2. Before extracting the new code, run these schema migrations once:"
+echo "     docs/migration_status_perlawanan_lantikan.sql"
+echo "     docs/migration_pengadil_luar_daerah_penilai.sql"
+echo "  3. Upload the zip and extract it to public_html/"
+echo "  4. Keep the existing production .env/config.ini credentials"
+echo "  5. Delete old api/diagnose.php and api/connection-debug.php from the server"
+echo "  6. Preview, confirm, then run: docs/recover_mssp_late_auto_reject.sql"
+echo "  7. Complete the missing district values listed by the new migration"
+echo "  8. Verify: https://refpahang.com/api/check-maintenance.php"
 echo ""

@@ -74,24 +74,28 @@ try {
                    lp.pengadil_id,
                    COALESCE(p.nama_penuh, pl.nama) AS nama_penuh,
                    COALESCE(p.jenis_pengadil, pl.jenis_pengadil) AS jenis_pengadil,
-                   COALESCE(p.daerah, pl.negeri) AS daerah,
+                   COALESCE(p.daerah, pl.daerah) AS daerah,
                    COALESCE(p.negeri, pl.negeri) AS negeri,
                    COALESCE(p.no_telefon, pl.no_tel) AS no_telefon,
                    CASE WHEN lp.pengadil_id IS NOT NULL THEN 'Berdaftar' ELSE 'Luar' END AS jenis_sumber,
-                   lp.notif_hantar
+                   lp.notif_hantar,
+                   CASE WHEN lp.komen = :auto_tolak_komen THEN 1 ELSE 0 END AS is_auto_tolak
             FROM lantikan_pengadil lp
             LEFT JOIN users p ON lp.pengadil_id = p.id
             LEFT JOIN pengadil_luar pl ON lp.pengadil_luar_id = pl.id
             JOIN jadual_perlawanan jp ON lp.jadual_id = jp.id
-            WHERE jp.kejohanan_id = ?
+            WHERE jp.kejohanan_id = :kejohanan_id
         ");
-        $stmt->execute([$kejohananId]);
+        $stmt->execute([
+            ':auto_tolak_komen' => LANTIKAN_AUTO_TOLAK_KOMEN,
+            ':kejohanan_id' => $kejohananId,
+        ]);
         $allAssignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $regionLabel = $kejohanan['peringkat_kejohanan'] === 'Negeri' ? 'Daerah' : 'Negeri';
         foreach ($allAssignments as &$assignment) {
             $assignment['wilayah'] = $regionLabel === 'Daerah'
-                ? ($assignment['daerah'] ?: $assignment['negeri'])
-                : $assignment['negeri'];
+                ? ($assignment['daerah'] ?: '-')
+                : ($assignment['negeri'] ?: '-');
         }
         unset($assignment);
 
@@ -110,6 +114,7 @@ try {
         $separa = 0;
         $tiada = 0;
         foreach ($jadualList as &$j) {
+            $j['is_started'] = hasMatchStarted((string) $j['tarikh'], (string) $j['masa']);
             $j['assignments'] = [];
             $jCount = 0;
             foreach ($JAWATAN_LIST as $jaw) {

@@ -1086,7 +1086,9 @@
                         <!-- Checkbox -->
                         <td [attr.rowspan]="jawatanList.length"
                             class="px-2 py-2 text-center align-middle border border-slate-200 bg-white">
-                          @if (getSelectableMatches().some(m => m.id === j.id)) {
+                          @if (j.is_started) {
+                            <span class="text-[9px] font-semibold text-slate-500" title="Waktu perlawanan telah bermula">Bermula</span>
+                          } @else if (getSelectableMatches().some(m => m.id === j.id)) {
                             <input type="checkbox" [checked]="selectedMatchIds.has(j.id)" (change)="toggleMatch(j.id)"
                               class="w-3.5 h-3.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer" />
                           } @else {
@@ -1149,7 +1151,8 @@
                       <td class="px-1.5 py-1 text-center border-y border-l border-slate-200 font-bold text-slate-500 w-8"
                           [class.bg-amber-50]="a?.status_lantikan === 'Belum Jawab'"
                           [class.bg-emerald-50]="a?.status_lantikan === 'Diterima'"
-                          [class.bg-rose-50]="a?.status_lantikan === 'Ditolak'">
+                          [class.bg-orange-50]="isAutoTolak(a)"
+                          [class.bg-rose-50]="a?.status_lantikan === 'Ditolak' && !isAutoTolak(a)">
                         {{ getJawatanCode(jaw) }}
                       </td>
                       <!-- Nama Pegawai -->
@@ -1157,7 +1160,8 @@
                           [class.font-semibold]="a"
                           [class.bg-amber-50]="a?.status_lantikan === 'Belum Jawab'"
                           [class.bg-emerald-50]="a?.status_lantikan === 'Diterima'"
-                          [class.bg-rose-50]="a?.status_lantikan === 'Ditolak'">
+                          [class.bg-orange-50]="isAutoTolak(a)"
+                          [class.bg-rose-50]="a?.status_lantikan === 'Ditolak' && !isAutoTolak(a)">
                         @if (a) {
                           <span class="uppercase"
                                 [class.cursor-pointer]="a.pengadil_id"
@@ -1167,6 +1171,10 @@
                           @if (a.status_lantikan === 'Diterima') {
                             <svg class="w-3 h-3 text-emerald-600 inline ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                            </svg>
+                          } @else if (isAutoTolak(a)) {
+                            <svg class="w-3 h-3 text-orange-500 inline ml-1" title="Tempoh menjawab tamat" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l2.5 2.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                             </svg>
                           } @else if (a.status_lantikan === 'Ditolak') {
                             <svg class="w-3 h-3 text-rose-500 inline ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1181,7 +1189,8 @@
                       <td class="px-2 py-1 text-center border-y border-r border-slate-200 text-slate-600 uppercase text-[10px] font-medium"
                           [class.bg-amber-50]="a?.status_lantikan === 'Belum Jawab'"
                           [class.bg-emerald-50]="a?.status_lantikan === 'Diterima'"
-                          [class.bg-rose-50]="a?.status_lantikan === 'Ditolak'">
+                          [class.bg-orange-50]="isAutoTolak(a)"
+                          [class.bg-rose-50]="a?.status_lantikan === 'Ditolak' && !isAutoTolak(a)">
                         {{ a?.wilayah || '' }}
                       </td>
                       <!-- Tindakan (rowspan) -->
@@ -1189,7 +1198,7 @@
                         <td [attr.rowspan]="jawatanList.length"
                             class="px-1.5 py-2 text-center align-middle border border-slate-200 bg-white">
                           <div class="flex flex-col gap-1 items-center">
-                            @if (j.jumlah_lantikan > 0 && hasUnnotified(j)) {
+                            @if (!j.is_started && j.jumlah_lantikan > 0 && hasUnnotified(j)) {
                               <button (click)="sendMatchNotification(j.id)" [disabled]="sendingNotif"
                                 class="w-full px-1.5 py-1 bg-emerald-600 text-white text-[9px] font-semibold rounded hover:bg-emerald-700 disabled:opacity-50 transition whitespace-nowrap"
                                 title="Hantar notifikasi lantikan">
@@ -1197,9 +1206,9 @@
                               </button>
                             }
                             @if (j.jumlah_lantikan > 0) {
-                              <button (click)="editMatchLantikan(j.id)"
-                                class="w-full px-1.5 py-1 bg-blue-50 text-blue-700 text-[9px] font-semibold rounded hover:bg-blue-100 transition whitespace-nowrap"
-                                title="Edit lantikan perlawanan ini">
+                              <button (click)="editMatchLantikan(j.id)" [disabled]="j.is_started"
+                                class="w-full px-1.5 py-1 bg-blue-50 text-blue-700 text-[9px] font-semibold rounded hover:bg-blue-100 transition whitespace-nowrap disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                [title]="j.is_started ? 'Lantikan dikunci selepas perlawanan bermula' : 'Edit lantikan perlawanan ini'">
                                 Edit
                               </button>
                             }
@@ -1995,4 +2004,3 @@
     </div>
   </div>
 }
-

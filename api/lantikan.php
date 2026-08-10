@@ -17,6 +17,28 @@ $currentUser = requireRole(['Admin']);
 
 $VALID_JAWATAN = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4', 'Penilai Pengadil'];
 
+function getJadualTiming(PDO $pdo, int $jadualId): ?array
+{
+    $stmt = $pdo->prepare("SELECT id, tarikh, masa FROM jadual_perlawanan WHERE id = :id");
+    $stmt->execute([':id' => $jadualId]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
+}
+
+function rejectIfMatchStarted(PDO $pdo, int $jadualId): void
+{
+    $jadual = getJadualTiming($pdo, $jadualId);
+    if (!$jadual) {
+        jsonResponse(['error' => true, 'message' => 'Perlawanan tidak dijumpai.'], 404);
+    }
+    if (hasMatchStarted((string) $jadual['tarikh'], (string) $jadual['masa'])) {
+        jsonResponse([
+            'error' => true,
+            'message' => matchStartedMessage((string) $jadual['tarikh'], (string) $jadual['masa']),
+        ], 409);
+    }
+}
+
 /**
  * Mark all assignments for given matches as cancelled/postponed and notify officials.
  */
@@ -177,7 +199,7 @@ try {
                     END AS jenis_sumber,
                     CASE
                         WHEN pp.pengadil_id IS NOT NULL THEN u.daerah
-                        WHEN pp.pengadil_luar_id IS NOT NULL THEN pl.negeri
+                        WHEN pp.pengadil_luar_id IS NOT NULL THEN pl.daerah
                     END AS daerah,
                     CASE
                         WHEN pp.pengadil_id IS NOT NULL THEN u.negeri
@@ -199,8 +221,8 @@ try {
             $referees = $refStmt->fetchAll(PDO::FETCH_ASSOC);
             foreach ($referees as &$referee) {
                 $referee['wilayah'] = $peringkatKejohanan === 'Negeri'
-                    ? ($referee['daerah'] ?: $referee['negeri'])
-                    : $referee['negeri'];
+                    ? ($referee['daerah'] ?: '-')
+                    : ($referee['negeri'] ?: '-');
             }
             unset($referee);
         }
@@ -222,6 +244,7 @@ try {
             if (!$jadual_id) {
                 jsonResponse(['error' => true, 'message' => 'jadual_id diperlukan.'], 400);
             }
+            rejectIfMatchStarted($pdo, $jadual_id);
 
             // Auto-tolak dulu — baris yang sudah tamat tempoh tidak boleh
             // "dihidupkan semula" oleh hantar semula
@@ -425,7 +448,7 @@ try {
 
             // Get all jadual IDs with pending (Belum Jawab) assignments
             $sql = "
-                SELECT DISTINCT jp.id
+                SELECT DISTINCT jp.id, jp.tarikh, jp.masa
                 FROM jadual_perlawanan jp
                 JOIN lantikan_pengadil lp ON lp.jadual_id = jp.id
                 WHERE jp.kejohanan_id = :kid AND lp.status = 'Belum Jawab'
@@ -433,7 +456,7 @@ try {
             if (!empty($filterIds)) {
                 $placeholders = implode(',', array_fill(0, count($filterIds), '?'));
                 $stmt = $pdo->prepare("
-                    SELECT DISTINCT jp.id
+                    SELECT DISTINCT jp.id, jp.tarikh, jp.masa
                     FROM jadual_perlawanan jp
                     JOIN lantikan_pengadil lp ON lp.jadual_id = jp.id
                     WHERE jp.kejohanan_id = ? AND lp.status = 'Belum Jawab'
@@ -445,10 +468,22 @@ try {
                 $stmt = $pdo->prepare($sql . " ORDER BY jp.tarikh ASC, jp.masa ASC");
                 $stmt->execute([':kid' => $kejohanan_id]);
             }
-            $jadualIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            $jadualRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $startedMatchCount = 0;
+            $jadualIds = [];
+            foreach ($jadualRows as $jadualRow) {
+                if (hasMatchStarted((string) $jadualRow['tarikh'], (string) $jadualRow['masa'])) {
+                    $startedMatchCount++;
+                    continue;
+                }
+                $jadualIds[] = (int) $jadualRow['id'];
+            }
 
             if (empty($jadualIds)) {
-                jsonResponse(['error' => true, 'message' => 'Tiada pengadil dengan status Belum Jawab untuk dihantar notifikasi.'], 400);
+                $message = $startedMatchCount > 0
+                    ? "Notifikasi tidak dihantar: {$startedMatchCount} perlawanan yang dipilih telah bermula."
+                    : 'Tiada pengadil dengan status Belum Jawab untuk dihantar notifikasi.';
+                jsonResponse(['error' => true, 'message' => $message], 400);
             }
 
             require_once __DIR__ . '/../config/telegram.php';
@@ -611,6 +646,7 @@ try {
             if ($totalTgSent > 0)    $parts[] = "{$totalTgSent} Telegram dihantar.";
             if ($totalTgSkipped > 0) $parts[] = "{$totalTgSkipped} pengadil belum mendaftar Telegram.";
             if ($totalRenotify > 0)  $parts[] = "Nota: {$totalRenotify} pengadil dihantar semula (pautan asal masih sah; tempoh jawapan dikira semula dari notifikasi terbaru).";
+            if ($startedMatchCount > 0) $parts[] = "{$startedMatchCount} perlawanan yang telah bermula dilangkau.";
 
             jsonResponse([
                 'error'             => false,
@@ -620,6 +656,7 @@ try {
                 'email_sent'        => $totalEmail,
                 'tg_sent'           => $totalTgSent,
                 'tg_skipped'        => $totalTgSkipped,
+                'matches_skipped_started' => $startedMatchCount,
             ]);
         }
 
@@ -667,6 +704,7 @@ try {
         if (!in_array($jawatan, $VALID_JAWATAN, true)) {
             jsonResponse(['error' => true, 'message' => 'Jawatan tidak sah.'], 400);
         }
+        rejectIfMatchStarted($pdo, $jadual_id);
 
         // Upsert: if same jadual+jawatan exists, update; else insert
         // Use transaction + FOR UPDATE lock to prevent race condition

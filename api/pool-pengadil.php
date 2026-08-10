@@ -36,7 +36,7 @@ try {
                 END AS jenis_sumber,
                 CASE
                     WHEN pp.pengadil_id IS NOT NULL THEN u.daerah
-                    WHEN pp.pengadil_luar_id IS NOT NULL THEN pl.negeri
+                    WHEN pp.pengadil_luar_id IS NOT NULL THEN pl.daerah
                 END AS daerah,
                 CASE
                     WHEN pp.pengadil_id IS NOT NULL THEN u.negeri
@@ -66,8 +66,8 @@ try {
         $pool = $stmt->fetchAll(PDO::FETCH_ASSOC);
         foreach ($pool as &$member) {
             $member['wilayah'] = $member['peringkat_kejohanan'] === 'Negeri'
-                ? ($member['daerah'] ?: $member['negeri'])
-                : $member['negeri'];
+                ? ($member['daerah'] ?: '-')
+                : ($member['negeri'] ?: '-');
         }
         unset($member);
 

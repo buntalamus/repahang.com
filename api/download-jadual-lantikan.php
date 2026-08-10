@@ -96,7 +96,7 @@ $stmt = $pdo->prepare("
     SELECT lp.jadual_id, lp.jawatan, lp.status AS status_lantikan,
            COALESCE(p.nama_penuh, pl.nama) AS nama_penuh,
            COALESCE(p.jenis_pengadil, pl.jenis_pengadil) AS jenis_pengadil,
-           COALESCE(p.daerah, pl.negeri) AS daerah,
+           COALESCE(p.daerah, pl.daerah) AS daerah,
            COALESCE(p.negeri, pl.negeri) AS negeri,
            COALESCE(p.no_telefon, pl.no_tel) AS no_telefon,
            CASE WHEN lp.pengadil_id IS NOT NULL THEN 'Berdaftar' ELSE 'Luar' END AS jenis_sumber
@@ -110,8 +110,8 @@ $stmt->execute([$kejohananId]);
 $allAssignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 foreach ($allAssignments as &$assignment) {
   $assignment['wilayah'] = $regionLabel === 'Daerah'
-    ? ($assignment['daerah'] ?: $assignment['negeri'])
-    : $assignment['negeri'];
+    ? ($assignment['daerah'] ?: '-')
+    : ($assignment['negeri'] ?: '-');
 }
 unset($assignment);
 

@@ -18,6 +18,7 @@ export class PengadilLuarComponent implements OnInit {
   pengadilList: any[] = [];
   filteredList: any[] = [];
   searchText = '';
+  filterDaerah = '';
   filterNegeri = '';
   selectedIds: Set<number> = new Set();
   deletingBulk = false;
@@ -28,11 +29,12 @@ export class PengadilLuarComponent implements OnInit {
     'Sarawak', 'Selangor', 'Terengganu',
     'WP Kuala Lumpur', 'WP Putrajaya', 'WP Labuan',
   ];
+  daerahList: string[] = [];
 
   showModal = false;
   editing: any = null;
   saving = false;
-  form = { nama: '', negeri: '', no_tel: '', emel: '', jenis_pengadil: 'Pengadil Negeri' as string };
+  form = { nama: '', daerah: '', negeri: '', no_tel: '', emel: '', jenis_pengadil: 'Pengadil Negeri' as string };
 
   // Upload Excel
   showUploadModal = false;
@@ -51,7 +53,19 @@ export class PengadilLuarComponent implements OnInit {
   constructor(private api: ApiService, private toast: ToastService) {}
 
   ngOnInit(): void {
+    this.loadDistricts();
     this.load();
+  }
+
+  loadDistricts(): void {
+    this.api.get<any>('districts.php').subscribe({
+      next: (res) => {
+        this.daerahList = (res.data || [])
+          .map((district: any) => String(district.nama || '').trim())
+          .filter((name: string) => name !== '');
+        this.mergeExistingDistricts();
+      },
+    });
   }
 
   load(): void {
@@ -59,6 +73,7 @@ export class PengadilLuarComponent implements OnInit {
     this.api.get<any>('pengadil-luar.php').subscribe({
       next: (res) => {
         this.pengadilList = res.data || [];
+        this.mergeExistingDistricts();
         this.applyFilter();
         this.loading = false;
       },
@@ -72,15 +87,29 @@ export class PengadilLuarComponent implements OnInit {
       const s = this.searchText.toLowerCase();
       list = list.filter(p =>
         p.nama.toLowerCase().includes(s) ||
+        (p.daerah || '').toLowerCase().includes(s) ||
+        (p.negeri || '').toLowerCase().includes(s) ||
         (p.emel || '').toLowerCase().includes(s) ||
         (p.no_tel || '').includes(s)
       );
+    }
+    if (this.filterDaerah) {
+      list = list.filter(p => p.daerah === this.filterDaerah);
     }
     if (this.filterNegeri) {
       list = list.filter(p => p.negeri === this.filterNegeri);
     }
     this.filteredList = list;
     this.selectedIds = new Set();
+  }
+
+  private mergeExistingDistricts(): void {
+    const names = new Set(this.daerahList);
+    this.pengadilList.forEach(p => {
+      const daerah = String(p.daerah || '').trim();
+      if (daerah) names.add(daerah);
+    });
+    this.daerahList = Array.from(names).sort((a, b) => a.localeCompare(b, 'ms'));
   }
 
   toggleSelect(id: number): void {
@@ -124,7 +153,7 @@ export class PengadilLuarComponent implements OnInit {
 
   openAdd(): void {
     this.editing = null;
-    this.form = { nama: '', negeri: '', no_tel: '', emel: '', jenis_pengadil: 'Pengadil Negeri' };
+    this.form = { nama: '', daerah: '', negeri: '', no_tel: '', emel: '', jenis_pengadil: 'Pengadil Negeri' };
     this.showModal = true;
   }
 
@@ -132,6 +161,7 @@ export class PengadilLuarComponent implements OnInit {
     this.editing = p;
     this.form = {
       nama: p.nama,
+      daerah: p.daerah || '',
       negeri: p.negeri,
       no_tel: p.no_tel || '',
       emel: p.emel || '',
@@ -141,8 +171,8 @@ export class PengadilLuarComponent implements OnInit {
   }
 
   save(): void {
-    if (!this.form.nama.trim() || !this.form.negeri) {
-      this.toast.show('Nama dan negeri diperlukan.', 'error');
+    if (!this.form.nama.trim() || !this.form.daerah.trim() || !this.form.negeri) {
+      this.toast.show('Nama, daerah dan negeri diperlukan.', 'error');
       return;
     }
     this.saving = true;
@@ -179,6 +209,7 @@ export class PengadilLuarComponent implements OnInit {
   }
 
   getJenisClass(jenis: string): string {
+    if (jenis === 'Penilai Pengadil') return 'bg-teal-50 text-teal-700';
     if (jenis === 'Pengadil Kebangsaan') return 'bg-amber-50 text-amber-700';
     if (jenis === 'Kelas 1') return 'bg-emerald-50 text-emerald-700';
     if (jenis === 'Kelas 2') return 'bg-sky-50 text-sky-700';
@@ -189,13 +220,13 @@ export class PengadilLuarComponent implements OnInit {
   // ===================== UPLOAD EXCEL =====================
 
   downloadTemplate(): void {
-    const header = ['Nama', 'Negeri', 'No Tel', 'Emel', 'Jenis Pengadil'];
+    const header = ['Nama', 'Daerah', 'Negeri', 'No Tel', 'Emel', 'Jenis Pengadil'];
     const sample = [
-      ['Ahmad bin Ali', 'Selangor', '0123456789', 'ahmad@email.com', 'Pengadil Negeri'],
-      ['Muthu a/l Raju', 'Perak', '0198765432', '', 'Pengadil Kebangsaan'],
+      ['Ahmad bin Ali', 'Kuantan', 'Pahang', '0123456789', 'ahmad@email.com', 'Pengadil Negeri'],
+      ['Muthu a/l Raju', 'Kinta', 'Perak', '0198765432', '', 'Penilai Pengadil'],
     ];
     const ws = XLSX.utils.aoa_to_sheet([header, ...sample]);
-    ws['!cols'] = [{ wch: 30 }, { wch: 18 }, { wch: 15 }, { wch: 25 }, { wch: 22 }];
+    ws['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 18 }, { wch: 15 }, { wch: 25 }, { wch: 22 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Pengadil Luar');
     XLSX.writeFile(wb, 'template-pengadil-luar.xlsx');
@@ -223,17 +254,18 @@ export class PengadilLuarComponent implements OnInit {
 
       // Map header columns (case-insensitive, flexible)
       const headerRow = rows[0].map((h: any) => String(h).toLowerCase().trim());
-      const colMap: Record<string, string> = {};
+      const colMap: Record<string, number> = {};
       headerRow.forEach((h: string, idx: number) => {
-        if (h.includes('nama')) colMap['nama'] = String(idx);
-        else if (h.includes('negeri')) colMap['negeri'] = String(idx);
-        else if (h.includes('tel') || h.includes('phone') || h.includes('telefon')) colMap['no_tel'] = String(idx);
-        else if (h.includes('emel') || h.includes('email')) colMap['emel'] = String(idx);
-        else if (h.includes('jenis')) colMap['jenis_pengadil'] = String(idx);
+        if (h.includes('nama')) colMap['nama'] = idx;
+        else if (h.includes('daerah') || h.includes('district')) colMap['daerah'] = idx;
+        else if (h.includes('negeri') || h.includes('state')) colMap['negeri'] = idx;
+        else if (h.includes('tel') || h.includes('phone') || h.includes('telefon')) colMap['no_tel'] = idx;
+        else if (h.includes('emel') || h.includes('email')) colMap['emel'] = idx;
+        else if (h.includes('jenis')) colMap['jenis_pengadil'] = idx;
       });
 
-      if (!colMap['nama'] || !colMap['negeri']) {
-        this.uploadErrors = ['Header "Nama" dan "Negeri" diperlukan dalam fail.'];
+      if (!('nama' in colMap) || !('daerah' in colMap) || !('negeri' in colMap)) {
+        this.uploadErrors = ['Header "Nama", "Daerah" dan "Negeri" diperlukan dalam fail.'];
         return;
       }
 
@@ -241,15 +273,17 @@ export class PengadilLuarComponent implements OnInit {
       for (let i = 1; i < rows.length; i++) {
         const r = rows[i];
         if (!r || r.length === 0) continue;
-        const nama = String(r[+colMap['nama']] ?? '').trim();
-        const negeri = String(r[+colMap['negeri']] ?? '').trim();
-        if (!nama && !negeri) continue; // skip empty rows
+        const nama = String(r[colMap['nama']] ?? '').trim();
+        const daerah = String(r[colMap['daerah']] ?? '').trim();
+        const negeri = String(r[colMap['negeri']] ?? '').trim();
+        if (!nama && !daerah && !negeri) continue; // skip empty rows
         parsed.push({
           nama,
+          daerah,
           negeri,
-          no_tel: colMap['no_tel'] ? String(r[+colMap['no_tel']] ?? '').trim() : '',
-          emel: colMap['emel'] ? String(r[+colMap['emel']] ?? '').trim() : '',
-          jenis_pengadil: colMap['jenis_pengadil'] ? String(r[+colMap['jenis_pengadil']] ?? '').trim() || 'Pengadil Negeri' : 'Pengadil Negeri',
+          no_tel: 'no_tel' in colMap ? String(r[colMap['no_tel']] ?? '').trim() : '',
+          emel: 'emel' in colMap ? String(r[colMap['emel']] ?? '').trim() : '',
+          jenis_pengadil: 'jenis_pengadil' in colMap ? String(r[colMap['jenis_pengadil']] ?? '').trim() || 'Pengadil Negeri' : 'Pengadil Negeri',
         });
       }
 

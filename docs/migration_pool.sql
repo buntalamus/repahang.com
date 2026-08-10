@@ -1,14 +1,15 @@
 -- Migration: Pengadil Luar + Pool Pengadil
 -- Jalankan: mysql -u root refpahang < docs/migration_pool.sql
 
--- Pengadil Luar (unregistered referees from other states)
+-- Pegawai perlawanan yang tidak berdaftar dengan RefPahang
 CREATE TABLE IF NOT EXISTS pengadil_luar (
     id INT AUTO_INCREMENT PRIMARY KEY,
     nama VARCHAR(255) NOT NULL,
+    daerah VARCHAR(100) NULL,
     negeri VARCHAR(100) NOT NULL,
     no_tel VARCHAR(20),
     emel VARCHAR(255),
-    jenis_pengadil ENUM('Pengadil Negeri','Pengadil Kebangsaan') DEFAULT 'Pengadil Negeri',
+    jenis_pengadil ENUM('Pengadil Negeri','Pengadil Kebangsaan','Kelas 1','Kelas 2','Kelas 3','Penilai Pengadil') NOT NULL DEFAULT 'Pengadil Negeri',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
