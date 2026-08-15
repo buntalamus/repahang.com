@@ -172,8 +172,8 @@ echo "  ✓ Permissions set"
 echo ""
 echo "[4/4] Creating deployment zip..."
 
-# Remove old deploy zips
-rm -f "$DEPLOY_DIR"/refpahang-deploy-*.zip
+# Keep older deployment packages as rollback artifacts. ZIP names already carry
+# a timestamp, so a new build does not need to delete a known-good package.
 
 cd "$BUILD_DIR"
 zip -r -q "$ZIP_PATH" . \
@@ -209,6 +209,7 @@ echo "  3. Upload the zip and extract it to public_html/"
 echo "  4. Keep the existing production .env/config.ini credentials"
 echo "  5. Delete old api/diagnose.php and api/connection-debug.php from the server"
 echo "  6. Preview, confirm, then run: docs/recover_mssp_late_auto_reject.sql"
-echo "  7. Complete the missing district values listed by the new migration"
-echo "  8. Verify: https://refpahang.com/api/check-maintenance.php"
+echo "  7. Preview, confirm, then run: docs/recover_mssp_accepted_history.sql"
+echo "  8. Complete the missing district values listed by the new migration"
+echo "  9. Verify: https://refpahang.com/api/check-maintenance.php"
 echo ""

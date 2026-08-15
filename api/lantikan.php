@@ -704,39 +704,176 @@ try {
         if (!in_array($jawatan, $VALID_JAWATAN, true)) {
             jsonResponse(['error' => true, 'message' => 'Jawatan tidak sah.'], 400);
         }
-        rejectIfMatchStarted($pdo, $jadual_id);
+        $jadualTiming = getJadualTiming($pdo, $jadual_id);
+        if (!$jadualTiming) {
+            jsonResponse(['error' => true, 'message' => 'Perlawanan tidak dijumpai.'], 404);
+        }
+        $matchStarted = hasMatchStarted((string) $jadualTiming['tarikh'], (string) $jadualTiming['masa']);
 
         // Upsert: if same jadual+jawatan exists, update; else insert
         // Use transaction + FOR UPDATE lock to prevent race condition
         $pdo->beginTransaction();
         try {
-            $checkStmt = $pdo->prepare("SELECT id FROM lantikan_pengadil WHERE jadual_id = :jid AND jawatan = :jaw FOR UPDATE");
+            $checkStmt = $pdo->prepare("
+                SELECT id, pengadil_id, pengadil_luar_id, status, penilaian_token
+                FROM lantikan_pengadil
+                WHERE jadual_id = :jid AND jawatan = :jaw
+                FOR UPDATE
+            ");
             $checkStmt->execute([':jid' => $jadual_id, ':jaw' => $jawatan]);
-            $existing = $checkStmt->fetch();
+            $existing = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($existing) {
-            // Token WAJIB dikosongkan: pautan emel/Telegram pengadil lama tidak
-            // boleh digunakan untuk menjawab lantikan pengadil baru
-            $pdo->prepare("
-                UPDATE lantikan_pengadil
-                SET pengadil_id = :pid, pengadil_luar_id = :plid, status = 'Belum Jawab', komen = NULL, tarikh_jawab = NULL, notif_hantar = 0, tarikh_notif = NULL, tg_token = NULL, email_token = NULL, created_by = :cb
-                WHERE id = :id
-            ")->execute([':pid' => $pengadil_id, ':plid' => $pengadil_luar_id, ':cb' => (int)$currentUser['id'], ':id' => $existing['id']]);
+            $identityChanged = !$existing
+                || (int) ($existing['pengadil_id'] ?? 0) !== (int) ($pengadil_id ?? 0)
+                || (int) ($existing['pengadil_luar_id'] ?? 0) !== (int) ($pengadil_luar_id ?? 0);
+
+            // Once an RA report exists, its listed officials are an official
+            // snapshot. Do not silently replace that crew.
+            if ($matchStarted && $identityChanged) {
+                $reportStmt = $pdo->prepare("
+                    SELECT id FROM laporan_penilaian
+                    WHERE jadual_id = :jid
+                    LIMIT 1 FOR UPDATE
+                ");
+                $reportStmt->execute([':jid' => $jadual_id]);
+                if ($reportStmt->fetchColumn()) {
+                    $pdo->rollBack();
+                    jsonResponse([
+                        'error' => true,
+                        'message' => 'Lantikan tidak boleh diubah kerana laporan RA untuk perlawanan ini telah diwujudkan.',
+                    ], 409);
+                }
+
+                $legacyAssessmentStmt = $pdo->prepare("
+                    SELECT pp.id
+                    FROM penilaian_pengadil pp
+                    JOIN perlawanan p ON p.id = pp.perlawanan_id
+                    JOIN lantikan_pengadil lp ON lp.id = p.lantikan_id
+                    WHERE lp.jadual_id = :jid
+                    LIMIT 1 FOR UPDATE
+                ");
+                $legacyAssessmentStmt->execute([':jid' => $jadual_id]);
+                if ($legacyAssessmentStmt->fetchColumn()) {
+                    $pdo->rollBack();
+                    jsonResponse([
+                        'error' => true,
+                        'message' => 'Lantikan tidak boleh diubah kerana rekod penilaian pengadil telah wujud dalam sejarah perlawanan.',
+                    ], 409);
+                }
+            }
+
+            $lantikanId = 0;
+            $shouldNotifyRa = false;
+
+            if ($existing) {
+                $lantikanId = (int) $existing['id'];
+                if ($matchStarted) {
+                    $keepPenilaianToken = $jawatan === 'Penilai Pengadil'
+                        && !$identityChanged
+                        && $existing['status'] === 'Diterima';
+                    $pdo->prepare("
+                        UPDATE lantikan_pengadil
+                        SET pengadil_id = :pid, pengadil_luar_id = :plid,
+                            status = 'Diterima', komen = NULL,
+                            sebab_status = 'Disahkan terus oleh pentadbir selepas perlawanan bermula',
+                            tarikh_jawab = NOW(), status_dikemaskini_at = NOW(),
+                            notif_hantar = 0, tg_notif_hantar = 0, tarikh_notif = NULL,
+                            tg_token = NULL, email_token = NULL,
+                            penilaian_token = CASE WHEN :keep_penilaian = 1 THEN penilaian_token ELSE NULL END,
+                            created_by = :cb
+                        WHERE id = :id
+                    ")->execute([
+                        ':pid' => $pengadil_id,
+                        ':plid' => $pengadil_luar_id,
+                        ':keep_penilaian' => $keepPenilaianToken ? 1 : 0,
+                        ':cb' => (int) $currentUser['id'],
+                        ':id' => $lantikanId,
+                    ]);
+                    $shouldNotifyRa = $jawatan === 'Penilai Pengadil' && !$keepPenilaianToken;
+                } else {
+                    // Old response links must not answer a replacement's appointment.
+                    $pdo->prepare("
+                        UPDATE lantikan_pengadil
+                        SET pengadil_id = :pid, pengadil_luar_id = :plid,
+                            status = 'Belum Jawab', komen = NULL, sebab_status = NULL,
+                            tarikh_jawab = NULL, status_dikemaskini_at = NULL,
+                            notif_hantar = 0, tg_notif_hantar = 0, tarikh_notif = NULL,
+                            tg_token = NULL, email_token = NULL, penilaian_token = NULL,
+                            created_by = :cb
+                        WHERE id = :id
+                    ")->execute([
+                        ':pid' => $pengadil_id,
+                        ':plid' => $pengadil_luar_id,
+                        ':cb' => (int) $currentUser['id'],
+                        ':id' => $lantikanId,
+                    ]);
+                }
+            } elseif ($matchStarted) {
+                $pdo->prepare("
+                    INSERT INTO lantikan_pengadil
+                        (jadual_id, pengadil_id, pengadil_luar_id, jawatan, status,
+                         sebab_status, tarikh_jawab, status_dikemaskini_at,
+                         notif_hantar, tg_notif_hantar, created_by)
+                    VALUES
+                        (:jid, :pid, :plid, :jaw, 'Diterima',
+                         'Disahkan terus oleh pentadbir selepas perlawanan bermula', NOW(), NOW(),
+                         0, 0, :cb)
+                ")->execute([
+                    ':jid' => $jadual_id,
+                    ':pid' => $pengadil_id,
+                    ':plid' => $pengadil_luar_id,
+                    ':jaw' => $jawatan,
+                    ':cb' => (int) $currentUser['id'],
+                ]);
+                $lantikanId = (int) $pdo->lastInsertId();
+                $shouldNotifyRa = $jawatan === 'Penilai Pengadil';
+            } else {
+                $pdo->prepare("
+                    INSERT INTO lantikan_pengadil (jadual_id, pengadil_id, pengadil_luar_id, jawatan, created_by)
+                    VALUES (:jid, :pid, :plid, :jaw, :cb)
+                ")->execute([
+                    ':jid' => $jadual_id,
+                    ':pid' => $pengadil_id,
+                    ':plid' => $pengadil_luar_id,
+                    ':jaw' => $jawatan,
+                    ':cb' => (int) $currentUser['id'],
+                ]);
+                $lantikanId = (int) $pdo->lastInsertId();
+            }
+
+            if ($matchStarted) {
+                syncPerlawananHistoryForJadual($pdo, $jadual_id);
+                $pdo->prepare("
+                    UPDATE jadual_perlawanan
+                    SET status = CASE
+                        WHEN status IN ('Belum Lantik', 'Menunggu Pengesahan') THEN 'Disahkan'
+                        ELSE status
+                    END
+                    WHERE id = :id
+                ")->execute([':id' => $jadual_id]);
+            }
+
             $pdo->commit();
-            jsonResponse(['error' => false, 'message' => 'Lantikan dikemaskini.']);
-        } else {
-            $pdo->prepare("
-                INSERT INTO lantikan_pengadil (jadual_id, pengadil_id, pengadil_luar_id, jawatan, created_by)
-                VALUES (:jid, :pid, :plid, :jaw, :cb)
-            ")->execute([':jid' => $jadual_id, ':pid' => $pengadil_id, ':plid' => $pengadil_luar_id, ':jaw' => $jawatan, ':cb' => (int)$currentUser['id']]);
 
-            // Update jadual status — any assignment means match is being prepared
+            $message = $matchStarted
+                ? 'Lantikan rekod lama disahkan terus dan sejarah pengadil dikemaskini.'
+                : ($existing ? 'Lantikan dikemaskini.' : 'Pengadil berjaya dilantik.');
 
-            $pdo->commit();
-            jsonResponse(['error' => false, 'message' => 'Pengadil berjaya dilantik.']);
-        }
+            if ($shouldNotifyRa) {
+                try {
+                    generatePenilaianToken($pdo, $lantikanId);
+                    $message .= ' Pautan borang penilaian RA telah dihantar.';
+                } catch (Throwable $notifyErr) {
+                    error_log('[lantikan.php] RA notification failed: ' . $notifyErr->getMessage());
+                    $message .= ' Lantikan RA berjaya, tetapi notifikasi borang gagal dihantar.';
+                }
+            }
+
+            jsonResponse(['error' => false, 'message' => $message]);
         } catch (Throwable $txErr) {
-            $pdo->rollBack();
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             throw $txErr;
         }
     }
@@ -767,6 +904,13 @@ try {
         ");
         $preStmt->execute([':id' => $id]);
         $record = $preStmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($record && hasMatchStarted((string) $record['tarikh'], (string) $record['masa'])) {
+            jsonResponse([
+                'error' => true,
+                'message' => 'Lantikan perlawanan yang telah bermula tidak boleh dibuang. Gunakan tindakan Ganti untuk membetulkan pegawai.',
+            ], 409);
+        }
 
         $pdo->prepare("DELETE FROM lantikan_pengadil WHERE id = :id")->execute([':id' => $id]);
 

@@ -161,7 +161,7 @@ try {
 
         // Look up the assignment
         $stmt = $pdo->prepare("
-            SELECT lp.id, lp.status, lp.komen, lp.tarikh_notif, lp.jawatan, lp.pengadil_id,
+            SELECT lp.id, lp.jadual_id, lp.status, lp.komen, lp.tarikh_notif, lp.jawatan, lp.pengadil_id,
                    jp.tarikh, jp.pasukan_home, jp.pasukan_away, jp.tempat, jp.masa,
                    kj.nama AS kejohanan,
                    COALESCE(u.telegram_chat_id, pl.telegram_chat_id) AS owner_chat_id,
@@ -226,20 +226,49 @@ try {
         $newStatus = $action === 'accept' ? 'Diterima' : 'Ditolak';
         $lantikanId = (int) $row['id'];
 
-        $updStmt = $pdo->prepare(
-            "UPDATE lantikan_pengadil SET status = :s, tarikh_jawab = NOW(), tg_token = NULL WHERE id = :id AND status = 'Belum Jawab'"
-        );
-        $updStmt->execute([':s' => $newStatus, ':id' => $lantikanId]);
+        // Status acceptance and the automatic history row are one unit. If
+        // history creation fails, do not leave the appointment as Diterima.
+        $pdo->beginTransaction();
+        try {
+            $updStmt = $pdo->prepare(
+                "UPDATE lantikan_pengadil SET status = :s, tarikh_jawab = NOW(), tg_token = NULL WHERE id = :id AND status = 'Belum Jawab'"
+            );
+            $updStmt->execute([':s' => $newStatus, ':id' => $lantikanId]);
 
-        if ($updStmt->rowCount() === 0) {
-            $already = $action === 'accept' ? 'sudah diterima' : 'sudah ditolak';
-            tgAnswerCallback($cbqId, "Tugasan ini {$already}.", true);
-            http_response_code(200);
-            exit;
+            if ($updStmt->rowCount() === 0) {
+                $pdo->rollBack();
+                $already = $action === 'accept' ? 'sudah diterima' : 'sudah ditolak';
+                tgAnswerCallback($cbqId, "Tugasan ini {$already}.", true);
+                http_response_code(200);
+                exit;
+            }
+
+            if ($newStatus === 'Diterima') {
+                createPerlawananFromLantikan($pdo, $lantikanId);
+
+                $chkStmt = $pdo->prepare("
+                    SELECT COUNT(*) AS total,
+                           SUM(CASE WHEN status = 'Diterima' THEN 1 ELSE 0 END) AS diterima
+                    FROM lantikan_pengadil WHERE jadual_id = :jid
+                ");
+                $chkStmt->execute([':jid' => (int) $row['jadual_id']]);
+                $counts = $chkStmt->fetch(PDO::FETCH_ASSOC);
+                if ((int) $counts['total'] > 0 && (int) $counts['total'] === (int) $counts['diterima']) {
+                    $pdo->prepare("UPDATE jadual_perlawanan SET status = 'Disahkan' WHERE id = :id AND status = 'Menunggu Pengesahan'")
+                        ->execute([':id' => (int) $row['jadual_id']]);
+                }
+            }
+
+            $pdo->commit();
+        } catch (Throwable $txErr) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $txErr;
         }
 
-        // ── RESPOND TO USER FIRST — before any helpers ──
-        // This MUST happen immediately so the Telegram "loading" spinner stops.
+        // The database transaction is complete; it is now safe to acknowledge
+        // the callback and replace the inline buttons.
         $tarikhFmt  = date('d M Y', strtotime((string) ($row['tarikh'] ?? '')));
         $pasukan    = htmlspecialchars(($row['pasukan_home'] ?? '') . ' lwn ' . ($row['pasukan_away'] ?? ''));
         $jawatan    = htmlspecialchars((string) ($row['jawatan'] ?? ''));
@@ -290,41 +319,13 @@ try {
 
         tgEditMessage($chatId, $msgId, $reply);
 
-        // ── HELPER OPERATIONS — run AFTER user has been responded to ──
-        require_once __DIR__ . '/../config/lantikan-helper.php';
-
+        // External notification remains post-commit so a delivery failure does
+        // not undo a response and history row that were already saved.
         if ($newStatus === 'Diterima') {
-            try {
-                createPerlawananFromLantikan($pdo, $lantikanId);
-            } catch (Throwable $helperErr) {
-                error_log('[telegram-webhook] createPerlawanan error: ' . $helperErr->getMessage());
-            }
-
             try {
                 generatePenilaianToken($pdo, $lantikanId);
             } catch (Throwable $helperErr) {
                 error_log('[telegram-webhook] generatePenilaianToken error: ' . $helperErr->getMessage());
-            }
-
-            try {
-                $jStmt = $pdo->prepare("SELECT jadual_id FROM lantikan_pengadil WHERE id = :id");
-                $jStmt->execute([':id' => $lantikanId]);
-                $jRow = $jStmt->fetch(PDO::FETCH_ASSOC);
-                if ($jRow) {
-                    $chkStmt = $pdo->prepare("
-                        SELECT COUNT(*) AS total,
-                               SUM(CASE WHEN status = 'Diterima' THEN 1 ELSE 0 END) AS diterima
-                        FROM lantikan_pengadil WHERE jadual_id = :jid
-                    ");
-                    $chkStmt->execute([':jid' => $jRow['jadual_id']]);
-                    $counts = $chkStmt->fetch(PDO::FETCH_ASSOC);
-                    if ((int)$counts['total'] > 0 && (int)$counts['total'] === (int)$counts['diterima']) {
-                        $pdo->prepare("UPDATE jadual_perlawanan SET status = 'Disahkan' WHERE id = :id AND status = 'Menunggu Pengesahan'")
-                            ->execute([':id' => $jRow['jadual_id']]);
-                    }
-                }
-            } catch (Throwable $helperErr) {
-                error_log('[telegram-webhook] jadual status update error: ' . $helperErr->getMessage());
             }
         }
 
@@ -360,6 +361,9 @@ try {
     }
 
 } catch (Throwable $e) {
+    if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     error_log('[telegram-webhook] FATAL: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
     // Even on fatal error, try to stop the loading spinner
     if (isset($cbqId)) {

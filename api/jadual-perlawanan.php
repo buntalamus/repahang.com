@@ -122,6 +122,7 @@ try {
             if (!$match) {
                 jsonResponse(['error' => true, 'message' => 'Perlawanan tidak dijumpai.'], 404);
             }
+            $match['is_started'] = hasMatchStarted((string) $match['tarikh'], (string) $match['masa']);
 
             // Get assignments for this match (both registered and luar)
             $assignStmt = $pdo->prepare("
@@ -153,10 +154,17 @@ try {
                     (SELECT COUNT(*) FROM lantikan_pengadil lp WHERE lp.jadual_id = jp.id AND lp.status = 'Diterima') AS jumlah_terima
                 FROM jadual_perlawanan jp
                 WHERE jp.kejohanan_id = :kid
-                ORDER BY jp.kategori ASC, jp.tarikh ASC, jp.masa ASC, jp.no_perlawanan ASC
+                ORDER BY jp.kategori ASC, jp.tarikh ASC, jp.masa ASC,
+                         CAST(SUBSTRING_INDEX(jp.no_perlawanan, '-', -1) AS UNSIGNED) ASC,
+                         jp.no_perlawanan ASC
             ");
             $stmt->execute([':kid' => $kid]);
-            jsonResponse(['error' => false, 'data' => $stmt->fetchAll()]);
+            $matches = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($matches as &$match) {
+                $match['is_started'] = hasMatchStarted((string) $match['tarikh'], (string) $match['masa']);
+            }
+            unset($match);
+            jsonResponse(['error' => false, 'data' => $matches]);
         } else {
             jsonResponse(['error' => true, 'message' => 'kejohanan_id diperlukan.'], 400);
         }

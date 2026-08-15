@@ -285,46 +285,59 @@ function renumberNoPerlawanan(PDO $pdo, int $kejohananId): int
 /**
  * Create a perlawanan record from an accepted lantikan.
  * Populates all official IDs so the pengadil can see the full crew.
- * Skips if record already exists (duplicate-safe via lantikan_id UNIQUE).
+ * Skips if record already exists (duplicate-safe via lantikan_id UNIQUE),
+ * unless $syncExisting is true for an admin correction after kickoff.
  * Only creates for registered pengadil (pengadil_id IS NOT NULL).
  *
  * @param PDO $pdo
  * @param int $lantikanId  The lantikan_pengadil.id that was just accepted
- * @return bool True if record created, false if skipped
+ * @param bool $syncExisting Update/remove an existing history row to match the
+ *                           current accepted appointment.
+ * @return bool True if history was created/updated/removed, false if skipped
  */
-function createPerlawananFromLantikan(PDO $pdo, int $lantikanId): bool
+function createPerlawananFromLantikan(PDO $pdo, int $lantikanId, bool $syncExisting = false): bool
 {
     // Fetch lantikan + jadual + kejohanan details
     $stmt = $pdo->prepare("
-        SELECT lp.id, lp.pengadil_id, lp.jawatan, lp.jadual_id,
-               jp.tarikh, jp.tempat, jp.pasukan_home, jp.pasukan_away,
+        SELECT lp.id, lp.pengadil_id, lp.jawatan, lp.jadual_id, lp.status,
+               jp.tarikh, jp.masa, jp.tempat, jp.pasukan_home, jp.pasukan_away,
                jp.kategori, jp.peringkat, jp.kejohanan_id,
                COALESCE(kj.nama, '') AS kejohanan_nama
         FROM lantikan_pengadil lp
         JOIN jadual_perlawanan jp ON lp.jadual_id = jp.id
         LEFT JOIN kejohanan kj ON jp.kejohanan_id = kj.id
-        WHERE lp.id = :id AND lp.status = 'Diterima'
+        WHERE lp.id = :id
     ");
     $stmt->execute([':id' => $lantikanId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$row || empty($row['pengadil_id'])) {
-        // pengadil_luar — no dashboard account, skip
+    $exists = $pdo->prepare("SELECT id FROM perlawanan WHERE lantikan_id = :lid LIMIT 1");
+    $exists->execute([':lid' => $lantikanId]);
+    $existingId = $exists->fetchColumn();
+
+    if (!$row || ($row['status'] ?? '') !== 'Diterima' || empty($row['pengadil_id'])) {
+        // External/rejected appointments must not leave an old registered
+        // official in history when an admin corrects a past match.
+        if ($syncExisting && $existingId) {
+            $pdo->prepare("DELETE FROM perlawanan WHERE id = :id")
+                ->execute([':id' => (int) $existingId]);
+            return true;
+        }
         return false;
     }
 
-    // Check if already created (prevent duplicate)
-    $exists = $pdo->prepare("SELECT 1 FROM perlawanan WHERE lantikan_id = :lid LIMIT 1");
-    $exists->execute([':lid' => $lantikanId]);
-    if ($exists->fetchColumn()) {
+    if ($existingId && !$syncExisting) {
         return false;
     }
 
     // Fetch all officials for this match to populate the crew fields
+    $acceptedOnly = $syncExisting ? "AND lp.status = 'Diterima'" : '';
     $crewStmt = $pdo->prepare("
         SELECT lp.jawatan, lp.pengadil_id
         FROM lantikan_pengadil lp
-        WHERE lp.jadual_id = :jid AND lp.pengadil_id IS NOT NULL
+        WHERE lp.jadual_id = :jid
+          AND lp.pengadil_id IS NOT NULL
+          {$acceptedOnly}
     ");
     $crewStmt->execute([':jid' => $row['jadual_id']]);
     $crewRows = $crewStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -349,23 +362,17 @@ function createPerlawananFromLantikan(PDO $pdo, int $lantikanId): bool
     if (!empty($row['kejohanan_nama'])) $jenisParts[] = $row['kejohanan_nama'];
     if (!empty($row['kategori']))       $jenisParts[] = $row['kategori'];
     if (!empty($row['peringkat']))      $jenisParts[] = $row['peringkat'];
-    $jenis = implode(' - ', $jenisParts) ?: 'Kejohanan';
+    // Schema perlawanan.jenis is VARCHAR(60). Keep the full tournament name
+    // separately in nama_kejohanan and never let this label abort acceptance.
+    $jenis = mb_substr(implode(' - ', $jenisParts) ?: 'Kejohanan', 0, 60);
 
-    $ins = $pdo->prepare("
-        INSERT INTO perlawanan
-            (user_id, lantikan_id, tarikh, jenis, tempat, home_team, away_team,
-             jawatan, head_referee_id, assistant_referee_1_id, assistant_referee_2_id,
-             fourth_official_id, status_pp, created_at)
-        VALUES
-            (:uid, :lid, :tarikh, :jenis, :tempat, :home, :away,
-             :jawatan, :hr, :ar1, :ar2, :fo, 'Disahkan', NOW())
-    ");
-
-    $ins->execute([
+    $params = [
         ':uid'     => (int) $row['pengadil_id'],
         ':lid'     => $lantikanId,
         ':tarikh'  => $row['tarikh'],
+        ':masa'    => $row['masa'] ?? null,
         ':jenis'   => $jenis,
+        ':nama_kejohanan' => $row['kejohanan_nama'] ?: null,
         ':tempat'  => $row['tempat'] ?? '',
         ':home'    => $row['pasukan_home'] ?? '',
         ':away'    => $row['pasukan_away'] ?? '',
@@ -374,9 +381,54 @@ function createPerlawananFromLantikan(PDO $pdo, int $lantikanId): bool
         ':ar1'     => $crew['assistant_referee_1_id'],
         ':ar2'     => $crew['assistant_referee_2_id'],
         ':fo'      => $crew['fourth_official_id'],
-    ]);
+    ];
+
+    if ($existingId) {
+        $upd = $pdo->prepare("
+            UPDATE perlawanan
+            SET user_id = :uid, tarikh = :tarikh, masa = :masa,
+                jenis = :jenis, nama_kejohanan = :nama_kejohanan,
+                tempat = :tempat, home_team = :home, away_team = :away,
+                jawatan = :jawatan, head_referee_id = :hr,
+                assistant_referee_1_id = :ar1,
+                assistant_referee_2_id = :ar2,
+                fourth_official_id = :fo, status_pp = 'Disahkan'
+            WHERE id = :id
+        ");
+        unset($params[':lid']);
+        $params[':id'] = (int) $existingId;
+        $upd->execute($params);
+        return true;
+    }
+
+    $ins = $pdo->prepare("
+        INSERT INTO perlawanan
+            (user_id, lantikan_id, tarikh, masa, jenis, nama_kejohanan,
+             tempat, home_team, away_team,
+             jawatan, head_referee_id, assistant_referee_1_id, assistant_referee_2_id,
+             fourth_official_id, status_pp, created_at)
+        VALUES
+            (:uid, :lid, :tarikh, :masa, :jenis, :nama_kejohanan,
+             :tempat, :home, :away,
+             :jawatan, :hr, :ar1, :ar2, :fo, 'Disahkan', NOW())
+    ");
+
+    $ins->execute($params);
 
     return true;
+}
+
+/**
+ * Keep every registered official's history snapshot aligned after an admin
+ * corrects a match that has already started.
+ */
+function syncPerlawananHistoryForJadual(PDO $pdo, int $jadualId): void
+{
+    $stmt = $pdo->prepare("SELECT id FROM lantikan_pengadil WHERE jadual_id = :jid");
+    $stmt->execute([':jid' => $jadualId]);
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $lantikanId) {
+        createPerlawananFromLantikan($pdo, (int) $lantikanId, true);
+    }
 }
 
 /**

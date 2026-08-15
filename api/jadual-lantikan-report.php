@@ -63,7 +63,9 @@ try {
                    pasukan_home, pasukan_away, tempat, status
             FROM jadual_perlawanan
             WHERE kejohanan_id = ?
-            ORDER BY kategori ASC, tarikh ASC, masa ASC, no_perlawanan ASC
+            ORDER BY kategori ASC, tarikh ASC, masa ASC,
+                     CAST(SUBSTRING_INDEX(no_perlawanan, '-', -1) AS UNSIGNED) ASC,
+                     no_perlawanan ASC
         ");
         $stmt->execute([$kejohananId]);
         $jadualList = $stmt->fetchAll(PDO::FETCH_ASSOC);

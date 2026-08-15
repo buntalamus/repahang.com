@@ -194,7 +194,7 @@ try {
             $sql = "
                 SELECT lp.id, lp.jadual_id, lp.status, lp.tahap_kesukaran, lp.tarikh_hantar,
                     jp.no_perlawanan, jp.tarikh, jp.pasukan_home, jp.pasukan_away,
-                    k.nama AS nama_kejohanan,
+                    k.id AS kejohanan_id, k.nama AS nama_kejohanan,
                     COALESCE(u_penilai.nama_penuh, pl_penilai.nama) AS nama_penilai
                 FROM laporan_penilaian lp
                 JOIN jadual_perlawanan jp ON lp.jadual_id = jp.id

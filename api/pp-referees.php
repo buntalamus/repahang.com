@@ -32,6 +32,13 @@ $allowedRoles = ['Pengadil', 'Penilai'];
 
 $targetRole = isset($_GET['role']) && in_array($_GET['role'], $allowedRoles, true) ? $_GET['role'] : 'Pengadil';
 
+function ppTargetRoleSql(string $targetRole, string $alias = 'u'): string
+{
+    return $targetRole === 'Penilai'
+        ? "{$alias}.role IN ('Penilai', 'PP Daerah')"
+        : "{$alias}.role = 'Pengadil'";
+}
+
 
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -120,7 +127,7 @@ function handleGetReferees(array $currentUser, string $targetRole = 'Pengadil'):
 
                 WHERE u.id = :referee_id
 
-                AND u.role = :target_role
+                AND " . ppTargetRoleSql($targetRole) . "
 
                 AND u.persatuan_id = :persatuan_id
 
@@ -132,7 +139,6 @@ function handleGetReferees(array $currentUser, string $targetRole = 'Pengadil'):
 
                 ':referee_id' => $singleRefereeId,
 
-                ':target_role' => $targetRole,
 
                 ':persatuan_id' => $persatuanId
 
@@ -226,7 +232,7 @@ function handleGetReferees(array $currentUser, string $targetRole = 'Pengadil'):
 
             LEFT JOIN permohonan p ON u.id = p.user_id
 
-            WHERE u.role = :target_role
+            WHERE " . ppTargetRoleSql($targetRole) . "
 
             AND u.persatuan_id = :persatuan_id
 
@@ -238,7 +244,7 @@ function handleGetReferees(array $currentUser, string $targetRole = 'Pengadil'):
 
 
 
-        $refereesStmt->execute([':target_role' => $targetRole, ':persatuan_id' => $persatuanId]);
+        $refereesStmt->execute([':persatuan_id' => $persatuanId]);
 
         $referees = $refereesStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -338,7 +344,7 @@ function handleToggleStatus(array $currentUser, string $targetRole = 'Pengadil')
 
             WHERE id = :referee_id
 
-            AND role = :target_role
+            AND " . ppTargetRoleSql($targetRole, 'users') . "
 
             AND persatuan_id = :persatuan_id
 
@@ -348,7 +354,6 @@ function handleToggleStatus(array $currentUser, string $targetRole = 'Pengadil')
 
             ':referee_id' => $refereeId,
 
-            ':target_role' => $targetRole,
 
             ':persatuan_id' => $persatuanId
 
@@ -482,7 +487,7 @@ function handleDeleteReferee(array $currentUser, string $targetRole = 'Pengadil'
 
             WHERE id = :referee_id
 
-            AND role = :target_role
+            AND " . ppTargetRoleSql($targetRole, 'users') . "
 
             AND persatuan_id = :persatuan_id
 
@@ -492,7 +497,6 @@ function handleDeleteReferee(array $currentUser, string $targetRole = 'Pengadil'
 
             ':referee_id' => $refereeId,
 
-            ':target_role' => $targetRole,
 
             ':persatuan_id' => $persatuanId
 
@@ -580,11 +584,11 @@ function getRefereeStats(PDO $pdo, int $persatuanId, string $targetRole = 'Penga
 
         SELECT COUNT(*) as count FROM users
 
-        WHERE role = :target_role AND persatuan_id = :persatuan_id
+        WHERE " . ppTargetRoleSql($targetRole, 'users') . " AND persatuan_id = :persatuan_id
 
     ");
 
-    $totalStmt->execute([':target_role' => $targetRole, ':persatuan_id' => $persatuanId]);
+    $totalStmt->execute([':persatuan_id' => $persatuanId]);
 
     $stats['total'] = (int) $totalStmt->fetch()['count'];
 
@@ -596,15 +600,16 @@ function getRefereeStats(PDO $pdo, int $persatuanId, string $targetRole = 'Penga
 
         SELECT COUNT(DISTINCT u.id) as count FROM users u
 
-        INNER JOIN permohonan p ON u.id = p.user_id
+        LEFT JOIN permohonan p ON u.id = p.user_id
 
-        WHERE u.role = :target_role AND u.persatuan_id = :persatuan_id
+        WHERE " . ppTargetRoleSql($targetRole) . " AND u.persatuan_id = :persatuan_id
 
-        AND p.tahun_permohonan = 2026 AND p.status = 'Approved'
+        AND u.aktif = 1
+        AND (u.role = 'PP Daerah' OR (p.tahun_permohonan = 2026 AND p.status = 'Approved'))
 
     ");
 
-    $activeStmt->execute([':target_role' => $targetRole, ':persatuan_id' => $persatuanId]);
+    $activeStmt->execute([':persatuan_id' => $persatuanId]);
 
     $stats['active'] = (int) $activeStmt->fetch()['count'];
 

@@ -65,6 +65,7 @@ export class LantikanPengadilComponent implements OnInit {
   // Jadual
   loadingJadual = false;
   jadualList: any[] = [];
+  jadualSearch = '';
   selectedJadualIds = new Set<number>();
   showJadualModal = false;
   editingJadual: any = null;
@@ -193,6 +194,7 @@ export class LantikanPengadilComponent implements OnInit {
   // Jadual Lantikan (report + pengesahan)
   loadingJadualLantikan = false;
   jadualLantikanData: any = null;
+  jadualLantikanSearch = '';
   selectedMatchIds = new Set<number>();
   showMatchStatusModal = false;
   matchStatusForm: { jadualIds: number[]; status: 'Dibatalkan' | 'Ditangguhkan'; sebab: '' } = {
@@ -205,9 +207,28 @@ export class LantikanPengadilComponent implements OnInit {
   renumbering = false;
   pengesahanForm = { nama_penyahkan: '', jawatan_penyahkan: '', nota: '' };
 
+  private sortJadualBySchedule(jadual: any[]): any[] {
+    const natural = new Intl.Collator('ms', { numeric: true, sensitivity: 'base' });
+    return [...jadual].sort((a: any, b: any) =>
+      natural.compare(String(a.kategori ?? ''), String(b.kategori ?? ''))
+      || String(a.tarikh ?? '').localeCompare(String(b.tarikh ?? ''))
+      || String(a.masa ?? '').localeCompare(String(b.masa ?? ''))
+      || natural.compare(String(a.no_perlawanan ?? ''), String(b.no_perlawanan ?? ''))
+    );
+  }
+
   /** Group the (backend-sorted) report jadual by kategori for sectioned display. */
   get jadualLantikanGrouped(): { kategori: string; matches: any[] }[] {
-    const jadual = this.jadualLantikanData?.jadual ?? [];
+    const search = this.jadualLantikanSearch.trim().toLowerCase();
+    const jadual = (this.jadualLantikanData?.jadual ?? []).filter((j: any) => !search || [
+      j.no_perlawanan,
+      j.pasukan_home,
+      j.pasukan_away,
+      j.peringkat,
+      j.kumpulan,
+      j.kategori,
+      j.tempat,
+    ].some((value) => String(value ?? '').toLowerCase().includes(search)));
     const groups: { kategori: string; matches: any[] }[] = [];
     for (const j of jadual) {
       const kat = (j.kategori || '').trim() || 'Lain-lain';
@@ -222,6 +243,10 @@ export class LantikanPengadilComponent implements OnInit {
     return groups;
   }
 
+  get filteredJadualLantikanCount(): number {
+    return this.jadualLantikanGrouped.reduce((total, group) => total + group.matches.length, 0);
+  }
+
   loadJadualLantikan(): void {
     if (!this.selectedKejohananId) return;
     this.loadingJadualLantikan = true;
@@ -231,7 +256,10 @@ export class LantikanPengadilComponent implements OnInit {
       next: (res) => {
         this.loadingJadualLantikan = false;
         if (!res.error) {
-          this.jadualLantikanData = res;
+          this.jadualLantikanData = {
+            ...res,
+            jadual: this.sortJadualBySchedule(res.jadual ?? []),
+          };
           this.showPengesahanForm = false;
         } else {
           this.toast.error(res.message || 'Gagal memuatkan jadual lantikan.');
@@ -355,6 +383,8 @@ export class LantikanPengadilComponent implements OnInit {
   // Laporan
   loadingLaporan = false;
   laporanList: any[] = [];
+  laporanSearch = '';
+  laporanKejohananFilter = '';
   showLaporanModal = false;
   laporanDetail: any = null;
   loadingLaporanDetail = false;
@@ -469,10 +499,12 @@ export class LantikanPengadilComponent implements OnInit {
       this.selectedKejohananId = null;
       this.poolList = [];
       this.jadualList = [];
+      this.jadualLantikanSearch = '';
       return;
     }
     this.selectedKejohanan = k;
     this.selectedKejohananId = k.id;
+    this.jadualLantikanSearch = '';
     this.loadJadual(k.id);
     this.loadPool(k.id);
     if (this.activeTab === 'jadual-lantikan') {
@@ -732,18 +764,36 @@ export class LantikanPengadilComponent implements OnInit {
   // ===================== JADUAL =====================
 
   onKejohananSelect(id: number | null): void {
-    if (!id) { this.selectedKejohanan = null; this.jadualList = []; this.poolList = []; return; }
+    if (!id) { this.selectedKejohanan = null; this.jadualList = []; this.jadualSearch = ''; this.poolList = []; return; }
     const k = this.kejohananList.find(x => x.id === id);
     this.selectedKejohanan = k || null;
+    this.jadualSearch = '';
     this.loadJadual(id);
     this.loadPool(id);
+  }
+
+  get filteredJadualList(): any[] {
+    const search = this.jadualSearch.trim().toLowerCase();
+    if (!search) return this.jadualList;
+
+    return this.jadualList.filter((j: any) => [
+      j.no_perlawanan,
+      j.pasukan_home,
+      j.pasukan_away,
+      j.peringkat,
+      j.kumpulan,
+      j.kategori,
+    ].some((value) => String(value ?? '').toLowerCase().includes(search)));
   }
 
   loadJadual(kejohananId: number): void {
     this.loadingJadual = true;
     this.selectedJadualIds.clear();
     this.api.get<any>('jadual-perlawanan.php', { kejohanan_id: kejohananId.toString() }).subscribe({
-      next: (res) => { this.jadualList = res.data || []; this.loadingJadual = false; },
+      next: (res) => {
+        this.jadualList = this.sortJadualBySchedule(res.data ?? []);
+        this.loadingJadual = false;
+      },
       error: () => this.loadingJadual = false,
     });
   }
@@ -802,14 +852,15 @@ export class LantikanPengadilComponent implements OnInit {
 
   toggleAllJadual(): void {
     if (this.isAllJadualSelected()) {
-      this.selectedJadualIds.clear();
+      this.filteredJadualList.forEach(j => this.selectedJadualIds.delete(j.id));
     } else {
-      this.jadualList.forEach(j => this.selectedJadualIds.add(j.id));
+      this.filteredJadualList.forEach(j => this.selectedJadualIds.add(j.id));
     }
   }
 
   isAllJadualSelected(): boolean {
-    return this.jadualList.length > 0 && this.jadualList.every(j => this.selectedJadualIds.has(j.id));
+    return this.filteredJadualList.length > 0
+      && this.filteredJadualList.every(j => this.selectedJadualIds.has(j.id));
   }
 
   bulkDeleteJadual(): void {
@@ -1085,7 +1136,7 @@ export class LantikanPengadilComponent implements OnInit {
 
   getSelectableMatches(): any[] {
     if (!this.jadualLantikanData?.jadual) return [];
-    return this.jadualLantikanData.jadual.filter((j: any) => {
+    return this.jadualLantikanGrouped.flatMap(group => group.matches).filter((j: any) => {
       if (j.is_started) return false;
       const assignments = j.assignments || {};
       return Object.values(assignments).some((a: any) => a && a.status_lantikan === 'Belum Jawab');
@@ -1237,6 +1288,52 @@ export class LantikanPengadilComponent implements OnInit {
   }
 
   // ===================== LAPORAN =====================
+
+  get laporanKejohananOptions(): Array<{ id: number; nama: string }> {
+    const options = new Map<number, string>();
+    this.laporanList.forEach(laporan => {
+      const id = Number(laporan.kejohanan_id);
+      if (id && laporan.nama_kejohanan) {
+        options.set(id, laporan.nama_kejohanan);
+      }
+    });
+    return Array.from(options, ([id, nama]) => ({ id, nama }))
+      .sort((a, b) => a.nama.localeCompare(b.nama, 'ms'));
+  }
+
+  get filteredLaporan(): any[] {
+    let list = this.laporanList;
+
+    if (this.laporanKejohananFilter) {
+      const kejohananId = Number(this.laporanKejohananFilter);
+      list = list.filter(laporan => Number(laporan.kejohanan_id) === kejohananId);
+    }
+
+    const search = this.laporanSearch.trim().toLowerCase();
+    if (search) {
+      list = list.filter(laporan => {
+        const pegawai = (laporan.pegawai || [])
+          .map((item: any) => item.nama_pengadil || '')
+          .join(' ');
+        const searchable = [
+          laporan.nama_kejohanan,
+          laporan.no_perlawanan,
+          laporan.pasukan_home,
+          laporan.pasukan_away,
+          laporan.nama_penilai,
+          pegawai,
+        ].join(' ').toLowerCase();
+        return searchable.includes(search);
+      });
+    }
+
+    return list;
+  }
+
+  clearLaporanFilters(): void {
+    this.laporanSearch = '';
+    this.laporanKejohananFilter = '';
+  }
 
   loadLaporan(): void {
     this.loadingLaporan = true;

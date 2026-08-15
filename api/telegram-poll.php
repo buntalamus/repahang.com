@@ -189,7 +189,7 @@ function processUpdate(PDO $pdo, array $update, string $apiBase): void
 
             $stmt = $pdo->prepare("
                 SELECT lp.id, lp.status, lp.komen, lp.tarikh_notif, lp.jawatan,
-                       jp.tarikh, jp.pasukan_home, jp.pasukan_away, jp.tempat, jp.masa, jp.jadual_id,
+                       jp.tarikh, jp.pasukan_home, jp.pasukan_away, jp.tempat, jp.masa, lp.jadual_id,
                        kj.nama AS kejohanan,
                        COALESCE(u.telegram_chat_id, pl.telegram_chat_id) AS owner_chat_id
                 FROM lantikan_pengadil lp
@@ -247,28 +247,47 @@ function processUpdate(PDO $pdo, array $update, string $apiBase): void
             }
 
             $newStatus = $action === 'accept' ? 'Diterima' : 'Ditolak';
-            $pdo->prepare(
-                "UPDATE lantikan_pengadil SET status = :s, tarikh_jawab = NOW(), tg_token = NULL WHERE id = :id"
-            )->execute([':s' => $newStatus, ':id' => $row['id']]);
+            $pdo->beginTransaction();
+            try {
+                $updStmt = $pdo->prepare(
+                    "UPDATE lantikan_pengadil SET status = :s, tarikh_jawab = NOW(), tg_token = NULL WHERE id = :id AND status = 'Belum Jawab'"
+                );
+                $updStmt->execute([':s' => $newStatus, ':id' => $row['id']]);
+                if ($updStmt->rowCount() === 0) {
+                    $pdo->rollBack();
+                    tgAnswerCallback($cbqId, 'Tugasan ini sudah dijawab.', true);
+                    return;
+                }
+
+                if ($newStatus === 'Diterima') {
+                    createPerlawananFromLantikan($pdo, (int) $row['id']);
+
+                    $jid = (int) $row['jadual_id'];
+                    $chkStmt = $pdo->prepare("
+                        SELECT COUNT(*) AS total,
+                               SUM(CASE WHEN status = 'Diterima' THEN 1 ELSE 0 END) AS diterima
+                        FROM lantikan_pengadil WHERE jadual_id = :jid
+                    ");
+                    $chkStmt->execute([':jid' => $jid]);
+                    $counts = $chkStmt->fetch(PDO::FETCH_ASSOC);
+                    if ((int) $counts['total'] > 0 && (int) $counts['total'] === (int) $counts['diterima']) {
+                        $pdo->prepare(
+                            "UPDATE jadual_perlawanan SET status = 'Disahkan' WHERE id = :id AND status = 'Menunggu Pengesahan'"
+                        )->execute([':id' => $jid]);
+                        echo "  → Semua pengadil terima. Jadual status → Disahkan\n";
+                    }
+                }
+
+                $pdo->commit();
+            } catch (Throwable $txErr) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                throw $txErr;
+            }
 
             if ($newStatus === 'Diterima') {
-                createPerlawananFromLantikan($pdo, (int) $row['id']);
                 generatePenilaianToken($pdo, (int) $row['id']);
-
-                $jid = (int) $row['jadual_id'];
-                $chkStmt = $pdo->prepare("
-                    SELECT COUNT(*) AS total,
-                           SUM(CASE WHEN status = 'Diterima' THEN 1 ELSE 0 END) AS diterima
-                    FROM lantikan_pengadil WHERE jadual_id = :jid
-                ");
-                $chkStmt->execute([':jid' => $jid]);
-                $counts = $chkStmt->fetch(PDO::FETCH_ASSOC);
-                if ((int)$counts['total'] > 0 && (int)$counts['total'] === (int)$counts['diterima']) {
-                    $pdo->prepare(
-                        "UPDATE jadual_perlawanan SET status = 'Disahkan' WHERE id = :id AND status = 'Menunggu Pengesahan'"
-                    )->execute([':id' => $jid]);
-                    echo "  → Semua pengadil terima. Jadual status → Disahkan\n";
-                }
             }
 
             $tarikhFmt = date('d M Y', strtotime($row['tarikh']));
@@ -296,6 +315,9 @@ function processUpdate(PDO $pdo, array $update, string $apiBase): void
         }
 
     } catch (Throwable $e) {
+        if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         echo "[ERROR] " . $e->getMessage() . "\n";
     }
 }

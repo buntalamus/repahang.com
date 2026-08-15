@@ -65,13 +65,16 @@ function handleList(): void
     // so we filter by jenis_pengadil to correctly categorize
 
     if ($type === 'penilai_berdaftar') {
-
-        $roleCondition = "AND a.jenis_pengadil IN ('Penilai Pengadil', 'Pegawai Pembangunan')";
-
+        // Semua PP Daerah ialah RA secara automatik, walaupun tiada
+        // permohonan tahunan Penilai Pengadil.
+        $roleCondition = "AND (
+            u.role = 'PP Daerah'
+            OR a.jenis_pengadil IN ('Penilai Pengadil', 'Pegawai Pembangunan')
+        )";
     } else {
-
-        $roleCondition = "AND (a.jenis_pengadil NOT IN ('Penilai Pengadil', 'Pegawai Pembangunan') OR a.jenis_pengadil IS NULL)";
-
+        // PP automatik RA tidak dipaparkan sebagai pengadil biasa.
+        $roleCondition = "AND a.id IS NOT NULL
+            AND (a.jenis_pengadil NOT IN ('Penilai Pengadil', 'Pegawai Pembangunan') OR a.jenis_pengadil IS NULL)";
     }
 
 
@@ -106,43 +109,44 @@ function handleList(): void
 
                 a.id,
 
-                a.persatuan_id,
+                COALESCE(a.persatuan_id, u.persatuan_id) as persatuan_id,
 
-                a.umur,
+                COALESCE(a.umur, u.umur) as umur,
 
-                a.jenis_pengadil,
+                CASE WHEN u.role = 'PP Daerah' THEN 'Penilai Pengadil'
+                     ELSE COALESCE(a.jenis_pengadil, u.jenis_pengadil) END as jenis_pengadil,
 
-                a.alamat1,
+                COALESCE(a.alamat1, u.alamat1) as alamat1,
 
-                a.alamat2,
+                COALESCE(a.alamat2, u.alamat2) as alamat2,
 
-                a.poskod,
+                COALESCE(a.poskod, u.poskod) as poskod,
 
-                a.daerah,
+                COALESCE(a.daerah, u.daerah) as daerah,
 
-                a.negeri,
+                COALESCE(a.negeri, u.negeri) as negeri,
 
-                a.status_kerja,
+                COALESCE(a.status_kerja, u.status_kerja) as status_kerja,
 
-                a.jawatan,
+                COALESCE(a.jawatan, u.jawatan) as jawatan,
 
-                a.nama_majikan,
+                COALESCE(a.nama_majikan, u.nama_majikan) as nama_majikan,
 
-                a.alamat_majikan1,
+                COALESCE(a.alamat_majikan1, u.alamat_majikan1) as alamat_majikan1,
 
-                a.alamat_majikan2,
+                COALESCE(a.alamat_majikan2, u.alamat_majikan2) as alamat_majikan2,
 
-                a.poskod_majikan,
+                COALESCE(a.poskod_majikan, u.poskod_majikan) as poskod_majikan,
 
-                a.daerah_majikan,
+                COALESCE(a.daerah_majikan, u.daerah_majikan) as daerah_majikan,
 
-                a.negeri_majikan,
+                COALESCE(a.negeri_majikan, u.negeri_majikan) as negeri_majikan,
 
-                a.nama_waris,
+                COALESCE(a.nama_waris, u.nama_waris) as nama_waris,
 
-                a.hubungan_waris,
+                COALESCE(a.hubungan_waris, u.hubungan_waris) as hubungan_waris,
 
-                a.telefon_waris,
+                COALESCE(a.telefon_waris, u.telefon_waris) as telefon_waris,
 
                 a.url_resit,
 
@@ -160,26 +164,26 @@ function handleList(): void
 
                 u.pengadil_daerah,
 
-                p.nama_persatuan as persatuan
+                p.nama_persatuan as persatuan,
+
+                CASE WHEN u.role = 'PP Daerah'
+                     THEN 'PP Daerah (RA automatik)' ELSE 'Permohonan RA' END AS sumber_ra
 
             FROM users u
 
-            INNER JOIN permohonan a ON u.id = a.user_id
+            LEFT JOIN permohonan a ON u.id = a.user_id
+                AND a.jenis_borang IN ('pengadil_berdaftar', 'penilai_berdaftar')
+                AND a.status = 'Approved'
+                AND (
+                    (a.status_kemaskini IS NOT NULL AND YEAR(a.status_kemaskini) = :year)
+                    OR (a.status_kemaskini IS NULL AND YEAR(a.tarikh_hantar) = :year)
+                )
 
-            LEFT JOIN persatuan_bolasepak_daerah p ON a.persatuan_id = p.id
+            LEFT JOIN persatuan_bolasepak_daerah p
+                ON p.id = COALESCE(a.persatuan_id, u.persatuan_id)
 
-            WHERE a.jenis_borang IN ('pengadil_berdaftar', 'penilai_berdaftar')
+            WHERE 1 = 1
             {$roleCondition}
-
-            AND a.status = 'Approved'
-
-            AND (
-
-                (a.status_kemaskini IS NOT NULL AND YEAR(a.status_kemaskini) = :year)
-
-                OR (a.status_kemaskini IS NULL AND YEAR(a.tarikh_hantar) = :year)
-
-            )
 
             ORDER BY u.nama_penuh ASC
 
