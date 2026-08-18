@@ -38,15 +38,58 @@ try {
     $stmt->execute([':uid' => $uid]);
     $assignments = $stmt->fetchAll();
 
-    // Expose only name and role for fellow officials assigned to the same match.
+    // Opportunistic retry only for due queue rows belonging to this user. This
+    // avoids scanning their entire appointment history on every dashboard GET.
+    // The scheduled CLI worker remains the primary retry mechanism.
+    try {
+        $retryStmt = $pdo->prepare("
+            SELECT DISTINCT n.jadual_id
+            FROM kup_crew_notifications n
+            JOIN lantikan_pengadil lp ON lp.id = n.lantikan_id
+            WHERE lp.pengadil_id = :uid
+              AND n.completed_at IS NULL
+              AND n.superseded_at IS NULL
+              AND (
+                    (n.telegram_applicable = 1 AND n.telegram_sent_at IS NULL
+                     AND (n.telegram_next_attempt_at IS NULL OR n.telegram_next_attempt_at <= NOW())
+                     AND (n.telegram_claimed_at IS NULL OR n.telegram_claimed_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE)))
+                 OR (n.email_applicable = 1 AND n.email_sent_at IS NULL
+                     AND (n.email_next_attempt_at IS NULL OR n.email_next_attempt_at <= NOW())
+                     AND (n.email_claimed_at IS NULL OR n.email_claimed_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE)))
+              )
+            ORDER BY n.jadual_id
+            LIMIT 10
+        ");
+        $retryStmt->execute([':uid' => $uid]);
+        foreach (array_map('intval', $retryStmt->fetchAll(PDO::FETCH_COLUMN)) as $retryJadualId) {
+            retryPendingKupCrewNotifications($pdo, $retryJadualId);
+        }
+    } catch (Throwable $retryError) {
+        error_log('[tugasan.php] KUP crew retry error: ' . $retryError->getMessage());
+    }
+
+    // KUP need the same contact roster in the dashboard as in Telegram/email.
+    // RA remains a separate fifth slot and is not listed as a KUP contact.
     $officialsStmt = $pdo->prepare("
         SELECT lp.jadual_id, lp.id, lp.jawatan, lp.status,
-               COALESCE(u.nama_penuh, pl.nama) AS nama
+               COALESCE(NULLIF(TRIM(u.nama_penuh), ''), NULLIF(TRIM(pl.nama), ''), 'Nama tidak direkodkan') AS nama,
+               COALESCE(NULLIF(TRIM(u.no_telefon), ''), NULLIF(TRIM(pl.no_tel), ''), '-') AS no_telefon,
+               CASE
+                   WHEN COALESCE(k.peringkat_kejohanan, 'Daerah') = 'Negeri'
+                       THEN COALESCE(NULLIF(TRIM(u.daerah), ''), NULLIF(TRIM(pl.daerah), ''), '-')
+                   ELSE COALESCE(NULLIF(TRIM(u.negeri), ''), NULLIF(TRIM(pl.negeri), ''), '-')
+               END AS wilayah,
+               CASE WHEN COALESCE(k.peringkat_kejohanan, 'Daerah') = 'Negeri' THEN 'Daerah' ELSE 'Negeri' END AS wilayah_label
         FROM lantikan_pengadil lp
+        JOIN jadual_perlawanan jp ON jp.id = lp.jadual_id
+        LEFT JOIN kejohanan k ON k.id = jp.kejohanan_id
         LEFT JOIN users u ON lp.pengadil_id = u.id
         LEFT JOIN pengadil_luar pl ON lp.pengadil_luar_id = pl.id
-        WHERE lp.jadual_id = :jadual_id AND lp.id <> :lantikan_id
-        ORDER BY FIELD(lp.jawatan, 'Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4', 'Penilai Pengadil')
+        WHERE lp.jadual_id = :jadual_id
+          AND lp.id <> :lantikan_id
+          AND lp.status IN ('Belum Jawab', 'Diterima')
+          AND lp.jawatan IN ('Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4')
+        ORDER BY FIELD(lp.jawatan, 'Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4')
     ");
     foreach ($assignments as &$assignment) {
         $officialsStmt->execute([':jadual_id' => $assignment['jadual_id'], ':lantikan_id' => $assignment['id']]);

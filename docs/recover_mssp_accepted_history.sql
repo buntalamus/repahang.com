@@ -7,7 +7,7 @@
 --
 -- Skrip ini selamat diulang:
 --   1. hanya menyasar kejohanan MSSP dengan nama tepat di bawah;
---   2. hanya menyasar lantikan Diterima untuk pengguna RefPahang berdaftar;
+--   2. hanya menyasar lantikan KUP Diterima untuk pengguna RefPahang berdaftar;
 --   3. hanya menyasar lantikan yang belum mempunyai perlawanan.lantikan_id;
 --   4. memaut dan menyelaraskan rekod manual yang sepadan secara unik;
 --   5. mencipta rekod baharu hanya apabila tiada rekod manual yang sepadan;
@@ -95,6 +95,7 @@ LEFT JOIN perlawanan p_manual
 WHERE kj.nama = @kejohanan_mssp
   AND @jumlah_kejohanan = 1
   AND lp.status = 'Diterima'
+  AND lp.jawatan IN ('Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4')
   AND lp.pengadil_id IS NOT NULL
   AND p_linked.id IS NULL
 GROUP BY
@@ -110,8 +111,8 @@ WHERE manual_match_count = 1
   AND manual_perlawanan_id IS NOT NULL
 GROUP BY manual_perlawanan_id;
 
--- Ringkasan jangkaan untuk dump production 14 Ogos 2026:
--- jumlah_calon=85, paut_rekod_manual=4, cipta_rekod_baharu=81, ambigu=0.
+-- Ringkasan jangkaan untuk dump production 14 Ogos 2026 selepas RA dikecualikan:
+-- jumlah_calon=76, paut_rekod_manual=4, cipta_rekod_baharu=72, ambigu=0.
 SELECT
     COUNT(*) AS jumlah_calon,
     SUM(CASE WHEN r.manual_match_count = 1 AND u.candidate_count = 1 THEN 1 ELSE 0 END)
@@ -220,15 +221,16 @@ SELECT
     @jumlah_dipaut AS jumlah_rekod_manual_dipaut,
     @jumlah_dicipta AS jumlah_rekod_baharu_dicipta;
 
--- Selepas APPLY berjaya, nilai ini mesti 0. Dalam mod PREVIEW, ia kekal 85
+-- Selepas APPLY berjaya, nilai ini mesti 0. Dalam mod PREVIEW, ia kekal 76
 -- untuk dump rujukan 14 Ogos 2026.
-SELECT COUNT(*) AS diterima_berdaftar_masih_tiada_sejarah
+SELECT COUNT(*) AS kup_diterima_berdaftar_masih_tiada_sejarah
 FROM lantikan_pengadil lp
 JOIN jadual_perlawanan jp ON jp.id = lp.jadual_id
 JOIN kejohanan kj ON kj.id = jp.kejohanan_id
 LEFT JOIN perlawanan p ON p.lantikan_id = lp.id
 WHERE kj.nama = @kejohanan_mssp
   AND lp.status = 'Diterima'
+  AND lp.jawatan IN ('Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4')
   AND lp.pengadil_id IS NOT NULL
   AND p.id IS NULL;
 

@@ -134,11 +134,24 @@ unset($j);
 // Stats
 $totalPerlawanan = count($jadualList);
 $lengkap = 0;
-$totalLantikan = count($allAssignments);
+$totalLantikan = count(array_filter(
+    $allAssignments,
+    fn($a) => in_array($a['status_lantikan'], ['Belum Jawab', 'Diterima'], true)
+));
 $totalTerima = count(array_filter($allAssignments, fn($a) => $a['status_lantikan'] === 'Diterima'));
 foreach ($jadualList as $j) {
-    $c = count(array_filter($j['assignments']));
-    if ($c === count($JAWATAN_LIST)) $lengkap++;
+    $active = array_filter(
+        $j['assignments'],
+        fn($a) => $a && in_array($a['status_lantikan'], ['Belum Jawab', 'Diterima'], true)
+    );
+    if (count($active) >= 3
+        && isset(
+            $active['Pengadil'],
+            $active['Penolong Pengadil 1'],
+            $active['Penolong Pengadil 2']
+        )) {
+        $lengkap++;
+    }
 }
 
 // Helpers

@@ -2,8 +2,8 @@
 /**
  * Download / View Laporan Penilaian Pengadil (RA Report) — printable HTML
  * 
- * GET /api/download-laporan-penilaian.php?id=X        — by laporan ID (session auth)
- * GET /api/download-laporan-penilaian.php?token=X      — by penilaian token (no auth needed)
+ * GET /api/download-laporan-penilaian.php?id=X                    — session auth
+ * GET /api/download-laporan-penilaian.php?id=X&view_token=Y       — read-only signed link
  * 
  * Outputs full HTML page matching FAM RA Report format.
  * User presses Cmd+P / Ctrl+P → "Save as PDF" (A4 portrait).
@@ -14,8 +14,9 @@ date_default_timezone_set('Asia/Kuala_Lumpur');
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../config/env.php';
 require_once __DIR__ . '/../config/kriteria-penilaian.php';
+require_once __DIR__ . '/../config/penilaian-helper.php';
 
-$token     = trim($_GET['token'] ?? '');
+$viewToken = trim($_GET['view_token'] ?? '');
 $laporanId = (int) ($_GET['id'] ?? 0);
 $autoprint = isset($_GET['print']);
 $sessionUserId = 0;
@@ -29,24 +30,26 @@ try {
     exit;
 }
 
-/* ── Resolve laporan ID ── */
-if ($token) {
-    // Token-based access (from email link)
+/* ── Resolve access mode ── */
+if ($viewToken !== '' && $laporanId > 0) {
+    // Purpose-bound read-only link sent to KUP after admin confirmation.
     $stmt = $pdo->prepare("
-        SELECT lp2.id AS laporan_id
-        FROM lantikan_pengadil lp
-        JOIN laporan_penilaian lp2 ON lp2.lantikan_id = lp.id
-        WHERE lp.penilaian_token = :token AND lp2.status = 'Disahkan'
+        SELECT lp.penilaian_token
+        FROM laporan_penilaian laporan
+        JOIN lantikan_pengadil lp ON lp.id = laporan.lantikan_id
+        WHERE laporan.id = :id
+          AND lp.status = 'Diterima'
+          AND lp.jawatan = 'Penilai Pengadil'
+          AND laporan.status = 'Disahkan'
         LIMIT 1
     ");
-    $stmt->execute([':token' => $token]);
-    $row = $stmt->fetch();
-    if (!$row) {
+    $stmt->execute([':id' => $laporanId]);
+    $penilaianToken = (string) ($stmt->fetchColumn() ?: '');
+    if (!verifyReportViewToken($laporanId, $penilaianToken, $viewToken)) {
         http_response_code(404);
         echo '<p style="font-family:sans-serif;color:red;padding:20px;">Laporan tidak dijumpai atau belum disahkan.</p>';
         exit;
     }
-    $laporanId = (int) $row['laporan_id'];
 } elseif ($laporanId) {
     // Session-based auth
     if (session_status() === PHP_SESSION_NONE) {
@@ -101,10 +104,8 @@ if (!$report) {
     exit;
 }
 
-// Pengadil may download only a report belonging to an appointment in which
-// they are one of the KUP officials. Other privileged roles retain their
-// existing report access.
-if (!$token && $sessionRole === 'Pengadil') {
+// Scope every non-admin role to the report it actually owns or supervises.
+if ($viewToken === '' && $sessionRole === 'Pengadil') {
     $accessStmt = $pdo->prepare("
         SELECT 1
         FROM laporan_penilaian_pegawai lpp
@@ -113,6 +114,41 @@ if (!$token && $sessionRole === 'Pengadil') {
         LIMIT 1
     ");
     $accessStmt->execute([':lid' => $laporanId, ':uid' => $sessionUserId]);
+    if (!$accessStmt->fetchColumn()) {
+        http_response_code(403);
+        echo '<p style="font-family:sans-serif;color:red;padding:20px;">Anda tidak mempunyai akses kepada laporan ini.</p>';
+        exit;
+    }
+} elseif ($viewToken === '' && $sessionRole === 'Penilai') {
+    if ((int) ($report['penilai_id'] ?? 0) !== $sessionUserId) {
+        http_response_code(403);
+        echo '<p style="font-family:sans-serif;color:red;padding:20px;">Anda tidak mempunyai akses kepada laporan ini.</p>';
+        exit;
+    }
+} elseif ($viewToken === '' && $sessionRole === 'PP Daerah') {
+    $accessStmt = $pdo->prepare("
+        SELECT 1
+        FROM users pp
+        WHERE pp.id = :uid
+          AND (
+                :penilai_id = :owner_uid
+             OR EXISTS (
+                    SELECT 1
+                    FROM laporan_penilaian_pegawai lpp
+                    JOIN lantikan_pengadil la ON la.id = lpp.lantikan_pengadil_id
+                    JOIN users kup ON kup.id = la.pengadil_id
+                    WHERE lpp.laporan_id = :lid
+                      AND kup.persatuan_id = pp.persatuan_id
+                )
+          )
+        LIMIT 1
+    ");
+    $accessStmt->execute([
+        ':uid' => $sessionUserId,
+        ':penilai_id' => (int) ($report['penilai_id'] ?? 0),
+        ':owner_uid' => $sessionUserId,
+        ':lid' => $laporanId,
+    ]);
     if (!$accessStmt->fetchColumn()) {
         http_response_code(403);
         echo '<p style="font-family:sans-serif;color:red;padding:20px;">Anda tidak mempunyai akses kepada laporan ini.</p>';

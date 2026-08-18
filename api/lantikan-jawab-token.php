@@ -3,7 +3,7 @@
  * Token-based accept/reject for lantikan (no login required)
  * Used by email link clicks.
  *
- * GET /api/lantikan-jawab-token.php?token=TOKEN&action=accept|reject
+ * GET  shows a confirmation page; POST records accept/reject.
  *
  * Returns a full HTML page (user opens this in browser from email).
  */
@@ -73,9 +73,16 @@ HTML;
 }
 
 try {
-    $pdo    = getDbConnection();
-    $token  = trim($_GET['token'] ?? '');
-    $action = trim($_GET['action'] ?? '');
+    $pdo = getDbConnection();
+    $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+    if (!in_array($method, ['GET', 'POST'], true)) {
+        http_response_code(405);
+        header('Allow: GET, POST');
+        renderPage('Kaedah Tidak Sah', '⚠️', '#F59E0B', 'Kaedah Tidak Sah', 'Gunakan pautan daripada emel anda.');
+    }
+    $source = $method === 'POST' ? $_POST : $_GET;
+    $token  = trim((string) ($source['token'] ?? ''));
+    $action = trim((string) ($source['action'] ?? ''));
 
     if ($token === '' || !in_array($action, ['accept', 'reject'], true)) {
         renderPage(
@@ -95,11 +102,17 @@ try {
                COALESCE(kj.nama, '') AS kejohanan,
                COALESCE(kj.jenis_kejohanan, 'Persahabatan') AS jenis_kejohanan,
                lp.pengadil_id,
-               u.nama_penuh, u.persatuan_id
+               COALESCE(
+                   NULLIF(TRIM(u.nama_penuh), ''),
+                   NULLIF(TRIM(pl.nama), ''),
+                   'Pengadil'
+               ) AS nama_penuh,
+               u.persatuan_id
         FROM lantikan_pengadil lp
         JOIN jadual_perlawanan jp ON lp.jadual_id = jp.id
         LEFT JOIN kejohanan kj ON jp.kejohanan_id = kj.id
         LEFT JOIN users u ON lp.pengadil_id = u.id
+        LEFT JOIN pengadil_luar pl ON lp.pengadil_luar_id = pl.id
         WHERE lp.email_token = :tok
         LIMIT 1
     ");
@@ -117,8 +130,49 @@ try {
         );
     }
 
-    // Kuatkuasa tempoh jawapan — auto-tolak jika sudah tamat
     require_once __DIR__ . '/../config/lantikan-helper.php';
+
+    // Email security scanners commonly open every GET link. GET must therefore
+    // remain read-only and show an explicit confirmation form.
+    if ($method === 'GET' && $row['status'] === 'Belum Jawab') {
+        $notifTimestamp = !empty($row['tarikh_notif']) ? strtotime((string) $row['tarikh_notif']) : 0;
+        $kickoffTimestamp = getMatchKickoffTimestamp((string) $row['tarikh'], (string) ($row['masa'] ?? ''));
+        if ($notifTimestamp > 0 && $kickoffTimestamp !== null
+            && shouldAutoRejectAppointment(
+                $notifTimestamp,
+                (string) $row['jenis_kejohanan'],
+                $kickoffTimestamp,
+                time()
+            )) {
+            $deadlineDt = calcDeadlineFromNotif((string) $row['jenis_kejohanan'], (string) $row['tarikh_notif']);
+            renderPage(
+                'Tempoh Menjawab Tamat', '⏰', '#F59E0B',
+                'Tempoh Menjawab Telah Tamat',
+                "Tempoh menjawab telah tamat pada <strong>{$deadlineDt}</strong>. Sila hubungi pentadbir jika anda masih boleh bertugas.",
+                $dashUrl
+            );
+        }
+
+        $safeToken = htmlspecialchars($token, ENT_QUOTES, 'UTF-8');
+        $safeAction = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
+        $actionLabel = $action === 'accept' ? 'Terima Tugasan' : 'Tolak Tugasan';
+        $actionColor = $action === 'accept' ? '#059669' : '#DC2626';
+        $match = htmlspecialchars(
+            (string) $row['pasukan_home'] . ' lwn ' . (string) $row['pasukan_away'],
+            ENT_QUOTES,
+            'UTF-8'
+        );
+        $position = htmlspecialchars((string) $row['jawatan'], ENT_QUOTES, 'UTF-8');
+        $body = "Sahkan tindakan <strong>{$actionLabel}</strong> sebagai <strong>{$position}</strong> untuk {$match}."
+              . '<form method="post" style="margin-top:24px">'
+              . '<input type="hidden" name="token" value="' . $safeToken . '">'
+              . '<input type="hidden" name="action" value="' . $safeAction . '">'
+              . '<button type="submit" style="border:0;border-radius:4px;padding:13px 24px;background:' . $actionColor
+              . ';color:#fff;font-weight:700;cursor:pointer">' . $actionLabel . '</button></form>';
+        renderPage('Sahkan Jawapan', '✉️', $actionColor, 'Sahkan Jawapan Lantikan', $body, $dashUrl);
+    }
+
+    // POST is the only method allowed to mutate an appointment response.
     $expiredNow = autoTolakLantikanTertunggak($pdo, ['id' => (int) $row['id']]);
     if ($expiredNow > 0
         || ($row['status'] === 'Ditolak' && ($row['komen'] ?? '') === LANTIKAN_AUTO_TOLAK_KOMEN)) {
@@ -148,13 +202,16 @@ try {
     }
 
     $newStatus = $action === 'accept' ? 'Diterima' : 'Ditolak';
+    $shouldNotifyCompleteKup = false;
 
     // Atomic update — only succeeds if status is still 'Belum Jawab' (prevents double-accept race)
     $pdo->beginTransaction();
     try {
+        lockMatchForAppointmentResponse($pdo, (int) $row['jadual_id']);
+
         $updStmt = $pdo->prepare("
             UPDATE lantikan_pengadil
-            SET status = :s, tarikh_jawab = NOW(), email_token = NULL
+            SET status = :s, tarikh_jawab = NOW(), email_token = NULL, tg_token = NULL
             WHERE id = :id AND status = 'Belum Jawab'
         ");
         $updStmt->execute([':s' => $newStatus, ':id' => $row['id']]);
@@ -168,28 +225,30 @@ try {
             );
         }
 
-        // Auto-create perlawanan + update jadual status if ALL accepted
-        if ($newStatus === 'Diterima') {
-            createPerlawananFromLantikan($pdo, (int) $row['id']);
-            generatePenilaianToken($pdo, (int) $row['id']);
-
-            $chkStmt = $pdo->prepare("
-                SELECT COUNT(*) AS total,
-                       SUM(CASE WHEN status = 'Diterima' THEN 1 ELSE 0 END) AS diterima
-                FROM lantikan_pengadil WHERE jadual_id = :jid
-            ");
-            $chkStmt->execute([':jid' => $row['jadual_id']]);
-            $counts = $chkStmt->fetch(PDO::FETCH_ASSOC);
-            if ((int)$counts['total'] > 0 && (int)$counts['total'] === (int)$counts['diterima']) {
-                $pdo->prepare("UPDATE jadual_perlawanan SET status = 'Disahkan' WHERE id = :id AND status = 'Menunggu Pengesahan'")
-                    ->execute([':id' => $row['jadual_id']]);
-            }
-        }
+        syncPerlawananHistoryForJadual($pdo, (int) $row['jadual_id']);
+        $shouldNotifyCompleteKup = isKupPosition((string) $row['jawatan'])
+            && isAcceptedKupCrewComplete($pdo, (int) $row['jadual_id']);
 
         $pdo->commit();
     } catch (Throwable $txErr) {
         $pdo->rollBack();
         throw $txErr;
+    }
+
+    if ($newStatus === 'Diterima') {
+        try {
+            generatePenilaianToken($pdo, (int) $row['id']);
+        } catch (Throwable $helperError) {
+            error_log('[lantikan-jawab-token] generatePenilaianToken error: ' . $helperError->getMessage());
+        }
+    }
+
+    if ($shouldNotifyCompleteKup) {
+        try {
+            notifyCompleteKupCrew($pdo, (int) $row['jadual_id']);
+        } catch (Throwable $crewNotifyError) {
+            error_log('[lantikan-jawab-token] KUP crew notification error: ' . $crewNotifyError->getMessage());
+        }
     }
 
     $tarikhFmt = date('d M Y', strtotime($row['tarikh']));
@@ -203,7 +262,7 @@ try {
     // Jawapan lantikan sudah berjaya disimpan. Kegagalan notifikasi sampingan
     // tidak boleh menukar halaman kejayaan kepada "Ralat Dalaman".
     try {
-        $namaPengadil = $row['nama_penuh'] ?? 'Pengadil';
+        $namaPengadil = $row['nama_penuh'];
         notifyAdminLantikanResponse($pdo, $action, $namaPengadil,
             $row['jawatan'], $row['kejohanan'], $row['tarikh'],
             $row['pasukan_home'], $row['pasukan_away']);

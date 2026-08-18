@@ -107,7 +107,9 @@ try {
         $totalTerima = 0;
         foreach ($allAssignments as $a) {
             $assignmentMap[(int)$a['jadual_id']][$a['jawatan']] = $a;
-            $totalLantikan++;
+            if (in_array($a['status_lantikan'], ['Belum Jawab', 'Diterima'], true)) {
+                $totalLantikan++;
+            }
             if ($a['status_lantikan'] === 'Diterima') $totalTerima++;
         }
 
@@ -119,14 +121,23 @@ try {
             $j['is_started'] = hasMatchStarted((string) $j['tarikh'], (string) $j['masa']);
             $j['assignments'] = [];
             $jCount = 0;
+            $activePositions = [];
             foreach ($JAWATAN_LIST as $jaw) {
                 $a = $assignmentMap[(int)$j['id']][$jaw] ?? null;
                 $j['assignments'][$jaw] = $a;
-                if ($a) $jCount++;
+                if ($a && in_array($a['status_lantikan'], ['Belum Jawab', 'Diterima'], true)) {
+                    $jCount++;
+                    $activePositions[$jaw] = true;
+                }
             }
             $j['jumlah_lantikan'] = $jCount;
-            $j['is_lengkap'] = ($jCount === count($JAWATAN_LIST));
-            if ($jCount === count($JAWATAN_LIST)) $lengkap++;
+            $j['is_lengkap'] = $jCount >= 3 && $jCount <= 5
+                && isset(
+                    $activePositions['Pengadil'],
+                    $activePositions['Penolong Pengadil 1'],
+                    $activePositions['Penolong Pengadil 2']
+                );
+            if ($j['is_lengkap']) $lengkap++;
             elseif ($jCount === 0) $tiada++;
             else $separa++;
         }
@@ -168,6 +179,34 @@ try {
             }
             if (mb_strlen($nota) > 500) {
                 jsonResponse(['error' => true, 'message' => 'Nota terlalu panjang (maks 500 aksara).'], 400);
+            }
+
+            $incompleteStmt = $pdo->prepare("
+                SELECT jp.no_perlawanan
+                FROM jadual_perlawanan jp
+                LEFT JOIN lantikan_pengadil lp
+                  ON lp.jadual_id = jp.id
+                 AND lp.status IN ('Belum Jawab', 'Diterima')
+                WHERE jp.kejohanan_id = :kid
+                  AND jp.status NOT IN ('Dibatalkan', 'Ditangguhkan')
+                GROUP BY jp.id, jp.no_perlawanan, jp.status
+                HAVING jp.status NOT IN ('Disahkan', 'Selesai')
+                    OR COUNT(DISTINCT lp.jawatan) < 3
+                    OR COUNT(DISTINCT lp.jawatan) > 5
+                    OR SUM(lp.jawatan = 'Pengadil') = 0
+                    OR SUM(lp.jawatan = 'Penolong Pengadil 1') = 0
+                    OR SUM(lp.jawatan = 'Penolong Pengadil 2') = 0
+                    OR SUM(lp.status = 'Belum Jawab' AND lp.notif_hantar = 0) > 0
+                LIMIT 10
+            ");
+            $incompleteStmt->execute([':kid' => $kejohananId]);
+            $incompleteMatches = $incompleteStmt->fetchAll(PDO::FETCH_COLUMN);
+            if ($incompleteMatches !== []) {
+                jsonResponse([
+                    'error' => true,
+                    'message' => 'Jadual belum boleh disahkan. Lengkapkan dan hantar lantikan minimum Pengadil, AR1 dan AR2 bagi: '
+                        . implode(', ', array_map('strval', $incompleteMatches)) . '.',
+                ], 409);
             }
 
             // Upsert

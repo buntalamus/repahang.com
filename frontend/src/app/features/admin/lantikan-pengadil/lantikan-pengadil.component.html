@@ -651,7 +651,15 @@
             <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
                 <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tugasan Pengadil</h3>
-                <span class="text-xs text-slate-400">{{ lantikanList.length }} / {{ jawatanList.length }} dilantik</span>
+                <span class="text-xs text-slate-400">{{ activeSlotCountCurrentMatch() }} / {{ jawatanList.length }} slot aktif</span>
+              </div>
+              <div class="px-4 py-2 border-b border-slate-100 text-[11px]"
+                   [class]="hasRequiredSlotsInCurrentMatch() ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'">
+                @if (hasRequiredSlotsInCurrentMatch()) {
+                  Lengkap untuk dihantar: Pengadil, AR1 dan AR2 tersedia. P4 ialah slot 4 pilihan; RA ialah slot 5 pilihan.
+                } @else {
+                  Belum lengkap. Slot wajib: {{ missingRequiredSlots().join(', ') }}.
+                }
               </div>
               <table class="w-full">
                 <thead class="bg-slate-50 border-b border-slate-100">
@@ -671,7 +679,7 @@
                         <p class="text-xs font-semibold text-slate-700 leading-snug">{{ jawatan }}</p>
                         @if (assignment?.notif_hantar) {
                           <div class="flex flex-col gap-0.5 mt-1">
-                            <span class="text-[10px] text-emerald-600 leading-tight">✓ Emel</span>
+                            <span class="text-[10px] text-emerald-600 leading-tight">✓ Dihantar</span>
                             @if (assignment?.tg_notif_hantar) {
                               <span class="text-[10px] text-blue-600 leading-tight">✓ Telegram</span>
                             }
@@ -1177,7 +1185,7 @@
                             class="px-2 py-2 text-center align-middle border border-slate-200 bg-white">
                           <span class="text-base font-black text-slate-900">{{ j.no_perlawanan }}</span>
                           @if (!j.is_lengkap) {
-                            <span class="block text-[9px] font-semibold text-amber-600 mt-0.5">{{ j.jumlah_lantikan }}/5</span>
+                            <span class="block text-[9px] font-semibold text-amber-600 mt-0.5">R / AR1 / AR2 belum lengkap</span>
                           } @else {
                             <svg class="w-4 h-4 text-emerald-500 mx-auto mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>

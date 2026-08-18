@@ -476,6 +476,131 @@ function sendEmail(string $to, string $subject, string $html, ?string $toName = 
     return _smtpSend($account, $to, $toName ?? $to, $subject, $html, $inlineImages);
 }
 
+/** Build the KUP roster section used in appointment emails. */
+function buildKupOfficialsEmailSection(array $allOfficials, string $jawatan, string $regionLabel): string
+{
+    if ($allOfficials === []) {
+        return '';
+    }
+
+    $offRows = '';
+    foreach ($allOfficials as $i => $off) {
+        $officialJawatan = (string) ($off['jawatan'] ?? '');
+        $officialNama = (string) ($off['nama'] ?? '-');
+        $officialPhone = (string) ($off['no_telefon'] ?? '-');
+        $officialRegion = (string) ($off['wilayah'] ?? '-');
+        $isMe = strtolower(trim($officialJawatan)) === strtolower(trim($jawatan));
+        $bg = $isMe ? '#FEFCE8' : ($i % 2 === 0 ? '#F9FAFB' : '#ffffff');
+        $namStyle = $isMe
+            ? 'font-size:13px;color:#92400E;font-weight:700;'
+            : 'font-size:13px;color:#111827;';
+        $jwStyle = $isMe
+            ? 'font-size:11px;color:#92400E;font-weight:700;text-transform:uppercase;letter-spacing:.8px;'
+            : 'font-size:11px;color:#6B7280;font-weight:600;text-transform:uppercase;letter-spacing:.8px;';
+        $badge = $isMe
+            ? '<span style="display:inline-block;background:#FADA00;color:#111827;
+                            font-size:9px;font-weight:700;letter-spacing:1px;
+                            text-transform:uppercase;padding:2px 7px;margin-left:6px;
+                            vertical-align:middle;">Anda</span>'
+            : '';
+        $border = 'border-bottom:1px solid #E5E7EB;';
+        $offRows .= "<tr>
+            <td style=\"padding:10px 16px;{$jwStyle}background:{$bg};{$border}\">"
+                . htmlspecialchars($officialJawatan) . "</td>
+            <td style=\"padding:10px 16px;{$namStyle}background:{$bg};{$border}\">
+              <div>" . htmlspecialchars($officialNama) . $badge . "</div>
+              <div style=\"font-size:11px;color:#6B7280;font-weight:400;margin-top:4px;line-height:1.6;\">
+                <strong>No. Tel:</strong> " . htmlspecialchars($officialPhone) . "<br>
+                <strong>" . htmlspecialchars($regionLabel) . ":</strong> " . htmlspecialchars($officialRegion) . "
+              </div>
+            </td>
+          </tr>";
+    }
+
+    return "
+    <div style=\"margin:20px 0 0;\">
+      <div style=\"background:#FADA00;padding:9px 16px;\">
+        <span style=\"font-size:10px;font-weight:700;color:#111827;letter-spacing:2px;
+                      text-transform:uppercase;\">Krew KUP Perlawanan</span>
+      </div>
+      <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"
+             style=\"border-collapse:collapse;border:1px solid #E5E7EB;border-top:none;\">
+        {$offRows}
+      </table>
+    </div>";
+}
+
+/** Build the final crew-confirmation email for an accepted KUP official. */
+function buildKupCrewCompleteEmailHtml(
+    string $nama,
+    string $jawatan,
+    string $kejohanan,
+    string $tarikh,
+    string $masa,
+    string $tempat,
+    string $pasukanHome,
+    string $pasukanAway,
+    string $noMatch,
+    array $kupOfficials,
+    string $regionLabel
+): string {
+    $tarikhFmt = date('d M Y', strtotime($tarikh));
+    $masaFmt = $masa ? date('H:i', strtotime($masa)) : '-';
+    $noMatchFmt = $noMatch ? 'P' . ltrim($noMatch, '0Pp') : '-';
+
+    $body = emailGreeting($nama)
+        . emailPara(
+            'Semua KUP yang dilantik telah menerima lantikan. Gunakan nombor telefon yang '
+            . 'disenaraikan untuk berhubung dan menyelaras tugasan perlawanan.'
+        )
+        . emailInfoTable([
+            'Kejohanan' => htmlspecialchars($kejohanan),
+            'No. Perlawanan' => htmlspecialchars($noMatchFmt),
+            'Perlawanan' => htmlspecialchars($pasukanHome . ' lwn ' . $pasukanAway),
+            'Tarikh' => $tarikhFmt,
+            'Masa' => $masaFmt . ' MYT',
+            'Tempat' => htmlspecialchars($tempat),
+        ])
+        . buildKupOfficialsEmailSection($kupOfficials, $jawatan, $regionLabel);
+
+    return buildEmailTemplate('Krew KUP Lengkap', '#16A34A', '', $body);
+}
+
+/** Send the final crew-confirmation email to an accepted KUP official. */
+function sendKupCrewCompleteEmail(
+    string $to,
+    string $nama,
+    string $jawatan,
+    string $kejohanan,
+    string $tarikh,
+    string $masa,
+    string $tempat,
+    string $pasukanHome,
+    string $pasukanAway,
+    string $noMatch,
+    array $kupOfficials,
+    string $regionLabel
+): bool {
+    $html = buildKupCrewCompleteEmailHtml(
+        $nama,
+        $jawatan,
+        $kejohanan,
+        $tarikh,
+        $masa,
+        $tempat,
+        $pasukanHome,
+        $pasukanAway,
+        $noMatch,
+        $kupOfficials,
+        $regionLabel
+    );
+    $tarikhFmt = date('d M Y', strtotime($tarikh));
+    $subject = 'Krew KUP Lengkap: ' . $pasukanHome . ' vs ' . $pasukanAway
+        . ' — ' . $tarikhFmt;
+
+    return sendEmail($to, $subject, $html, $nama, 'lantikan');
+}
+
 /**
  * Send lantikan notification email to a referee.
  *
@@ -506,9 +631,10 @@ function sendLantikanEmail(
     bool    $isDashboard  = false,
     string  $noMatch      = '',
     string  $logoHome     = '',
-    string  $logoAway     = '',
-    array   $allOfficials = [],
-    string  $jenisKejohanan = 'Persahabatan'
+    string  $logoAway       = '',
+    array   $allOfficials   = [],
+    string  $jenisKejohanan = 'Persahabatan',
+    string  $regionLabel     = 'Negeri'
 ): bool {
     if (!function_exists('env')) {
         require_once __DIR__ . '/env.php';
@@ -562,7 +688,7 @@ function sendLantikanEmail(
         ['Kejohanan',     htmlspecialchars($kejohanan)],
         ['No. Perlawanan', htmlspecialchars($noMatchFmt)],
         ['Tarikh',        $tarikhFmt],
-        ['Masa',          $masaFmt . ' WIB'],
+        ['Masa',          $masaFmt . ' MYT'],
         ['Tempat',        htmlspecialchars($tempat)],
     ];
     $infoHtml = '';
@@ -626,45 +752,8 @@ function sendLantikanEmail(
       </div>
     </div>";
 
-    // ── Section: Pegawai Perlawanan ───────────────────────────────────────
-    $officialsHtml = '';
-    if (!empty($allOfficials)) {
-        $offRows = '';
-        foreach ($allOfficials as $i => $off) {
-            $isMe = strtolower(trim($off['jawatan'])) === strtolower(trim($jawatan));
-            $bg   = $isMe ? '#FEFCE8' : ($i % 2 === 0 ? '#F9FAFB' : '#ffffff');
-            $namStyle = $isMe
-                ? 'font-size:13px;color:#92400E;font-weight:700;'
-                : 'font-size:13px;color:#111827;';
-            $jwStyle  = $isMe
-                ? 'font-size:11px;color:#92400E;font-weight:700;text-transform:uppercase;letter-spacing:.8px;'
-                : 'font-size:11px;color:#6B7280;font-weight:600;text-transform:uppercase;letter-spacing:.8px;';
-            $badge = $isMe
-                ? '<span style="display:inline-block;background:#FADA00;color:#111827;
-                                font-size:9px;font-weight:700;letter-spacing:1px;
-                                text-transform:uppercase;padding:2px 7px;margin-left:6px;
-                                vertical-align:middle;">Anda</span>'
-                : '';
-            $border = 'border-bottom:1px solid #E5E7EB;';
-            $offRows .= "<tr>
-                <td style=\"padding:10px 16px;{$jwStyle}background:{$bg};{$border}\">"
-                    . htmlspecialchars($off['jawatan']) . "</td>
-                <td style=\"padding:10px 16px;{$namStyle}background:{$bg};{$border}\">"
-                    . htmlspecialchars($off['nama']) . $badge . "</td>
-              </tr>";
-        }
-        $officialsHtml = "
-        <div style=\"margin:20px 0 0;\">
-          <div style=\"background:#FADA00;padding:9px 16px;\">
-            <span style=\"font-size:10px;font-weight:700;color:#111827;letter-spacing:2px;
-                          text-transform:uppercase;\">Pegawai Perlawanan</span>
-          </div>
-          <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"
-                 style=\"border-collapse:collapse;border:1px solid #E5E7EB;border-top:none;\">
-            {$offRows}
-          </table>
-        </div>";
-    }
+    // ── Section: Krew KUP Perlawanan ──────────────────────────────────────
+    $officialsHtml = buildKupOfficialsEmailSection($allOfficials, $jawatan, $regionLabel);
 
     // ── Accept / Reject buttons ───────────────────────────────────────────
     require_once __DIR__ . '/lantikan-helper.php';
@@ -848,7 +937,7 @@ function sendBatalEmail(
         ['Kejohanan',      htmlspecialchars($kejohanan)],
         ['No. Perlawanan', htmlspecialchars($noMatchFmt)],
         ['Tarikh',         $tarikhFmt],
-        ['Masa',           $masaFmt . ' WIB'],
+        ['Masa',           $masaFmt . ' MYT'],
         ['Tempat',         htmlspecialchars($tempat)],
     ];
     $infoHtml = '';

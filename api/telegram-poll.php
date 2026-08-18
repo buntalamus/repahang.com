@@ -13,9 +13,21 @@
 
 declare(strict_types=1);
 
+// This runner removes the configured webhook before starting long polling.
+// Never allow it to execute through the public web server or in production.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/../config/telegram.php';
 require_once __DIR__ . '/../config/lantikan-helper.php';
+
+if (env('APP_ENV', 'production') !== 'development') {
+    fwrite(STDERR, "ERROR: telegram-poll.php hanya dibenarkan dalam APP_ENV=development.\n");
+    exit(1);
+}
 
 $botToken = env('TELEGRAM_BOT_TOKEN', '');
 if (!$botToken) {
@@ -247,10 +259,15 @@ function processUpdate(PDO $pdo, array $update, string $apiBase): void
             }
 
             $newStatus = $action === 'accept' ? 'Diterima' : 'Ditolak';
+            $shouldNotifyCompleteKup = false;
             $pdo->beginTransaction();
             try {
+                lockMatchForAppointmentResponse($pdo, (int) $row['jadual_id']);
+
                 $updStmt = $pdo->prepare(
-                    "UPDATE lantikan_pengadil SET status = :s, tarikh_jawab = NOW(), tg_token = NULL WHERE id = :id AND status = 'Belum Jawab'"
+                    "UPDATE lantikan_pengadil
+                     SET status = :s, tarikh_jawab = NOW(), tg_token = NULL, email_token = NULL
+                     WHERE id = :id AND status = 'Belum Jawab'"
                 );
                 $updStmt->execute([':s' => $newStatus, ':id' => $row['id']]);
                 if ($updStmt->rowCount() === 0) {
@@ -259,24 +276,10 @@ function processUpdate(PDO $pdo, array $update, string $apiBase): void
                     return;
                 }
 
-                if ($newStatus === 'Diterima') {
-                    createPerlawananFromLantikan($pdo, (int) $row['id']);
-
-                    $jid = (int) $row['jadual_id'];
-                    $chkStmt = $pdo->prepare("
-                        SELECT COUNT(*) AS total,
-                               SUM(CASE WHEN status = 'Diterima' THEN 1 ELSE 0 END) AS diterima
-                        FROM lantikan_pengadil WHERE jadual_id = :jid
-                    ");
-                    $chkStmt->execute([':jid' => $jid]);
-                    $counts = $chkStmt->fetch(PDO::FETCH_ASSOC);
-                    if ((int) $counts['total'] > 0 && (int) $counts['total'] === (int) $counts['diterima']) {
-                        $pdo->prepare(
-                            "UPDATE jadual_perlawanan SET status = 'Disahkan' WHERE id = :id AND status = 'Menunggu Pengesahan'"
-                        )->execute([':id' => $jid]);
-                        echo "  → Semua pengadil terima. Jadual status → Disahkan\n";
-                    }
-                }
+                $jid = (int) $row['jadual_id'];
+                syncPerlawananHistoryForJadual($pdo, $jid);
+                $shouldNotifyCompleteKup = isKupPosition((string) $row['jawatan'])
+                    && isAcceptedKupCrewComplete($pdo, $jid);
 
                 $pdo->commit();
             } catch (Throwable $txErr) {
@@ -290,21 +293,27 @@ function processUpdate(PDO $pdo, array $update, string $apiBase): void
                 generatePenilaianToken($pdo, (int) $row['id']);
             }
 
+            if ($shouldNotifyCompleteKup) {
+                notifyCompleteKupCrew($pdo, (int) $row['jadual_id']);
+            }
+
             $tarikhFmt = date('d M Y', strtotime($row['tarikh']));
             $pasukan   = htmlspecialchars($row['pasukan_home'] . ' lwn ' . $row['pasukan_away']);
             $jwtn      = htmlspecialchars($row['jawatan']);
+            $kupRoster = getMatchKupOfficials($pdo, (int) $row['jadual_id']);
+            $kupSection = tgKupOfficialsSection($kupRoster['officials'], $kupRoster['region_label']);
 
             if ($action === 'accept') {
                 $reply = "✅ <b>Tugasan Diterima</b>\n\n" .
                          "Anda telah <b>menerima</b> tugasan sebagai <b>{$jwtn}</b>.\n" .
-                         "{$pasukan}\n{$tarikhFmt}\n\n" .
+                         "{$pasukan}\n{$tarikhFmt}" . $kupSection . "\n\n" .
                          "Terima kasih. Sila hadir pada waktu yang ditetapkan.";
                 tgAnswerCallback($cbqId, 'Tugasan diterima. Terima kasih!');
                 echo "  → Diterima: {$jwtn}\n";
             } else {
                 $reply = "❌ <b>Tugasan Ditolak</b>\n\n" .
                          "Anda telah <b>menolak</b> tugasan sebagai <b>{$jwtn}</b>.\n" .
-                         "{$pasukan}\n{$tarikhFmt}\n\n" .
+                         "{$pasukan}\n{$tarikhFmt}" . $kupSection . "\n\n" .
                          "Pentadbir akan dimaklumkan. Terima kasih.";
                 tgAnswerCallback($cbqId, 'Tugasan ditolak.');
                 echo "  → Ditolak: {$jwtn}\n";

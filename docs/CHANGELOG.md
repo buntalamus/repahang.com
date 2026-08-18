@@ -4,6 +4,101 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [18–19 Ogos 2026]
+
+### 1. Peraturan Lantikan Dinamik: Minimum 3, Maksimum 5 Slot
+
+- Tiga slot wajib bagi setiap perlawanan ialah **Pengadil, Penolong Pengadil 1 (AR1), dan Penolong Pengadil 2 (AR2)**.
+- **Pegawai ke-4 (P4)** ialah slot ke-4 pilihan dan **Penilai Pengadil (RA)** ialah slot ke-5 pilihan.
+- RA kekal sebagai pegawai penilai yang berasingan daripada KUP. KUP terdiri daripada Pengadil, AR1, AR2, dan P4 sahaja.
+- Lantikan dikira lengkap apabila admin berjaya menghantar semua lantikan aktif yang dipilih. Penerimaan setiap pegawai tidak lagi menentukan status lengkap jadual.
+- Admin tidak boleh menghantar lantikan jika salah satu slot wajib belum diisi. Paparan individu, pukal, statistik, dan PDF Jadual Lantikan menggunakan peraturan 3–5 slot yang sama.
+
+**Fail:** `api/lantikan.php`, `api/jadual-lantikan-report.php`, `api/jadual-perlawanan.php`, `api/download-jadual-lantikan.php`, `config/lantikan-helper.php`, `frontend/src/app/features/admin/lantikan-pengadil/`
+
+---
+
+### 2. Maklumat Krew KUP Dalam Telegram, E-mel dan Dashboard
+
+- Notifikasi lantikan Telegram dan e-mel kini menyenaraikan semua KUP aktif bagi perlawanan yang sama, termasuk **nama, jawatan lantikan, nombor telefon, dan negeri/daerah** mengikut peringkat kejohanan.
+- Nama pegawai luar kini diambil daripada rekod `pengadil_luar`; mesej tidak lagi menggunakan nama umum “Pengadil” apabila nama sebenar tersedia.
+- Apabila semua KUP aktif menerima lantikan, setiap KUP yang menerima mendapat notifikasi akhir untuk memudahkan mereka berhubung dan menyelaras tugasan.
+- Penghantaran akhir direkod mengikut **versi krew, penerima, dan saluran**. Telegram/e-mel yang sudah berjaya tidak dihantar semula, manakala penghantaran gagal dicuba semula dengan sela masa meningkat melalui worker CLI/cron.
+- Jika P4 menolak, ditolak automatik, atau dibuang oleh admin, tiga KUP wajib yang sudah menerima terus dianggap lengkap dan menerima senarai akhir yang dikemas kini.
+- Jika Pengadil, AR1, atau AR2 menolak, senarai akhir menunggu pengganti bagi jawatan wajib tersebut menerima lantikan.
+- RA tidak menghalang dan tidak menerima notifikasi “Krew KUP Lengkap”. Dashboard pengadil turut memaparkan maklumat hubungan rakan KUP sahaja; RA dan pegawai yang telah ditolak dikecualikan.
+
+**Fail:** `config/telegram.php`, `config/email.php`, `config/lantikan-helper.php`, `api/lantikan.php`, `api/tugasan.php`, `api/kup-crew-notification-retry.php`, `docs/migration_kup_crew_notifications.sql`, `frontend/src/app/features/pengadil/tugasan/`
+
+---
+
+### 3. Jawapan Lantikan Atomik dan Selamat Di Semua Saluran
+
+**Masalah:** Aliran lama boleh menyimpan status `Diterima` sebelum sejarah `perlawanan` berjaya dicipta. Kegagalan `INSERT` kemudian meninggalkan lantikan diterima tanpa sejarah.
+
+**Perubahan:**
+- Dashboard, pautan e-mel, Telegram webhook, dan Telegram polling kini mengunci perlawanan serta menyimpan jawapan dan sejarah dalam transaksi yang sama.
+- Token Telegram dan e-mel dibatalkan bersama selepas jawapan berjaya supaya pautan lain tidak boleh digunakan semula.
+- Pautan e-mel melalui `GET` kini hanya memaparkan halaman pengesahan. Perubahan status hanya berlaku melalui `POST`, mengelakkan pengimbas keselamatan e-mel daripada menerima atau menolak lantikan secara tidak sengaja.
+- Tempoh jawapan hanya bermula selepas sekurang-kurangnya satu saluran luaran berjaya: **Telegram atau e-mel**. Notifikasi portal hanya tambahan dan tidak lagi boleh menandakan lantikan sebagai sudah dihantar dengan sendirinya.
+- Kegagalan notifikasi sampingan selepas transaksi tidak membatalkan jawapan lantikan yang telah berjaya direkodkan.
+- Skrip Telegram polling hanya boleh dijalankan melalui CLI dalam `APP_ENV=development` dan tidak dimasukkan dalam pakej produksi.
+
+**Fail:** `api/lantikan-jawab.php`, `api/lantikan-jawab-token.php`, `api/telegram-webhook.php`, `api/telegram-poll.php`, `api/lantikan.php`, `config/lantikan-helper.php`
+
+---
+
+### 4. Sejarah Perlawanan Automatik Untuk KUP Sahaja
+
+- Sejarah `perlawanan` automatik kini hanya dicipta untuk KUP berdaftar yang berstatus `Diterima`. RA dan pegawai luar tidak mendapat rekod sejarah KUP.
+- Nilai `jenis` dipendekkan dengan selamat kepada 60 aksara mengikut had pangkalan data, manakala nama kejohanan penuh kekal dalam `nama_kejohanan`.
+- Sinkronisasi mengemas kini metadata perlawanan dan keseluruhan crew KUP, mengekalkan ID rekod yang sah, serta membuang sejarah terpaut yang sudah tidak sah.
+- Skrip baharu `recover_all_accepted_kup_history.sql` disediakan dalam mod **PREVIEW** secara lalai untuk semua kejohanan. Ia memaut rekod manual yang sepadan secara unik, mencipta sejarah hilang, dan melangkau padanan ambigu.
+- Audit dump rujukan 14 Ogos 2026 menghasilkan **115 calon**, **7 rekod manual dipaut**, **108 rekod baharu**, **0 ambigu**, dan **77 sejarah terpaut tidak sah**. Ujian APPLY pada pangkalan data sementara berakhir dengan 0 sejarah KUP hilang dan 0 sejarah terpaut tidak sah; production belum diubah.
+- Skrip MSSP khusus dikemas kini supaya mengecualikan RA: **76 calon**, **4 rekod manual dipaut**, dan **72 rekod baharu** pada dump rujukan.
+
+**Fail:** `config/lantikan-helper.php`, `docs/recover_all_accepted_kup_history.sql`, `docs/recover_mssp_accepted_history.sql`
+
+---
+
+### 5. Integriti Lantikan, Penggantian dan Pembatalan
+
+- Setiap slot mesti menggunakan tepat satu identiti: pegawai berdaftar atau pegawai luar, dan pegawai tersebut mesti berada dalam pool kejohanan.
+- Sistem menolak pertindihan apabila pegawai sama telah dilantik pada tarikh dan masa yang sama, termasuk pegawai luar.
+- Mengaktifkan semula lantikan yang pernah ditolak menghasilkan jawapan baharu dan token lama dibatalkan. Lantikan aktif yang tidak berubah tidak kehilangan jawapan sedia ada.
+- Perlawanan yang dibatalkan atau ditangguhkan tidak boleh menerima lantikan baharu.
+- Pembatalan/penangguhan dilakukan secara transaksi, membatalkan semua token, menyelaraskan sejarah, dan hanya memaklumkan pegawai yang pernah menerima notifikasi.
+- Perlawanan yang sudah bermula atau mempunyai laporan RA/penilaian lama dilindungi daripada pemadaman atau pembatalan yang boleh merosakkan sejarah. Pembetulan selepas sepak mula mesti menggunakan aliran **Ganti**.
+- Perubahan jadual perlawanan menyelaraskan semula sejarah semua KUP dan ditolak jika laporan RA untuk perlawanan tersebut telah diwujudkan.
+
+**Fail:** `api/lantikan.php`, `api/jadual-perlawanan.php`, `config/lantikan-helper.php`
+
+---
+
+### 6. Keselamatan dan Integriti Laporan RA
+
+- Hanya RA berdaftar yang memiliki lantikan `Penilai Pengadil` berstatus `Diterima`, atau RA luar dengan token sah, boleh mencipta laporan bagi perlawanan tersebut.
+- Senarai KUP dalam laporan diambil semula daripada pangkalan data. Nama, jawatan, dan ID yang dihantar oleh klien tidak lagi dipercayai; setiap KUP diterima mesti dinilai tepat sekali.
+- Laporan yang sudah dihantar menjadi tidak boleh diedit sementara menunggu semakan admin. Penghantaran dan pengesahan admin dilakukan secara transaksi.
+- KUP menerima pautan laporan **baca-sahaja** yang terikat kepada satu laporan. Token borang RA tidak lagi didedahkan kepada penerima laporan.
+- Akses muat turun dikecilkan kepada admin, pemilik laporan, KUP dalam perlawanan sama, dan PP Daerah yang berkaitan. E-mel dan Telegram pegawai luar turut disokong menggunakan medan pangkalan data yang betul.
+
+**Fail:** `config/penilaian-helper.php`, `api/penilaian-token.php`, `api/laporan-penilaian.php`, `api/download-laporan-penilaian.php`
+
+---
+
+### 7. Pakej Produksi dan Pengesahan
+
+- `deploy/build.sh` kini mengecualikan Telegram polling, fail ujian admin, fail diagnostik, `.env`, dan fail konfigurasi sensitif daripada ZIP produksi.
+- Direktori `docs/` dalam pakej dilindungi dengan `.htaccess` supaya skrip SQL pemulihan/migrasi tidak boleh dimuat turun melalui web.
+- Pakej produksi dibina semula selepas semua ujian perubahan ini; nama fail, kiraan dan SHA-256 direkod dalam laporan serahan build.
+- PHP lint, TypeScript, Angular production build, ujian MySQL sementara, integriti ZIP, pengecualian fail sensitif, dan perbandingan hash sumber/pakej semuanya lulus. Angular hanya memberi amaran bundle awal 506.72 kB berbanding bajet 500 kB.
+- Perubahan ini masih dalam worktree/cabang pembangunan. ZIP belum dimuat naik, kod belum dideploy, dan skrip pemulihan belum dijalankan pada pangkalan data production.
+
+**Fail:** `deploy/build.sh`, `deploy/refpahang-deploy-20260819-011957.zip`
+
+---
+
 ## [5–6 Ogos 2026]
 
 ### 1. Menu Notifikasi Lantikan & Pasukan Pegawai Perlawanan
@@ -186,6 +281,7 @@ Jalankan mengikut turutan:
 | `docs/migration_profil_taraf_pasukan_logo.sql` | Kolum tahun Kelas 3 + taraf pengadil + jadual `pasukan_logo` (termasuk backfill) | ✅ Sudah dijalankan |
 | `docs/fix_tahun_kelas3_ikut_tarikh_hantar.sql` | Betulkan tahun Kelas 3 supaya ikut tarikh hantar sebenar | ⚠️ Perlu dijalankan |
 | `docs/migration_status_perlawanan_lantikan.sql` | Status pembatalan/penangguhan + sebab bagi `lantikan_pengadil` dan `jadual_perlawanan` | ⚠️ Perlu dijalankan sebelum deploy |
+| `docs/migration_kup_crew_notifications.sql` | Rekod idempotensi, status saluran, retry dan backoff notifikasi akhir krew KUP | ⚠️ Perlu dijalankan sebelum deploy dan cron diaktifkan |
 
 Versi PHP CLI setara juga tersedia: `docs/migration_profil_taraf_pasukan_logo.php`.
 

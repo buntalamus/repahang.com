@@ -27,6 +27,7 @@ export class LantikanPengadilComponent implements OnInit {
   activeTab = 'kejohanan';
 
   jawatanList = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4', 'Penilai Pengadil'];
+  readonly requiredJawatan = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2'];
 
   // Kejohanan
   loadingKejohanan = true;
@@ -1061,6 +1062,33 @@ export class LantikanPengadilComponent implements OnInit {
     return this.lantikanList.find(a => a.jawatan === jawatan) || null;
   }
 
+  hasRequiredSlotsInCurrentMatch(): boolean {
+    return this.requiredJawatan.every((jawatan) => {
+      const assignment = this.getAssignment(jawatan);
+      return assignment && ['Belum Jawab', 'Diterima'].includes(assignment.status);
+    });
+  }
+
+  missingRequiredSlots(): string[] {
+    return this.requiredJawatan.filter((jawatan) => {
+      const assignment = this.getAssignment(jawatan);
+      return !assignment || !['Belum Jawab', 'Diterima'].includes(assignment.status);
+    });
+  }
+
+  activeSlotCountCurrentMatch(): number {
+    return this.lantikanList.filter((assignment) =>
+      ['Belum Jawab', 'Diterima'].includes(assignment.status)
+    ).length;
+  }
+
+  hasRequiredSlots(assignments: Record<string, { status_lantikan?: string } | null | undefined>): boolean {
+    return this.requiredJawatan.every((jawatan) => {
+      const assignment = assignments[jawatan];
+      return assignment && ['Belum Jawab', 'Diterima'].includes(assignment.status_lantikan || '');
+    });
+  }
+
   assignReferee(jawatan: string): void {
     const val = this.selectedReferee[jawatan];
     if (!val || !this.selectedJadual) return;
@@ -1102,6 +1130,10 @@ export class LantikanPengadilComponent implements OnInit {
   sendNotification(): void {
     if (!this.selectedJadual) return;
     const pending = this.lantikanList.filter(a => a.status === 'Belum Jawab');
+    if (!this.hasRequiredSlotsInCurrentMatch()) {
+      this.toast.show(`Slot wajib belum lengkap: ${this.missingRequiredSlots().join(', ')}.`, 'error');
+      return;
+    }
     if (pending.length === 0) {
       this.toast.show('Tiada pengadil dengan status Belum Jawab untuk dihantar notifikasi.', 'error');
       return;
@@ -1139,7 +1171,8 @@ export class LantikanPengadilComponent implements OnInit {
     return this.jadualLantikanGrouped.flatMap(group => group.matches).filter((j: any) => {
       if (j.is_started) return false;
       const assignments = j.assignments || {};
-      return Object.values(assignments).some((a: any) => a && a.status_lantikan === 'Belum Jawab');
+      return this.hasRequiredSlots(assignments)
+        && Object.values(assignments).some((a: any) => a && a.status_lantikan === 'Belum Jawab');
     });
   }
 
@@ -1184,10 +1217,18 @@ export class LantikanPengadilComponent implements OnInit {
 
   hasUnnotified(j: any): boolean {
     const assignments = j.assignments || {};
-    return Object.values(assignments).some((a: any) => a && a.status_lantikan === 'Belum Jawab' && !a.notif_hantar);
+    return this.hasRequiredSlots(assignments)
+      && Object.values(assignments).some((a: any) => a && a.status_lantikan === 'Belum Jawab' && !a.notif_hantar);
   }
 
   sendMatchNotification(jadualId: number): void {
+    const match = this.jadualLantikanGrouped
+      .flatMap((group) => group.matches)
+      .find((item: any) => item.id === jadualId);
+    if (!match || !this.hasRequiredSlots(match.assignments || {})) {
+      this.toast.show('Slot wajib Pengadil, AR1 dan AR2 mesti lengkap sebelum lantikan dihantar.', 'error');
+      return;
+    }
     this.confirmTitle = 'Hantar Notifikasi';
     this.confirmMessage = 'Hantar notifikasi kepada semua pegawai (Belum Jawab) untuk perlawanan ini?';
     this.confirmType = 'warning';

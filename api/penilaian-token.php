@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/../config/kriteria-penilaian.php';
+require_once __DIR__ . '/../config/penilaian-helper.php';
 
 /* ── Reuse helper from laporan-penilaian.php ── */
 function savePegawaiToken(PDO $pdo, int $laporanId, array $pegawaiList): void {
@@ -78,7 +79,9 @@ try {
         JOIN kejohanan k ON jp.kejohanan_id = k.id
         LEFT JOIN users u ON lp.pengadil_id = u.id
         LEFT JOIN pengadil_luar pl ON lp.pengadil_luar_id = pl.id
-        WHERE lp.penilaian_token = :token AND lp.jawatan = 'Penilai Pengadil'
+        WHERE lp.penilaian_token = :token
+          AND lp.jawatan = 'Penilai Pengadil'
+          AND lp.status = 'Diterima'
     ");
     $stmt->execute([':token' => $token]);
     $penilai = $stmt->fetch();
@@ -89,22 +92,10 @@ try {
 
     /* ── GET: return match + officials ── */
     if ($method === 'GET') {
-        // Get officials for this match
-        $offStmt = $pdo->prepare("
-            SELECT lp.id AS lantikan_id, lp.jawatan,
-                CASE WHEN lp.pengadil_id IS NOT NULL THEN u.nama_penuh
-                     WHEN lp.pengadil_luar_id IS NOT NULL THEN pl.nama
-                     ELSE NULL END AS nama_pengadil
-            FROM lantikan_pengadil lp
-            LEFT JOIN users u ON lp.pengadil_id = u.id
-            LEFT JOIN pengadil_luar pl ON lp.pengadil_luar_id = pl.id
-            WHERE lp.jadual_id = :jid AND lp.jawatan != 'Penilai Pengadil' AND lp.status != 'Ditolak'
-            ORDER BY FIELD(lp.jawatan,'Pengadil','Penolong Pengadil 1','Penolong Pengadil 2','Pegawai ke4')
-        ");
-        $offStmt->execute([':jid' => $penilai['jadual_id']]);
-        $officials = $offStmt->fetchAll();
+        $officials = getAcceptedKupForAssessment($pdo, (int) $penilai['jadual_id']);
 
         foreach ($officials as &$o) {
+            $o['lantikan_id'] = $o['lantikan_pengadil_id'];
             $o['sections'] = getSectionsForJawatan($o['jawatan']);
         }
 
@@ -162,9 +153,18 @@ try {
 
     /* ── POST: save evaluation ── */
     if ($method === 'POST') {
-        $pegawai = $input['pegawai'] ?? [];
-        if (empty($pegawai) || !is_array($pegawai)) {
+        $pegawaiInput = $input['pegawai'] ?? [];
+        if (empty($pegawaiInput) || !is_array($pegawaiInput)) {
             jsonResponse(['error' => true, 'message' => 'Senarai pegawai diperlukan.'], 400);
+        }
+        try {
+            $pegawai = normalizeSubmittedKupAssessments(
+                $pdo,
+                (int) $penilai['jadual_id'],
+                $pegawaiInput
+            );
+        } catch (InvalidArgumentException $validationError) {
+            jsonResponse(['error' => true, 'message' => $validationError->getMessage()], 400);
         }
 
         $hantar = !empty($input['hantar']);
@@ -180,14 +180,33 @@ try {
 
         $pdo->beginTransaction();
 
-        // Check existing
-        $checkStmt = $pdo->prepare("SELECT id, status FROM laporan_penilaian WHERE lantikan_id = :lid");
+        // Serialize token and signed-in writers on the RA appointment so one
+        // match cannot gain duplicate reports through concurrent requests.
+        $lockStmt = $pdo->prepare("
+            SELECT id
+            FROM lantikan_pengadil
+            WHERE id = :lid AND status = 'Diterima'
+            FOR UPDATE
+        ");
+        $lockStmt->execute([':lid' => $penilai['lantikan_id']]);
+        if (!$lockStmt->fetchColumn()) {
+            $pdo->rollBack();
+            jsonResponse(['error' => true, 'message' => 'Lantikan RA tidak lagi aktif.'], 409);
+        }
+
+        // A submitted report is immutable until the admin reviews it.
+        $checkStmt = $pdo->prepare("
+            SELECT id, status
+            FROM laporan_penilaian
+            WHERE lantikan_id = :lid
+            LIMIT 1 FOR UPDATE
+        ");
         $checkStmt->execute([':lid' => $penilai['lantikan_id']]);
         $existing = $checkStmt->fetch();
 
-        if ($existing && $existing['status'] === 'Disahkan') {
+        if ($existing && $existing['status'] !== 'Draf') {
             $pdo->rollBack();
-            jsonResponse(['error' => true, 'message' => 'Laporan sudah disahkan.'], 400);
+            jsonResponse(['error' => true, 'message' => 'Laporan yang telah dihantar tidak boleh diedit semula.'], 409);
         }
 
         $penilaiId = $penilai['pengadil_id'] ?: null;

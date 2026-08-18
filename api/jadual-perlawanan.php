@@ -150,7 +150,8 @@ try {
 
             $stmt = $pdo->prepare("
                 SELECT jp.*,
-                    (SELECT COUNT(*) FROM lantikan_pengadil lp WHERE lp.jadual_id = jp.id) AS jumlah_lantikan,
+                    (SELECT COUNT(*) FROM lantikan_pengadil lp
+                     WHERE lp.jadual_id = jp.id AND lp.status IN ('Belum Jawab', 'Diterima')) AS jumlah_lantikan,
                     (SELECT COUNT(*) FROM lantikan_pengadil lp WHERE lp.jadual_id = jp.id AND lp.status = 'Diterima') AS jumlah_terima
                 FROM jadual_perlawanan jp
                 WHERE jp.kejohanan_id = :kid
@@ -261,26 +262,49 @@ try {
         $hariList = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
         $hari = $tarikh ? $hariList[(int) date('w', strtotime($tarikh))] : trim($input['hari'] ?? '');
 
-        $stmt = $pdo->prepare("
-            UPDATE jadual_perlawanan
-            SET no_perlawanan = :no_perlawanan, tarikh = :tarikh, masa = :masa, hari = :hari,
-                kategori = :kategori, peringkat = :peringkat, kumpulan = :kumpulan,
-                pasukan_home = :pasukan_home, pasukan_away = :pasukan_away, tempat = :tempat
-            WHERE id = :id
-        ");
-        $stmt->execute([
-            ':no_perlawanan'  => trim($input['no_perlawanan'] ?? ''),
-            ':tarikh'         => $tarikh,
-            ':masa'           => trim($input['masa'] ?? ''),
-            ':hari'           => $hari,
-            ':kategori'       => trim($input['kategori'] ?? ''),
-            ':peringkat'      => trim($input['peringkat'] ?? ''),
-            ':kumpulan'       => trim($input['kumpulan'] ?? ''),
-            ':pasukan_home'   => trim($input['pasukan_home'] ?? ''),
-            ':pasukan_away'   => trim($input['pasukan_away'] ?? ''),
-            ':tempat'         => trim($input['tempat'] ?? ''),
-            ':id'             => $id,
-        ]);
+        $pdo->beginTransaction();
+        try {
+            lockMatchForAppointmentResponse($pdo, $id);
+
+            $reportStmt = $pdo->prepare("SELECT id FROM laporan_penilaian WHERE jadual_id = :jid LIMIT 1 FOR UPDATE");
+            $reportStmt->execute([':jid' => $id]);
+            if ($reportStmt->fetchColumn()) {
+                $pdo->rollBack();
+                jsonResponse([
+                    'error' => true,
+                    'message' => 'Perlawanan tidak boleh diubah kerana laporan RA telah diwujudkan.',
+                ], 409);
+            }
+
+            $stmt = $pdo->prepare("
+                UPDATE jadual_perlawanan
+                SET no_perlawanan = :no_perlawanan, tarikh = :tarikh, masa = :masa, hari = :hari,
+                    kategori = :kategori, peringkat = :peringkat, kumpulan = :kumpulan,
+                    pasukan_home = :pasukan_home, pasukan_away = :pasukan_away, tempat = :tempat
+                WHERE id = :id
+            ");
+            $stmt->execute([
+                ':no_perlawanan'  => trim($input['no_perlawanan'] ?? ''),
+                ':tarikh'         => $tarikh,
+                ':masa'           => trim($input['masa'] ?? ''),
+                ':hari'           => $hari,
+                ':kategori'       => trim($input['kategori'] ?? ''),
+                ':peringkat'      => trim($input['peringkat'] ?? ''),
+                ':kumpulan'       => trim($input['kumpulan'] ?? ''),
+                ':pasukan_home'   => trim($input['pasukan_home'] ?? ''),
+                ':pasukan_away'   => trim($input['pasukan_away'] ?? ''),
+                ':tempat'         => trim($input['tempat'] ?? ''),
+                ':id'             => $id,
+            ]);
+
+            syncPerlawananHistoryForJadual($pdo, $id);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
 
         // Auto-isi logo dari registri jika nama pasukan berubah
         isiLogoDariRegistri($pdo, null, $id);
