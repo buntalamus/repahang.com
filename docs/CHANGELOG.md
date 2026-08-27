@@ -6,6 +6,18 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ## [28 Ogos 2026]
 
+### Validasi Borang RA di Pelayan
+
+- API borang RA kini mengesahkan tahap kesukaran, cuaca, skor, markah dan prestasi sebelum menulis ke pangkalan data.
+- Input yang diubah suai atau di luar pilihan sah dipulangkan sebagai ralat pengguna `400` dengan mesej khusus, bukan ralat pelayan `500` daripada MySQL.
+- Peraturan yang sama digunakan untuk RA luar melalui pautan token dan RA berdaftar melalui portal.
+
+**Pengesahan:** nilai tahap, skor, markah dan prestasi tidak sah diuji pada klon dump terbaru dan semuanya ditolak tanpa mutasi laporan. Lint PHP dan simulasi laporan sah turut dijalankan semula.
+
+**Fail:** `config/penilaian-helper.php`, `api/penilaian-token.php`, `api/laporan-penilaian.php`
+
+---
+
 ### Ketahanan Butang Jawapan Telegram
 
 - Callback Telegram kini membaca medan rasmi `message_id` dan masih menerima medan lama `id` sebagai fallback. Selepas pengadil menekan **Terima** atau **Tolak**, mesej asal boleh dikemas kini dengan betul dan butang lama tidak dibiarkan aktif atau mengelirukan.

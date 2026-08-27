@@ -293,23 +293,13 @@ try {
 
         try {
             $pegawai = normalizeSubmittedKupAssessments($pdo, $jadual_id, $pegawaiInput);
+            $parentFields = normalizeLaporanParentFields($input);
         } catch (InvalidArgumentException $validationError) {
             jsonResponse(['error' => true, 'message' => $validationError->getMessage()], 400);
         }
 
         $penilai_id = $currentUserId;
-
-        $parentFields = [
-            'tahap_kesukaran'    => $input['tahap_kesukaran'] ?? 'Normal',
-            'cuaca'              => !empty($input['cuaca']) ? $input['cuaca'] : null,
-            'ulasan_keseluruhan' => $input['ulasan_keseluruhan'] ?? '',
-            'status'             => 'Draf',
-        ];
-
-        // Score fields
-        foreach (['skor_ht_home','skor_ht_away','skor_ft_home','skor_ft_away','skor_et_home','skor_et_away','skor_ps_home','skor_ps_away'] as $sf) {
-            $parentFields[$sf] = isset($input[$sf]) && $input[$sf] !== '' && $input[$sf] !== null ? (int)$input[$sf] : null;
-        }
+        $parentFields['status'] = 'Draf';
 
         $pdo->beginTransaction();
 

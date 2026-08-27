@@ -164,6 +164,7 @@ try {
                 (int) $penilai['jadual_id'],
                 $pegawaiInput
             );
+            $parentFields = normalizeLaporanParentFields($input);
         } catch (InvalidArgumentException $validationError) {
             jsonResponse(['error' => true, 'message' => $validationError->getMessage()], 400);
         }
@@ -212,15 +213,15 @@ try {
         }
 
         $penilaiId = $penilai['pengadil_id'] ?: null;
-        $tahap = $input['tahap_kesukaran'] ?? 'Normal';
-        $cuaca = !empty($input['cuaca']) ? $input['cuaca'] : null;
-        $ulasan = $input['ulasan_keseluruhan'] ?? '';
+        $tahap = $parentFields['tahap_kesukaran'];
+        $cuaca = $parentFields['cuaca'];
+        $ulasan = $parentFields['ulasan_keseluruhan'];
         $status = $hantar ? 'Dihantar' : 'Draf';
 
         // Score fields
         $skorFields = [];
         foreach (['skor_ht_home','skor_ht_away','skor_ft_home','skor_ft_away','skor_et_home','skor_et_away','skor_ps_home','skor_ps_away'] as $sf) {
-            $skorFields[$sf] = isset($input[$sf]) && $input[$sf] !== '' && $input[$sf] !== null ? (int)$input[$sf] : null;
+            $skorFields[$sf] = $parentFields[$sf];
         }
 
         if ($existing) {

@@ -28,6 +28,77 @@ function verifyReportViewToken(int $laporanId, string $penilaianToken, string $v
 }
 
 /**
+ * Validate and normalize fields stored on the parent RA report.
+ *
+ * Browser constraints are not a security boundary: an external RA can call
+ * the token endpoint directly. Reject invalid enum/score values before MySQL
+ * turns them into a truncation warning and a generic HTTP 500 response.
+ *
+ * @return array<string, mixed>
+ */
+function normalizeLaporanParentFields(array $input): array
+{
+    $validTahap = ['Normal', 'Susah', 'Sangat Susah'];
+    $tahapRaw = $input['tahap_kesukaran'] ?? 'Normal';
+    if (!is_string($tahapRaw)) {
+        throw new InvalidArgumentException('Tahap kesukaran tidak sah.');
+    }
+    $tahap = trim($tahapRaw);
+    if (!in_array($tahap, $validTahap, true)) {
+        throw new InvalidArgumentException('Tahap kesukaran tidak sah.');
+    }
+
+    $validCuaca = ['Cerah', 'Mendung', 'Hujan Renyai', 'Hujan Lebat', 'Panas Terik', 'Berangin'];
+    $cuacaRaw = $input['cuaca'] ?? null;
+    if ($cuacaRaw !== null && !is_string($cuacaRaw)) {
+        throw new InvalidArgumentException('Pilihan cuaca tidak sah.');
+    }
+    $cuaca = trim((string) ($cuacaRaw ?? ''));
+    if ($cuaca !== '' && !in_array($cuaca, $validCuaca, true)) {
+        throw new InvalidArgumentException('Pilihan cuaca tidak sah.');
+    }
+
+    $ulasanRaw = $input['ulasan_keseluruhan'] ?? '';
+    if (!is_string($ulasanRaw) || strlen($ulasanRaw) > 65535) {
+        throw new InvalidArgumentException('Ulasan keseluruhan tidak sah atau terlalu panjang.');
+    }
+
+    $fields = [
+        'tahap_kesukaran' => $tahap,
+        'cuaca' => $cuaca !== '' ? $cuaca : null,
+        'ulasan_keseluruhan' => $ulasanRaw,
+    ];
+
+    foreach ([
+        'skor_ht_home', 'skor_ht_away',
+        'skor_ft_home', 'skor_ft_away',
+        'skor_et_home', 'skor_et_away',
+        'skor_ps_home', 'skor_ps_away',
+    ] as $scoreField) {
+        $raw = $input[$scoreField] ?? null;
+        if ($raw === null || $raw === '') {
+            $fields[$scoreField] = null;
+            continue;
+        }
+
+        $isWholeNumber = is_int($raw)
+            || (is_float($raw) && floor($raw) === $raw)
+            || (is_string($raw) && preg_match('/^\d+$/D', $raw) === 1);
+        if (!$isWholeNumber) {
+            throw new InvalidArgumentException('Skor perlawanan mesti nombor bulat antara 0 hingga 99.');
+        }
+
+        $score = (int) $raw;
+        if ($score < 0 || $score > 99) {
+            throw new InvalidArgumentException('Skor perlawanan mesti antara 0 hingga 99.');
+        }
+        $fields[$scoreField] = $score;
+    }
+
+    return $fields;
+}
+
+/**
  * Return only KUP who accepted the named match. RA is never part of this list.
  *
  * @return array<int, array{lantikan_pengadil_id:int, jawatan:string, nama_pengadil:string}>
@@ -121,6 +192,26 @@ function normalizeSubmittedKupAssessments(PDO $pdo, int $jadualId, array $submit
         }
 
         $entry = $submittedById[$lantikanId];
+        $markahRaw = $entry['markah'] ?? null;
+        if ($markahRaw !== null && $markahRaw !== '') {
+            if (!is_numeric($markahRaw)) {
+                throw new InvalidArgumentException('Markah pegawai mesti nombor antara 6.0 hingga 10.0.');
+            }
+            $markah = (float) $markahRaw;
+            if ($markah < 6.0 || $markah > 10.0 || abs(($markah * 10) - round($markah * 10)) > 0.000001) {
+                throw new InvalidArgumentException('Markah pegawai mesti antara 6.0 hingga 10.0 dengan satu tempat perpuluhan.');
+            }
+            $entry['markah'] = $markah;
+        }
+
+        $prestasiRaw = $entry['prestasi'] ?? null;
+        if ($prestasiRaw !== null && $prestasiRaw !== '') {
+            if (!is_string($prestasiRaw)
+                || !in_array($prestasiRaw, ['Sangat Baik', 'Baik', 'Memuaskan', 'Tidak Memuaskan'], true)) {
+                throw new InvalidArgumentException('Pilihan prestasi pegawai tidak sah.');
+            }
+        }
+
         $entry['lantikan_pengadil_id'] = $lantikanId;
         $entry['jawatan'] = $official['jawatan'];
         $entry['nama_pengadil'] = $official['nama_pengadil'];
