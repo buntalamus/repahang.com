@@ -65,11 +65,16 @@ try {
     $pdo->beginTransaction();
     try {
         lockMatchForAppointmentResponse($pdo, (int) $assignment['jadual_id']);
+        requireLantikanAuditSchema($pdo);
+        $responseAuditSnapshot = getLantikanAuditSnapshot($pdo, $lantikan_id, true);
+        if (!$responseAuditSnapshot) {
+            throw new RuntimeException('Snapshot audit jawapan portal tidak dijumpai.');
+        }
 
         // Atomic update — only succeeds if status is still 'Belum Jawab' (prevents race)
         $updStmt = $pdo->prepare("
             UPDATE lantikan_pengadil
-            SET status = :status, komen = :komen, tarikh_jawab = NOW(),
+            SET status = :status, komen = :komen, tarikh_jawab = NOW(), status_dikemaskini_at = NOW(),
                 tg_token = NULL, email_token = NULL
             WHERE id = :id AND status = 'Belum Jawab'
         ");
@@ -86,6 +91,19 @@ try {
         syncPerlawananHistoryForJadual($pdo, (int) $assignment['jadual_id']);
         $shouldNotifyCompleteKup = isKupPosition((string) $assignment['jawatan'])
             && isAcceptedKupCrewComplete($pdo, (int) $assignment['jadual_id']);
+
+        recordLantikanAudit(
+            $pdo,
+            $lantikan_id,
+            'appointment_response',
+            'portal',
+            'success',
+            ['action' => $action, 'new_status' => $newStatus, 'comment' => $komen],
+            null,
+            'official',
+            (int) $currentUser['id'],
+            $responseAuditSnapshot
+        );
 
         $pdo->commit();
     } catch (Throwable $txErr) {

@@ -4,6 +4,73 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [28 Ogos 2026]
+
+### Ketahanan Butang Jawapan Telegram
+
+- Callback Telegram kini membaca medan rasmi `message_id` dan masih menerima medan lama `id` sebagai fallback. Selepas pengadil menekan **Terima** atau **Tolak**, mesej asal boleh dikemas kini dengan betul dan butang lama tidak dibiarkan aktif atau mengelirukan.
+
+**Pengesahan:** payload callback sebenar berasaskan `message_id` diuji bagi tindakan Terima dan Tolak pada klon dump terbaru. Perubahan status, pembatalan token, audit dan kelengkapan semula krew KUP lulus. Pakej lokal `021615` lulus ujian ZIP dan hash tetapi belum dimuat naik ke production.
+
+**Fail:** `api/telegram-webhook.php`, `api/telegram-poll.php`
+
+---
+
+### Pengesahan Laporan RA oleh Pengerusi Pengadil Kejohanan
+
+- Setiap kejohanan kini mempunyai seorang **Pengerusi Pengadil** sebagai pengesah rasmi laporan RA. Tetapan dibuat dalam **Lantikan > Tab 1 Kejohanan** dan menyokong Penilai Pengadil berdaftar atau luar.
+- Kejohanan MSSM 2026 ditetapkan kepada **SUHAIZI BIN SHUKRI (Kedah)** sebagai **PENGERUSI PENGADIL MSSM**, menggunakan rekod pengadil luar dan emel autoritatif dalam dump 27 Ogos.
+- Selepas RA menghantar laporan, Pengerusi menerima pautan unik melalui emel dan Telegram jika telah dipautkan. Membuka pautan (`GET`) hanya memaparkan semakan; pengesahan hanya berlaku selepas butang borang (`POST`) ditekan.
+- Pengerusi boleh menyemak laporan penuh dan menulis komen sebelum mengesahkan. Komen, identiti Pengerusi, masa, saluran, pautan dan setiap keputusan penghantaran direkodkan dalam audit.
+- Admin menerima salinan dalam portal, boleh melihat status emel/Telegram, log penuh dan menyalin pautan terus Pengerusi. Admin tidak lagi menjadi pengesah biasa; tindakan **Override Admin** memerlukan sebab dan direkod bersama identiti Admin.
+- Selepas pengesahan Pengerusi atau override Admin, laporan penuh dihantar kepada KUP melalui saluran tersedia. PDF memaparkan identiti pengesah serta label komen yang tepat.
+- Migrasi baharu `docs/migration_laporan_pengesahan_pengerusi.sql` menyediakan konfigurasi kejohanan, status pengesahan dan dua log audit append-only.
+
+**Pengesahan:** migrasi berjaya dijalankan berulang kali pada klon dump terbaru tanpa rekod pendua. Ujian integrasi mengesahkan penghantaran emel simulasi kepada Suhaizi, salinan portal kepada tiga Admin, pengesahan token, komen Pengerusi, audit pelaku luar dan pencegahan pengesahan kali kedua. Migrasi dan build `014802` telah dimuat naik pengguna; kewujudan schema serta hash aset production telah disahkan. Tiada emel/Telegram produksi dihantar semasa audit.
+
+**Fail:** `docs/migration_laporan_pengesahan_pengerusi.sql`, `config/laporan-pengesahan.php`, `api/kejohanan-pengesah-laporan.php`, `api/laporan-pengesahan-token.php`, `api/laporan-penilaian.php`, `api/penilaian-token.php`, `api/download-laporan-penilaian.php`, `config/email.php`, `frontend/src/app/features/admin/lantikan-pengadil/`
+
+---
+
+### Blast E-mel Pemautan Telegram Pengadil Luar Dalam Pool
+
+- Bahagian **Lantikan > Pool Pengadil Kejohanan** kini mempunyai butang **Blast Pautan Telegram** yang hanya menyasar pengadil luar dalam pool kejohanan sedang dipilih.
+- Pratonton membezakan pengadil yang sudah dipaut, sedia dihantar, pernah menerima e-mel tetapi belum memaut, gagal, tiada e-mel, dan mempunyai alamat e-mel tidak sah.
+- Blast biasa hanya menghantar kepada penerima yang belum pernah berjaya menerima e-mel onboarding. Tindakan **Hantar Semula** disediakan secara berasingan dan memerlukan pengesahan Admin.
+- E-mel menerangkan dengan jelas bahawa mesej tersebut bukan lantikan perlawanan, tidak memerlukan jawapan Terima/Tolak, dan tidak memulakan tempoh jawapan lantikan.
+- Setiap batch, claim, penerima, keputusan SMTP, sebab dilangkau dan pautan tepat direkodkan. Claim atomik menghalang dua permintaan serentak daripada menghantar e-mel pertama dua kali kepada penerima sama.
+- Kejayaan pengadil luar menekan START dan memaut Telegram kini direkodkan sebagai log append-only mengikut kejohanan, bersama cap masa pada status penerima dan snapshot batch onboarding asal.
+- Tiga kegagalan SMTP berturut-turut membuka circuit breaker bagi batch tersebut. Baki penerima dilangkau tetapi kekal layak dicuba semula, mengelakkan permintaan tergantung lama apabila pelayan e-mel sedang gagal.
+- Aliran onboarding tidak membaca atau mengubah `lantikan_pengadil`, termasuk `notif_hantar` dan `tarikh_notif`. Status Telegram dalam jadual pool turut dipaparkan untuk pengadil berdaftar dan luar.
+- Migrasi `docs/migration_lantikan_audit.sql` kini turut menyediakan `telegram_onboarding_batch`, `telegram_onboarding_state`, dan log penerima append-only `telegram_onboarding_log`.
+
+**Pengesahan:** migrasi dijalankan berulang kali pada klon dump 27 Ogos; pool MSSM mengandungi 79 pengadil luar. Ujian SMTP TLS setempat menangkap 79/79 e-mel unik, klik blast berulang menghantar 0 e-mel tambahan, permintaan serentak menghasilkan satu penghantaran sahaja, resend/kegagalan/alamat e-mel tidak sah/tiada e-mel/Telegram sudah dipaut diuji, dan hash data `lantikan_pengadil` kekal sama sebelum serta selepas blast. Ujian susulan mengesahkan cap masa serta log append-only kejayaan pemautan sebelum lantikan. Migrasi dan build `014802` telah dimuat naik pengguna dan disahkan pada production. Tiada e-mel atau Telegram produksi dihantar semasa audit.
+
+**Fail:** `api/pengadil-luar-telegram-blast.php`, `config/telegram-onboarding.php`, `api/pool-pengadil.php`, `docs/migration_lantikan_audit.sql`, `frontend/src/app/features/admin/lantikan-pengadil/`
+
+---
+
+## [27 Ogos 2026]
+
+### Audit Kekal, Pautan Terus dan Pemautan Telegram Pengadil Luar
+
+- Admin boleh menyediakan dan menyalin pautan aktif **Terima**, **Tolak**, **Borang RA**, serta pautan pemautan Telegram pengadil luar daripada skrin lantikan.
+- Menyediakan atau menyalin pautan tidak memulakan tempoh jawapan. Tempoh hanya bermula selepas emel/Telegram berjaya, atau Admin mengesahkan pautan lantikan benar-benar telah dihantar secara manual.
+- Setiap percubaan dan keputusan saluran direkod secara kekal bersama pautan, masa, pegawai, perlawanan dan pelaku. Log dikekalkan walaupun lantikan kemudiannya dibuang.
+- Pengadil luar menerima Telegram hanya selepas pautan unik `t.me/refpahang_bot?start=...` digunakan. Satu chat Telegram tidak boleh dipaut kepada identiti lain.
+- Jawapan melalui pautan emel kekal dua langkah (`GET` baca sahaja, `POST` sahkan), dan halaman pengadil luar tidak memaparkan pautan dashboard portal.
+- Penghantaran RA merekod keputusan emel dan Telegram secara berasingan. Jika kedua-duanya gagal, pautan borang RA kekal tersedia kepada Admin untuk penghantaran terus.
+- Jika penghantar emel atau Telegram melempar ralat teknikal, saluran lain tetap dicuba dan mesej ralat direkodkan dalam audit bersama pautan borang RA.
+- Pemadaman profil pengadil luar yang pernah dilantik kini ditolak di API dan pangkalan data. Identiti pool/lantikan mesti tepat satu, dan kategori Penilai Pengadil diasingkan daripada slot KUP.
+- Negeri pengadil luar dan RA kini diambil daripada `pengadil_luar` dalam PDF laporan penilaian, bukan dilabel Pahang secara lalai.
+- Migrasi `docs/migration_lantikan_audit.sql` boleh dijalankan semula dan perlu dilaksanakan sebelum kod penghantaran baharu dideploy.
+
+**Pengesahan lokal:** dua import berasingan dump 27 Ogos 2026, migrasi dua kali, senario pautan/jawapan/RA/Telegram/kegagalan saluran/pemadaman, lint semua PHP, Angular production build dan `git diff --check` lulus. Penghantaran sebenar produksi tidak dicetuskan; migrasi produksi, deploy dan semakan visual pelayar belum dilakukan.
+
+**Fail:** `docs/migration_lantikan_audit.sql`, `config/lantikan-audit.php`, `api/lantikan-audit.php`, `api/lantikan.php`, `api/lantikan-jawab-token.php`, `api/telegram-webhook.php`, `config/lantikan-helper.php`, `frontend/src/app/features/admin/lantikan-pengadil/`
+
+---
+
 ## [18–19 Ogos 2026]
 
 ### 1. Peraturan Lantikan Dinamik: Minimum 3, Maksimum 5 Slot

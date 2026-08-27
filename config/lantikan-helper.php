@@ -12,6 +12,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/lantikan-audit.php';
+
 // Komen penanda untuk lantikan yang ditolak secara automatik (tiada jawapan
 // dalam tempoh). Juga digunakan sebagai flag machine-readable oleh saluran
 // jawapan untuk memaparkan mesej "tempoh tamat" dan bukan "sudah dijawab".
@@ -381,33 +383,71 @@ function autoTolakLantikanTertunggak(PDO $pdo, array $scope = []): int
         return 0;
     }
 
+    requireLantikanAuditSchema($pdo);
+
     $update = $pdo->prepare("
         UPDATE lantikan_pengadil
         SET status = 'Ditolak',
             komen = :komen,
-            tarikh_jawab = FROM_UNIXTIME(:deadline)
+            tarikh_jawab = FROM_UNIXTIME(:deadline),
+            status_dikemaskini_at = FROM_UNIXTIME(:deadline),
+            tg_token = NULL,
+            email_token = NULL
         WHERE id = :id AND status = 'Belum Jawab'
     ");
 
     $updated = 0;
     $changedMatches = [];
     $changedKupMatches = [];
-    foreach ($expired as $row) {
-        $update->execute([
-            ':komen' => LANTIKAN_AUTO_TOLAK_KOMEN,
-            ':deadline' => $row['deadline'],
-            ':id' => $row['id'],
-        ]);
-        if ($update->rowCount() === 1) {
-            $updated++;
-            $changedMatches[$row['jadual_id']] = true;
-            if (isKupPosition((string) $row['jawatan'])) {
-                $changedKupMatches[$row['jadual_id']] = true;
+    $ownTransaction = !$pdo->inTransaction();
+    if ($ownTransaction) {
+        $pdo->beginTransaction();
+    }
+    try {
+        foreach ($expired as $row) {
+            $update->execute([
+                ':komen' => LANTIKAN_AUTO_TOLAK_KOMEN,
+                ':deadline' => $row['deadline'],
+                ':id' => $row['id'],
+            ]);
+            if ($update->rowCount() === 1) {
+                $updated++;
+                $changedMatches[$row['jadual_id']] = true;
+                if (isKupPosition((string) $row['jawatan'])) {
+                    $changedKupMatches[$row['jadual_id']] = true;
+                }
+                $auditSnapshot = getLantikanAuditSnapshot($pdo, (int) $row['id']);
+                if (!$auditSnapshot) {
+                    throw new RuntimeException('Snapshot audit auto-tolak tidak dijumpai.');
+                }
+                recordLantikanAudit(
+                    $pdo,
+                    (int) $row['id'],
+                    'appointment_auto_rejected',
+                    'system',
+                    'success',
+                    [
+                        'reason' => LANTIKAN_AUTO_TOLAK_KOMEN,
+                        'deadline_timestamp' => $row['deadline'],
+                    ],
+                    null,
+                    'system',
+                    null,
+                    $auditSnapshot
+                );
             }
         }
-    }
-    foreach (array_keys($changedMatches) as $jadualId) {
-        syncPerlawananHistoryForJadual($pdo, (int) $jadualId);
+        foreach (array_keys($changedMatches) as $jadualId) {
+            syncPerlawananHistoryForJadual($pdo, (int) $jadualId);
+        }
+        if ($ownTransaction) {
+            $pdo->commit();
+        }
+    } catch (Throwable $e) {
+        if ($ownTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
     }
     foreach (array_keys($changedKupMatches) as $jadualId) {
         if (isAcceptedKupCrewComplete($pdo, (int) $jadualId)) {
@@ -648,10 +688,18 @@ function syncPerlawananHistoryForJadual(PDO $pdo, int $jadualId): void
  *
  * @param PDO $pdo
  * @param int $lantikanId  The lantikan_pengadil.id just accepted
+ * @param callable|null $emailSender Optional test seam; same arguments as sendEmail()
+ * @param callable|null $telegramSender Optional test seam; same arguments as tgSend()
  * @return string|null  The token if generated, null if not applicable
  */
-function generatePenilaianToken(PDO $pdo, int $lantikanId): ?string
+function generatePenilaianToken(
+    PDO $pdo,
+    int $lantikanId,
+    ?callable $emailSender = null,
+    ?callable $telegramSender = null
+): ?string
 {
+    requireLantikanAuditSchema($pdo);
     $stmt = $pdo->prepare("
         SELECT lp.jawatan, lp.status, lp.penilaian_token,
                lp.pengadil_id, lp.pengadil_luar_id,
@@ -691,52 +739,177 @@ function generatePenilaianToken(PDO $pdo, int $lantikanId): ?string
     // Build borang link
     $baseUrl   = env('BASE_URL', 'https://refpahang.com');
     $borangUrl = $baseUrl . '/penilaian-borang.html?token=' . $token;
+    $auditSnapshot = getLantikanAuditSnapshot($pdo, $lantikanId);
+    if (!$auditSnapshot) {
+        throw new RuntimeException('Snapshot audit RA tidak dijumpai.');
+    }
+    $emailDelivered = false;
+    $telegramDelivered = false;
+    $emailError = null;
+    $telegramError = null;
 
     // Send email notification
     if (!empty($row['emel_penilai'])) {
-        require_once __DIR__ . '/email.php';
+        try {
+            require_once __DIR__ . '/email.php';
 
-        $tarikhFmt = date('d M Y', strtotime($row['tarikh']));
-        $pasukan   = htmlspecialchars($row['pasukan_home'] . ' lwn ' . $row['pasukan_away']);
+            $tarikhFmt = date('d M Y', strtotime($row['tarikh']));
+            $pasukan   = htmlspecialchars($row['pasukan_home'] . ' lwn ' . $row['pasukan_away']);
 
-        $body = emailGreeting($row['nama_penilai'])
-              . emailPara("Anda telah menerima tugasan sebagai <strong>Penilai Pengadil</strong> untuk perlawanan berikut:")
-              . emailInfoTable([
-                    'Kejohanan'  => htmlspecialchars($row['kejohanan']),
-                    'Perlawanan' => $pasukan,
-                    'Tarikh'     => $tarikhFmt,
-                    'Tempat'     => htmlspecialchars($row['tempat'] ?? ''),
-                ])
-              . emailPara("Sila gunakan pautan di bawah untuk mengisi <strong>Borang Penilaian Pengadil</strong> selepas perlawanan:")
-              . emailButton($borangUrl, 'Isi Borang Penilaian')
-              . emailPara("<span style=\"color:#9CA3AF;font-size:12px;\">Pautan ini unik untuk anda. Jangan kongsikan dengan orang lain.</span>");
+            $body = emailGreeting($row['nama_penilai'])
+                  . emailPara("Anda telah menerima tugasan sebagai <strong>Penilai Pengadil</strong> untuk perlawanan berikut:")
+                  . emailInfoTable([
+                        'Kejohanan'  => htmlspecialchars($row['kejohanan']),
+                        'Perlawanan' => $pasukan,
+                        'Tarikh'     => $tarikhFmt,
+                        'Tempat'     => htmlspecialchars($row['tempat'] ?? ''),
+                    ])
+                  . emailPara("Sila gunakan pautan di bawah untuk mengisi <strong>Borang Penilaian Pengadil</strong> selepas perlawanan:")
+                  . emailButton($borangUrl, 'Isi Borang Penilaian')
+                  . emailPara("<span style=\"color:#9CA3AF;font-size:12px;\">Pautan ini unik untuk anda. Jangan kongsikan dengan orang lain.</span>");
 
-        $html = buildEmailTemplate('Borang Penilaian Pengadil', '#2563EB', '📋', $body);
-        sendEmail(
-            $row['emel_penilai'],
-            'Borang Penilaian Pengadil — ' . $row['pasukan_home'] . ' lwn ' . $row['pasukan_away'],
-            $html,
-            $row['nama_penilai']
+            $html = buildEmailTemplate('Borang Penilaian Pengadil', '#2563EB', '📋', $body);
+            $subject = 'Borang Penilaian Pengadil — '
+                . $row['pasukan_home'] . ' lwn ' . $row['pasukan_away'];
+            $emailDelivered = $emailSender !== null
+                ? (bool) $emailSender(
+                    $row['emel_penilai'],
+                    $subject,
+                    $html,
+                    $row['nama_penilai']
+                )
+                : sendEmail(
+                    $row['emel_penilai'],
+                    $subject,
+                    $html,
+                    $row['nama_penilai']
+                );
+            if (!$emailDelivered) {
+                $emailError = 'Penghantar emel memulangkan status gagal.';
+            }
+        } catch (Throwable $e) {
+            $emailDelivered = false;
+            $emailError = $e->getMessage();
+        }
+        $emailDetails = [
+            'recipient' => $row['emel_penilai'],
+            'ra_form_url' => $borangUrl,
+        ];
+        if ($emailError !== null) {
+            $emailDetails['error'] = $emailError;
+        }
+        recordLantikanAudit(
+            $pdo,
+            $lantikanId,
+            'ra_form_notification',
+            'email',
+            $emailDelivered ? 'success' : 'failed',
+            $emailDetails,
+            $borangUrl,
+            'system',
+            null,
+            $auditSnapshot
+        );
+    } else {
+        recordLantikanAudit(
+            $pdo,
+            $lantikanId,
+            'ra_form_notification',
+            'email',
+            'skipped',
+            ['reason' => 'email_missing', 'ra_form_url' => $borangUrl],
+            $borangUrl,
+            'system',
+            null,
+            $auditSnapshot
         );
     }
 
     // Send Telegram notification
     if (!empty($row['tg_chat_id'])) {
-        require_once __DIR__ . '/telegram.php';
+        try {
+            require_once __DIR__ . '/telegram.php';
 
-        $tarikhFmt = date('d M Y', strtotime($row['tarikh']));
-        $msg = "📋 <b>Borang Penilaian Pengadil</b>\n\n"
-             . "Anda telah menerima tugasan sebagai <b>Penilai Pengadil</b>.\n\n"
-             . "⚽ " . htmlspecialchars($row['pasukan_home'] . ' lwn ' . $row['pasukan_away']) . "\n"
-             . "📅 {$tarikhFmt}\n"
-             . "📍 " . htmlspecialchars($row['tempat'] ?? '') . "\n\n"
-             . "Sila isi borang penilaian selepas perlawanan:";
+            $tarikhFmt = date('d M Y', strtotime($row['tarikh']));
+            $msg = "📋 <b>Borang Penilaian Pengadil</b>\n\n"
+                 . "Anda telah menerima tugasan sebagai <b>Penilai Pengadil</b>.\n\n"
+                 . "⚽ " . htmlspecialchars($row['pasukan_home'] . ' lwn ' . $row['pasukan_away']) . "\n"
+                 . "📅 {$tarikhFmt}\n"
+                 . "📍 " . htmlspecialchars($row['tempat'] ?? '') . "\n\n"
+                 . "Sila isi borang penilaian selepas perlawanan:";
+            $keyboard = [
+                'inline_keyboard' => [
+                    [['text' => '📋 Isi Borang Penilaian', 'url' => $borangUrl]]
+                ]
+            ];
 
-        tgSend((int) $row['tg_chat_id'], $msg, [
-            'inline_keyboard' => [
-                [['text' => '📋 Isi Borang Penilaian', 'url' => $borangUrl]]
-            ]
-        ]);
+            $telegramDelivered = $telegramSender !== null
+                ? (bool) $telegramSender((int) $row['tg_chat_id'], $msg, $keyboard)
+                : tgSend((int) $row['tg_chat_id'], $msg, $keyboard);
+            if (!$telegramDelivered) {
+                $telegramError = 'Penghantar Telegram memulangkan status gagal.';
+            }
+        } catch (Throwable $e) {
+            $telegramDelivered = false;
+            $telegramError = $e->getMessage();
+        }
+        $telegramDetails = [
+            'telegram_linked' => true,
+            'ra_form_url' => $borangUrl,
+        ];
+        if ($telegramError !== null) {
+            $telegramDetails['error'] = $telegramError;
+        }
+        recordLantikanAudit(
+            $pdo,
+            $lantikanId,
+            'ra_form_notification',
+            'telegram',
+            $telegramDelivered ? 'success' : 'failed',
+            $telegramDetails,
+            $borangUrl,
+            'system',
+            null,
+            $auditSnapshot
+        );
+    } else {
+        recordLantikanAudit(
+            $pdo,
+            $lantikanId,
+            'ra_form_notification',
+            'telegram',
+            'skipped',
+            ['reason' => 'telegram_not_linked', 'ra_form_url' => $borangUrl],
+            $borangUrl,
+            'system',
+            null,
+            $auditSnapshot
+        );
+    }
+
+    recordLantikanAudit(
+        $pdo,
+        $lantikanId,
+        'ra_form_dispatched',
+        'combined',
+        ($emailDelivered || $telegramDelivered) ? 'success' : 'failed',
+        [
+            'email_success' => $emailDelivered,
+            'telegram_success' => $telegramDelivered,
+            'email_error' => $emailError,
+            'telegram_error' => $telegramError,
+            'ra_form_url' => $borangUrl,
+        ],
+        $borangUrl,
+        'system',
+        null,
+        $auditSnapshot
+    );
+
+    if (!$emailDelivered && !$telegramDelivered) {
+        throw new RuntimeException(
+            'Pautan borang RA telah disediakan tetapi gagal dihantar melalui emel dan Telegram. Gunakan pautan terus Admin.'
+        );
     }
 
     return $token;

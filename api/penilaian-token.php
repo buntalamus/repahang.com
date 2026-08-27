@@ -13,6 +13,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/../config/kriteria-penilaian.php';
 require_once __DIR__ . '/../config/penilaian-helper.php';
+require_once __DIR__ . '/../config/laporan-pengesahan.php';
 
 /* ── Reuse helper from laporan-penilaian.php ── */
 function savePegawaiToken(PDO $pdo, int $laporanId, array $pegawaiList): void {
@@ -194,7 +195,8 @@ try {
             jsonResponse(['error' => true, 'message' => 'Lantikan RA tidak lagi aktif.'], 409);
         }
 
-        // A submitted report is immutable until the admin reviews it.
+        // A submitted report is immutable until the tournament chair confirms
+        // it or an Admin performs an audited override.
         $checkStmt = $pdo->prepare("
             SELECT id, status
             FROM laporan_penilaian
@@ -252,8 +254,23 @@ try {
         savePegawaiToken($pdo, $laporanId, $pegawai);
         $pdo->commit();
 
-        $msg = $hantar ? 'Laporan berjaya dihantar kepada admin.' : 'Draf disimpan.';
-        jsonResponse(['error' => false, 'message' => $msg, 'id' => $laporanId]);
+        $delivery = null;
+        if ($hantar) {
+            try {
+                $delivery = dispatchLaporanForPengerusi($pdo, $laporanId);
+            } catch (Throwable $notificationError) {
+                error_log('[penilaian-token.php] Chair dispatch error: ' . $notificationError->getMessage());
+            }
+        }
+
+        if (!$hantar) {
+            $msg = 'Draf disimpan.';
+        } elseif ($delivery && $delivery['configured']) {
+            $msg = 'Laporan berjaya dihantar kepada Pengerusi Pengadil. Admin menerima salinan.';
+        } else {
+            $msg = 'Laporan berjaya dihantar. Admin menerima salinan; penghantaran kepada Pengerusi Pengadil sedang menunggu tindakan pentadbir.';
+        }
+        jsonResponse(['error' => false, 'message' => $msg, 'id' => $laporanId, 'pengesahan' => $delivery]);
     }
 
     jsonResponse(['error' => true, 'message' => 'Kaedah tidak disokong.'], 405);

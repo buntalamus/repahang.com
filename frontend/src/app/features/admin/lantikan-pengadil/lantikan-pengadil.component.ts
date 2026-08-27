@@ -7,7 +7,117 @@ import { ToastService } from '../../../core/services/toast.service';
 import { ProfileModalService } from '../../../core/services/profile-modal.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
+import { matchesJadualSearch } from './jadual-search';
 import * as XLSX from 'xlsx';
+
+type DirectLinkType = 'accept_url' | 'reject_url' | 'ra_form_url' | 'telegram_link_url';
+type ManualDeliveryType = 'appointment' | 'ra_form' | 'telegram_link';
+
+interface LantikanAuditEvent {
+  id: number;
+  event_type: string;
+  channel: string;
+  event_status: string;
+  link_url: string | null;
+  details: Record<string, unknown>;
+  actor_type: string;
+  actor_user_id: number | null;
+  created_at: string;
+}
+
+interface LantikanAuditData {
+  lantikan: {
+    id: number;
+    status: string;
+    is_external: boolean;
+    email_available: boolean;
+    telegram_linked: boolean;
+    notif_hantar: number;
+    tg_notif_hantar: number;
+    tarikh_notif: string | null;
+  };
+  links: Record<DirectLinkType, string | null>;
+  events: LantikanAuditEvent[];
+}
+
+type TelegramOnboardingStatus =
+  | 'linked'
+  | 'no_email'
+  | 'invalid_email'
+  | 'ready'
+  | 'failed'
+  | 'emailed_waiting';
+
+interface TelegramOnboardingCounts {
+  total_external: number;
+  linked: number;
+  no_email: number;
+  invalid_email: number;
+  ready: number;
+  failed: number;
+  emailed_waiting: number;
+  initial_sendable: number;
+  resendable: number;
+}
+
+interface TelegramOnboardingRecipient {
+  id: number;
+  nama: string;
+  daerah: string | null;
+  negeri: string;
+  no_tel: string | null;
+  emel: string;
+  jenis_pengadil: string;
+  attempts: number;
+  first_sent_at: string | null;
+  last_sent_at: string | null;
+  last_failed_at: string | null;
+  last_error: string | null;
+  linked_at: string | null;
+  telegram_linked: boolean;
+  email_valid: boolean;
+  onboarding_status: TelegramOnboardingStatus;
+  link_url: string | null;
+}
+
+interface TelegramOnboardingBatch {
+  id: number;
+  attempt_mode: 'initial' | 'resend';
+  sent_count: number;
+  failed_count: number;
+  skipped_count: number;
+  status: 'processing' | 'completed' | 'partial' | 'failed';
+  started_at: string;
+  completed_at: string | null;
+}
+
+interface TelegramOnboardingPreview {
+  kejohanan: { id: number; nama: string; status: string };
+  counts: TelegramOnboardingCounts;
+  recipients: TelegramOnboardingRecipient[];
+  recent_batches: TelegramOnboardingBatch[];
+}
+
+interface TelegramOnboardingResponse {
+  error: boolean;
+  message?: string;
+  sent?: number;
+  failed?: number;
+  skipped?: number;
+  data: TelegramOnboardingPreview;
+}
+
+interface PengerusiCandidate {
+  source: 'Berdaftar' | 'Luar';
+  official_id: number;
+  nama: string;
+  daerah: string | null;
+  negeri: string | null;
+  no_telefon: string | null;
+  email: string | null;
+  dalam_pool: boolean;
+  telegram_linked: boolean;
+}
 
 @Component({
   selector: 'app-lantikan-pengadil',
@@ -62,6 +172,21 @@ export class LantikanPengadilComponent implements OnInit {
   addingToPool = false;
   // Auto-tick dari Excel
   poolMatchSummary: { matched: number; berdaftar: number; luar: number; alreadyInPool: number; notFound: string[] } | null = null;
+  showTelegramOnboardingModal = false;
+  loadingTelegramOnboarding = false;
+  sendingTelegramOnboarding = false;
+  telegramOnboardingPreview: TelegramOnboardingPreview | null = null;
+  telegramOnboardingResult: { message: string; sent: number; failed: number; skipped: number } | null = null;
+
+  // Pengerusi Pengadil / pengesah laporan RA mengikut kejohanan
+  loadingPengerusi = false;
+  savingPengerusi = false;
+  showPengerusiModal = false;
+  pengerusiCurrent: any = null;
+  pengerusiCandidates: PengerusiCandidate[] = [];
+  pengerusiSearch = '';
+  selectedPengerusiKey = '';
+  pengerusiJawatan = 'Pengerusi Pengadil';
 
   // Jadual
   loadingJadual = false;
@@ -103,6 +228,9 @@ export class LantikanPengadilComponent implements OnInit {
   activeJawatan: string | null = null;
   refereeSearch = '';
   refereeJenisFilter = '';
+  expandedAuditId: number | null = null;
+  auditLoadingIds = new Set<number>();
+  auditData = new Map<number, LantikanAuditData>();
 
   get filteredReferees(): any[] {
     let list = this.refereeList;
@@ -220,16 +348,9 @@ export class LantikanPengadilComponent implements OnInit {
 
   /** Group the (backend-sorted) report jadual by kategori for sectioned display. */
   get jadualLantikanGrouped(): { kategori: string; matches: any[] }[] {
-    const search = this.jadualLantikanSearch.trim().toLowerCase();
-    const jadual = (this.jadualLantikanData?.jadual ?? []).filter((j: any) => !search || [
-      j.no_perlawanan,
-      j.pasukan_home,
-      j.pasukan_away,
-      j.peringkat,
-      j.kumpulan,
-      j.kategori,
-      j.tempat,
-    ].some((value) => String(value ?? '').toLowerCase().includes(search)));
+    const jadual = (this.jadualLantikanData?.jadual ?? []).filter((j: any) =>
+      matchesJadualSearch(j, this.jadualLantikanSearch, true)
+    );
     const groups: { kategori: string; matches: any[] }[] = [];
     for (const j of jadual) {
       const kat = (j.kategori || '').trim() || 'Lain-lain';
@@ -390,6 +511,7 @@ export class LantikanPengadilComponent implements OnInit {
   laporanDetail: any = null;
   loadingLaporanDetail = false;
   catatanAdmin = '';
+  alasanOverride = '';
   submittingSahkan = false;
 
   // Confirm
@@ -501,16 +623,135 @@ export class LantikanPengadilComponent implements OnInit {
       this.poolList = [];
       this.jadualList = [];
       this.jadualLantikanSearch = '';
+      this.closeTelegramOnboardingModal();
+      this.resetPengerusiState();
       return;
     }
     this.selectedKejohanan = k;
     this.selectedKejohananId = k.id;
     this.jadualLantikanSearch = '';
+    this.closeTelegramOnboardingModal();
     this.loadJadual(k.id);
     this.loadPool(k.id);
+    this.loadPengerusi(k.id);
     if (this.activeTab === 'jadual-lantikan') {
       this.loadJadualLantikan();
     }
+  }
+
+  get filteredPengerusiCandidates(): PengerusiCandidate[] {
+    const search = this.pengerusiSearch.trim().toLowerCase();
+    if (!search) return this.pengerusiCandidates;
+    return this.pengerusiCandidates.filter((candidate) => [
+      candidate.nama,
+      candidate.daerah,
+      candidate.negeri,
+      candidate.email,
+    ].filter(Boolean).join(' ').toLowerCase().includes(search));
+  }
+
+  loadPengerusi(kejohananId: number, openModal = false): void {
+    this.loadingPengerusi = true;
+    this.api.get<any>('kejohanan-pengesah-laporan.php', { kejohanan_id: String(kejohananId) }).subscribe({
+      next: (res) => {
+        this.loadingPengerusi = false;
+        this.pengerusiCurrent = res.data?.current || null;
+        this.pengerusiCandidates = res.data?.candidates || [];
+        if (openModal) this.preparePengerusiModal();
+      },
+      error: (err) => {
+        this.loadingPengerusi = false;
+        this.toast.show(err?.error?.message || 'Gagal memuatkan tetapan Pengerusi Pengadil.', 'error');
+      },
+    });
+  }
+
+  openPengerusiModal(): void {
+    if (!this.selectedKejohanan) return;
+    if (this.pengerusiCandidates.length === 0) {
+      this.loadPengerusi(this.selectedKejohanan.id, true);
+      return;
+    }
+    this.preparePengerusiModal();
+  }
+
+  closePengerusiModal(): void {
+    if (this.savingPengerusi) return;
+    this.showPengerusiModal = false;
+    this.pengerusiSearch = '';
+    this.selectedPengerusiKey = '';
+  }
+
+  private preparePengerusiModal(): void {
+    this.pengerusiSearch = '';
+    this.pengerusiJawatan = this.pengerusiCurrent?.jawatan_snapshot || 'Pengerusi Pengadil';
+    const source = this.pengerusiCurrent?.jenis_sumber;
+    const officialId = source === 'Berdaftar'
+      ? this.pengerusiCurrent?.pengesah_user_id
+      : this.pengerusiCurrent?.pengesah_luar_id;
+    this.selectedPengerusiKey = source && officialId ? `${source}:${officialId}` : '';
+    this.showPengerusiModal = true;
+  }
+
+  requestSavePengerusi(): void {
+    if (!this.selectedKejohanan || !this.selectedPengerusiKey) {
+      this.toast.show('Pilih seorang Penilai Pengadil sebagai Pengerusi.', 'error');
+      return;
+    }
+    const candidate = this.selectedPengerusiCandidate;
+    if (!candidate) {
+      this.toast.show('Pilihan Pengerusi tidak sah.', 'error');
+      return;
+    }
+    if (this.pengerusiCurrent) {
+      this.confirmTitle = 'Tukar Pengerusi Pengadil';
+      this.confirmMessage = `Tetapkan ${candidate.nama} sebagai Pengerusi Pengadil untuk ${this.selectedKejohanan.nama}? Pautan laporan yang masih menunggu akan ditukar kepada Pengerusi baharu.`;
+      this.confirmType = 'warning';
+      this.confirmBtnText = 'Tetapkan';
+      this.confirmFn = () => this.savePengerusi(candidate);
+      this.showConfirmModal = true;
+      return;
+    }
+    this.savePengerusi(candidate);
+  }
+
+  get selectedPengerusiCandidate(): PengerusiCandidate | null {
+    const [source, id] = this.selectedPengerusiKey.split(':');
+    return this.pengerusiCandidates.find((candidate) =>
+      candidate.source === source && candidate.official_id === Number(id)
+    ) || null;
+  }
+
+  private savePengerusi(candidate: PengerusiCandidate): void {
+    if (!this.selectedKejohanan) return;
+    this.savingPengerusi = true;
+    this.api.post<any>('kejohanan-pengesah-laporan.php', {
+      kejohanan_id: this.selectedKejohanan.id,
+      source: candidate.source,
+      official_id: candidate.official_id,
+      jawatan: this.pengerusiJawatan.trim() || 'Pengerusi Pengadil',
+    }).subscribe({
+      next: (res) => {
+        this.savingPengerusi = false;
+        this.showPengerusiModal = false;
+        this.toast.show(res.message || 'Pengerusi Pengadil berjaya ditetapkan.', 'success');
+        this.loadPengerusi(this.selectedKejohanan!.id);
+        this.loadLaporan();
+      },
+      error: (err) => {
+        this.savingPengerusi = false;
+        this.toast.show(err?.error?.message || 'Gagal menetapkan Pengerusi Pengadil.', 'error');
+      },
+    });
+  }
+
+  private resetPengerusiState(): void {
+    this.loadingPengerusi = false;
+    this.showPengerusiModal = false;
+    this.pengerusiCurrent = null;
+    this.pengerusiCandidates = [];
+    this.pengerusiSearch = '';
+    this.selectedPengerusiKey = '';
   }
 
   // ===================== JADUAL LOGO =====================
@@ -569,6 +810,130 @@ export class LantikanPengadilComponent implements OnInit {
     this.api.get<any>('pool-pengadil.php', { kejohanan_id: kejohananId.toString() }).subscribe({
       next: (res) => { this.poolList = res.data || []; this.loadingPool = false; },
       error: () => this.loadingPool = false,
+    });
+  }
+
+  get externalPoolCount(): number {
+    return this.poolList.filter((member) => member.jenis_sumber === 'Luar').length;
+  }
+
+  get linkedExternalPoolCount(): number {
+    return this.poolList.filter(
+      (member) => member.jenis_sumber === 'Luar' && member.telegram_linked
+    ).length;
+  }
+
+  openTelegramOnboardingModal(): void {
+    if (!this.selectedKejohanan) return;
+    this.showTelegramOnboardingModal = true;
+    this.telegramOnboardingResult = null;
+    this.loadTelegramOnboardingPreview();
+  }
+
+  closeTelegramOnboardingModal(): void {
+    if (this.sendingTelegramOnboarding) return;
+    this.showTelegramOnboardingModal = false;
+    this.loadingTelegramOnboarding = false;
+    this.sendingTelegramOnboarding = false;
+    this.telegramOnboardingPreview = null;
+    this.telegramOnboardingResult = null;
+  }
+
+  loadTelegramOnboardingPreview(): void {
+    if (!this.selectedKejohanan) return;
+    this.loadingTelegramOnboarding = true;
+    this.api.get<TelegramOnboardingResponse>('pengadil-luar-telegram-blast.php', {
+      kejohanan_id: String(this.selectedKejohanan.id),
+    }).subscribe({
+      next: (res) => {
+        this.telegramOnboardingPreview = res.data;
+        this.loadingTelegramOnboarding = false;
+        this.loadPool(this.selectedKejohanan.id);
+      },
+      error: (err) => {
+        this.loadingTelegramOnboarding = false;
+        this.toast.show(err?.error?.message || 'Gagal memuatkan status onboarding Telegram.', 'error');
+      },
+    });
+  }
+
+  requestTelegramOnboardingBlast(mode: 'initial' | 'resend'): void {
+    const preview = this.telegramOnboardingPreview;
+    if (!preview || !this.selectedKejohanan) return;
+    const recipientCount = mode === 'initial'
+      ? preview.counts.initial_sendable
+      : preview.counts.resendable;
+    if (recipientCount === 0) {
+      this.toast.show('Tiada pengadil luar yang layak menerima emel ini.', 'info');
+      return;
+    }
+
+    this.confirmTitle = mode === 'initial'
+      ? 'Blast Pautan Telegram'
+      : 'Hantar Semula Pautan Telegram';
+    this.confirmMessage = mode === 'initial'
+      ? `Hantar emel pautan Telegram kepada ${recipientCount} pengadil luar yang belum pernah menerima emel onboarding bagi ${this.selectedKejohanan.nama}? Ini bukan lantikan dan tidak memulakan tempoh jawapan.`
+      : `Hantar semula emel kepada ${recipientCount} pengadil luar yang masih belum memautkan Telegram bagi ${this.selectedKejohanan.nama}? Penerima yang pernah menerima emel akan menerima emel sekali lagi.`;
+    this.confirmType = 'warning';
+    this.confirmBtnText = mode === 'initial' ? 'Hantar Blast' : 'Hantar Semula';
+    this.confirmFn = () => this.sendTelegramOnboardingBlast(mode);
+    this.showConfirmModal = true;
+  }
+
+  telegramOnboardingStatusLabel(status: TelegramOnboardingStatus): string {
+    const labels: Record<TelegramOnboardingStatus, string> = {
+      linked: 'Sudah dipaut',
+      no_email: 'Tiada emel',
+      invalid_email: 'Emel tidak sah',
+      ready: 'Sedia dihantar',
+      failed: 'Penghantaran gagal',
+      emailed_waiting: 'Emel dihantar, belum paut',
+    };
+    return labels[status];
+  }
+
+  telegramOnboardingStatusClass(status: TelegramOnboardingStatus): string {
+    if (status === 'linked') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (status === 'ready') return 'bg-blue-50 text-blue-700 border-blue-200';
+    if (status === 'emailed_waiting') return 'bg-amber-50 text-amber-700 border-amber-200';
+    return 'bg-rose-50 text-rose-700 border-rose-200';
+  }
+
+  telegramOnboardingBatchStatusClass(status: TelegramOnboardingBatch['status']): string {
+    if (status === 'completed') return 'text-emerald-700';
+    if (status === 'partial') return 'text-amber-700';
+    if (status === 'processing') return 'text-blue-700';
+    return 'text-rose-700';
+  }
+
+  private sendTelegramOnboardingBlast(mode: 'initial' | 'resend'): void {
+    if (!this.selectedKejohanan || this.sendingTelegramOnboarding) return;
+    this.sendingTelegramOnboarding = true;
+    this.telegramOnboardingResult = null;
+    this.api.post<TelegramOnboardingResponse>('pengadil-luar-telegram-blast.php', {
+      kejohanan_id: this.selectedKejohanan.id,
+      mode,
+    }, 600_000).subscribe({
+      next: (res) => {
+        this.sendingTelegramOnboarding = false;
+        this.telegramOnboardingPreview = res.data;
+        this.telegramOnboardingResult = {
+          message: res.message || 'Blast onboarding selesai.',
+          sent: res.sent || 0,
+          failed: res.failed || 0,
+          skipped: res.skipped || 0,
+        };
+        this.toast.show(
+          this.telegramOnboardingResult.message,
+          this.telegramOnboardingResult.failed > 0 ? 'error' : 'success'
+        );
+        this.loadPool(this.selectedKejohanan.id);
+      },
+      error: (err) => {
+        this.sendingTelegramOnboarding = false;
+        this.toast.show(err?.error?.message || 'Blast onboarding Telegram gagal.', 'error');
+        this.loadTelegramOnboardingPreview();
+      },
     });
   }
 
@@ -765,26 +1130,19 @@ export class LantikanPengadilComponent implements OnInit {
   // ===================== JADUAL =====================
 
   onKejohananSelect(id: number | null): void {
-    if (!id) { this.selectedKejohanan = null; this.jadualList = []; this.jadualSearch = ''; this.poolList = []; return; }
+    this.closeTelegramOnboardingModal();
+    if (!id) { this.selectedKejohanan = null; this.jadualList = []; this.jadualSearch = ''; this.poolList = []; this.resetPengerusiState(); return; }
     const k = this.kejohananList.find(x => x.id === id);
     this.selectedKejohanan = k || null;
     this.jadualSearch = '';
     this.loadJadual(id);
     this.loadPool(id);
+    this.loadPengerusi(id);
   }
 
   get filteredJadualList(): any[] {
-    const search = this.jadualSearch.trim().toLowerCase();
-    if (!search) return this.jadualList;
-
-    return this.jadualList.filter((j: any) => [
-      j.no_perlawanan,
-      j.pasukan_home,
-      j.pasukan_away,
-      j.peringkat,
-      j.kumpulan,
-      j.kategori,
-    ].some((value) => String(value ?? '').toLowerCase().includes(search)));
+    if (!this.jadualSearch.trim()) return this.jadualList;
+    return this.jadualList.filter((j: any) => matchesJadualSearch(j, this.jadualSearch));
   }
 
   loadJadual(kejohananId: number): void {
@@ -1048,6 +1406,8 @@ export class LantikanPengadilComponent implements OnInit {
     this.activeJawatan = null;
     this.refereeSearch = '';
     this.refereeJenisFilter = '';
+    this.expandedAuditId = null;
+    this.auditData.clear();
     this.api.get<any>('lantikan.php', { jadual_id: jadualId.toString() }).subscribe({
       next: (res) => {
         this.lantikanList = res.data || [];
@@ -1060,6 +1420,151 @@ export class LantikanPengadilComponent implements OnInit {
 
   getAssignment(jawatan: string): any {
     return this.lantikanList.find(a => a.jawatan === jawatan) || null;
+  }
+
+  toggleAppointmentAudit(lantikanId: number): void {
+    if (this.expandedAuditId === lantikanId) {
+      this.expandedAuditId = null;
+      return;
+    }
+    this.expandedAuditId = lantikanId;
+    this.loadAppointmentAudit(lantikanId);
+  }
+
+  loadAppointmentAudit(lantikanId: number): void {
+    this.auditLoadingIds.add(lantikanId);
+    this.api.get<{ data: LantikanAuditData }>('lantikan-audit.php', {
+      lantikan_id: lantikanId.toString(),
+    }).subscribe({
+      next: (res) => {
+        this.auditData.set(lantikanId, res.data);
+        this.auditLoadingIds.delete(lantikanId);
+      },
+      error: (err) => {
+        this.auditLoadingIds.delete(lantikanId);
+        this.toast.show(err?.error?.message || 'Ralat memuatkan log lantikan.', 'error');
+      },
+    });
+  }
+
+  prepareDirectLinks(lantikanId: number): void {
+    this.auditLoadingIds.add(lantikanId);
+    this.api.post<{ message: string; data: LantikanAuditData }>('lantikan-audit.php', {
+      action: 'prepare_links',
+      lantikan_id: lantikanId,
+    }).subscribe({
+      next: (res) => {
+        this.auditData.set(lantikanId, res.data);
+        this.auditLoadingIds.delete(lantikanId);
+        this.toast.show(res.message, 'success');
+      },
+      error: (err) => {
+        this.auditLoadingIds.delete(lantikanId);
+        this.toast.show(err?.error?.message || 'Ralat menyediakan pautan.', 'error');
+      },
+    });
+  }
+
+  async copyDirectLink(lantikanId: number, linkType: DirectLinkType, linkUrl: string): Promise<void> {
+    try {
+      await this.copyText(linkUrl);
+    } catch {
+      this.toast.show('Pautan tidak dapat disalin oleh pelayar.', 'error');
+      return;
+    }
+
+    this.api.post<{ message: string }>('lantikan-audit.php', {
+      action: 'record_copy',
+      lantikan_id: lantikanId,
+      link_type: linkType,
+    }).subscribe({
+      next: () => {
+        this.toast.show('Pautan disalin dan direkodkan.', 'success');
+        this.loadAppointmentAudit(lantikanId);
+      },
+      error: (err) => this.toast.show(
+        err?.error?.message || 'Pautan disalin tetapi log salinan gagal direkodkan.',
+        'error'
+      ),
+    });
+  }
+
+  confirmManualDelivery(lantikanId: number, deliveryType: ManualDeliveryType): void {
+    const startsDeadline = deliveryType === 'appointment';
+    this.confirmTitle = startsDeadline ? 'Sahkan Pautan Sudah Dihantar' : 'Rekod Penghantaran Manual';
+    this.confirmMessage = startsDeadline
+      ? 'Pastikan pautan Terima/Tolak benar-benar sudah dihantar kepada pegawai. Tempoh jawapan akan bermula sekarang.'
+      : 'Tandakan bahawa pautan ini benar-benar sudah dihantar kepada pegawai?';
+    this.confirmType = 'warning';
+    this.confirmBtnText = 'Ya, Sudah Dihantar';
+    this.confirmFn = () => this.markManualDelivery(lantikanId, deliveryType);
+    this.showConfirmModal = true;
+  }
+
+  auditEventLabel(eventType: string): string {
+    const labels: Record<string, string> = {
+      appointment_backfilled: 'Rekod awal dibawa masuk',
+      appointment_created: 'Lantikan diwujudkan',
+      appointment_reassigned: 'Pegawai diganti',
+      appointment_reviewed: 'Lantikan disemak',
+      appointment_links_prepared: 'Pautan lantikan disediakan',
+      direct_links_prepared: 'Pautan terus disediakan Admin',
+      direct_link_copied: 'Pautan disalin Admin',
+      appointment_notification: 'Notifikasi lantikan',
+      appointment_dispatched: 'Penghantaran lantikan',
+      manual_delivery_confirmed: 'Penghantaran manual disahkan',
+      appointment_response: 'Jawapan pegawai',
+      ra_form_notification: 'Notifikasi borang RA',
+      ra_form_dispatched: 'Penghantaran borang RA',
+      appointment_status_changed: 'Status lantikan diubah',
+      appointment_deleted: 'Lantikan dibuang',
+      cancellation_notification: 'Notifikasi pembatalan',
+      telegram_account_linked: 'Telegram berjaya dipaut',
+    };
+    return labels[eventType] || eventType.replaceAll('_', ' ');
+  }
+
+  auditStatusClass(status: string): string {
+    if (status === 'success') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (status === 'failed') return 'bg-rose-50 text-rose-700 border-rose-200';
+    if (status === 'skipped') return 'bg-amber-50 text-amber-700 border-amber-200';
+    return 'bg-slate-50 text-slate-600 border-slate-200';
+  }
+
+  private markManualDelivery(lantikanId: number, deliveryType: ManualDeliveryType): void {
+    this.auditLoadingIds.add(lantikanId);
+    this.api.post<{ message: string; data: LantikanAuditData }>('lantikan-audit.php', {
+      action: 'mark_manual_delivery',
+      lantikan_id: lantikanId,
+      delivery_type: deliveryType,
+    }).subscribe({
+      next: (res) => {
+        this.auditData.set(lantikanId, res.data);
+        this.auditLoadingIds.delete(lantikanId);
+        this.toast.show(res.message, 'success');
+        if (this.selectedJadual) this.loadLantikan(this.selectedJadual.id);
+      },
+      error: (err) => {
+        this.auditLoadingIds.delete(lantikanId);
+        this.toast.show(err?.error?.message || 'Ralat merekodkan penghantaran manual.', 'error');
+      },
+    });
+  }
+
+  private async copyText(value: string): Promise<void> {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return;
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    if (!copied) throw new Error('Clipboard unavailable');
   }
 
   hasRequiredSlotsInCurrentMatch(): boolean {
@@ -1387,6 +1892,7 @@ export class LantikanPengadilComponent implements OnInit {
   viewLaporan(id: number): void {
     this.laporanDetail = null;
     this.catatanAdmin = '';
+    this.alasanOverride = '';
     this.loadingLaporanDetail = true;
     this.showLaporanModal = true;
     this.api.get<any>(`laporan-penilaian.php?id=${id}`).subscribe({
@@ -1394,7 +1900,7 @@ export class LantikanPengadilComponent implements OnInit {
         this.loadingLaporanDetail = false;
         if (!res.error) {
           this.laporanDetail = res.laporan;
-          this.catatanAdmin = res.laporan?.catatan_admin ?? '';
+          this.catatanAdmin = '';
         } else {
           this.toast.error(res.message || 'Gagal memuatkan laporan.');
           this.showLaporanModal = false;
@@ -1406,12 +1912,21 @@ export class LantikanPengadilComponent implements OnInit {
 
   sahkanLaporan(): void {
     if (!this.laporanDetail) return;
+    if (!this.alasanOverride.trim()) {
+      this.toast.error('Sebab override Admin diperlukan.');
+      return;
+    }
     this.submittingSahkan = true;
-    this.api.put<any>('laporan-penilaian.php', { action: 'sahkan', id: this.laporanDetail.id, catatan_admin: this.catatanAdmin }).subscribe({
+    this.api.put<any>('laporan-penilaian.php', {
+      action: 'sahkan',
+      id: this.laporanDetail.id,
+      override_reason: this.alasanOverride.trim(),
+      catatan_admin: this.catatanAdmin.trim(),
+    }).subscribe({
       next: (res) => {
         this.submittingSahkan = false;
         if (!res.error) {
-          this.toast.success('Laporan berjaya disahkan.');
+          this.toast.success('Override Admin direkodkan dan laporan disahkan.');
           this.showLaporanModal = false;
           this.loadLaporan();
         } else {
@@ -1419,6 +1934,47 @@ export class LantikanPengadilComponent implements OnInit {
         }
       },
       error: (err: any) => { this.submittingSahkan = false; this.toast.error(err?.error?.message || 'Ralat semasa mengesahkan.'); },
+    });
+  }
+
+  async copyPengerusiApprovalLink(): Promise<void> {
+    const url = this.laporanDetail?.pengesahan?.approval_url;
+    if (!url || !this.laporanDetail?.id) return;
+    try {
+      await this.copyText(url);
+    } catch {
+      this.toast.error('Pautan tidak dapat disalin oleh pelayar.');
+      return;
+    }
+    this.api.put<any>('laporan-penilaian.php', {
+      action: 'log_pengerusi_link_copy',
+      id: this.laporanDetail.id,
+    }).subscribe({
+      next: () => {
+        this.toast.success('Pautan pengesahan Pengerusi disalin dan direkodkan.');
+        this.viewLaporan(this.laporanDetail.id);
+      },
+      error: (err: any) => this.toast.error(err?.error?.message || 'Pautan disalin tetapi log salinan gagal direkodkan.'),
+    });
+  }
+
+  retryPengerusiNotification(): void {
+    if (!this.laporanDetail?.id || this.submittingSahkan) return;
+    this.submittingSahkan = true;
+    this.api.put<any>('laporan-penilaian.php', {
+      action: 'retry_pengerusi_notification',
+      id: this.laporanDetail.id,
+    }).subscribe({
+      next: (res) => {
+        this.submittingSahkan = false;
+        this.toast.show(res.message || 'Percubaan penghantaran selesai.',
+          res.pengesahan?.email_sent || res.pengesahan?.telegram_sent ? 'success' : 'error');
+        this.viewLaporan(this.laporanDetail.id);
+      },
+      error: (err: any) => {
+        this.submittingSahkan = false;
+        this.toast.error(err?.error?.message || 'Gagal mencuba semula penghantaran.');
+      },
     });
   }
 
@@ -1448,9 +2004,18 @@ export class LantikanPengadilComponent implements OnInit {
   }
 
   getLaporanStatusClass(status: string): string {
-    if (status === 'Disahkan') return 'bg-emerald-50 text-emerald-700';
-    if (status === 'Dihantar') return 'bg-blue-50 text-blue-700';
+    if (status === 'Disahkan' || status === 'Disahkan Pengerusi') return 'bg-emerald-50 text-emerald-700';
+    if (status === 'Override Admin') return 'bg-rose-50 text-rose-700';
+    if (status === 'Dihantar' || status === 'Menunggu Pengerusi') return 'bg-blue-50 text-blue-700';
     return 'bg-amber-50 text-amber-700';
+  }
+
+  getLaporanWorkflowLabel(laporan: any): string {
+    const approvalStatus = laporan?.pengesahan?.pengesahan_status;
+    if (approvalStatus === 'Override Admin') return 'Override Admin';
+    if (approvalStatus === 'Disahkan') return 'Disahkan Pengerusi';
+    if (laporan?.status === 'Dihantar') return 'Menunggu Pengerusi';
+    return laporan?.status || '-';
   }
 
   getMarkahClass(markah: any): string {

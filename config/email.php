@@ -651,7 +651,7 @@ function sendLantikanEmail(
     $inlineImages = [];
     $projectRoot  = realpath(__DIR__ . '/..');
 
-    $makeLogo = function (string $logoPath, string $namaTeam, string $cidName) use ($projectRoot, &$inlineImages): string {
+    $makeLogo = function (string $logoPath, string $namaTeam, string $cidName) use ($projectRoot, $baseUrl, &$inlineImages): string {
         if ($logoPath) {
             // Try to read file from disk and embed as CID
             $filePath = $projectRoot . $logoPath;
@@ -1047,7 +1047,8 @@ function sendBatalEmail(
  * @param array  $kelemahan Array of weakness points
  * @param string $nasihat   Advice text
  * @param string $ulasan    Overall remarks
- * @param string $catatanAdmin Admin notes
+ * @param string $catatanAdmin Confirmation notes
+ * @param string $catatanLabel Label for confirmation notes
  */
 function sendPenilaianEmail(
     string  $to,
@@ -1064,7 +1065,8 @@ function sendPenilaianEmail(
     string  $nasihat = '',
     string  $ulasan = '',
     string  $catatanAdmin = '',
-    string  $reportUrl = ''
+    string  $reportUrl = '',
+    string  $catatanLabel = 'Catatan Admin'
 ): bool {
     $tarikhFmt = '-';
     if ($tarikh) {
@@ -1082,7 +1084,7 @@ function sendPenilaianEmail(
     }
 
     $body = emailGreeting($nama)
-          . emailPara("Laporan penilaian anda untuk perlawanan berikut telah disahkan oleh admin.")
+          . emailPara("Laporan penilaian anda untuk perlawanan berikut telah disahkan.")
           . emailInfoTable([
                 'Kejohanan'   => htmlspecialchars($kejohanan),
                 'Perlawanan'  => htmlspecialchars($pasukan),
@@ -1130,9 +1132,9 @@ function sendPenilaianEmail(
         $body .= emailAlert('#6B7280', '#F9FAFB', 'Ulasan Keseluruhan', htmlspecialchars($ulasan));
     }
 
-    // Catatan admin
+    // Catatan pengesah
     if ($catatanAdmin) {
-        $body .= emailAlert('#FADA00', '#FFFBEB', 'Catatan Admin', htmlspecialchars($catatanAdmin));
+        $body .= emailAlert('#FADA00', '#FFFBEB', htmlspecialchars($catatanLabel), htmlspecialchars($catatanAdmin));
     }
 
     // Report download link

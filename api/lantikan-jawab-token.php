@@ -93,7 +93,7 @@ try {
     }
 
     $baseUrl = env('BASE_URL', 'https://refpahang.com');
-    $dashUrl = $baseUrl . '/pengadil-dashboard.html';
+    $dashUrl = '';
 
     // Look up assignment by email_token
     $stmt = $pdo->prepare("
@@ -125,12 +125,14 @@ try {
             'Pautan Tidak Sah',
             'Pautan ini tidak dapat dikenal pasti. Kemungkinan tugasan telah dijawab melalui
              saluran lain atau lantikan telah dikemaskini oleh pentadbir.
-             Sila semak dashboard anda atau hubungi pentadbir.',
-            $dashUrl
+             Sila hubungi pentadbir untuk mendapatkan pautan aktif.',
+            ''
         );
     }
 
     require_once __DIR__ . '/../config/lantikan-helper.php';
+    requireLantikanAuditSchema($pdo);
+    $dashUrl = !empty($row['pengadil_id']) ? $baseUrl . '/pengadil-dashboard.html' : '';
 
     // Email security scanners commonly open every GET link. GET must therefore
     // remain read-only and show an explicit confirmation form.
@@ -208,10 +210,15 @@ try {
     $pdo->beginTransaction();
     try {
         lockMatchForAppointmentResponse($pdo, (int) $row['jadual_id']);
+        $responseAuditSnapshot = getLantikanAuditSnapshot($pdo, (int) $row['id'], true);
+        if (!$responseAuditSnapshot) {
+            throw new RuntimeException('Snapshot audit jawapan lantikan tidak dijumpai.');
+        }
 
         $updStmt = $pdo->prepare("
             UPDATE lantikan_pengadil
-            SET status = :s, tarikh_jawab = NOW(), email_token = NULL, tg_token = NULL
+            SET status = :s, tarikh_jawab = NOW(), status_dikemaskini_at = NOW(),
+                email_token = NULL, tg_token = NULL
             WHERE id = :id AND status = 'Belum Jawab'
         ");
         $updStmt->execute([':s' => $newStatus, ':id' => $row['id']]);
@@ -228,6 +235,21 @@ try {
         syncPerlawananHistoryForJadual($pdo, (int) $row['jadual_id']);
         $shouldNotifyCompleteKup = isKupPosition((string) $row['jawatan'])
             && isAcceptedKupCrewComplete($pdo, (int) $row['jadual_id']);
+
+        $responseUrl = rtrim($baseUrl, '/') . '/api/lantikan-jawab-token.php?token='
+            . urlencode($token) . '&action=' . urlencode($action);
+        recordLantikanAudit(
+            $pdo,
+            (int) $row['id'],
+            'appointment_response',
+            'email_link',
+            'success',
+            ['action' => $action, 'new_status' => $newStatus],
+            $responseUrl,
+            'official',
+            null,
+            $responseAuditSnapshot
+        );
 
         $pdo->commit();
     } catch (Throwable $txErr) {
@@ -254,9 +276,6 @@ try {
     $tarikhFmt = date('d M Y', strtotime($row['tarikh']));
     $pasukan   = htmlspecialchars($row['pasukan_home'] . ' lwn ' . $row['pasukan_away']);
     $jawatan   = htmlspecialchars($row['jawatan']);
-
-    // Dashboard button on success pages only for registered referees
-    $dashUrl = !empty($row['pengadil_id']) ? $baseUrl . '/pengadil-dashboard.html' : '';
 
     // ── Notify admin(s) & PP Daerah ───────────────────────────────────
     // Jawapan lantikan sudah berjaya disimpan. Kegagalan notifikasi sampingan

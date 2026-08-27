@@ -217,7 +217,7 @@
             Lihat Jadual
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
           </button>
-          <button (click)="selectedKejohanan = null; selectedKejohananId = null; poolList = []; jadualList = []; jadualSearch = ''"
+          <button (click)="selectedKejohanan = null; selectedKejohananId = null; poolList = []; jadualList = []; jadualSearch = ''; closeTelegramOnboardingModal()"
             class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-blue-100 rounded-lg transition" title="Tutup">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -227,21 +227,89 @@
       </div>
     }
 
+    <!-- Pengerusi Pengadil bagi pengesahan laporan RA -->
+    @if (selectedKejohanan) {
+      <div class="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-violet-600">verified_user</span>
+              <h3 class="text-sm font-semibold text-slate-900">Pengerusi Pengadil</h3>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-violet-50 text-violet-700">
+                {{ selectedKejohanan.peringkat_kejohanan }}
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 mt-1">Pengesah rasmi semua laporan RA untuk kejohanan ini. Admin menerima salinan dan hanya boleh membuat override bersebab.</p>
+          </div>
+          <button type="button" (click)="openPengerusiModal()" [disabled]="loadingPengerusi"
+            class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-50 transition whitespace-nowrap">
+            <span class="material-symbols-outlined text-sm">manage_accounts</span>
+            {{ pengerusiCurrent ? 'Tukar Pengerusi' : 'Tetapkan Pengerusi' }}
+          </button>
+        </div>
+
+        @if (loadingPengerusi) {
+          <div class="mt-4 text-xs text-slate-500">Memuatkan tetapan Pengerusi...</div>
+        } @else if (pengerusiCurrent) {
+          <div class="mt-4 rounded-xl border border-violet-200 bg-violet-50/50 p-4">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <p class="font-semibold text-slate-900">{{ pengerusiCurrent.nama_snapshot }}</p>
+                <p class="text-xs text-slate-600 mt-0.5">
+                  {{ pengerusiCurrent.jawatan_snapshot }} · {{ pengerusiCurrent.negeri || '-' }} · {{ pengerusiCurrent.jenis_sumber }}
+                </p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <span class="inline-flex rounded border px-2 py-1 text-[10px] font-medium"
+                  [class]="pengerusiCurrent.email ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'">
+                  Emel {{ pengerusiCurrent.email ? 'tersedia' : 'tiada' }}
+                </span>
+                <span class="inline-flex rounded border px-2 py-1 text-[10px] font-medium"
+                  [class]="pengerusiCurrent.telegram_linked ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'">
+                  Telegram {{ pengerusiCurrent.telegram_linked ? 'dipaut' : 'belum dipaut' }}
+                </span>
+              </div>
+            </div>
+            @if (!pengerusiCurrent.telegram_linked && pengerusiCurrent.jenis_sumber === 'Luar') {
+              <p class="text-xs text-amber-700 mt-3">Pautan pengesahan dihantar melalui emel. Telegram akan digunakan secara automatik selepas pegawai memautkannya.</p>
+            }
+          </div>
+        } @else {
+          <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+            Belum ditetapkan. Laporan RA yang dihantar akan kekal menunggu dan Admin perlu menetapkan Pengerusi atau menggunakan override bersebab.
+          </div>
+        }
+      </div>
+    }
+
     <!-- Pool Pengadil Section -->
     @if (selectedKejohanan) {
       <div class="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
             <h3 class="text-sm font-semibold text-slate-900">Pool Pengadil Kejohanan</h3>
             <p class="text-xs text-slate-500 mt-0.5">{{ poolList.length }} pengadil ditag untuk {{ selectedKejohanan.nama }}</p>
           </div>
-          <button (click)="openPoolModal()"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-pahang-black text-pahang-yellow text-xs font-semibold rounded-lg hover:bg-gray-800 transition">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-            </svg>
-            Tambah ke Pool
-          </button>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" (click)="openTelegramOnboardingModal()"
+              [disabled]="loadingPool || externalPoolCount === 0"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0088CC] text-white text-xs font-semibold rounded-lg hover:bg-[#006FA3] disabled:opacity-50 disabled:cursor-not-allowed transition">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8m-18 8h18V6H3v10z"/>
+              </svg>
+              Blast Pautan Telegram
+              @if (externalPoolCount > 0) {
+                <span class="rounded-full bg-white/20 px-1.5 py-0.5">{{ linkedExternalPoolCount }}/{{ externalPoolCount }}</span>
+              }
+            </button>
+            <button type="button" (click)="openPoolModal()"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-pahang-black text-pahang-yellow text-xs font-semibold rounded-lg hover:bg-gray-800 transition">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+              </svg>
+              Tambah ke Pool
+            </button>
+          </div>
         </div>
 
         @if (loadingPool) {
@@ -256,6 +324,7 @@
                   <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Jenis</th>
                   <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Sumber</th>
                   <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase">No. Tel</th>
+                  <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Telegram</th>
                   <th class="px-3 py-2 text-center text-xs font-semibold text-slate-500 uppercase w-20">Buang</th>
                 </tr>
               </thead>
@@ -277,6 +346,12 @@
                       </span>
                     </td>
                     <td class="px-3 py-2 text-xs text-slate-600">{{ p.no_tel || '-' }}</td>
+                    <td class="px-3 py-2">
+                      <span class="inline-flex rounded border px-1.5 py-0.5 text-[10px] font-medium"
+                        [class]="p.telegram_linked ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'">
+                        {{ p.telegram_linked ? 'Dipaut' : 'Belum dipaut' }}
+                      </span>
+                    </td>
                     <td class="px-3 py-2 text-center">
                       <button (click)="removeFromPool(p.pool_id)"
                         class="text-xs text-rose-500 hover:text-rose-700 transition">&#x2715;</button>
@@ -337,7 +412,8 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35m1.35-5.15a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z"/>
           </svg>
           <input type="search" [(ngModel)]="jadualSearch"
-            placeholder="Cari no. perlawanan, nama pasukan atau peringkat..."
+            aria-label="Cari jadual perlawanan"
+            placeholder="Cari no. tepat (cth. 5) atau kata kunci..."
             class="w-full pl-9 pr-9 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-pahang-yellow/30 focus:border-pahang-yellow outline-none" />
           @if (jadualSearch) {
             <button type="button" (click)="jadualSearch = ''"
@@ -684,6 +760,18 @@
                               <span class="text-[10px] text-blue-600 leading-tight">✓ Telegram</span>
                             }
                           </div>
+                        } @else if (assignment) {
+                          <div class="flex flex-col gap-0.5 mt-1">
+                            <span class="text-[10px] text-amber-700 leading-tight">Belum dihantar</span>
+                            <span class="text-[10px] leading-tight"
+                              [class]="assignment.email_available ? 'text-emerald-600' : 'text-rose-600'">
+                              Emel: {{ assignment.email_available ? 'tersedia' : 'tiada' }}
+                            </span>
+                            <span class="text-[10px] leading-tight"
+                              [class]="assignment.telegram_linked ? 'text-blue-600' : 'text-amber-700'">
+                              Telegram: {{ assignment.telegram_linked ? 'dipaut' : 'belum dipaut' }}
+                            </span>
+                          </div>
                         }
                       </td>
                       <td class="px-4 py-3 align-top">
@@ -748,6 +836,11 @@
                                 Buang
                               </button>
                             }
+                            <button type="button" (click)="toggleAppointmentAudit(assignment.id)"
+                              class="px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 rounded-lg text-[10px] font-semibold transition whitespace-nowrap"
+                              [attr.aria-expanded]="expandedAuditId === assignment.id">
+                              {{ expandedAuditId === assignment.id ? 'Tutup Log' : 'Pautan & Log' }}
+                            </button>
                           </div>
                         } @else {
                           <button (click)="selectJawatan(jawatan)"
@@ -758,6 +851,130 @@
                         }
                       </td>
                     </tr>
+                    @if (assignment && expandedAuditId === assignment.id) {
+                      @let audit = auditData.get(assignment.id);
+                      <tr>
+                        <td colspan="3" class="px-4 py-4 bg-slate-50 border-y border-slate-200">
+                          @if (auditLoadingIds.has(assignment.id) && !audit) {
+                            <p class="text-xs text-slate-500">Memuatkan pautan dan log...</p>
+                          } @else if (audit) {
+                            <div class="space-y-4">
+                              <div class="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <p class="text-xs font-bold text-slate-800">Pautan Terus & Audit Penghantaran</p>
+                                  <p class="text-[10px] text-slate-500 mt-0.5">Pautan ialah akses unik. Hanya kongsi dengan pegawai yang dinamakan.</p>
+                                </div>
+                                <div class="flex flex-wrap gap-1.5">
+                                  <span class="px-2 py-1 rounded-full border text-[10px] font-semibold"
+                                    [class]="audit.lantikan.email_available ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'">
+                                    Emel {{ audit.lantikan.email_available ? 'tersedia' : 'tiada' }}
+                                  </span>
+                                  <span class="px-2 py-1 rounded-full border text-[10px] font-semibold"
+                                    [class]="audit.lantikan.telegram_linked ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-amber-50 text-amber-700 border-amber-200'">
+                                    Telegram {{ audit.lantikan.telegram_linked ? 'dipaut' : 'belum dipaut' }}
+                                  </span>
+                                </div>
+                              </div>
+
+                              @if ((audit.lantikan.status === 'Belum Jawab' && !audit.links.accept_url)
+                                || (assignment.jawatan === 'Penilai Pengadil' && audit.lantikan.status === 'Diterima' && !audit.links.ra_form_url)
+                                || (audit.lantikan.is_external && !audit.lantikan.telegram_linked && !audit.links.telegram_link_url)) {
+                                <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 flex flex-wrap items-center justify-between gap-2">
+                                  <p class="text-[11px] text-amber-900">Ada pautan yang belum disediakan. Tindakan ini tidak menghantar notifikasi dan tidak memulakan tempoh jawapan.</p>
+                                  <button type="button" (click)="prepareDirectLinks(assignment.id)"
+                                    [disabled]="auditLoadingIds.has(assignment.id)"
+                                    class="px-3 py-1.5 rounded-lg bg-pahang-black text-pahang-yellow text-xs font-semibold disabled:opacity-50">
+                                    Sediakan Pautan
+                                  </button>
+                                </div>
+                              }
+                              <div class="space-y-2">
+                                  @if (audit.links.telegram_link_url) {
+                                    <div class="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                                      <div class="flex items-center justify-between gap-2 mb-1.5">
+                                        <p class="text-[11px] font-bold text-blue-900">Paut Telegram Pengadil Luar</p>
+                                        <button type="button" (click)="copyDirectLink(assignment.id, 'telegram_link_url', audit.links.telegram_link_url!)"
+                                          class="px-2 py-1 rounded bg-blue-700 text-white text-[10px] font-semibold">Salin</button>
+                                      </div>
+                                      <p class="text-[10px] text-blue-700 break-all font-mono">{{ audit.links.telegram_link_url }}</p>
+                                      <button type="button" (click)="confirmManualDelivery(assignment.id, 'telegram_link')"
+                                        class="mt-2 text-[10px] font-semibold text-blue-800 underline">Tandakan pautan pemautan sudah dihantar</button>
+                                    </div>
+                                  }
+
+                                  @if (audit.links.accept_url) {
+                                    <div class="rounded-lg border border-emerald-200 bg-white p-3">
+                                      <div class="flex items-center justify-between gap-2 mb-1.5">
+                                        <p class="text-[11px] font-bold text-emerald-800">Pautan Terima Lantikan</p>
+                                        <button type="button" (click)="copyDirectLink(assignment.id, 'accept_url', audit.links.accept_url!)"
+                                          class="px-2 py-1 rounded bg-emerald-700 text-white text-[10px] font-semibold">Salin</button>
+                                      </div>
+                                      <p class="text-[10px] text-slate-600 break-all font-mono">{{ audit.links.accept_url }}</p>
+                                    </div>
+                                    <div class="rounded-lg border border-rose-200 bg-white p-3">
+                                      <div class="flex items-center justify-between gap-2 mb-1.5">
+                                        <p class="text-[11px] font-bold text-rose-800">Pautan Tolak Lantikan</p>
+                                        <button type="button" (click)="copyDirectLink(assignment.id, 'reject_url', audit.links.reject_url!)"
+                                          class="px-2 py-1 rounded bg-rose-700 text-white text-[10px] font-semibold">Salin</button>
+                                      </div>
+                                      <p class="text-[10px] text-slate-600 break-all font-mono">{{ audit.links.reject_url }}</p>
+                                    </div>
+                                    @if (!audit.lantikan.notif_hantar) {
+                                      <div class="rounded-lg border border-amber-300 bg-amber-50 p-3">
+                                        <p class="text-[11px] text-amber-900 mb-2">Selepas salah satu pautan lantikan benar-benar dihantar, rekodkan di sini. Tindakan ini memulakan tempoh jawapan.</p>
+                                        <button type="button" (click)="confirmManualDelivery(assignment.id, 'appointment')"
+                                          class="px-3 py-1.5 rounded-lg bg-amber-700 text-white text-xs font-semibold">Tandakan Lantikan Sudah Dihantar</button>
+                                      </div>
+                                    }
+                                  }
+
+                                  @if (audit.links.ra_form_url) {
+                                    <div class="rounded-lg border border-purple-200 bg-purple-50 p-3">
+                                      <div class="flex items-center justify-between gap-2 mb-1.5">
+                                        <p class="text-[11px] font-bold text-purple-900">Pautan Borang RA</p>
+                                        <button type="button" (click)="copyDirectLink(assignment.id, 'ra_form_url', audit.links.ra_form_url!)"
+                                          class="px-2 py-1 rounded bg-purple-700 text-white text-[10px] font-semibold">Salin</button>
+                                      </div>
+                                      <p class="text-[10px] text-purple-800 break-all font-mono">{{ audit.links.ra_form_url }}</p>
+                                      <button type="button" (click)="confirmManualDelivery(assignment.id, 'ra_form')"
+                                        class="mt-2 text-[10px] font-semibold text-purple-800 underline">Tandakan pautan borang sudah dihantar</button>
+                                    </div>
+                                  }
+                              </div>
+
+                              <div>
+                                <div class="flex items-center justify-between gap-2 mb-2">
+                                  <p class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Log Kekal ({{ audit.events.length }})</p>
+                                  <button type="button" (click)="loadAppointmentAudit(assignment.id)"
+                                    class="text-[10px] font-semibold text-blue-700 hover:underline">Muat semula</button>
+                                </div>
+                                @if (audit.events.length === 0) {
+                                  <p class="text-[11px] text-slate-500">Belum ada aktiviti direkodkan.</p>
+                                } @else {
+                                  <div class="max-h-64 overflow-y-auto space-y-1.5">
+                                    @for (event of audit.events; track event.id) {
+                                      <div class="rounded-lg border border-slate-200 bg-white px-3 py-2 flex items-start justify-between gap-3">
+                                        <div class="min-w-0">
+                                          <p class="text-[11px] font-semibold text-slate-800">{{ auditEventLabel(event.event_type) }}</p>
+                                          <p class="text-[10px] text-slate-500">{{ event.channel }} · {{ event.actor_type }}</p>
+                                          @if (event.link_url) {
+                                            <p class="text-[9px] text-slate-400 truncate max-w-lg" [title]="event.link_url">{{ event.link_url }}</p>
+                                          }
+                                        </div>
+                                        <div class="text-right shrink-0">
+                                          <span class="inline-block px-1.5 py-0.5 rounded border text-[9px] font-semibold" [class]="auditStatusClass(event.event_status)">{{ event.event_status }}</span>
+                                          <p class="text-[9px] text-slate-400 mt-1">{{ event.created_at | date:'d MMM y, h:mm:ss a' }}</p>
+                                        </div>
+                                      </div>
+                                    }
+                                  </div>
+                                }
+                              </div>
+                            </div>
+                          }
+                        </td>
+                      </tr>
+                    }
                   }
                 </tbody>
               </table>
@@ -951,7 +1168,8 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35m1.35-5.15a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z"/>
           </svg>
           <input type="search" [(ngModel)]="jadualLantikanSearch"
-            placeholder="Cari no. perlawanan, nama pasukan atau peringkat..."
+            aria-label="Cari jadual lantikan"
+            placeholder="Cari no. tepat (cth. 5) atau kata kunci..."
             class="w-full pl-9 pr-9 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-pahang-yellow/30 focus:border-pahang-yellow outline-none" />
           @if (jadualLantikanSearch) {
             <button type="button" (click)="jadualLantikanSearch = ''"
@@ -1384,8 +1602,8 @@
                     }
                   </td>
                   <td class="px-4 py-3">
-                    <span class="px-2 py-0.5 rounded text-xs font-medium" [class]="getLaporanStatusClass(lap.status)">
-                      {{ lap.status }}
+                    <span class="px-2 py-0.5 rounded text-xs font-medium" [class]="getLaporanStatusClass(getLaporanWorkflowLabel(lap))">
+                      {{ getLaporanWorkflowLabel(lap) }}
                     </span>
                   </td>
                   <td class="px-4 py-3 text-center">
@@ -1748,6 +1966,169 @@
   </div>
 }
 
+<!-- Telegram Onboarding Blast Modal -->
+@if (showTelegramOnboardingModal) {
+  <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+    (click)="closeTelegramOnboardingModal()">
+    <div class="bg-white rounded-2xl max-w-5xl w-full max-h-[88vh] flex flex-col shadow-2xl"
+      role="dialog" aria-modal="true" aria-labelledby="telegram-onboarding-title"
+      (click)="$event.stopPropagation()">
+      <div class="px-6 py-4 border-b border-slate-200 flex items-start justify-between gap-4 shrink-0">
+        <div>
+          <h3 id="telegram-onboarding-title" class="text-base font-semibold text-slate-900">Blast Pautan Telegram — Pengadil Luar</h3>
+          <p class="text-xs text-slate-500 mt-1">{{ selectedKejohanan?.nama }}</p>
+        </div>
+        <button type="button" (click)="closeTelegramOnboardingModal()" [disabled]="sendingTelegramOnboarding"
+          aria-label="Tutup dialog blast Telegram"
+          class="text-slate-400 hover:text-slate-600 disabled:opacity-40">&#x2715;</button>
+      </div>
+
+      <div class="p-6 space-y-5 overflow-y-auto flex-1">
+        <div class="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+          <p class="font-semibold">Onboarding sahaja — bukan lantikan perlawanan</p>
+          <p class="text-xs leading-relaxed mt-1">Sistem hanya menghantar e-mel pautan Telegram kepada pengadil luar dalam pool ini. Ia tidak mengubah status lantikan, <code>notif_hantar</code> atau tempoh jawapan.</p>
+        </div>
+
+        @if (loadingTelegramOnboarding) {
+          <app-loading message="Menyemak status Telegram pengadil luar..." />
+        } @else if (telegramOnboardingPreview; as preview) {
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
+              <p class="text-xl font-bold text-slate-800">{{ preview.counts.total_external }}</p>
+              <p class="text-[11px] text-slate-500">Pengadil luar</p>
+            </div>
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center">
+              <p class="text-xl font-bold text-emerald-700">{{ preview.counts.linked }}</p>
+              <p class="text-[11px] text-emerald-700">Sudah dipaut</p>
+            </div>
+            <div class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-center">
+              <p class="text-xl font-bold text-blue-700">{{ preview.counts.initial_sendable }}</p>
+              <p class="text-[11px] text-blue-700">Boleh dihantar</p>
+            </div>
+            <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center">
+              <p class="text-xl font-bold text-amber-700">{{ preview.counts.emailed_waiting }}</p>
+              <p class="text-[11px] text-amber-700">Emel sudah dihantar</p>
+            </div>
+            <div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-center">
+              <p class="text-xl font-bold text-rose-700">{{ preview.counts.failed }}</p>
+              <p class="text-[11px] text-rose-700">Gagal</p>
+            </div>
+            <div class="rounded-lg border border-slate-300 bg-white p-3 text-center">
+              <p class="text-xl font-bold text-slate-700">{{ preview.counts.no_email + preview.counts.invalid_email }}</p>
+              <p class="text-[11px] text-slate-500">Masalah emel</p>
+            </div>
+          </div>
+
+          @if (telegramOnboardingResult; as result) {
+            <div aria-live="polite" class="rounded-xl border p-4 text-sm"
+              [class]="result.failed > 0 ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'">
+              <p class="font-semibold">{{ result.message }}</p>
+              <p class="text-xs mt-1">Berjaya: {{ result.sent }} · Gagal: {{ result.failed }} · Dilangkau: {{ result.skipped }}</p>
+            </div>
+          }
+
+          <div class="rounded-xl border border-slate-200 overflow-hidden">
+            <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
+              <div>
+                <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wide">Status Pengadil Luar Dalam Pool</h4>
+                <p class="text-[11px] text-slate-500 mt-0.5">Penerima yang sudah berjaya menerima e-mel tidak dihantar semula oleh butang blast biasa.</p>
+              </div>
+              <button type="button" (click)="loadTelegramOnboardingPreview()"
+                [disabled]="loadingTelegramOnboarding || sendingTelegramOnboarding"
+                class="px-3 py-1.5 text-xs font-semibold border border-slate-300 rounded-lg hover:bg-white disabled:opacity-50">
+                Muat Semula
+              </button>
+            </div>
+            <div class="overflow-x-auto max-h-80 overflow-y-auto">
+              <table class="w-full text-xs">
+                <thead class="bg-white sticky top-0 border-b border-slate-200">
+                  <tr>
+                    <th class="px-4 py-2.5 text-left font-semibold text-slate-500">Nama</th>
+                    <th class="px-4 py-2.5 text-left font-semibold text-slate-500">Emel</th>
+                    <th class="px-4 py-2.5 text-left font-semibold text-slate-500">Status</th>
+                    <th class="px-4 py-2.5 text-left font-semibold text-slate-500">Percubaan terakhir</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  @for (recipient of preview.recipients; track recipient.id) {
+                    <tr class="hover:bg-slate-50 align-top">
+                      <td class="px-4 py-2.5">
+                        <p class="font-medium text-slate-800">{{ recipient.nama }}</p>
+                        <p class="text-[10px] text-slate-500 mt-0.5">{{ recipient.negeri }} · {{ recipient.jenis_pengadil }}</p>
+                      </td>
+                      <td class="px-4 py-2.5 text-slate-600">{{ recipient.emel || '-' }}</td>
+                      <td class="px-4 py-2.5">
+                        <span class="inline-flex rounded border px-2 py-0.5 text-[10px] font-semibold"
+                          [class]="telegramOnboardingStatusClass(recipient.onboarding_status)">
+                          {{ telegramOnboardingStatusLabel(recipient.onboarding_status) }}
+                        </span>
+                      </td>
+                      <td class="px-4 py-2.5 text-slate-500">
+                        @if (recipient.linked_at) {
+                          <p class="font-medium text-emerald-700">Dipaut {{ recipient.linked_at | date:'d MMM y, HH:mm' }}</p>
+                        } @else if (recipient.last_sent_at) {
+                          <p>Dihantar {{ recipient.last_sent_at | date:'d MMM y, HH:mm' }}</p>
+                        } @else if (recipient.last_failed_at) {
+                          <p class="text-rose-600">Gagal {{ recipient.last_failed_at | date:'d MMM y, HH:mm' }}</p>
+                        } @else {
+                          <p>Belum pernah dihantar</p>
+                        }
+                        @if (recipient.last_error) {
+                          <p class="text-[10px] text-rose-500 mt-1 max-w-xs">{{ recipient.last_error }}</p>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr><td colspan="4" class="px-4 py-10 text-center text-slate-400">Tiada pengadil luar dalam pool kejohanan ini.</td></tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          @if (preview.recent_batches.length > 0) {
+            <div class="rounded-xl border border-slate-200 p-4">
+              <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">Log Blast Terkini</h4>
+              <div class="space-y-2">
+                @for (batch of preview.recent_batches; track batch.id) {
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs border-b border-slate-100 pb-2 last:border-0 last:pb-0">
+                    <span class="text-slate-600">#{{ batch.id }} · {{ batch.attempt_mode === 'resend' ? 'Hantar semula' : 'Blast awal' }} · {{ batch.started_at | date:'d MMM y, HH:mm' }}</span>
+                    <span class="font-semibold" [class]="telegramOnboardingBatchStatusClass(batch.status)">
+                      {{ batch.sent_count }} berjaya · {{ batch.failed_count }} gagal · {{ batch.skipped_count }} dilangkau
+                    </span>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        }
+      </div>
+
+      <div class="px-6 py-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+        <p class="text-[11px] text-slate-500">Setiap penghantaran dan pautan tepat direkodkan mengikut penerima.</p>
+        <div class="flex flex-wrap justify-end gap-2">
+          <button type="button" (click)="closeTelegramOnboardingModal()" [disabled]="sendingTelegramOnboarding"
+            class="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50">Tutup</button>
+          @if (telegramOnboardingPreview; as preview) {
+            @if (preview.counts.emailed_waiting > 0) {
+              <button type="button" (click)="requestTelegramOnboardingBlast('resend')"
+                [disabled]="sendingTelegramOnboarding || preview.counts.resendable === 0"
+                class="px-4 py-2 text-sm font-semibold text-amber-800 border border-amber-300 bg-amber-50 rounded-lg hover:bg-amber-100 disabled:opacity-50">
+                Hantar Semula ({{ preview.counts.resendable }})
+              </button>
+            }
+            <button type="button" (click)="requestTelegramOnboardingBlast('initial')"
+              [disabled]="sendingTelegramOnboarding || preview.counts.initial_sendable === 0"
+              class="px-4 py-2 text-sm bg-[#0088CC] text-white font-semibold rounded-lg hover:bg-[#006FA3] disabled:opacity-50">
+              {{ sendingTelegramOnboarding ? 'Menghantar...' : 'Blast Emel (' + preview.counts.initial_sendable + ')' }}
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
 <!-- Pool Pengadil Modal -->
 @if (showPoolModal) {
   <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" (click)="showPoolModal = false">
@@ -1856,6 +2237,79 @@
   </div>
 }
 
+<!-- Tetapan Pengerusi Pengadil Modal -->
+@if (showPengerusiModal) {
+  <div class="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4 overflow-y-auto" (click)="closePengerusiModal()">
+    <div class="bg-white rounded-xl w-full max-w-2xl shadow-xl my-8" (click)="$event.stopPropagation()">
+      <div class="flex items-start justify-between px-6 py-4 border-b">
+        <div>
+          <h3 class="font-bold text-lg">Tetapkan Pengerusi Pengadil</h3>
+          <p class="text-xs text-slate-500 mt-1">{{ selectedKejohanan?.nama }}</p>
+        </div>
+        <button type="button" (click)="closePengerusiModal()" class="text-slate-400 hover:text-slate-600" aria-label="Tutup">
+          <span class="material-icons">close</span>
+        </button>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-800">
+          Hanya pegawai berstatus <strong>Penilai Pengadil</strong> boleh dipilih. Calon dalam pool kejohanan dipaparkan terlebih dahulu.
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Jawatan rasmi</label>
+          <input type="text" [(ngModel)]="pengerusiJawatan" maxlength="150"
+            class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+            placeholder="Contoh: Pengerusi Pengadil MSSM" />
+        </div>
+        <div class="relative">
+          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-lg text-slate-400">search</span>
+          <input type="search" [(ngModel)]="pengerusiSearch" class="w-full pl-10 pr-3 py-2 border border-slate-300 rounded-lg text-sm"
+            placeholder="Cari nama, daerah, negeri atau emel..." />
+        </div>
+
+        <div class="border border-slate-200 rounded-xl max-h-[360px] overflow-y-auto divide-y divide-slate-100">
+          @for (candidate of filteredPengerusiCandidates; track candidate.source + ':' + candidate.official_id) {
+            <label class="flex items-start gap-3 p-4 cursor-pointer hover:bg-slate-50"
+              [class.bg-violet-50]="selectedPengerusiKey === candidate.source + ':' + candidate.official_id">
+              <input type="radio" name="pengerusiCandidate" class="mt-1"
+                [value]="candidate.source + ':' + candidate.official_id" [(ngModel)]="selectedPengerusiKey" />
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="text-sm font-semibold text-slate-900">{{ candidate.nama }}</p>
+                  @if (candidate.dalam_pool) {
+                    <span class="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[10px] font-semibold">Dalam Pool</span>
+                  }
+                  <span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-medium">{{ candidate.source }}</span>
+                </div>
+                <p class="text-xs text-slate-500 mt-1">{{ candidate.daerah || '-' }}, {{ candidate.negeri || '-' }} · {{ candidate.no_telefon || 'Tiada telefon' }}</p>
+                <div class="flex flex-wrap gap-2 mt-2">
+                  <span class="text-[10px]" [class]="candidate.email ? 'text-emerald-700' : 'text-rose-600'">
+                    {{ candidate.email || 'Tiada emel' }}
+                  </span>
+                  <span class="text-[10px]" [class]="candidate.telegram_linked ? 'text-emerald-700' : 'text-amber-700'">
+                    Telegram {{ candidate.telegram_linked ? 'dipaut' : 'belum dipaut' }}
+                  </span>
+                </div>
+              </div>
+            </label>
+          } @empty {
+            <p class="p-8 text-center text-sm text-slate-400">Tiada Penilai Pengadil sepadan.</p>
+          }
+        </div>
+      </div>
+
+      <div class="px-6 py-4 border-t flex items-center justify-end gap-2">
+        <button type="button" (click)="closePengerusiModal()" [disabled]="savingPengerusi"
+          class="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50">Batal</button>
+        <button type="button" (click)="requestSavePengerusi()" [disabled]="savingPengerusi || !selectedPengerusiKey"
+          class="px-4 py-2 text-sm font-semibold bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50">
+          {{ savingPengerusi ? 'Menyimpan...' : 'Tetapkan Pengerusi' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
 <!-- Confirm Modal -->
 <app-confirm-modal [show]="showConfirmModal" [title]="confirmTitle" [message]="confirmMessage"
   [confirmText]="confirmBtnText" [type]="confirmType"
@@ -1880,7 +2334,7 @@
             </button>
           }
           @if (laporanDetail) {
-            <span class="px-2 py-0.5 text-xs font-semibold rounded-full" [class]="getLaporanStatusClass(laporanDetail.status)">{{ laporanDetail.status }}</span>
+            <span class="px-2 py-0.5 text-xs font-semibold rounded-full" [class]="getLaporanStatusClass(getLaporanWorkflowLabel(laporanDetail))">{{ getLaporanWorkflowLabel(laporanDetail) }}</span>
           }
           <button (click)="showLaporanModal = false" class="text-slate-400 hover:text-slate-600">
             <span class="material-icons">close</span>
@@ -1913,6 +2367,82 @@
               <p class="text-xs text-slate-500 mb-1">Tempat</p>
               <p class="font-medium">{{ laporanDetail.tempat || '-' }}</p>
             </div>
+          </div>
+
+          <!-- Tournament chair approval state -->
+          <div class="rounded-xl border p-4"
+            [class]="laporanDetail.pengesahan ? 'border-violet-200 bg-violet-50/50' : 'border-amber-200 bg-amber-50'">
+            <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+              <div>
+                <p class="text-xs font-bold uppercase tracking-wide text-slate-700">Pengesahan Pengerusi Pengadil</p>
+                @if (laporanDetail.pengesahan) {
+                  <p class="font-semibold text-slate-900 mt-1">{{ laporanDetail.pengesahan.pengesah_nama || 'Belum ditetapkan' }}</p>
+                  <p class="text-xs text-slate-600">{{ laporanDetail.pengesahan.pengesah_jawatan || 'Pengerusi Pengadil' }} · {{ laporanDetail.pengesahan.pengesah_negeri || '-' }}</p>
+                } @else {
+                  <p class="text-xs text-amber-800 mt-1">Status pengesahan belum disediakan.</p>
+                }
+              </div>
+              @if (laporanDetail.pengesahan) {
+                <span class="px-2 py-1 rounded text-xs font-semibold" [class]="getLaporanStatusClass(getLaporanWorkflowLabel(laporanDetail))">
+                  {{ getLaporanWorkflowLabel(laporanDetail) }}
+                </span>
+              }
+            </div>
+            @if (laporanDetail.pengesahan?.pengesahan_status === 'Menunggu') {
+              <div class="flex flex-wrap gap-2 mt-3">
+                <span class="rounded border px-2 py-1 text-[10px] font-medium"
+                  [class]="laporanDetail.pengesahan.email_sent_at ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'">
+                  Emel {{ laporanDetail.pengesahan.email_sent_at ? 'dihantar' : 'belum dihantar' }}
+                </span>
+                <span class="rounded border px-2 py-1 text-[10px] font-medium"
+                  [class]="laporanDetail.pengesahan.telegram_sent_at ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600 border-slate-200'">
+                  Telegram {{ laporanDetail.pengesahan.telegram_sent_at ? 'dihantar' : 'tidak dihantar' }}
+                </span>
+                @if (laporanDetail.pengesahan.approval_url) {
+                  <button type="button" (click)="copyPengerusiApprovalLink()"
+                    class="rounded bg-violet-700 px-2 py-1 text-[10px] font-semibold text-white hover:bg-violet-800">
+                    Salin Pautan Pengerusi
+                  </button>
+                }
+                @if ((laporanDetail.pengesahan.email_applicable && !laporanDetail.pengesahan.email_sent_at)
+                  || (laporanDetail.pengesahan.telegram_applicable && !laporanDetail.pengesahan.telegram_sent_at)) {
+                  <button type="button" (click)="retryPengerusiNotification()" [disabled]="submittingSahkan"
+                    class="rounded bg-amber-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-amber-700 disabled:opacity-50">
+                    Cuba Hantar Semula
+                  </button>
+                }
+              </div>
+            }
+            @if (laporanDetail.pengesahan?.catatan_pengerusi) {
+              <div class="mt-3 border-t border-violet-200 pt-3">
+                <p class="text-xs font-semibold text-slate-700">{{ laporanDetail.pengesahan.pengesahan_status === 'Override Admin' ? 'Catatan Override Admin' : 'Komen Pengerusi' }}</p>
+                <p class="text-sm text-slate-700 whitespace-pre-wrap mt-1">{{ laporanDetail.pengesahan.catatan_pengerusi }}</p>
+              </div>
+            }
+            @if (laporanDetail.pengesahan?.alasan_override) {
+              <div class="mt-3 border-t border-rose-200 pt-3">
+                <p class="text-xs font-semibold text-rose-700">Sebab Override Admin</p>
+                <p class="text-sm text-slate-700 whitespace-pre-wrap mt-1">{{ laporanDetail.pengesahan.alasan_override }}</p>
+              </div>
+            }
+            @if (laporanDetail.pengesahan?.audit?.length) {
+              <details class="mt-3 border-t border-violet-200 pt-3">
+                <summary class="cursor-pointer text-xs font-semibold text-violet-700">Log penuh pengesahan ({{ laporanDetail.pengesahan.audit.length }})</summary>
+                <div class="mt-2 max-h-48 overflow-y-auto divide-y divide-violet-100">
+                  @for (event of laporanDetail.pengesahan.audit; track event.id) {
+                    <div class="py-2 text-[11px] text-slate-600">
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="font-semibold text-slate-800">{{ event.event_type }} · {{ event.channel }} · {{ event.event_status }}</span>
+                        <span>{{ event.created_at | date:'d MMM y, h:mm a' }}</span>
+                      </div>
+                      @if (event.link_url) {
+                        <p class="mt-1 truncate text-violet-700" [title]="event.link_url">{{ event.link_url }}</p>
+                      }
+                    </div>
+                  }
+                </div>
+              </details>
+            }
           </div>
 
           <!-- Markah Summary -->
@@ -2064,25 +2594,34 @@
           }
 
           @if (laporanDetail.status === 'Dihantar') {
-            <!-- Sahkan section -->
-            <div class="border-2 border-pahang-yellow rounded-xl p-4 space-y-3">
-              <p class="text-sm font-semibold text-slate-800">Tindakan Admin — Sahkan & Hantar kepada Pegawai</p>
+            <!-- Explicit audited admin override -->
+            <div class="border-2 border-rose-300 bg-rose-50/40 rounded-xl p-4 space-y-3">
               <div>
-                <label class="block text-xs font-medium mb-1 text-slate-600">Catatan Admin (pilihan)</label>
+                <p class="text-sm font-semibold text-rose-800">Override Admin</p>
+                <p class="text-xs text-slate-600 mt-1">Gunakan hanya jika Pengerusi Pengadil tidak dapat membuat pengesahan. Identiti Admin, sebab, masa dan tindakan akan direkodkan dalam audit.</p>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold mb-1 text-rose-700">Sebab override (wajib)</label>
+                <textarea [(ngModel)]="alasanOverride" rows="2" maxlength="5000"
+                  class="w-full border border-rose-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-rose-300"
+                  placeholder="Nyatakan sebab Admin mengambil alih pengesahan..."></textarea>
+              </div>
+              <div>
+                <label class="block text-xs font-medium mb-1 text-slate-600">Catatan kepada pegawai (pilihan)</label>
                 <textarea [(ngModel)]="catatanAdmin" rows="3"
-                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pahang-yellow"
+                  class="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-rose-300"
                   placeholder="Tambah catatan atau maklum balas kepada penilai..."></textarea>
               </div>
-              <button (click)="sahkanLaporan()" [disabled]="submittingSahkan"
-                class="bg-pahang-yellow text-black font-semibold px-6 py-2 rounded-lg text-sm hover:bg-yellow-500 disabled:opacity-50">
-                {{ submittingSahkan ? 'Mengesahkan...' : 'Sahkan & Hantar Laporan' }}
+              <button (click)="sahkanLaporan()" [disabled]="submittingSahkan || !alasanOverride.trim()"
+                class="bg-rose-600 text-white font-semibold px-6 py-2 rounded-lg text-sm hover:bg-rose-700 disabled:opacity-50">
+                {{ submittingSahkan ? 'Memproses...' : 'Override & Sahkan Laporan' }}
               </button>
             </div>
           }
 
-          @if (laporanDetail.catatan_admin) {
+          @if (laporanDetail.catatan_admin && !laporanDetail.pengesahan?.catatan_pengerusi) {
             <div class="bg-pahang-yellow/10 border border-pahang-yellow/30 rounded-xl p-4">
-              <p class="text-xs font-semibold text-slate-700 mb-1">Catatan Admin</p>
+              <p class="text-xs font-semibold text-slate-700 mb-1">Catatan Pengesahan Lama</p>
               <p class="text-slate-700">{{ laporanDetail.catatan_admin }}</p>
             </div>
           }

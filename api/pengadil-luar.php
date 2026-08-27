@@ -148,6 +148,25 @@ try {
                 jsonResponse(['error' => true, 'message' => 'ID tidak sah.'], 400);
             }
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $usageStmt = $pdo->prepare("
+                SELECT pl.id, pl.nama, COUNT(lp.id) AS jumlah_lantikan
+                FROM pengadil_luar pl
+                JOIN lantikan_pengadil lp ON lp.pengadil_luar_id = pl.id
+                WHERE pl.id IN ($placeholders)
+                GROUP BY pl.id, pl.nama
+            ");
+            $usageStmt->execute(array_values($ids));
+            $used = $usageStmt->fetchAll(PDO::FETCH_ASSOC);
+            if (!empty($used)) {
+                $names = array_map(
+                    static fn(array $row): string => $row['nama'] . ' (' . $row['jumlah_lantikan'] . ' lantikan)',
+                    $used
+                );
+                jsonResponse([
+                    'error' => true,
+                    'message' => 'Tidak boleh dipadam kerana mempunyai rekod lantikan: ' . implode(', ', $names) . '.',
+                ], 409);
+            }
             // Remove from pools first
             $pdo->prepare("DELETE FROM pool_pengadil WHERE pengadil_luar_id IN ($placeholders)")->execute(array_values($ids));
             $stmt = $pdo->prepare("DELETE FROM pengadil_luar WHERE id IN ($placeholders)");
@@ -160,6 +179,15 @@ try {
         $id = (int) ($_GET['id'] ?? 0);
         if (!$id) {
             jsonResponse(['error' => true, 'message' => 'ID diperlukan.'], 400);
+        }
+        $usageStmt = $pdo->prepare('SELECT COUNT(*) FROM lantikan_pengadil WHERE pengadil_luar_id = :id');
+        $usageStmt->execute([':id' => $id]);
+        $usageCount = (int) $usageStmt->fetchColumn();
+        if ($usageCount > 0) {
+            jsonResponse([
+                'error' => true,
+                'message' => "Pengadil luar tidak boleh dipadam kerana mempunyai {$usageCount} rekod lantikan. Buang atau batalkan lantikan melalui modul lantikan terlebih dahulu.",
+            ], 409);
         }
         $pdo->prepare("DELETE FROM pengadil_luar WHERE id = :id")->execute([':id' => $id]);
         jsonResponse(['error' => false, 'message' => 'Pengadil luar berjaya dipadam.']);

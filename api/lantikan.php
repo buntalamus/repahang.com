@@ -48,13 +48,20 @@ function rejectIfMatchStarted(PDO $pdo, int $jadualId): void
 /**
  * Mark all assignments for given matches as cancelled/postponed and notify officials.
  */
-function batalLantikanByJadual(PDO $pdo, array $jadualIds, string $status, string $sebab): array
+function batalLantikanByJadual(
+    PDO $pdo,
+    array $jadualIds,
+    string $status,
+    string $sebab,
+    int $actorUserId
+): array
 {
     $jadualIds = array_values(array_unique(array_filter(
         array_map('intval', $jadualIds),
         static fn(int $id): bool => $id > 0
     )));
     if (empty($jadualIds)) return ['message' => 'Tiada perlawanan.'];
+    requireLantikanAuditSchema($pdo);
 
     $placeholders = implode(',', array_fill(0, count($jadualIds), '?'));
 
@@ -150,6 +157,25 @@ function batalLantikanByJadual(PDO $pdo, array $jadualIds, string $status, strin
             WHERE jadual_id IN ({$placeholders})
         ")->execute(array_merge([$status, $sebab], $jadualIds));
 
+        foreach ($records as $record) {
+            $auditSnapshot = getLantikanAuditSnapshot($pdo, (int) $record['id']);
+            if (!$auditSnapshot) {
+                throw new RuntimeException('Snapshot audit pembatalan lantikan tidak dijumpai.');
+            }
+            recordLantikanAudit(
+                $pdo,
+                (int) $record['id'],
+                'appointment_status_changed',
+                'admin',
+                'success',
+                ['new_status' => $status, 'reason' => $sebab],
+                null,
+                'admin',
+                $actorUserId,
+                $auditSnapshot
+            );
+        }
+
         foreach ($jadualIds as $jadualId) {
             syncPerlawananHistoryForJadual($pdo, (int) $jadualId);
         }
@@ -183,13 +209,56 @@ function batalLantikanByJadual(PDO $pdo, array $jadualIds, string $status, strin
             $msg = tgBatalMessage($r['nama'], $r['jawatan'], $r['kejohanan'], $r['tarikh'],
                 $r['masa'] ?? '', $r['tempat'] ?? '', $r['pasukan_home'], $r['pasukan_away'],
                 $r['no_perlawanan'] ?? '', $status, $sebab);
-            $delivered = tgSend((int) $r['telegram_chat_id'], $msg) || $delivered;
+            $telegramError = null;
+            try {
+                $telegramDelivered = tgSend((int) $r['telegram_chat_id'], $msg);
+            } catch (Throwable $channelError) {
+                $telegramDelivered = false;
+                $telegramError = $channelError->getMessage();
+                error_log('[batalLantikanByJadual] Telegram error: ' . $telegramError);
+            }
+            $delivered = $telegramDelivered || $delivered;
+            recordLantikanAudit(
+                $pdo,
+                (int) $r['id'],
+                'cancellation_notification',
+                'telegram',
+                $telegramDelivered ? 'success' : 'failed',
+                ['new_status' => $status, 'reason' => $sebab, 'error' => $telegramError],
+                null,
+                'admin',
+                $actorUserId
+            );
         }
         if (!empty($r['email'])) {
-            $delivered = sendBatalEmail($r['email'], $r['nama'], $r['jawatan'], $r['kejohanan'], $r['tarikh'],
-                $r['masa'] ?? '', $r['tempat'] ?? '', $r['pasukan_home'], $r['pasukan_away'],
-                $r['no_perlawanan'] ?? '', $r['logo_home'] ?? '', $r['logo_away'] ?? '',
-                !empty($r['pengadil_id']), $status, $sebab) || $delivered;
+            $emailError = null;
+            try {
+                $emailDelivered = sendBatalEmail($r['email'], $r['nama'], $r['jawatan'], $r['kejohanan'], $r['tarikh'],
+                    $r['masa'] ?? '', $r['tempat'] ?? '', $r['pasukan_home'], $r['pasukan_away'],
+                    $r['no_perlawanan'] ?? '', $r['logo_home'] ?? '', $r['logo_away'] ?? '',
+                    !empty($r['pengadil_id']), $status, $sebab);
+            } catch (Throwable $channelError) {
+                $emailDelivered = false;
+                $emailError = $channelError->getMessage();
+                error_log('[batalLantikanByJadual] Email error: ' . $emailError);
+            }
+            $delivered = $emailDelivered || $delivered;
+            recordLantikanAudit(
+                $pdo,
+                (int) $r['id'],
+                'cancellation_notification',
+                'email',
+                $emailDelivered ? 'success' : 'failed',
+                [
+                    'new_status' => $status,
+                    'reason' => $sebab,
+                    'recipient' => $r['email'],
+                    'error' => $emailError,
+                ],
+                null,
+                'admin',
+                $actorUserId
+            );
         }
         if (!empty($r['pengadil_id'])) {
             $subject = "Perlawanan {$status}: {$r['pasukan_home']} lwn {$r['pasukan_away']}";
@@ -232,6 +301,9 @@ try {
         $stmt = $pdo->prepare("
             SELECT lp.id, lp.jawatan, lp.status, lp.komen, lp.tarikh_jawab, lp.notif_hantar, lp.tg_notif_hantar, lp.tarikh_notif, lp.created_at,
                 lp.pengadil_id, lp.pengadil_luar_id,
+                CASE WHEN COALESCE(u.email, pl.emel, '') <> '' THEN 1 ELSE 0 END AS email_available,
+                CASE WHEN COALESCE(u.telegram_chat_id, pl.telegram_chat_id) IS NOT NULL
+                          AND COALESCE(u.telegram_chat_id, pl.telegram_chat_id) <> '' THEN 1 ELSE 0 END AS telegram_linked,
                 CASE
                     WHEN lp.pengadil_id IS NOT NULL THEN u.nama_penuh
                     WHEN lp.pengadil_luar_id IS NOT NULL THEN pl.nama
@@ -349,6 +421,7 @@ try {
                 jsonResponse(['error' => true, 'message' => 'jadual_id diperlukan.'], 400);
             }
             rejectIfMatchStarted($pdo, $jadual_id);
+            requireLantikanAuditSchema($pdo);
 
             // Auto-tolak dulu — baris yang sudah tamat tempoh tidak boleh
             // "dihidupkan semula" oleh hantar semula
@@ -451,11 +524,31 @@ try {
                     WHERE id = :id
                 ")->execute([':tg' => $tgToken, ':em' => $emailToken, ':id' => $a['lantikan_id']]);
 
+                $auditSnapshot = getLantikanAuditSnapshot($pdo, (int) $a['lantikan_id']);
+                if (!$auditSnapshot) {
+                    throw new RuntimeException('Snapshot audit lantikan tidak dijumpai.');
+                }
+                $appointmentLinks = buildAppointmentDirectLinks($emailToken);
+                recordLantikanAudit(
+                    $pdo,
+                    (int) $a['lantikan_id'],
+                    'appointment_links_prepared',
+                    'system',
+                    'success',
+                    $appointmentLinks,
+                    $appointmentLinks['accept_url'],
+                    'admin',
+                    (int) $currentUser['id'],
+                    $auditSnapshot
+                );
+
                 $botUsername = env('TELEGRAM_BOT_USERNAME', 'refpahang_bot');
 
                 // ── Telegram notification ─────────────────────────────────
                 $tgDelivered = false;
                 $emailDelivered = false;
+                $tgErrorMessage = null;
+                $emailErrorMessage = null;
                 if (!empty($a['telegram_chat_id'])) {
                     $msg  = tgLantikanMessage(
                         $a['nama'], $a['jawatan'], $a['kejohanan'],
@@ -466,14 +559,50 @@ try {
                         $allOfficials,
                         $regionLabel
                     );
-                    $tgDelivered = tgSend((int) $a['telegram_chat_id'], $msg, tgLantikanKeyboard($tgToken));
+                    try {
+                        $tgDelivered = tgSend((int) $a['telegram_chat_id'], $msg, tgLantikanKeyboard($tgToken));
+                    } catch (Throwable $tgError) {
+                        $tgErrorMessage = $tgError->getMessage();
+                        error_log('[lantikan.php notify] Telegram error: ' . $tgErrorMessage);
+                    }
                     if ($tgDelivered) {
                         $tgSent++;
                     } else {
                         $tgSkipped++;
                     }
+                    recordLantikanAudit(
+                        $pdo,
+                        (int) $a['lantikan_id'],
+                        'appointment_notification',
+                        'telegram',
+                        $tgDelivered ? 'success' : 'failed',
+                        [
+                            'telegram_linked' => true,
+                            'callback_buttons' => ['accept', 'reject'],
+                            'error' => $tgErrorMessage,
+                        ],
+                        null,
+                        'admin',
+                        (int) $currentUser['id'],
+                        $auditSnapshot
+                    );
                 } else {
                     $tgSkipped++;
+                    recordLantikanAudit(
+                        $pdo,
+                        (int) $a['lantikan_id'],
+                        'appointment_notification',
+                        'telegram',
+                        'skipped',
+                        [
+                            'reason' => 'telegram_not_linked',
+                            'telegram_link_url' => !empty($tgLinkToken) ? buildTelegramLink((string) $tgLinkToken) : null,
+                        ],
+                        !empty($tgLinkToken) ? buildTelegramLink((string) $tgLinkToken) : null,
+                        'admin',
+                        (int) $currentUser['id'],
+                        $auditSnapshot
+                    );
                 }
 
                 // ── Email notification ────────────────────────────────────
@@ -482,29 +611,64 @@ try {
                         ? "https://t.me/{$botUsername}?start={$tgLinkToken}"
                         : null;
 
-                    $emailDelivered = sendLantikanEmail(
-                        $a['email'],
-                        $a['nama'],
-                        $a['jawatan'],
-                        $a['kejohanan'],
-                        $a['tarikh'],
-                        $a['masa'] ?? '',
-                        $a['tempat'] ?? '',
-                        $a['pasukan_home'],
-                        $a['pasukan_away'],
-                        $emailToken,
-                        $tgLinkUrl,
-                        !empty($a['pengadil_id']),
-                        $a['no_perlawanan'] ?? '',
-                        $logoHome,
-                        $logoAway,
-                        $allOfficials,
-                        $a['jenis_kejohanan'] ?? 'Persahabatan',
-                        $regionLabel
-                    );
+                    try {
+                        $emailDelivered = sendLantikanEmail(
+                            $a['email'],
+                            $a['nama'],
+                            $a['jawatan'],
+                            $a['kejohanan'],
+                            $a['tarikh'],
+                            $a['masa'] ?? '',
+                            $a['tempat'] ?? '',
+                            $a['pasukan_home'],
+                            $a['pasukan_away'],
+                            $emailToken,
+                            $tgLinkUrl,
+                            !empty($a['pengadil_id']),
+                            $a['no_perlawanan'] ?? '',
+                            $logoHome,
+                            $logoAway,
+                            $allOfficials,
+                            $a['jenis_kejohanan'] ?? 'Persahabatan',
+                            $regionLabel
+                        );
+                    } catch (Throwable $emailError) {
+                        $emailErrorMessage = $emailError->getMessage();
+                        error_log('[lantikan.php notify] Email error: ' . $emailErrorMessage);
+                    }
                     if ($emailDelivered) {
                         $emailSent++;
                     }
+                    recordLantikanAudit(
+                        $pdo,
+                        (int) $a['lantikan_id'],
+                        'appointment_notification',
+                        'email',
+                        $emailDelivered ? 'success' : 'failed',
+                        [
+                            'recipient' => $a['email'],
+                            'accept_url' => $appointmentLinks['accept_url'],
+                            'reject_url' => $appointmentLinks['reject_url'],
+                            'error' => $emailErrorMessage,
+                        ],
+                        $appointmentLinks['accept_url'],
+                        'admin',
+                        (int) $currentUser['id'],
+                        $auditSnapshot
+                    );
+                } else {
+                    recordLantikanAudit(
+                        $pdo,
+                        (int) $a['lantikan_id'],
+                        'appointment_notification',
+                        'email',
+                        'skipped',
+                        ['reason' => 'email_missing'],
+                        $appointmentLinks['accept_url'],
+                        'admin',
+                        (int) $currentUser['id'],
+                        $auditSnapshot
+                    );
                 }
 
                 // Portal is supplemental only. The appointment deadline starts
@@ -523,6 +687,23 @@ try {
                         $deliveredCount++;
                     }
 
+                    recordLantikanAudit(
+                        $pdo,
+                        (int) $a['lantikan_id'],
+                        'appointment_dispatched',
+                        'combined',
+                        $deliveryRecorded ? 'success' : 'failed',
+                        [
+                            'telegram_success' => $tgDelivered,
+                            'email_success' => $emailDelivered,
+                            'deadline_started' => $deliveryRecorded,
+                        ],
+                        $appointmentLinks['accept_url'],
+                        'admin',
+                        (int) $currentUser['id'],
+                        $auditSnapshot
+                    );
+
                     if ($deliveryRecorded && !empty($a['user_id'])) {
                         try {
                             notifyLantikanPortal($pdo, (int)$a['user_id'], $a['jawatan'], $a['kejohanan'],
@@ -534,6 +715,22 @@ try {
                     }
                 } else {
                     $deliveryFailed++;
+                    recordLantikanAudit(
+                        $pdo,
+                        (int) $a['lantikan_id'],
+                        'appointment_dispatched',
+                        'combined',
+                        'failed',
+                        [
+                            'telegram_success' => false,
+                            'email_success' => false,
+                            'deadline_started' => false,
+                        ],
+                        $appointmentLinks['accept_url'],
+                        'admin',
+                        (int) $currentUser['id'],
+                        $auditSnapshot
+                    );
                 }
 
                 // ── PP Daerah notification ────────────────────────────────
@@ -583,6 +780,7 @@ try {
             if (!$kejohanan_id) {
                 jsonResponse(['error' => true, 'message' => 'kejohanan_id diperlukan.'], 400);
             }
+            requireLantikanAuditSchema($pdo);
 
             // Optional: specific jadual IDs (partial send)
             $filterIds = !empty($input['jadual_ids']) && is_array($input['jadual_ids'])
@@ -725,11 +923,31 @@ try {
                         WHERE id = :id
                     ")->execute([':tg' => $tgToken, ':em' => $emailToken, ':id' => $a['lantikan_id']]);
 
+                    $auditSnapshot = getLantikanAuditSnapshot($pdo, (int) $a['lantikan_id']);
+                    if (!$auditSnapshot) {
+                        throw new RuntimeException('Snapshot audit lantikan tidak dijumpai.');
+                    }
+                    $appointmentLinks = buildAppointmentDirectLinks($emailToken);
+                    recordLantikanAudit(
+                        $pdo,
+                        (int) $a['lantikan_id'],
+                        'appointment_links_prepared',
+                        'system',
+                        'success',
+                        $appointmentLinks,
+                        $appointmentLinks['accept_url'],
+                        'admin',
+                        (int) $currentUser['id'],
+                        $auditSnapshot
+                    );
+
                     $botUsername = env('TELEGRAM_BOT_USERNAME', 'refpahang_bot');
 
                     // Telegram
                     $tgDelivered = false;
                     $emailDelivered = false;
+                    $tgErrorMessage = null;
+                    $emailErrorMessage = null;
                     if (!empty($a['telegram_chat_id'])) {
                         $msg  = tgLantikanMessage(
                             $a['nama'], $a['jawatan'], $a['kejohanan'],
@@ -740,14 +958,50 @@ try {
                             $allOfficials,
                             $regionLabel
                         );
-                        $tgDelivered = tgSend((int) $a['telegram_chat_id'], $msg, tgLantikanKeyboard($tgToken));
+                        try {
+                            $tgDelivered = tgSend((int) $a['telegram_chat_id'], $msg, tgLantikanKeyboard($tgToken));
+                        } catch (Throwable $tgError) {
+                            $tgErrorMessage = $tgError->getMessage();
+                            error_log('[lantikan.php notify_all] Telegram error: ' . $tgErrorMessage);
+                        }
                         if ($tgDelivered) {
                             $totalTgSent++;
                         } else {
                             $totalTgSkipped++;
                         }
+                        recordLantikanAudit(
+                            $pdo,
+                            (int) $a['lantikan_id'],
+                            'appointment_notification',
+                            'telegram',
+                            $tgDelivered ? 'success' : 'failed',
+                            [
+                                'telegram_linked' => true,
+                                'callback_buttons' => ['accept', 'reject'],
+                                'error' => $tgErrorMessage,
+                            ],
+                            null,
+                            'admin',
+                            (int) $currentUser['id'],
+                            $auditSnapshot
+                        );
                     } else {
                         $totalTgSkipped++;
+                        recordLantikanAudit(
+                            $pdo,
+                            (int) $a['lantikan_id'],
+                            'appointment_notification',
+                            'telegram',
+                            'skipped',
+                            [
+                                'reason' => 'telegram_not_linked',
+                                'telegram_link_url' => !empty($tgLinkToken) ? buildTelegramLink((string) $tgLinkToken) : null,
+                            ],
+                            !empty($tgLinkToken) ? buildTelegramLink((string) $tgLinkToken) : null,
+                            'admin',
+                            (int) $currentUser['id'],
+                            $auditSnapshot
+                        );
                     }
 
                     // Email
@@ -756,17 +1010,52 @@ try {
                             ? "https://t.me/{$botUsername}?start={$tgLinkToken}"
                             : null;
 
-                        $emailDelivered = sendLantikanEmail(
-                            $a['email'], $a['nama'], $a['jawatan'], $a['kejohanan'],
-                            $a['tarikh'], $a['masa'] ?? '', $a['tempat'] ?? '',
-                            $a['pasukan_home'], $a['pasukan_away'],
-                            $emailToken, $tgLinkUrl, !empty($a['pengadil_id']),
-                            $a['no_perlawanan'] ?? '', $logoHome, $logoAway, $allOfficials,
-                            $a['jenis_kejohanan'] ?? 'Persahabatan', $regionLabel
-                        );
+                        try {
+                            $emailDelivered = sendLantikanEmail(
+                                $a['email'], $a['nama'], $a['jawatan'], $a['kejohanan'],
+                                $a['tarikh'], $a['masa'] ?? '', $a['tempat'] ?? '',
+                                $a['pasukan_home'], $a['pasukan_away'],
+                                $emailToken, $tgLinkUrl, !empty($a['pengadil_id']),
+                                $a['no_perlawanan'] ?? '', $logoHome, $logoAway, $allOfficials,
+                                $a['jenis_kejohanan'] ?? 'Persahabatan', $regionLabel
+                            );
+                        } catch (Throwable $emailError) {
+                            $emailErrorMessage = $emailError->getMessage();
+                            error_log('[lantikan.php notify_all] Email error: ' . $emailErrorMessage);
+                        }
                         if ($emailDelivered) {
                             $totalEmail++;
                         }
+                        recordLantikanAudit(
+                            $pdo,
+                            (int) $a['lantikan_id'],
+                            'appointment_notification',
+                            'email',
+                            $emailDelivered ? 'success' : 'failed',
+                            [
+                                'recipient' => $a['email'],
+                                'accept_url' => $appointmentLinks['accept_url'],
+                                'reject_url' => $appointmentLinks['reject_url'],
+                                'error' => $emailErrorMessage,
+                            ],
+                            $appointmentLinks['accept_url'],
+                            'admin',
+                            (int) $currentUser['id'],
+                            $auditSnapshot
+                        );
+                    } else {
+                        recordLantikanAudit(
+                            $pdo,
+                            (int) $a['lantikan_id'],
+                            'appointment_notification',
+                            'email',
+                            'skipped',
+                            ['reason' => 'email_missing'],
+                            $appointmentLinks['accept_url'],
+                            'admin',
+                            (int) $currentUser['id'],
+                            $auditSnapshot
+                        );
                     }
 
                     // Portal supplements a confirmed Telegram/email delivery;
@@ -784,6 +1073,23 @@ try {
                             $totalAssignments++;
                         }
 
+                        recordLantikanAudit(
+                            $pdo,
+                            (int) $a['lantikan_id'],
+                            'appointment_dispatched',
+                            'combined',
+                            $deliveryRecorded ? 'success' : 'failed',
+                            [
+                                'telegram_success' => $tgDelivered,
+                                'email_success' => $emailDelivered,
+                                'deadline_started' => $deliveryRecorded,
+                            ],
+                            $appointmentLinks['accept_url'],
+                            'admin',
+                            (int) $currentUser['id'],
+                            $auditSnapshot
+                        );
+
                         if ($deliveryRecorded && !empty($a['user_id'])) {
                             try {
                                 notifyLantikanPortal($pdo, (int)$a['user_id'], $a['jawatan'], $a['kejohanan'],
@@ -795,6 +1101,22 @@ try {
                         }
                     } else {
                         $totalDeliveryFailed++;
+                        recordLantikanAudit(
+                            $pdo,
+                            (int) $a['lantikan_id'],
+                            'appointment_dispatched',
+                            'combined',
+                            'failed',
+                            [
+                                'telegram_success' => false,
+                                'email_success' => false,
+                                'deadline_started' => false,
+                            ],
+                            $appointmentLinks['accept_url'],
+                            'admin',
+                            (int) $currentUser['id'],
+                            $auditSnapshot
+                        );
                     }
 
                     // ── PP Daerah notification ────────────────────────────
@@ -854,7 +1176,7 @@ try {
             if (!in_array($status, ['Dibatalkan', 'Ditangguhkan'], true) || $sebab === '' || mb_strlen($sebab) > 500) {
                 jsonResponse(['error' => true, 'message' => 'Status dan sebab (maksimum 500 aksara) diperlukan.'], 400);
             }
-            $result = batalLantikanByJadual($pdo, [$jadual_id], $status, $sebab);
+            $result = batalLantikanByJadual($pdo, [$jadual_id], $status, $sebab, (int) $currentUser['id']);
             jsonResponse(['error' => false, 'message' => $result['message']]);
         }
 
@@ -871,7 +1193,7 @@ try {
             if (!in_array($status, ['Dibatalkan', 'Ditangguhkan'], true) || $sebab === '' || mb_strlen($sebab) > 500) {
                 jsonResponse(['error' => true, 'message' => 'Status dan sebab (maksimum 500 aksara) diperlukan.'], 400);
             }
-            $result = batalLantikanByJadual($pdo, $jadualIds, $status, $sebab);
+            $result = batalLantikanByJadual($pdo, $jadualIds, $status, $sebab, (int) $currentUser['id']);
             jsonResponse(['error' => false, 'message' => $result['message']]);
         }
 
@@ -898,10 +1220,14 @@ try {
             jsonResponse(['error' => true, 'message' => 'Lantikan tidak boleh diubah untuk perlawanan yang dibatalkan atau ditangguhkan.'], 409);
         }
 
+        requireLantikanAuditSchema($pdo);
+
         $poolStmt = $pdo->prepare("
-            SELECT 1
+            SELECT COALESCE(u.jenis_pengadil, pl.jenis_pengadil, '') AS jenis_pengadil
             FROM jadual_perlawanan jp
             JOIN pool_pengadil pp ON pp.kejohanan_id = jp.kejohanan_id
+            LEFT JOIN users u ON u.id = pp.pengadil_id
+            LEFT JOIN pengadil_luar pl ON pl.id = pp.pengadil_luar_id
             WHERE jp.id = :jid
               AND (
                     (:pid IS NOT NULL AND pp.pengadil_id = :pool_pid)
@@ -916,8 +1242,22 @@ try {
             ':plid' => $pengadil_luar_id,
             ':pool_plid' => $pengadil_luar_id,
         ]);
-        if (!$poolStmt->fetchColumn()) {
+        $poolMember = $poolStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$poolMember) {
             jsonResponse(['error' => true, 'message' => 'Pegawai yang dipilih tiada dalam pool kejohanan ini.'], 409);
+        }
+        $jenisPengadil = trim((string) ($poolMember['jenis_pengadil'] ?? ''));
+        if ($jawatan === 'Penilai Pengadil' && $jenisPengadil !== 'Penilai Pengadil') {
+            jsonResponse([
+                'error' => true,
+                'message' => 'Slot RA hanya boleh diberikan kepada pegawai berjenis Penilai Pengadil.',
+            ], 409);
+        }
+        if ($jawatan !== 'Penilai Pengadil' && $jenisPengadil === 'Penilai Pengadil') {
+            jsonResponse([
+                'error' => true,
+                'message' => 'Penilai Pengadil tidak boleh ditempatkan dalam slot KUP.',
+            ], 409);
         }
         $matchStarted = hasMatchStarted((string) $jadualTiming['tarikh'], (string) $jadualTiming['masa']);
 
@@ -1093,6 +1433,32 @@ try {
                 $lantikanId = (int) $pdo->lastInsertId();
             }
 
+            $auditEvent = !$existing
+                ? 'appointment_created'
+                : ($identityChanged ? 'appointment_reassigned' : 'appointment_reviewed');
+            $auditSnapshot = getLantikanAuditSnapshot($pdo, $lantikanId);
+            if (!$auditSnapshot) {
+                throw new RuntimeException('Snapshot audit lantikan tidak dijumpai selepas lantikan disimpan.');
+            }
+            recordLantikanAudit(
+                $pdo,
+                $lantikanId,
+                $auditEvent,
+                'admin',
+                'success',
+                [
+                    'previous_pengadil_id' => $existing['pengadil_id'] ?? null,
+                    'previous_pengadil_luar_id' => $existing['pengadil_luar_id'] ?? null,
+                    'previous_status' => $existing['status'] ?? null,
+                    'match_started' => $matchStarted,
+                    'notification_sent' => false,
+                ],
+                null,
+                'admin',
+                (int) $currentUser['id'],
+                $auditSnapshot
+            );
+
             syncPerlawananHistoryForJadual($pdo, $jadual_id);
             if ($matchStarted) {
                 $pdo->prepare("
@@ -1191,10 +1557,16 @@ try {
             ], 409);
         }
 
+        requireLantikanAuditSchema($pdo);
+
         $shouldNotifyCompleteKup = false;
         $pdo->beginTransaction();
         try {
             lockMatchForAppointmentResponse($pdo, (int) $record['jadual_id']);
+            $deleteAuditSnapshot = getLantikanAuditSnapshot($pdo, $id, true);
+            if (!$deleteAuditSnapshot) {
+                throw new RuntimeException('Snapshot audit lantikan tidak dijumpai sebelum dibuang.');
+            }
 
             $reportStmt = $pdo->prepare("
                 SELECT lp.id
@@ -1232,6 +1604,21 @@ try {
             // on installations without a foreign-key cascade.
             $pdo->prepare("DELETE FROM perlawanan WHERE lantikan_id = :id")
                 ->execute([':id' => $id]);
+            recordLantikanAudit(
+                $pdo,
+                $id,
+                'appointment_deleted',
+                'admin',
+                'success',
+                [
+                    'previous_status' => $record['status'],
+                    'notification_was_sent' => (bool) $record['notif_hantar'],
+                ],
+                null,
+                'admin',
+                (int) $currentUser['id'],
+                $deleteAuditSnapshot
+            );
             $deleteStmt = $pdo->prepare("DELETE FROM lantikan_pengadil WHERE id = :id");
             $deleteStmt->execute([':id' => $id]);
             if ($deleteStmt->rowCount() !== 1) {
@@ -1284,25 +1671,67 @@ try {
                         $record['pasukan_home'], $record['pasukan_away'],
                         $record['no_perlawanan'] ?? ''
                     );
-                    tgSend((int) $record['telegram_chat_id'], $msg);
+                    $telegramError = null;
+                    try {
+                        $telegramDelivered = tgSend((int) $record['telegram_chat_id'], $msg);
+                    } catch (Throwable $channelError) {
+                        $telegramDelivered = false;
+                        $telegramError = $channelError->getMessage();
+                        error_log('[lantikan.php delete] Telegram cancellation error: ' . $telegramError);
+                    }
+                    recordLantikanAudit(
+                        $pdo,
+                        $id,
+                        'cancellation_notification',
+                        'telegram',
+                        $telegramDelivered ? 'success' : 'failed',
+                        ['reason' => 'Lantikan dibuang oleh pentadbir', 'error' => $telegramError],
+                        null,
+                        'admin',
+                        (int) $currentUser['id'],
+                        $deleteAuditSnapshot
+                    );
                 }
 
                 // Email
                 if (!empty($record['email'])) {
-                    sendBatalEmail(
-                        $record['email'],
-                        $record['nama'],
-                        $record['jawatan'],
-                        $record['kejohanan'],
-                        $record['tarikh'],
-                        $record['masa'] ?? '',
-                        $record['tempat'] ?? '',
-                        $record['pasukan_home'],
-                        $record['pasukan_away'],
-                        $record['no_perlawanan'] ?? '',
-                        $logoHome,
-                        $logoAway,
-                        !empty($record['pengadil_id'])
+                    $emailError = null;
+                    try {
+                        $emailDelivered = sendBatalEmail(
+                            $record['email'],
+                            $record['nama'],
+                            $record['jawatan'],
+                            $record['kejohanan'],
+                            $record['tarikh'],
+                            $record['masa'] ?? '',
+                            $record['tempat'] ?? '',
+                            $record['pasukan_home'],
+                            $record['pasukan_away'],
+                            $record['no_perlawanan'] ?? '',
+                            $logoHome,
+                            $logoAway,
+                            !empty($record['pengadil_id'])
+                        );
+                    } catch (Throwable $channelError) {
+                        $emailDelivered = false;
+                        $emailError = $channelError->getMessage();
+                        error_log('[lantikan.php delete] Email cancellation error: ' . $emailError);
+                    }
+                    recordLantikanAudit(
+                        $pdo,
+                        $id,
+                        'cancellation_notification',
+                        'email',
+                        $emailDelivered ? 'success' : 'failed',
+                        [
+                            'reason' => 'Lantikan dibuang oleh pentadbir',
+                            'recipient' => $record['email'],
+                            'error' => $emailError,
+                        ],
+                        null,
+                        'admin',
+                        (int) $currentUser['id'],
+                        $deleteAuditSnapshot
                     );
                 }
         }

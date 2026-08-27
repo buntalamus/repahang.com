@@ -107,13 +107,14 @@ function processUpdate(PDO $pdo, array $update, string $apiBase): void
 
                 // Adakah chat ini sudah terhubung dengan mana-mana akaun?
                 $linkedStmt = $pdo->prepare(
-                    "SELECT nama_penuh FROM users WHERE telegram_chat_id = :cid
+                    "SELECT id, 'user' AS tbl, nama_penuh FROM users WHERE telegram_chat_id = :cid
                      UNION
-                     SELECT nama AS nama_penuh FROM pengadil_luar WHERE telegram_chat_id = :cid
+                     SELECT id, 'luar' AS tbl, nama AS nama_penuh FROM pengadil_luar WHERE telegram_chat_id = :cid
                      LIMIT 1"
                 );
                 $linkedStmt->execute([':cid' => $chatId]);
-                $linkedNama = $linkedStmt->fetchColumn();
+                $linkedRow = $linkedStmt->fetch(PDO::FETCH_ASSOC);
+                $linkedNama = $linkedRow['nama_penuh'] ?? null;
 
                 if ($linkToken === '') {
                     if ($linkedNama) {
@@ -161,10 +162,45 @@ function processUpdate(PDO $pdo, array $update, string $apiBase): void
                             echo "  → Token lapuk / tiada padanan: {$linkToken}\n";
                         }
                     } else {
+                        if ($linkedRow
+                            && ($linkedRow['tbl'] !== $row['tbl'] || (int) $linkedRow['id'] !== (int) $row['id'])) {
+                            tgSend($chatId,
+                                "⚠️ <b>Telegram Sudah Dipaut</b>\n\n" .
+                                "Chat Telegram ini sudah dipaut kepada <b>" . htmlspecialchars((string) $linkedNama) . "</b>.\n\n" .
+                                "Sila hubungi pentadbir jika rekod itu tidak betul."
+                            );
+                            echo "  → Chat ID sudah dipaut kepada identiti lain\n";
+                            return;
+                        }
                         $table = $row['tbl'] === 'user' ? 'users' : 'pengadil_luar';
-                        $pdo->prepare(
-                            "UPDATE {$table} SET telegram_chat_id = :cid, tg_link_token = NULL WHERE id = :id"
-                        )->execute([':cid' => $chatId, ':id' => $row['id']]);
+                        if ($row['tbl'] === 'luar') {
+                            requireLantikanAuditSchema($pdo);
+                        }
+                        $pdo->beginTransaction();
+                        try {
+                            $linkStmt = $pdo->prepare(
+                                "UPDATE {$table} SET telegram_chat_id = :cid, tg_link_token = NULL
+                                 WHERE id = :id AND tg_link_token = :token"
+                            );
+                            $linkStmt->execute([
+                                ':cid' => $chatId,
+                                ':id' => $row['id'],
+                                ':token' => $linkToken,
+                            ]);
+                            if ($linkStmt->rowCount() !== 1) {
+                                throw new RuntimeException('Pautan Telegram telah digunakan serentak.');
+                            }
+                            if ($row['tbl'] === 'luar') {
+                                recordExternalTelegramLinked($pdo, (int) $row['id'], $chatId);
+                                recordExternalTelegramOnboardingLinked($pdo, (int) $row['id'], $chatId);
+                            }
+                            $pdo->commit();
+                        } catch (Throwable $linkError) {
+                            if ($pdo->inTransaction()) {
+                                $pdo->rollBack();
+                            }
+                            throw $linkError;
+                        }
 
                         tgSend($chatId,
                             "✅ <b>Akaun berjaya dihubungkan!</b>\n\n" .
@@ -183,7 +219,9 @@ function processUpdate(PDO $pdo, array $update, string $apiBase): void
             $cbq    = $update['callback_query'];
             $cbqId  = $cbq['id'];
             $chatId = (int) $cbq['from']['id'];
-            $msgId  = (int) ($cbq['message']['id'] ?? 0);
+            // Telegram Message objects use `message_id`. Keep the legacy `id`
+            // fallback so older captured/test payloads remain harmless.
+            $msgId  = (int) ($cbq['message']['message_id'] ?? $cbq['message']['id'] ?? 0);
             $data   = $cbq['data'] ?? '';
             $from   = $cbq['from'];
             $tgName = trim(($from['first_name'] ?? '') . ' ' . ($from['last_name'] ?? ''));
@@ -263,10 +301,16 @@ function processUpdate(PDO $pdo, array $update, string $apiBase): void
             $pdo->beginTransaction();
             try {
                 lockMatchForAppointmentResponse($pdo, (int) $row['jadual_id']);
+                requireLantikanAuditSchema($pdo);
+                $responseAuditSnapshot = getLantikanAuditSnapshot($pdo, (int) $row['id'], true);
+                if (!$responseAuditSnapshot) {
+                    throw new RuntimeException('Snapshot audit jawapan Telegram poll tidak dijumpai.');
+                }
 
                 $updStmt = $pdo->prepare(
                     "UPDATE lantikan_pengadil
-                     SET status = :s, tarikh_jawab = NOW(), tg_token = NULL, email_token = NULL
+                     SET status = :s, tarikh_jawab = NOW(), status_dikemaskini_at = NOW(),
+                         tg_token = NULL, email_token = NULL
                      WHERE id = :id AND status = 'Belum Jawab'"
                 );
                 $updStmt->execute([':s' => $newStatus, ':id' => $row['id']]);
@@ -281,6 +325,19 @@ function processUpdate(PDO $pdo, array $update, string $apiBase): void
                 $shouldNotifyCompleteKup = isKupPosition((string) $row['jawatan'])
                     && isAcceptedKupCrewComplete($pdo, $jid);
 
+                recordLantikanAudit(
+                    $pdo,
+                    (int) $row['id'],
+                    'appointment_response',
+                    'telegram',
+                    'success',
+                    ['action' => $action, 'new_status' => $newStatus, 'telegram_chat_id' => $chatId],
+                    null,
+                    'official',
+                    null,
+                    $responseAuditSnapshot
+                );
+
                 $pdo->commit();
             } catch (Throwable $txErr) {
                 if ($pdo->inTransaction()) {
@@ -290,7 +347,11 @@ function processUpdate(PDO $pdo, array $update, string $apiBase): void
             }
 
             if ($newStatus === 'Diterima') {
-                generatePenilaianToken($pdo, (int) $row['id']);
+                try {
+                    generatePenilaianToken($pdo, (int) $row['id']);
+                } catch (Throwable $raError) {
+                    error_log('[telegram-poll] RA notification error: ' . $raError->getMessage());
+                }
             }
 
             if ($shouldNotifyCompleteKup) {

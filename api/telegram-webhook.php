@@ -70,13 +70,14 @@ try {
 
             // Adakah chat ini sudah terhubung dengan mana-mana akaun?
             $linkedStmt = $pdo->prepare(
-                "SELECT nama_penuh FROM users WHERE telegram_chat_id = :cid
+                "SELECT id, 'user' AS tbl, nama_penuh FROM users WHERE telegram_chat_id = :cid
                  UNION
-                 SELECT nama AS nama_penuh FROM pengadil_luar WHERE telegram_chat_id = :cid
+                 SELECT id, 'luar' AS tbl, nama AS nama_penuh FROM pengadil_luar WHERE telegram_chat_id = :cid
                  LIMIT 1"
             );
             $linkedStmt->execute([':cid' => $chatId]);
-            $linkedNama = $linkedStmt->fetchColumn();
+            $linkedRow = $linkedStmt->fetch(PDO::FETCH_ASSOC);
+            $linkedNama = $linkedRow['nama_penuh'] ?? null;
 
             if ($linkToken === '') {
                 if ($linkedNama) {
@@ -122,12 +123,48 @@ try {
                         );
                     }
                 } else {
+                    if ($linkedRow
+                        && ($linkedRow['tbl'] !== $row['tbl'] || (int) $linkedRow['id'] !== (int) $row['id'])) {
+                        tgSend($chatId,
+                            "⚠️ <b>Telegram Sudah Dipaut</b>\n\n" .
+                            "Chat Telegram ini sudah dipaut kepada <b>" . htmlspecialchars((string) $linkedNama) . "</b>.\n\n" .
+                            "Sila hubungi pentadbir jika rekod itu tidak betul."
+                        );
+                        http_response_code(200);
+                        exit;
+                    }
                     $table = $row['tbl'] === 'user' ? 'users' : 'pengadil_luar';
                     $idCol = 'id';
-                    // Save chat_id and clear token
-                    $pdo->prepare(
-                        "UPDATE {$table} SET telegram_chat_id = :cid, tg_link_token = NULL WHERE {$idCol} = :id"
-                    )->execute([':cid' => $chatId, ':id' => $row['id']]);
+                    if ($row['tbl'] === 'luar') {
+                        requireLantikanAuditSchema($pdo);
+                    }
+                    $pdo->beginTransaction();
+                    try {
+                        // Save chat_id and clear the one-time token atomically
+                        // with the external-referee audit trail.
+                        $linkStmt = $pdo->prepare(
+                            "UPDATE {$table} SET telegram_chat_id = :cid, tg_link_token = NULL
+                             WHERE {$idCol} = :id AND tg_link_token = :token"
+                        );
+                        $linkStmt->execute([
+                            ':cid' => $chatId,
+                            ':id' => $row['id'],
+                            ':token' => $linkToken,
+                        ]);
+                        if ($linkStmt->rowCount() !== 1) {
+                            throw new RuntimeException('Pautan Telegram telah digunakan serentak.');
+                        }
+                        if ($row['tbl'] === 'luar') {
+                            recordExternalTelegramLinked($pdo, (int) $row['id'], $chatId);
+                            recordExternalTelegramOnboardingLinked($pdo, (int) $row['id'], $chatId);
+                        }
+                        $pdo->commit();
+                    } catch (Throwable $linkError) {
+                        if ($pdo->inTransaction()) {
+                            $pdo->rollBack();
+                        }
+                        throw $linkError;
+                    }
 
                     tgSend($chatId,
                         "✅ <b>Akaun berjaya dihubungkan!</b>\n\n" .
@@ -146,7 +183,9 @@ try {
         $cbq     = $update['callback_query'];
         $cbqId   = $cbq['id'];
         $chatId  = (int) $cbq['from']['id'];
-        $msgId   = (int) ($cbq['message']['id'] ?? 0);
+        // Telegram Message objects use `message_id`. Keep the legacy `id`
+        // fallback so older captured/test payloads remain harmless.
+        $msgId   = (int) ($cbq['message']['message_id'] ?? $cbq['message']['id'] ?? 0);
         $data    = $cbq['data'] ?? '';
 
         // Parse: act:{accept|reject}:token:{TOKEN}
@@ -237,10 +276,16 @@ try {
         $pdo->beginTransaction();
         try {
             lockMatchForAppointmentResponse($pdo, (int) $row['jadual_id']);
+            requireLantikanAuditSchema($pdo);
+            $responseAuditSnapshot = getLantikanAuditSnapshot($pdo, $lantikanId, true);
+            if (!$responseAuditSnapshot) {
+                throw new RuntimeException('Snapshot audit jawapan Telegram tidak dijumpai.');
+            }
 
             $updStmt = $pdo->prepare(
                 "UPDATE lantikan_pengadil
-                 SET status = :s, tarikh_jawab = NOW(), tg_token = NULL, email_token = NULL
+                 SET status = :s, tarikh_jawab = NOW(), status_dikemaskini_at = NOW(),
+                     tg_token = NULL, email_token = NULL
                  WHERE id = :id AND status = 'Belum Jawab'"
             );
             $updStmt->execute([':s' => $newStatus, ':id' => $lantikanId]);
@@ -256,6 +301,19 @@ try {
             syncPerlawananHistoryForJadual($pdo, (int) $row['jadual_id']);
             $shouldNotifyCompleteKup = isKupPosition((string) $row['jawatan'])
                 && isAcceptedKupCrewComplete($pdo, (int) $row['jadual_id']);
+
+            recordLantikanAudit(
+                $pdo,
+                $lantikanId,
+                'appointment_response',
+                'telegram',
+                'success',
+                ['action' => $action, 'new_status' => $newStatus, 'telegram_chat_id' => $chatId],
+                null,
+                'official',
+                null,
+                $responseAuditSnapshot
+            );
 
             $pdo->commit();
         } catch (Throwable $txErr) {
@@ -275,6 +333,9 @@ try {
         $masaFmt    = !empty($row['masa']) ? date('H:i', strtotime($row['masa'])) : '-';
         $baseUrl    = defined('BASE_URL') ? BASE_URL : env('BASE_URL', 'https://refpahang.com');
         $dashUrl    = rtrim($baseUrl, '/') . '/pengadil-dashboard';
+        $dashboardSection = !empty($row['pengadil_id'])
+            ? "\n\n🔗 <a href=\"{$dashUrl}\">Lihat Dashboard Pengadil</a>"
+            : '';
         $kupRoster  = getMatchKupOfficials($pdo, (int) $row['jadual_id']);
         $kupSection = tgKupOfficialsSection($kupRoster['officials'], $kupRoster['region_label']);
 
@@ -297,8 +358,8 @@ try {
                      "<b>Tempat:</b> {$tempat}" .
                      $kupSection . "\n\n" .
                      "Terima kasih. Sila hadir pada waktu yang ditetapkan.\n\n" .
-                     "⚠️ <b>Sila bawa kelengkapan penuh pengadil.</b> ⚽\n\n" .
-                     "🔗 <a href=\"{$dashUrl}\">Lihat Dashboard Pengadil</a>";
+                     "⚠️ <b>Sila bawa kelengkapan penuh pengadil.</b> ⚽" .
+                     $dashboardSection;
         } else {
             $alertText = "❌ Tugasan Ditolak\n\n"
                        . "{$row['jawatan']}\n"
@@ -315,8 +376,8 @@ try {
                      "<b>Masa:</b> {$masaFmt} MYT\n" .
                      "<b>Tempat:</b> {$tempat}" .
                      $kupSection . "\n\n" .
-                     "Pentadbir akan dimaklumkan. Terima kasih.\n\n" .
-                     "🔗 <a href=\"{$dashUrl}\">Lihat Dashboard Pengadil</a>";
+                     "Pentadbir akan dimaklumkan. Terima kasih." .
+                     $dashboardSection;
         }
 
         tgEditMessage($chatId, $msgId, $reply);
