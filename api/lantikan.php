@@ -300,6 +300,7 @@ try {
 
         $stmt = $pdo->prepare("
             SELECT lp.id, lp.jawatan, lp.status, lp.komen, lp.tarikh_jawab, lp.notif_hantar, lp.tg_notif_hantar, lp.tarikh_notif, lp.created_at,
+                CASE WHEN lp.status = 'Ditolak' AND lp.komen = :auto_tolak_komen THEN 1 ELSE 0 END AS is_auto_tolak,
                 lp.pengadil_id, lp.pengadil_luar_id,
                 CASE WHEN COALESCE(u.email, pl.emel, '') <> '' THEN 1 ELSE 0 END AS email_available,
                 CASE WHEN COALESCE(u.telegram_chat_id, pl.telegram_chat_id) IS NOT NULL
@@ -330,7 +331,10 @@ try {
             WHERE lp.jadual_id = :jadual_id
             ORDER BY FIELD(lp.jawatan,'Pengadil','Penolong Pengadil 1','Penolong Pengadil 2','Pegawai ke4','Penilai Pengadil')
         ");
-        $stmt->execute([':jadual_id' => $jadual_id]);
+        $stmt->execute([
+            ':auto_tolak_komen' => LANTIKAN_AUTO_TOLAK_KOMEN,
+            ':jadual_id' => $jadual_id,
+        ]);
         $assignments = $stmt->fetchAll();
 
         // Get pool-based referees for this kejohanan

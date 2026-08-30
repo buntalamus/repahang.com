@@ -18,6 +18,8 @@ require_once __DIR__ . '/lantikan-audit.php';
 // dalam tempoh). Juga digunakan sebagai flag machine-readable oleh saluran
 // jawapan untuk memaparkan mesej "tempoh tamat" dan bukan "sudah dijawab".
 const LANTIKAN_AUTO_TOLAK_KOMEN = 'Ditolak automatik - tiada jawapan dalam tempoh';
+const LANTIKAN_ADMIN_OVERRIDE_TERIMA_KOMEN = 'Diterima melalui override Admin selepas tempoh tamat';
+const LANTIKAN_ADMIN_OVERRIDE_PENOLAKAN_KOMEN = 'Diterima melalui override Admin selepas penolakan tersilap';
 
 /**
  * Get the answer-window hours based on jenis_kejohanan.

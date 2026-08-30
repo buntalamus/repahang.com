@@ -720,11 +720,11 @@
         <app-loading message="Memuatkan lantikan..." />
       } @else {
         <!-- Two-column layout: assignments table (left) + pool browser (right) -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="grid min-w-0 grid-cols-1 lg:grid-cols-2 gap-4">
 
           <!-- LEFT: Jawatan Assignment Table -->
-          <div>
-            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="min-w-0">
+            <div class="min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
               <div class="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
                 <h3 class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tugasan Pengadil</h3>
                 <span class="text-xs text-slate-400">{{ activeSlotCountCurrentMatch() }} / {{ jawatanList.length }} slot aktif</span>
@@ -737,12 +737,12 @@
                   Belum lengkap. Slot wajib: {{ missingRequiredSlots().join(', ') }}.
                 }
               </div>
-              <table class="w-full">
+              <table class="w-full table-fixed">
                 <thead class="bg-slate-50 border-b border-slate-100">
                   <tr>
-                    <th class="px-4 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Jawatan</th>
+                    <th class="w-32 px-4 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Jawatan</th>
                     <th class="px-4 py-2 text-left text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Pengadil</th>
-                    <th class="px-4 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wide w-20">Tindakan</th>
+                    <th class="w-32 px-2 py-2 text-center text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Tindakan</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -774,7 +774,7 @@
                           </div>
                         }
                       </td>
-                      <td class="px-4 py-3 align-top">
+                      <td class="min-w-0 px-4 py-3 align-top">
                         @if (assignment) {
                           <div class="flex items-start gap-2">
                             <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5"
@@ -815,7 +815,7 @@
                           <span class="text-xs text-slate-400 italic">Belum dilantik</span>
                         }
                       </td>
-                      <td class="px-4 py-3 align-top text-center">
+                      <td class="px-2 py-3 align-top text-center">
                         @if (assignment) {
                           <div class="flex flex-col items-center gap-1">
                             @if (selectedJadual.is_started) {
@@ -828,6 +828,14 @@
                               <button (click)="gantiPengadil(assignment.id, jawatan)"
                                 class="px-2.5 py-1 bg-amber-50 border border-amber-300 text-amber-700 hover:bg-amber-100 rounded-lg text-xs font-medium transition">
                                 Ganti
+                              </button>
+                            }
+                            @if (canAdminOverrideAcceptance(assignment)) {
+                              <button type="button" (click)="confirmAdminAcceptanceOverride(assignment)"
+                                [disabled]="auditLoadingIds.has(assignment.id)"
+                                class="px-2.5 py-1 bg-emerald-50 border border-emerald-300 text-emerald-700 hover:bg-emerald-100 rounded-lg text-[10px] font-semibold transition whitespace-nowrap disabled:opacity-50"
+                                [title]="isAutoTolak(assignment) ? 'Sahkan pengadil menerima lantikan selepas tempoh jawapan tamat' : 'Betulkan penolakan KUP yang dibuat secara tersilap'">
+                                {{ auditLoadingIds.has(assignment.id) ? 'Memproses...' : 'Sahkan Terima' }}
                               </button>
                             }
                             @if (!selectedJadual.is_started) {
@@ -858,9 +866,9 @@
                           @if (auditLoadingIds.has(assignment.id) && !audit) {
                             <p class="text-xs text-slate-500">Memuatkan pautan dan log...</p>
                           } @else if (audit) {
-                            <div class="space-y-4">
+                            <div class="min-w-0 space-y-4">
                               <div class="flex flex-wrap items-center justify-between gap-2">
-                                <div>
+                                <div class="min-w-0">
                                   <p class="text-xs font-bold text-slate-800">Pautan Terus & Audit Penghantaran</p>
                                   <p class="text-[10px] text-slate-500 mt-0.5">Pautan ialah akses unik. Hanya kongsi dengan pegawai yang dinamakan.</p>
                                 </div>
@@ -953,12 +961,12 @@
                                 } @else {
                                   <div class="max-h-64 overflow-y-auto space-y-1.5">
                                     @for (event of audit.events; track event.id) {
-                                      <div class="rounded-lg border border-slate-200 bg-white px-3 py-2 flex items-start justify-between gap-3">
-                                        <div class="min-w-0">
+                                      <div class="rounded-lg border border-slate-200 bg-white px-3 py-2 flex flex-wrap items-start justify-between gap-3">
+                                        <div class="min-w-0 flex-1 basis-64">
                                           <p class="text-[11px] font-semibold text-slate-800">{{ auditEventLabel(event.event_type) }}</p>
                                           <p class="text-[10px] text-slate-500">{{ event.channel }} · {{ event.actor_type }}</p>
                                           @if (event.link_url) {
-                                            <p class="text-[9px] text-slate-400 truncate max-w-lg" [title]="event.link_url">{{ event.link_url }}</p>
+                                            <p class="block max-w-full truncate text-[9px] text-slate-400" [title]="event.link_url">{{ event.link_url }}</p>
                                           }
                                         </div>
                                         <div class="text-right shrink-0">
@@ -982,7 +990,7 @@
           </div>
 
           <!-- RIGHT: Pool Referee Browser -->
-          <div>
+          <div class="min-w-0">
             <div class="bg-white rounded-xl border border-slate-200 shadow-sm sticky top-4">
               <!-- Header -->
               <div class="px-4 py-3 border-b border-slate-200">

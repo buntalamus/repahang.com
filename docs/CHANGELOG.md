@@ -4,6 +4,19 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [30 Ogos 2026]
+
+### Override Admin bagi Penerimaan Lantikan Lewat atau Penolakan KUP Tersilap
+
+- Lantikan yang ditolak automatik kerana tempoh jawapan tamat, serta penolakan manual oleh KUP yang disahkan tersilap, kini mempunyai tindakan **Sahkan Terima** pada skrin lantikan Admin.
+- Override penolakan manual dihadkan kepada KUP (Pengadil, AR1, AR2 dan P4); RA yang benar-benar menolak tidak boleh dioverride melalui laluan ini.
+- Identiti Admin, status terdahulu, sebab penolakan asal, jenis override, masa dan penerimaan di luar portal direkodkan dalam log audit kekal. Token jawapan lama kekal dibatalkan.
+- Sejarah KUP berdaftar diselaraskan secara atomik; RA kekal berasingan dan menerima pautan borang penilaian apabila penerimaan lewat disahkan.
+
+**Fail:** `api/lantikan.php`, `api/lantikan-audit.php`, `config/lantikan-helper.php`, `config/lantikan-audit.php`, `frontend/src/app/features/admin/lantikan-pengadil/`
+
+---
+
 ## [28 Ogos 2026]
 
 ### Validasi Borang RA di Pelayan

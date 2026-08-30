@@ -28,6 +28,7 @@ function getLantikanAuditSnapshot(PDO $pdo, int $lantikanId, bool $forUpdate = f
     $stmt = $pdo->prepare("
         SELECT lp.id AS lantikan_id, lp.jadual_id, jp.kejohanan_id,
                lp.pengadil_id, lp.pengadil_luar_id, lp.jawatan, lp.status,
+               lp.komen, lp.sebab_status, lp.tarikh_jawab,
                lp.notif_hantar, lp.tg_notif_hantar, lp.tarikh_notif,
                lp.email_token, lp.tg_token, lp.penilaian_token,
                COALESCE(u.nama_penuh, pl.nama, '') AS nama_pegawai,
@@ -36,6 +37,7 @@ function getLantikanAuditSnapshot(PDO $pdo, int $lantikanId, bool $forUpdate = f
                COALESCE(u.telegram_chat_id, pl.telegram_chat_id) AS telegram_chat_id,
                COALESCE(u.tg_link_token, pl.tg_link_token) AS tg_link_token,
                jp.no_perlawanan, jp.tarikh, jp.masa, jp.tempat,
+               jp.status AS jadual_status,
                jp.pasukan_home, jp.pasukan_away,
                COALESCE(kj.nama, '') AS kejohanan
         FROM lantikan_pengadil lp

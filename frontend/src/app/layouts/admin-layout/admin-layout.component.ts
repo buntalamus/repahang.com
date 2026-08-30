@@ -10,7 +10,7 @@ import { HeaderComponent } from '../../shared/components/header/header.component
   template: `
     <div class="min-h-screen flex">
       <app-sidebar [isOpen]="sidebarOpen" (closed)="sidebarOpen = false" />
-      <main class="bg-slate-100 flex-1 flex flex-col min-h-screen overflow-y-auto">
+      <main class="bg-slate-100 flex-1 min-w-0 flex flex-col min-h-screen overflow-y-auto">
         <app-header
           [title]="pageTitle"
           [subtitle]="pageSubtitle"

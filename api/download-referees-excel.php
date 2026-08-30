@@ -67,8 +67,11 @@ function handleDownload(): void
 
     if ($type === 'penilai_berdaftar') {
         // Semua PP Daerah juga RA secara automatik, tanpa permohonan tahunan.
+        // Peranan akses lain seperti Admin boleh mempunyai klasifikasi RA
+        // tanpa menukar role log masuknya.
         $roleCondition = "AND (
             u.role = 'PP Daerah'
+            OR u.jenis_pengadil IN ('Penilai Pengadil', 'Pegawai Pembangunan')
             OR a.jenis_pengadil IN ('Penilai Pengadil', 'Pegawai Pembangunan')
         )";
         $typeLabel = 'RA';
@@ -90,8 +93,12 @@ function handleDownload(): void
                 u.email as emel,
                 u.no_telefon,
                 u.saiz_baju,
-                CASE WHEN u.role = 'PP Daerah' THEN 'Penilai Pengadil'
-                     ELSE COALESCE(a.jenis_pengadil, u.jenis_pengadil) END AS jenis_pengadil,
+                CASE
+                    WHEN u.role = 'PP Daerah' THEN 'Penilai Pengadil'
+                    WHEN u.jenis_pengadil IN ('Penilai Pengadil', 'Pegawai Pembangunan')
+                        THEN u.jenis_pengadil
+                    ELSE a.jenis_pengadil
+                END AS jenis_pengadil,
                 COALESCE(a.alamat1, u.alamat1) AS alamat1,
                 COALESCE(a.alamat2, u.alamat2) AS alamat2,
                 COALESCE(a.poskod, u.poskod) AS poskod,

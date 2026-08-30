@@ -66,9 +66,12 @@ function handleList(): void
 
     if ($type === 'penilai_berdaftar') {
         // Semua PP Daerah ialah RA secara automatik, walaupun tiada
-        // permohonan tahunan Penilai Pengadil.
+        // permohonan tahunan Penilai Pengadil. Akaun yang memegang peranan
+        // sistem lain (contohnya Admin) juga boleh menjadi RA melalui
+        // klasifikasi jenis_pengadil tanpa menukar peranan akses mereka.
         $roleCondition = "AND (
             u.role = 'PP Daerah'
+            OR u.jenis_pengadil IN ('Penilai Pengadil', 'Pegawai Pembangunan')
             OR a.jenis_pengadil IN ('Penilai Pengadil', 'Pegawai Pembangunan')
         )";
     } else {
@@ -113,8 +116,12 @@ function handleList(): void
 
                 COALESCE(a.umur, u.umur) as umur,
 
-                CASE WHEN u.role = 'PP Daerah' THEN 'Penilai Pengadil'
-                     ELSE COALESCE(a.jenis_pengadil, u.jenis_pengadil) END as jenis_pengadil,
+                CASE
+                    WHEN u.role = 'PP Daerah' THEN 'Penilai Pengadil'
+                    WHEN u.jenis_pengadil IN ('Penilai Pengadil', 'Pegawai Pembangunan')
+                        THEN u.jenis_pengadil
+                    ELSE a.jenis_pengadil
+                END as jenis_pengadil,
 
                 COALESCE(a.alamat1, u.alamat1) as alamat1,
 
@@ -166,8 +173,11 @@ function handleList(): void
 
                 p.nama_persatuan as persatuan,
 
-                CASE WHEN u.role = 'PP Daerah'
-                     THEN 'PP Daerah (RA automatik)' ELSE 'Permohonan RA' END AS sumber_ra
+                CASE
+                    WHEN u.role = 'PP Daerah' THEN 'PP Daerah (RA automatik)'
+                    WHEN a.id IS NULL THEN CONCAT('Peranan RA pada akaun ', u.role)
+                    ELSE 'Permohonan RA'
+                END AS sumber_ra
 
             FROM users u
 

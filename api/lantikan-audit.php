@@ -3,7 +3,7 @@
  * Admin-only appointment audit and fallback direct-link API.
  *
  * GET  ?lantikan_id=X
- * POST action=prepare_links|record_copy|mark_manual_delivery
+ * POST action=prepare_links|record_copy|mark_manual_delivery|admin_override_acceptance
  */
 
 declare(strict_types=1);
@@ -44,6 +44,18 @@ function auditPayload(PDO $pdo, int $lantikanId): array
     }
     unset($event);
 
+    $isRejected = ($snapshot['status'] ?? '') === 'Ditolak';
+    $isAutoRejected = $isRejected
+        && ($snapshot['komen'] ?? '') === LANTIKAN_AUTO_TOLAK_KOMEN;
+    $isManualKupRejected = $isRejected
+        && !$isAutoRejected
+        && isKupPosition((string) ($snapshot['jawatan'] ?? ''));
+    $matchAllowsOverride = !in_array(
+        (string) ($snapshot['jadual_status'] ?? ''),
+        ['Dibatalkan', 'Ditangguhkan'],
+        true
+    );
+
     return [
         'lantikan' => [
             'id' => (int) $snapshot['lantikan_id'],
@@ -57,6 +69,8 @@ function auditPayload(PDO $pdo, int $lantikanId): array
             'notif_hantar' => (int) $snapshot['notif_hantar'],
             'tg_notif_hantar' => (int) $snapshot['tg_notif_hantar'],
             'tarikh_notif' => $snapshot['tarikh_notif'],
+            'can_admin_override_acceptance' => $matchAllowsOverride
+                && ($isAutoRejected || $isManualKupRejected),
         ],
         'links' => array_merge(getActiveDirectLinks($snapshot), [
             'telegram_link_url' => $telegramLink,
@@ -265,6 +279,161 @@ try {
                 ? 'Penghantaran manual direkodkan dan tempoh jawapan bermula sekarang.'
                 : 'Penghantaran pautan manual direkodkan.';
             jsonResponse(['error' => false, 'message' => $message, 'data' => auditPayload($pdo, $lantikanId)]);
+        }
+
+        if ($action === 'admin_override_acceptance') {
+            $initialSnapshot = getLantikanAuditSnapshot($pdo, $lantikanId);
+            if (!$initialSnapshot) {
+                jsonResponse(['error' => true, 'message' => 'Lantikan tidak dijumpai.'], 404);
+            }
+
+            $jadualId = (int) $initialSnapshot['jadual_id'];
+            $shouldNotifyCompleteKup = false;
+            $shouldNotifyRa = false;
+            $officialUserId = null;
+            $officialName = '';
+            $jawatan = '';
+            $matchLabel = '';
+
+            $pdo->beginTransaction();
+            try {
+                // Use the same lock order as every official response path:
+                // match first, followed by the individual appointment row.
+                lockMatchForAppointmentResponse($pdo, $jadualId);
+                $snapshot = getLantikanAuditSnapshot($pdo, $lantikanId, true);
+                if (!$snapshot) {
+                    throw new RuntimeException('Lantikan berubah semasa override Admin.');
+                }
+                if (in_array((string) ($snapshot['jadual_status'] ?? ''), ['Dibatalkan', 'Ditangguhkan'], true)) {
+                    $pdo->rollBack();
+                    jsonResponse([
+                        'error' => true,
+                        'message' => 'Penerimaan tidak boleh dioverride untuk perlawanan yang dibatalkan atau ditangguhkan.',
+                    ], 409);
+                }
+                $isAutoRejected = ($snapshot['status'] ?? '') === 'Ditolak'
+                    && ($snapshot['komen'] ?? '') === LANTIKAN_AUTO_TOLAK_KOMEN;
+                $isManualKupRejected = ($snapshot['status'] ?? '') === 'Ditolak'
+                    && !$isAutoRejected
+                    && isKupPosition((string) ($snapshot['jawatan'] ?? ''));
+                if (!$isAutoRejected && !$isManualKupRejected) {
+                    $pdo->rollBack();
+                    jsonResponse([
+                        'error' => true,
+                        'message' => 'Override hanya dibenarkan untuk penolakan automatik atau penolakan KUP yang disahkan tersilap.',
+                    ], 409);
+                }
+
+                $overrideReason = $isAutoRejected
+                    ? LANTIKAN_ADMIN_OVERRIDE_TERIMA_KOMEN
+                    : LANTIKAN_ADMIN_OVERRIDE_PENOLAKAN_KOMEN;
+
+                $stmt = $pdo->prepare("
+                    UPDATE lantikan_pengadil
+                    SET status = 'Diterima',
+                        komen = :komen,
+                        sebab_status = :sebab,
+                        tarikh_jawab = NOW(),
+                        status_dikemaskini_at = NOW(),
+                        tg_token = NULL,
+                        email_token = NULL
+                    WHERE id = :id
+                      AND status = 'Ditolak'
+                ");
+                $stmt->execute([
+                    ':komen' => $overrideReason,
+                    ':sebab' => $overrideReason,
+                    ':id' => $lantikanId,
+                ]);
+                if ($stmt->rowCount() !== 1) {
+                    throw new RuntimeException('Status lantikan berubah semasa override Admin. Sila muat semula.');
+                }
+
+                syncPerlawananHistoryForJadual($pdo, $jadualId);
+                markMatchDispatchedIfComplete($pdo, $jadualId);
+
+                $jawatan = (string) ($snapshot['jawatan'] ?? '');
+                $officialUserId = !empty($snapshot['pengadil_id'])
+                    ? (int) $snapshot['pengadil_id']
+                    : null;
+                $officialName = (string) ($snapshot['nama_pegawai'] ?? '');
+                $matchLabel = trim(
+                    (string) ($snapshot['pasukan_home'] ?? '')
+                    . ' lwn '
+                    . (string) ($snapshot['pasukan_away'] ?? '')
+                );
+                $shouldNotifyCompleteKup = isKupPosition($jawatan)
+                    && isAcceptedKupCrewComplete($pdo, $jadualId);
+                $shouldNotifyRa = $jawatan === 'Penilai Pengadil';
+
+                recordLantikanAudit(
+                    $pdo,
+                    $lantikanId,
+                    'appointment_admin_acceptance_override',
+                    'admin',
+                    'success',
+                    [
+                        'previous_status' => $snapshot['status'],
+                        'previous_comment' => $snapshot['komen'],
+                        'previous_reason' => $snapshot['sebab_status'],
+                        'new_status' => 'Diterima',
+                        'reason' => $overrideReason,
+                        'override_source' => $isAutoRejected
+                            ? 'automatic_timeout_rejection'
+                            : 'official_rejection_mistake',
+                        'official_confirmation_received_outside_portal' => true,
+                    ],
+                    null,
+                    'admin',
+                    (int) $currentUser['id'],
+                    $snapshot
+                );
+
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                throw $e;
+            }
+
+            // Notifications remain post-commit. A delivery failure must never
+            // undo the audited status and KUP history update.
+            if ($officialUserId !== null) {
+                try {
+                    createPortalNotification(
+                        $pdo,
+                        $officialUserId,
+                        'Lantikan Diterima',
+                        "Penerimaan lantikan {$matchLabel} disahkan Admin",
+                        "Pentadbir telah merekodkan penerimaan anda sebagai {$jawatan} selepas pengesahan diterima di luar portal."
+                    );
+                } catch (Throwable $notificationError) {
+                    error_log('[lantikan-audit.php] override portal notification error: ' . $notificationError->getMessage());
+                }
+            }
+
+            if ($shouldNotifyRa) {
+                try {
+                    generatePenilaianToken($pdo, $lantikanId);
+                } catch (Throwable $raError) {
+                    error_log('[lantikan-audit.php] override RA notification error: ' . $raError->getMessage());
+                }
+            }
+
+            if ($shouldNotifyCompleteKup) {
+                try {
+                    notifyCompleteKupCrew($pdo, $jadualId);
+                } catch (Throwable $crewError) {
+                    error_log('[lantikan-audit.php] override KUP crew notification error: ' . $crewError->getMessage());
+                }
+            }
+
+            jsonResponse([
+                'error' => false,
+                'message' => "Penerimaan {$officialName} sebagai {$jawatan} berjaya disahkan oleh Admin.",
+                'data' => auditPayload($pdo, $lantikanId),
+            ]);
         }
 
         jsonResponse(['error' => true, 'message' => 'Tindakan tidak disokong.'], 400);

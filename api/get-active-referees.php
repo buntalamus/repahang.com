@@ -9,15 +9,19 @@ requireRole(['Pengadil', 'Penilai', 'PP Daerah', 'Admin']);
 try {
     $pdo = getDbConnection();
 
-    // Fetch active referees, PP Daerah, and Penilai (RA)
-    // We get users with role 'Pengadil', 'PP Daerah', or 'Penilai' who are active
+    // Fetch active referees, PP Daerah, and Penilai (RA). A user can retain an
+    // access role such as Admin while also being a registered RA through the
+    // jenis_pengadil classification.
     $stmt = $pdo->prepare("
          SELECT u.id, u.nama_penuh, u.role, u.no_ic as no_kp, u.jenis_pengadil,
              u.no_telefon, u.saiz_baju, u.email, u.url_gambar_profil, u.daerah, u.negeri,
                p.nama_persatuan as persatuan_nama
         FROM users u
         LEFT JOIN persatuan_bolasepak_daerah p ON u.persatuan_id = p.id
-        WHERE u.role IN ('Pengadil', 'PP Daerah', 'Penilai') 
+        WHERE (
+            u.role IN ('Pengadil', 'PP Daerah', 'Penilai')
+            OR u.jenis_pengadil = 'Penilai Pengadil'
+        )
         AND u.aktif = 1 
         ORDER BY u.nama_penuh ASC
     ");

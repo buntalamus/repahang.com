@@ -35,6 +35,7 @@ interface LantikanAuditData {
     notif_hantar: number;
     tg_notif_hantar: number;
     tarikh_notif: string | null;
+    can_admin_override_acceptance: boolean;
   };
   links: Record<DirectLinkType, string | null>;
   events: LantikanAuditEvent[];
@@ -271,8 +272,24 @@ export class LantikanPengadilComponent implements OnInit {
   }
 
   isAutoTolak(assignment: any): boolean {
-    return assignment?.status_lantikan === 'Ditolak'
+    const status = assignment?.status_lantikan ?? assignment?.status;
+    return status === 'Ditolak'
       && Number(assignment?.is_auto_tolak) === 1;
+  }
+
+  isKupAssignment(assignment: any): boolean {
+    return [
+      'Pengadil',
+      'Penolong Pengadil 1',
+      'Penolong Pengadil 2',
+      'Pegawai ke4',
+    ].includes(assignment?.jawatan);
+  }
+
+  canAdminOverrideAcceptance(assignment: any): boolean {
+    const status = assignment?.status_lantikan ?? assignment?.status;
+    return status === 'Ditolak'
+      && (this.isAutoTolak(assignment) || this.isKupAssignment(assignment));
   }
 
   isAssignedToCurrentMatch(ref: any): boolean {
@@ -1501,6 +1518,20 @@ export class LantikanPengadilComponent implements OnInit {
     this.showConfirmModal = true;
   }
 
+  confirmAdminAcceptanceOverride(assignment: any): void {
+    const wasAutoRejected = this.isAutoTolak(assignment);
+    this.confirmTitle = wasAutoRejected
+      ? 'Sahkan Penerimaan Lewat'
+      : 'Betulkan Penolakan KUP';
+    this.confirmMessage = wasAutoRejected
+      ? `Gunakan hanya selepas ${assignment.nama_penuh} sendiri mengesahkan bahawa beliau menerima lantikan ${assignment.jawatan}. Status akan ditukar daripada Ditolak Automatik kepada Diterima dan tindakan Admin direkodkan dalam audit.`
+      : `Gunakan hanya selepas ${assignment.nama_penuh} mengesahkan bahawa penolakan lantikan ${assignment.jawatan} dibuat secara tersilap dan beliau bersetuju bertugas. Sebab penolakan asal serta tindakan Admin akan dikekalkan dalam audit.`;
+    this.confirmType = 'warning';
+    this.confirmBtnText = 'Ya, Sahkan Terima';
+    this.confirmFn = () => this.adminOverrideAcceptance(assignment.id);
+    this.showConfirmModal = true;
+  }
+
   auditEventLabel(eventType: string): string {
     const labels: Record<string, string> = {
       appointment_backfilled: 'Rekod awal dibawa masuk',
@@ -1513,7 +1544,9 @@ export class LantikanPengadilComponent implements OnInit {
       appointment_notification: 'Notifikasi lantikan',
       appointment_dispatched: 'Penghantaran lantikan',
       manual_delivery_confirmed: 'Penghantaran manual disahkan',
+      appointment_auto_rejected: 'Ditolak automatik selepas tempoh tamat',
       appointment_response: 'Jawapan pegawai',
+      appointment_admin_acceptance_override: 'Penerimaan disahkan Admin',
       ra_form_notification: 'Notifikasi borang RA',
       ra_form_dispatched: 'Penghantaran borang RA',
       appointment_status_changed: 'Status lantikan diubah',
@@ -1547,6 +1580,25 @@ export class LantikanPengadilComponent implements OnInit {
       error: (err) => {
         this.auditLoadingIds.delete(lantikanId);
         this.toast.show(err?.error?.message || 'Ralat merekodkan penghantaran manual.', 'error');
+      },
+    });
+  }
+
+  private adminOverrideAcceptance(lantikanId: number): void {
+    this.auditLoadingIds.add(lantikanId);
+    this.api.post<{ message: string; data: LantikanAuditData }>('lantikan-audit.php', {
+      action: 'admin_override_acceptance',
+      lantikan_id: lantikanId,
+    }).subscribe({
+      next: (res) => {
+        this.auditData.set(lantikanId, res.data);
+        this.auditLoadingIds.delete(lantikanId);
+        this.toast.show(res.message, 'success');
+        if (this.selectedJadual) this.loadLantikan(this.selectedJadual.id);
+      },
+      error: (err) => {
+        this.auditLoadingIds.delete(lantikanId);
+        this.toast.show(err?.error?.message || 'Ralat mengesahkan penerimaan lewat.', 'error');
       },
     });
   }
