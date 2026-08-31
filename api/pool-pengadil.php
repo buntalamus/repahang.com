@@ -52,6 +52,10 @@ try {
                     WHEN pp.pengadil_luar_id IS NOT NULL THEN pl.emel
                 END AS emel,
                 CASE
+                    WHEN pp.pengadil_id IS NOT NULL THEN u.telegram_chat_id
+                    WHEN pp.pengadil_luar_id IS NOT NULL THEN pl.telegram_chat_id
+                END AS telegram_chat_id,
+                CASE
                     WHEN pp.pengadil_id IS NOT NULL THEN u.jenis_pengadil
                     WHEN pp.pengadil_luar_id IS NOT NULL THEN pl.jenis_pengadil
                 END AS jenis_pengadil
@@ -68,6 +72,8 @@ try {
             $member['wilayah'] = $member['peringkat_kejohanan'] === 'Negeri'
                 ? ($member['daerah'] ?: '-')
                 : ($member['negeri'] ?: '-');
+            $member['telegram_linked'] = !empty($member['telegram_chat_id']);
+            unset($member['telegram_chat_id']);
         }
         unset($member);
 
@@ -90,11 +96,24 @@ try {
             $pengadil_id = isset($input['pengadil_id']) ? (int) $input['pengadil_id'] : null;
             $pengadil_luar_id = isset($input['pengadil_luar_id']) ? (int) $input['pengadil_luar_id'] : null;
 
-            if (!$pengadil_id && !$pengadil_luar_id) {
-                jsonResponse(['error' => true, 'message' => 'pengadil_id atau pengadil_luar_id diperlukan.'], 400);
+            if (($pengadil_id !== null) === ($pengadil_luar_id !== null)) {
+                jsonResponse(['error' => true, 'message' => 'Pilih tepat satu identiti: pengadil berdaftar atau pengadil luar.'], 400);
             }
 
             $items = [['pengadil_id' => $pengadil_id, 'pengadil_luar_id' => $pengadil_luar_id]];
+        }
+
+        $normalizedItems = [];
+        foreach ($items as $index => $item) {
+            $pid = !empty($item['pengadil_id']) ? (int) $item['pengadil_id'] : null;
+            $plid = !empty($item['pengadil_luar_id']) ? (int) $item['pengadil_luar_id'] : null;
+            if (($pid !== null) === ($plid !== null)) {
+                jsonResponse([
+                    'error' => true,
+                    'message' => 'Item pool #' . ($index + 1) . ' mesti mempunyai tepat satu identiti pengadil.',
+                ], 400);
+            }
+            $normalizedItems[] = ['pengadil_id' => $pid, 'pengadil_luar_id' => $plid];
         }
 
         $added = 0;
@@ -104,12 +123,9 @@ try {
             VALUES (:kid, :pid, :plid)
         ");
 
-        foreach ($items as $item) {
-            $pid = !empty($item['pengadil_id']) ? (int) $item['pengadil_id'] : null;
-            $plid = !empty($item['pengadil_luar_id']) ? (int) $item['pengadil_luar_id'] : null;
-
-            if (!$pid && !$plid) continue;
-
+        foreach ($normalizedItems as $item) {
+            $pid = $item['pengadil_id'];
+            $plid = $item['pengadil_luar_id'];
             $stmt->execute([
                 ':kid'  => $kejohanan_id,
                 ':pid'  => $pid,
@@ -134,6 +150,24 @@ try {
         $id = (int) ($_GET['id'] ?? 0);
         if (!$id) {
             jsonResponse(['error' => true, 'message' => 'ID diperlukan.'], 400);
+        }
+        $usageStmt = $pdo->prepare("
+            SELECT COUNT(*)
+            FROM pool_pengadil pp
+            JOIN jadual_perlawanan jp ON jp.kejohanan_id = pp.kejohanan_id
+            JOIN lantikan_pengadil lp ON lp.jadual_id = jp.id
+            WHERE pp.id = :id
+              AND (
+                    (pp.pengadil_id IS NOT NULL AND lp.pengadil_id = pp.pengadil_id)
+                 OR (pp.pengadil_luar_id IS NOT NULL AND lp.pengadil_luar_id = pp.pengadil_luar_id)
+              )
+        ");
+        $usageStmt->execute([':id' => $id]);
+        if ((int) $usageStmt->fetchColumn() > 0) {
+            jsonResponse([
+                'error' => true,
+                'message' => 'Pengadil tidak boleh dibuang dari pool kerana mempunyai rekod lantikan dalam kejohanan ini.',
+            ], 409);
         }
         $pdo->prepare("DELETE FROM pool_pengadil WHERE id = :id")->execute([':id' => $id]);
         jsonResponse(['error' => false, 'message' => 'Dibuang dari pool.']);

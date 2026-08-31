@@ -4,6 +4,193 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [30 Ogos 2026]
+
+### Override Admin bagi Penerimaan Lantikan Lewat atau Penolakan KUP Tersilap
+
+- Lantikan yang ditolak automatik kerana tempoh jawapan tamat, serta penolakan manual oleh KUP yang disahkan tersilap, kini mempunyai tindakan **Sahkan Terima** pada skrin lantikan Admin.
+- Override penolakan manual dihadkan kepada KUP (Pengadil, AR1, AR2 dan P4); RA yang benar-benar menolak tidak boleh dioverride melalui laluan ini.
+- Identiti Admin, status terdahulu, sebab penolakan asal, jenis override, masa dan penerimaan di luar portal direkodkan dalam log audit kekal. Token jawapan lama kekal dibatalkan.
+- Sejarah KUP berdaftar diselaraskan secara atomik; RA kekal berasingan dan menerima pautan borang penilaian apabila penerimaan lewat disahkan.
+
+**Fail:** `api/lantikan.php`, `api/lantikan-audit.php`, `config/lantikan-helper.php`, `config/lantikan-audit.php`, `frontend/src/app/features/admin/lantikan-pengadil/`
+
+---
+
+## [28 Ogos 2026]
+
+### Validasi Borang RA di Pelayan
+
+- API borang RA kini mengesahkan tahap kesukaran, cuaca, skor, markah dan prestasi sebelum menulis ke pangkalan data.
+- Input yang diubah suai atau di luar pilihan sah dipulangkan sebagai ralat pengguna `400` dengan mesej khusus, bukan ralat pelayan `500` daripada MySQL.
+- Peraturan yang sama digunakan untuk RA luar melalui pautan token dan RA berdaftar melalui portal.
+
+**Pengesahan:** nilai tahap, skor, markah dan prestasi tidak sah diuji pada klon dump terbaru dan semuanya ditolak tanpa mutasi laporan. Lint PHP dan simulasi laporan sah turut dijalankan semula.
+
+**Fail:** `config/penilaian-helper.php`, `api/penilaian-token.php`, `api/laporan-penilaian.php`
+
+---
+
+### Ketahanan Butang Jawapan Telegram
+
+- Callback Telegram kini membaca medan rasmi `message_id` dan masih menerima medan lama `id` sebagai fallback. Selepas pengadil menekan **Terima** atau **Tolak**, mesej asal boleh dikemas kini dengan betul dan butang lama tidak dibiarkan aktif atau mengelirukan.
+
+**Pengesahan:** payload callback sebenar berasaskan `message_id` diuji bagi tindakan Terima dan Tolak pada klon dump terbaru. Perubahan status, pembatalan token, audit dan kelengkapan semula krew KUP lulus. Pakej lokal `021615` lulus ujian ZIP dan hash tetapi belum dimuat naik ke production.
+
+**Fail:** `api/telegram-webhook.php`, `api/telegram-poll.php`
+
+---
+
+### Pengesahan Laporan RA oleh Pengerusi Pengadil Kejohanan
+
+- Setiap kejohanan kini mempunyai seorang **Pengerusi Pengadil** sebagai pengesah rasmi laporan RA. Tetapan dibuat dalam **Lantikan > Tab 1 Kejohanan** dan menyokong Penilai Pengadil berdaftar atau luar.
+- Kejohanan MSSM 2026 ditetapkan kepada **SUHAIZI BIN SHUKRI (Kedah)** sebagai **PENGERUSI PENGADIL MSSM**, menggunakan rekod pengadil luar dan emel autoritatif dalam dump 27 Ogos.
+- Selepas RA menghantar laporan, Pengerusi menerima pautan unik melalui emel dan Telegram jika telah dipautkan. Membuka pautan (`GET`) hanya memaparkan semakan; pengesahan hanya berlaku selepas butang borang (`POST`) ditekan.
+- Pengerusi boleh menyemak laporan penuh dan menulis komen sebelum mengesahkan. Komen, identiti Pengerusi, masa, saluran, pautan dan setiap keputusan penghantaran direkodkan dalam audit.
+- Admin menerima salinan dalam portal, boleh melihat status emel/Telegram, log penuh dan menyalin pautan terus Pengerusi. Admin tidak lagi menjadi pengesah biasa; tindakan **Override Admin** memerlukan sebab dan direkod bersama identiti Admin.
+- Selepas pengesahan Pengerusi atau override Admin, laporan penuh dihantar kepada KUP melalui saluran tersedia. PDF memaparkan identiti pengesah serta label komen yang tepat.
+- Migrasi baharu `docs/migration_laporan_pengesahan_pengerusi.sql` menyediakan konfigurasi kejohanan, status pengesahan dan dua log audit append-only.
+
+**Pengesahan:** migrasi berjaya dijalankan berulang kali pada klon dump terbaru tanpa rekod pendua. Ujian integrasi mengesahkan penghantaran emel simulasi kepada Suhaizi, salinan portal kepada tiga Admin, pengesahan token, komen Pengerusi, audit pelaku luar dan pencegahan pengesahan kali kedua. Migrasi dan build `014802` telah dimuat naik pengguna; kewujudan schema serta hash aset production telah disahkan. Tiada emel/Telegram produksi dihantar semasa audit.
+
+**Fail:** `docs/migration_laporan_pengesahan_pengerusi.sql`, `config/laporan-pengesahan.php`, `api/kejohanan-pengesah-laporan.php`, `api/laporan-pengesahan-token.php`, `api/laporan-penilaian.php`, `api/penilaian-token.php`, `api/download-laporan-penilaian.php`, `config/email.php`, `frontend/src/app/features/admin/lantikan-pengadil/`
+
+---
+
+### Blast E-mel Pemautan Telegram Pengadil Luar Dalam Pool
+
+- Bahagian **Lantikan > Pool Pengadil Kejohanan** kini mempunyai butang **Blast Pautan Telegram** yang hanya menyasar pengadil luar dalam pool kejohanan sedang dipilih.
+- Pratonton membezakan pengadil yang sudah dipaut, sedia dihantar, pernah menerima e-mel tetapi belum memaut, gagal, tiada e-mel, dan mempunyai alamat e-mel tidak sah.
+- Blast biasa hanya menghantar kepada penerima yang belum pernah berjaya menerima e-mel onboarding. Tindakan **Hantar Semula** disediakan secara berasingan dan memerlukan pengesahan Admin.
+- E-mel menerangkan dengan jelas bahawa mesej tersebut bukan lantikan perlawanan, tidak memerlukan jawapan Terima/Tolak, dan tidak memulakan tempoh jawapan lantikan.
+- Setiap batch, claim, penerima, keputusan SMTP, sebab dilangkau dan pautan tepat direkodkan. Claim atomik menghalang dua permintaan serentak daripada menghantar e-mel pertama dua kali kepada penerima sama.
+- Kejayaan pengadil luar menekan START dan memaut Telegram kini direkodkan sebagai log append-only mengikut kejohanan, bersama cap masa pada status penerima dan snapshot batch onboarding asal.
+- Tiga kegagalan SMTP berturut-turut membuka circuit breaker bagi batch tersebut. Baki penerima dilangkau tetapi kekal layak dicuba semula, mengelakkan permintaan tergantung lama apabila pelayan e-mel sedang gagal.
+- Aliran onboarding tidak membaca atau mengubah `lantikan_pengadil`, termasuk `notif_hantar` dan `tarikh_notif`. Status Telegram dalam jadual pool turut dipaparkan untuk pengadil berdaftar dan luar.
+- Migrasi `docs/migration_lantikan_audit.sql` kini turut menyediakan `telegram_onboarding_batch`, `telegram_onboarding_state`, dan log penerima append-only `telegram_onboarding_log`.
+
+**Pengesahan:** migrasi dijalankan berulang kali pada klon dump 27 Ogos; pool MSSM mengandungi 79 pengadil luar. Ujian SMTP TLS setempat menangkap 79/79 e-mel unik, klik blast berulang menghantar 0 e-mel tambahan, permintaan serentak menghasilkan satu penghantaran sahaja, resend/kegagalan/alamat e-mel tidak sah/tiada e-mel/Telegram sudah dipaut diuji, dan hash data `lantikan_pengadil` kekal sama sebelum serta selepas blast. Ujian susulan mengesahkan cap masa serta log append-only kejayaan pemautan sebelum lantikan. Migrasi dan build `014802` telah dimuat naik pengguna dan disahkan pada production. Tiada e-mel atau Telegram produksi dihantar semasa audit.
+
+**Fail:** `api/pengadil-luar-telegram-blast.php`, `config/telegram-onboarding.php`, `api/pool-pengadil.php`, `docs/migration_lantikan_audit.sql`, `frontend/src/app/features/admin/lantikan-pengadil/`
+
+---
+
+## [27 Ogos 2026]
+
+### Audit Kekal, Pautan Terus dan Pemautan Telegram Pengadil Luar
+
+- Admin boleh menyediakan dan menyalin pautan aktif **Terima**, **Tolak**, **Borang RA**, serta pautan pemautan Telegram pengadil luar daripada skrin lantikan.
+- Menyediakan atau menyalin pautan tidak memulakan tempoh jawapan. Tempoh hanya bermula selepas emel/Telegram berjaya, atau Admin mengesahkan pautan lantikan benar-benar telah dihantar secara manual.
+- Setiap percubaan dan keputusan saluran direkod secara kekal bersama pautan, masa, pegawai, perlawanan dan pelaku. Log dikekalkan walaupun lantikan kemudiannya dibuang.
+- Pengadil luar menerima Telegram hanya selepas pautan unik `t.me/refpahang_bot?start=...` digunakan. Satu chat Telegram tidak boleh dipaut kepada identiti lain.
+- Jawapan melalui pautan emel kekal dua langkah (`GET` baca sahaja, `POST` sahkan), dan halaman pengadil luar tidak memaparkan pautan dashboard portal.
+- Penghantaran RA merekod keputusan emel dan Telegram secara berasingan. Jika kedua-duanya gagal, pautan borang RA kekal tersedia kepada Admin untuk penghantaran terus.
+- Jika penghantar emel atau Telegram melempar ralat teknikal, saluran lain tetap dicuba dan mesej ralat direkodkan dalam audit bersama pautan borang RA.
+- Pemadaman profil pengadil luar yang pernah dilantik kini ditolak di API dan pangkalan data. Identiti pool/lantikan mesti tepat satu, dan kategori Penilai Pengadil diasingkan daripada slot KUP.
+- Negeri pengadil luar dan RA kini diambil daripada `pengadil_luar` dalam PDF laporan penilaian, bukan dilabel Pahang secara lalai.
+- Migrasi `docs/migration_lantikan_audit.sql` boleh dijalankan semula dan perlu dilaksanakan sebelum kod penghantaran baharu dideploy.
+
+**Pengesahan lokal:** dua import berasingan dump 27 Ogos 2026, migrasi dua kali, senario pautan/jawapan/RA/Telegram/kegagalan saluran/pemadaman, lint semua PHP, Angular production build dan `git diff --check` lulus. Penghantaran sebenar produksi tidak dicetuskan; migrasi produksi, deploy dan semakan visual pelayar belum dilakukan.
+
+**Fail:** `docs/migration_lantikan_audit.sql`, `config/lantikan-audit.php`, `api/lantikan-audit.php`, `api/lantikan.php`, `api/lantikan-jawab-token.php`, `api/telegram-webhook.php`, `config/lantikan-helper.php`, `frontend/src/app/features/admin/lantikan-pengadil/`
+
+---
+
+## [18–19 Ogos 2026]
+
+### 1. Peraturan Lantikan Dinamik: Minimum 3, Maksimum 5 Slot
+
+- Tiga slot wajib bagi setiap perlawanan ialah **Pengadil, Penolong Pengadil 1 (AR1), dan Penolong Pengadil 2 (AR2)**.
+- **Pegawai ke-4 (P4)** ialah slot ke-4 pilihan dan **Penilai Pengadil (RA)** ialah slot ke-5 pilihan.
+- RA kekal sebagai pegawai penilai yang berasingan daripada KUP. KUP terdiri daripada Pengadil, AR1, AR2, dan P4 sahaja.
+- Lantikan dikira lengkap apabila admin berjaya menghantar semua lantikan aktif yang dipilih. Penerimaan setiap pegawai tidak lagi menentukan status lengkap jadual.
+- Admin tidak boleh menghantar lantikan jika salah satu slot wajib belum diisi. Paparan individu, pukal, statistik, dan PDF Jadual Lantikan menggunakan peraturan 3–5 slot yang sama.
+
+**Fail:** `api/lantikan.php`, `api/jadual-lantikan-report.php`, `api/jadual-perlawanan.php`, `api/download-jadual-lantikan.php`, `config/lantikan-helper.php`, `frontend/src/app/features/admin/lantikan-pengadil/`
+
+---
+
+### 2. Maklumat Krew KUP Dalam Telegram, E-mel dan Dashboard
+
+- Notifikasi lantikan Telegram dan e-mel kini menyenaraikan semua KUP aktif bagi perlawanan yang sama, termasuk **nama, jawatan lantikan, nombor telefon, dan negeri/daerah** mengikut peringkat kejohanan.
+- Nama pegawai luar kini diambil daripada rekod `pengadil_luar`; mesej tidak lagi menggunakan nama umum “Pengadil” apabila nama sebenar tersedia.
+- Apabila semua KUP aktif menerima lantikan, setiap KUP yang menerima mendapat notifikasi akhir untuk memudahkan mereka berhubung dan menyelaras tugasan.
+- Penghantaran akhir direkod mengikut **versi krew, penerima, dan saluran**. Telegram/e-mel yang sudah berjaya tidak dihantar semula, manakala penghantaran gagal dicuba semula dengan sela masa meningkat melalui worker CLI/cron.
+- Jika P4 menolak, ditolak automatik, atau dibuang oleh admin, tiga KUP wajib yang sudah menerima terus dianggap lengkap dan menerima senarai akhir yang dikemas kini.
+- Jika Pengadil, AR1, atau AR2 menolak, senarai akhir menunggu pengganti bagi jawatan wajib tersebut menerima lantikan.
+- RA tidak menghalang dan tidak menerima notifikasi “Krew KUP Lengkap”. Dashboard pengadil turut memaparkan maklumat hubungan rakan KUP sahaja; RA dan pegawai yang telah ditolak dikecualikan.
+
+**Fail:** `config/telegram.php`, `config/email.php`, `config/lantikan-helper.php`, `api/lantikan.php`, `api/tugasan.php`, `api/kup-crew-notification-retry.php`, `docs/migration_kup_crew_notifications.sql`, `frontend/src/app/features/pengadil/tugasan/`
+
+---
+
+### 3. Jawapan Lantikan Atomik dan Selamat Di Semua Saluran
+
+**Masalah:** Aliran lama boleh menyimpan status `Diterima` sebelum sejarah `perlawanan` berjaya dicipta. Kegagalan `INSERT` kemudian meninggalkan lantikan diterima tanpa sejarah.
+
+**Perubahan:**
+- Dashboard, pautan e-mel, Telegram webhook, dan Telegram polling kini mengunci perlawanan serta menyimpan jawapan dan sejarah dalam transaksi yang sama.
+- Token Telegram dan e-mel dibatalkan bersama selepas jawapan berjaya supaya pautan lain tidak boleh digunakan semula.
+- Pautan e-mel melalui `GET` kini hanya memaparkan halaman pengesahan. Perubahan status hanya berlaku melalui `POST`, mengelakkan pengimbas keselamatan e-mel daripada menerima atau menolak lantikan secara tidak sengaja.
+- Tempoh jawapan hanya bermula selepas sekurang-kurangnya satu saluran luaran berjaya: **Telegram atau e-mel**. Notifikasi portal hanya tambahan dan tidak lagi boleh menandakan lantikan sebagai sudah dihantar dengan sendirinya.
+- Kegagalan notifikasi sampingan selepas transaksi tidak membatalkan jawapan lantikan yang telah berjaya direkodkan.
+- Skrip Telegram polling hanya boleh dijalankan melalui CLI dalam `APP_ENV=development` dan tidak dimasukkan dalam pakej produksi.
+
+**Fail:** `api/lantikan-jawab.php`, `api/lantikan-jawab-token.php`, `api/telegram-webhook.php`, `api/telegram-poll.php`, `api/lantikan.php`, `config/lantikan-helper.php`
+
+---
+
+### 4. Sejarah Perlawanan Automatik Untuk KUP Sahaja
+
+- Sejarah `perlawanan` automatik kini hanya dicipta untuk KUP berdaftar yang berstatus `Diterima`. RA dan pegawai luar tidak mendapat rekod sejarah KUP.
+- Nilai `jenis` dipendekkan dengan selamat kepada 60 aksara mengikut had pangkalan data, manakala nama kejohanan penuh kekal dalam `nama_kejohanan`.
+- Sinkronisasi mengemas kini metadata perlawanan dan keseluruhan crew KUP, mengekalkan ID rekod yang sah, serta membuang sejarah terpaut yang sudah tidak sah.
+- Skrip baharu `recover_all_accepted_kup_history.sql` disediakan dalam mod **PREVIEW** secara lalai untuk semua kejohanan. Ia memaut rekod manual yang sepadan secara unik, mencipta sejarah hilang, dan melangkau padanan ambigu.
+- Audit dump rujukan 14 Ogos 2026 menghasilkan **115 calon**, **7 rekod manual dipaut**, **108 rekod baharu**, **0 ambigu**, dan **77 sejarah terpaut tidak sah**. Ujian APPLY pada pangkalan data sementara berakhir dengan 0 sejarah KUP hilang dan 0 sejarah terpaut tidak sah; production belum diubah.
+- Skrip MSSP khusus dikemas kini supaya mengecualikan RA: **76 calon**, **4 rekod manual dipaut**, dan **72 rekod baharu** pada dump rujukan.
+
+**Fail:** `config/lantikan-helper.php`, `docs/recover_all_accepted_kup_history.sql`, `docs/recover_mssp_accepted_history.sql`
+
+---
+
+### 5. Integriti Lantikan, Penggantian dan Pembatalan
+
+- Setiap slot mesti menggunakan tepat satu identiti: pegawai berdaftar atau pegawai luar, dan pegawai tersebut mesti berada dalam pool kejohanan.
+- Sistem menolak pertindihan apabila pegawai sama telah dilantik pada tarikh dan masa yang sama, termasuk pegawai luar.
+- Mengaktifkan semula lantikan yang pernah ditolak menghasilkan jawapan baharu dan token lama dibatalkan. Lantikan aktif yang tidak berubah tidak kehilangan jawapan sedia ada.
+- Perlawanan yang dibatalkan atau ditangguhkan tidak boleh menerima lantikan baharu.
+- Pembatalan/penangguhan dilakukan secara transaksi, membatalkan semua token, menyelaraskan sejarah, dan hanya memaklumkan pegawai yang pernah menerima notifikasi.
+- Perlawanan yang sudah bermula atau mempunyai laporan RA/penilaian lama dilindungi daripada pemadaman atau pembatalan yang boleh merosakkan sejarah. Pembetulan selepas sepak mula mesti menggunakan aliran **Ganti**.
+- Perubahan jadual perlawanan menyelaraskan semula sejarah semua KUP dan ditolak jika laporan RA untuk perlawanan tersebut telah diwujudkan.
+
+**Fail:** `api/lantikan.php`, `api/jadual-perlawanan.php`, `config/lantikan-helper.php`
+
+---
+
+### 6. Keselamatan dan Integriti Laporan RA
+
+- Hanya RA berdaftar yang memiliki lantikan `Penilai Pengadil` berstatus `Diterima`, atau RA luar dengan token sah, boleh mencipta laporan bagi perlawanan tersebut.
+- Senarai KUP dalam laporan diambil semula daripada pangkalan data. Nama, jawatan, dan ID yang dihantar oleh klien tidak lagi dipercayai; setiap KUP diterima mesti dinilai tepat sekali.
+- Laporan yang sudah dihantar menjadi tidak boleh diedit sementara menunggu semakan admin. Penghantaran dan pengesahan admin dilakukan secara transaksi.
+- KUP menerima pautan laporan **baca-sahaja** yang terikat kepada satu laporan. Token borang RA tidak lagi didedahkan kepada penerima laporan.
+- Akses muat turun dikecilkan kepada admin, pemilik laporan, KUP dalam perlawanan sama, dan PP Daerah yang berkaitan. E-mel dan Telegram pegawai luar turut disokong menggunakan medan pangkalan data yang betul.
+
+**Fail:** `config/penilaian-helper.php`, `api/penilaian-token.php`, `api/laporan-penilaian.php`, `api/download-laporan-penilaian.php`
+
+---
+
+### 7. Pakej Produksi dan Pengesahan
+
+- `deploy/build.sh` kini mengecualikan Telegram polling, fail ujian admin, fail diagnostik, `.env`, dan fail konfigurasi sensitif daripada ZIP produksi.
+- Direktori `docs/` dalam pakej dilindungi dengan `.htaccess` supaya skrip SQL pemulihan/migrasi tidak boleh dimuat turun melalui web.
+- Pakej produksi dibina semula selepas semua ujian perubahan ini; nama fail, kiraan dan SHA-256 direkod dalam laporan serahan build.
+- PHP lint, TypeScript, Angular production build, ujian MySQL sementara, integriti ZIP, pengecualian fail sensitif, dan perbandingan hash sumber/pakej semuanya lulus. Angular hanya memberi amaran bundle awal 506.72 kB berbanding bajet 500 kB.
+- Perubahan ini masih dalam worktree/cabang pembangunan. ZIP belum dimuat naik, kod belum dideploy, dan skrip pemulihan belum dijalankan pada pangkalan data production.
+
+**Fail:** `deploy/build.sh`, `deploy/refpahang-deploy-20260819-011957.zip`
+
+---
+
 ## [5–6 Ogos 2026]
 
 ### 1. Menu Notifikasi Lantikan & Pasukan Pegawai Perlawanan
@@ -186,6 +373,7 @@ Jalankan mengikut turutan:
 | `docs/migration_profil_taraf_pasukan_logo.sql` | Kolum tahun Kelas 3 + taraf pengadil + jadual `pasukan_logo` (termasuk backfill) | ✅ Sudah dijalankan |
 | `docs/fix_tahun_kelas3_ikut_tarikh_hantar.sql` | Betulkan tahun Kelas 3 supaya ikut tarikh hantar sebenar | ⚠️ Perlu dijalankan |
 | `docs/migration_status_perlawanan_lantikan.sql` | Status pembatalan/penangguhan + sebab bagi `lantikan_pengadil` dan `jadual_perlawanan` | ⚠️ Perlu dijalankan sebelum deploy |
+| `docs/migration_kup_crew_notifications.sql` | Rekod idempotensi, status saluran, retry dan backoff notifikasi akhir krew KUP | ⚠️ Perlu dijalankan sebelum deploy dan cron diaktifkan |
 
 Versi PHP CLI setara juga tersedia: `docs/migration_profil_taraf_pasukan_logo.php`.
 

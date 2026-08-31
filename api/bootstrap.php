@@ -132,10 +132,20 @@ if (!file_exists($migrationLock)) {
             foreach ($migrationFiles as $sqlFile) {
                 $sql = file_get_contents($sqlFile);
                 if ($sql) {
-                    $statements = array_filter(array_map('trim', explode(';', $sql)));
+                    // Strip full-line comments before splitting. Previously a
+                    // statement beginning after a comment was skipped in full.
+                    $sqlWithoutComments = preg_replace('/^\s*--.*$/m', '', $sql);
+                    $statements = array_filter(array_map('trim', explode(';', (string) $sqlWithoutComments)));
                     foreach ($statements as $stmt) {
-                        if ($stmt && !str_starts_with($stmt, '--')) {
+                        if ($stmt) {
                             try {
+                                // Migration status SELECTs are informational for
+                                // CLI use. Skipping them avoids leaving an
+                                // unread result set on hosting configurations
+                                // that disable buffered MySQL queries.
+                                if (preg_match('/^SELECT\s+[\'\"]/i', $stmt)) {
+                                    continue;
+                                }
                                 $migrationPdo->exec($stmt);
                             } catch (PDOException $migEx) {
                                 // Ignore duplicate table/column errors (expected on re-run)

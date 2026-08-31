@@ -8,17 +8,20 @@
  * GET  ?jadual_id=X                          - reports for a match
  * GET  (no params, admin)                    - all reports list
  * POST                                       - create / update draft (parent + pegawai[])
- * PUT  action=hantar                         - submit to admin
- * PUT  action=sahkan                         - admin confirm
+ * PUT  action=hantar                         - submit to tournament chair
+ * PUT  action=sahkan                         - audited Admin override
  */
 
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/../config/kriteria-penilaian.php';
+require_once __DIR__ . '/../config/penilaian-helper.php';
+require_once __DIR__ . '/../config/laporan-pengesahan.php';
 
-$currentUser = requireRole(['Admin', 'Penilai']);
+$currentUser = requireRole(['Admin', 'Penilai', 'PP Daerah']);
 $isAdmin = ($currentUser['user_role'] ?? $currentUser['role'] ?? '') === 'Admin';
+$currentUserId = (int) $currentUser['id'];
 
 /* ────────────── helpers ────────────── */
 
@@ -78,6 +81,48 @@ function savePegawai(PDO $pdo, int $laporanId, array $pegawaiList): void {
     }
 }
 
+function attachPengesahanPengerusi(PDO $pdo, array &$report, bool $includeAdminAudit = false): void
+{
+    $stmt = $pdo->prepare("
+        SELECT status AS pengesahan_status, pengesah_nama, pengesah_jawatan,
+               pengesah_negeri, email_sent_at, telegram_sent_at,
+               CASE WHEN NULLIF(TRIM(email_recipient), '') IS NULL THEN 0 ELSE 1 END AS email_applicable,
+               CASE WHEN telegram_chat_id IS NULL THEN 0 ELSE 1 END AS telegram_applicable,
+               catatan_pengerusi, tarikh_sahkan AS tarikh_sahkan_pengerusi,
+               alasan_override, admin_override_user_id, approval_token, id AS pengesahan_id
+        FROM laporan_pengesahan_pengerusi
+        WHERE laporan_id = :id
+        LIMIT 1
+    ");
+    $stmt->execute([':id' => (int) $report['id']]);
+    $approval = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($approval && $includeAdminAudit) {
+        $token = trim((string) ($approval['approval_token'] ?? ''));
+        $approval['approval_url'] = $token !== '' && $approval['pengesahan_status'] === 'Menunggu'
+            ? buildPengerusiApprovalUrl($token)
+            : null;
+        $auditStmt = $pdo->prepare("
+            SELECT id, event_type, channel, event_status, actor_type,
+                   actor_user_id, actor_luar_id, link_url, details_json, created_at
+            FROM laporan_pengesahan_audit
+            WHERE laporan_id = :id
+            ORDER BY id DESC
+            LIMIT 100
+        ");
+        $auditStmt->execute([':id' => (int) $report['id']]);
+        $approval['audit'] = $auditStmt->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($approval['audit'] as &$event) {
+            $event['details'] = json_decode((string) ($event['details_json'] ?? ''), true) ?: [];
+            unset($event['details_json']);
+        }
+        unset($event);
+    }
+    if ($approval) {
+        unset($approval['approval_token']);
+    }
+    $report['pengesahan'] = $approval ?: null;
+}
+
 /* ────────────── main ────────────── */
 
 try {
@@ -90,22 +135,15 @@ try {
         // Officials for a match (populates form)
         if (isset($_GET['officials'])) {
             $jadualId = (int) $_GET['officials'];
-            $stmt = $pdo->prepare("
-                SELECT lp.id AS lantikan_id, lp.jawatan, lp.pengadil_id, lp.pengadil_luar_id,
-                    CASE WHEN lp.pengadil_id IS NOT NULL THEN u.nama_penuh
-                         WHEN lp.pengadil_luar_id IS NOT NULL THEN pl.nama
-                         ELSE NULL END AS nama_pengadil
-                FROM lantikan_pengadil lp
-                LEFT JOIN users u ON lp.pengadil_id = u.id
-                LEFT JOIN pengadil_luar pl ON lp.pengadil_luar_id = pl.id
-                WHERE lp.jadual_id = :jid AND lp.jawatan != 'Penilai Pengadil' AND lp.status != 'Ditolak'
-                ORDER BY FIELD(lp.jawatan,'Pengadil','Penolong Pengadil 1','Penolong Pengadil 2','Pegawai ke4')
-            ");
-            $stmt->execute([':jid' => $jadualId]);
-            $officials = $stmt->fetchAll();
+            if (!$isAdmin && !userHasAcceptedRaForMatch($pdo, $currentUserId, $jadualId)) {
+                jsonResponse(['error' => true, 'message' => 'Anda bukan RA yang diterima untuk perlawanan ini.'], 403);
+            }
+
+            $officials = getAcceptedKupForAssessment($pdo, $jadualId);
 
             // Attach criteria sections per jawatan
             foreach ($officials as &$o) {
+                $o['lantikan_id'] = $o['lantikan_pengadil_id'];
                 $o['sections'] = getSectionsForJawatan($o['jawatan']);
             }
 
@@ -137,6 +175,7 @@ try {
             // Attach pegawai summary to each report
             foreach ($reports as &$r) {
                 $r['pegawai'] = fetchPegawaiForLaporan($pdo, (int)$r['id']);
+                attachPengesahanPengerusi($pdo, $r, $isAdmin);
             }
 
             jsonResponse(['error' => false, 'data' => $reports]);
@@ -156,13 +195,19 @@ try {
                 LEFT JOIN lantikan_pengadil lp2 ON lp.lantikan_id = lp2.id
                 LEFT JOIN pengadil_luar pl_penilai ON lp2.pengadil_luar_id = pl_penilai.id
                 WHERE lp.id = :id
+                  AND (:is_admin = 1 OR lp.penilai_id = :uid)
             ");
-            $stmt->execute([':id' => $id]);
+            $stmt->execute([
+                ':id' => $id,
+                ':is_admin' => $isAdmin ? 1 : 0,
+                ':uid' => $currentUserId,
+            ]);
             $row = $stmt->fetch();
             if (!$row) {
                 jsonResponse(['error' => true, 'message' => 'Laporan tidak dijumpai.'], 404);
             }
             $row['pegawai'] = fetchPegawaiForLaporan($pdo, (int)$row['id']);
+            attachPengesahanPengerusi($pdo, $row, $isAdmin);
             jsonResponse(['error' => false, 'laporan' => $row]);
         }
 
@@ -178,12 +223,18 @@ try {
                 LEFT JOIN lantikan_pengadil lp2 ON lp.lantikan_id = lp2.id
                 LEFT JOIN pengadil_luar pl_penilai ON lp2.pengadil_luar_id = pl_penilai.id
                 WHERE lp.jadual_id = :jid
+                  AND (:is_admin = 1 OR lp.penilai_id = :uid)
                 ORDER BY lp.created_at ASC
             ");
-            $stmt->execute([':jid' => $jadualId]);
+            $stmt->execute([
+                ':jid' => $jadualId,
+                ':is_admin' => $isAdmin ? 1 : 0,
+                ':uid' => $currentUserId,
+            ]);
             $reports = $stmt->fetchAll();
             foreach ($reports as &$r) {
                 $r['pegawai'] = fetchPegawaiForLaporan($pdo, (int)$r['id']);
+                attachPengesahanPengerusi($pdo, $r, $isAdmin);
             }
             jsonResponse(['error' => false, 'data' => $reports]);
         }
@@ -194,7 +245,7 @@ try {
             $sql = "
                 SELECT lp.id, lp.jadual_id, lp.status, lp.tahap_kesukaran, lp.tarikh_hantar,
                     jp.no_perlawanan, jp.tarikh, jp.pasukan_home, jp.pasukan_away,
-                    k.nama AS nama_kejohanan,
+                    k.id AS kejohanan_id, k.nama AS nama_kejohanan,
                     COALESCE(u_penilai.nama_penuh, pl_penilai.nama) AS nama_penilai
                 FROM laporan_penilaian lp
                 JOIN jadual_perlawanan jp ON lp.jadual_id = jp.id
@@ -214,6 +265,7 @@ try {
             $reports = $stmt->fetchAll();
             foreach ($reports as &$r) {
                 $r['pegawai'] = fetchPegawaiForLaporan($pdo, (int)$r['id']);
+                attachPengesahanPengerusi($pdo, $r, true);
             }
             jsonResponse(['error' => false, 'data' => $reports]);
         }
@@ -226,39 +278,59 @@ try {
         $input = getJsonInput();
         $jadual_id   = (int) ($input['jadual_id'] ?? 0);
         $lantikan_id = (int) ($input['lantikan_id'] ?? 0);
-        $pegawai     = $input['pegawai'] ?? [];
+        $pegawaiInput = $input['pegawai'] ?? [];
 
         if (!$jadual_id || !$lantikan_id) {
             jsonResponse(['error' => true, 'message' => 'jadual_id dan lantikan_id diperlukan.'], 400);
         }
-        if (empty($pegawai) || !is_array($pegawai)) {
+        if (empty($pegawaiInput) || !is_array($pegawaiInput)) {
             jsonResponse(['error' => true, 'message' => 'Senarai pegawai diperlukan.'], 400);
         }
 
-        $penilai_id = (int) $currentUser['id'];
+        if ($isAdmin || !userOwnsAcceptedRaAppointment($pdo, $currentUserId, $lantikan_id, $jadual_id)) {
+            jsonResponse(['error' => true, 'message' => 'Lantikan RA tidak sah atau bukan milik anda.'], 403);
+        }
 
-        // Check existing draft
-        $checkStmt = $pdo->prepare("SELECT id, status FROM laporan_penilaian WHERE lantikan_id = :lid AND penilai_id = :pid");
+        try {
+            $pegawai = normalizeSubmittedKupAssessments($pdo, $jadual_id, $pegawaiInput);
+            $parentFields = normalizeLaporanParentFields($input);
+        } catch (InvalidArgumentException $validationError) {
+            jsonResponse(['error' => true, 'message' => $validationError->getMessage()], 400);
+        }
+
+        $penilai_id = $currentUserId;
+        $parentFields['status'] = 'Draf';
+
+        $pdo->beginTransaction();
+
+        // Serialize both session and token report writers on the one RA
+        // appointment. This prevents duplicate reports and edits racing a
+        // submission or admin confirmation.
+        $lockStmt = $pdo->prepare("
+            SELECT id
+            FROM lantikan_pengadil
+            WHERE id = :lid
+            FOR UPDATE
+        ");
+        $lockStmt->execute([':lid' => $lantikan_id]);
+        if (!$lockStmt->fetchColumn()) {
+            $pdo->rollBack();
+            jsonResponse(['error' => true, 'message' => 'Lantikan RA tidak dijumpai.'], 404);
+        }
+
+        $checkStmt = $pdo->prepare("
+            SELECT id, status
+            FROM laporan_penilaian
+            WHERE lantikan_id = :lid AND penilai_id = :pid
+            LIMIT 1 FOR UPDATE
+        ");
         $checkStmt->execute([':lid' => $lantikan_id, ':pid' => $penilai_id]);
         $existing = $checkStmt->fetch();
 
-        if ($existing && $existing['status'] === 'Disahkan') {
-            jsonResponse(['error' => true, 'message' => 'Laporan ini sudah disahkan dan tidak boleh diedit.'], 400);
+        if ($existing && $existing['status'] !== 'Draf') {
+            $pdo->rollBack();
+            jsonResponse(['error' => true, 'message' => 'Laporan yang telah dihantar tidak boleh diedit semula.'], 409);
         }
-
-        $parentFields = [
-            'tahap_kesukaran'    => $input['tahap_kesukaran'] ?? 'Normal',
-            'cuaca'              => !empty($input['cuaca']) ? $input['cuaca'] : null,
-            'ulasan_keseluruhan' => $input['ulasan_keseluruhan'] ?? '',
-            'status'             => 'Draf',
-        ];
-
-        // Score fields
-        foreach (['skor_ht_home','skor_ht_away','skor_ft_home','skor_ft_away','skor_et_home','skor_et_away','skor_ps_home','skor_ps_away'] as $sf) {
-            $parentFields[$sf] = isset($input[$sf]) && $input[$sf] !== '' && $input[$sf] !== null ? (int)$input[$sf] : null;
-        }
-
-        $pdo->beginTransaction();
 
         if ($existing) {
             $laporanId = (int) $existing['id'];
@@ -286,7 +358,7 @@ try {
         jsonResponse(['error' => false, 'message' => 'Draf laporan disimpan.', 'id' => $laporanId]);
     }
 
-    /* ── PUT: hantar / sahkan ── */
+    /* ── PUT: hantar / Admin override / notification tools ── */
     if ($method === 'PUT') {
         $input = getJsonInput();
         $action = $input['action'] ?? '';
@@ -297,141 +369,108 @@ try {
         }
 
         if ($action === 'hantar') {
-            // Validate all officials have markah
-            $pegawai = fetchPegawaiForLaporan($pdo, $id);
-            foreach ($pegawai as $p) {
-                if (empty($p['markah'])) {
-                    jsonResponse(['error' => true, 'message' => 'Markah untuk semua pegawai perlu diisi sebelum menghantar.'], 400);
+            $pdo->beginTransaction();
+            try {
+                $ownerStmt = $pdo->prepare("
+                    SELECT lantikan_id
+                    FROM laporan_penilaian
+                    WHERE id = :id AND penilai_id = :pid AND status = 'Draf'
+                    FOR UPDATE
+                ");
+                $ownerStmt->execute([':id' => $id, ':pid' => $currentUserId]);
+                if (!$ownerStmt->fetchColumn()) {
+                    $pdo->rollBack();
+                    jsonResponse(['error' => true, 'message' => 'Laporan bukan milik anda atau bukan lagi berstatus Draf.'], 409);
                 }
-            }
 
-            $pdo->prepare("
-                UPDATE laporan_penilaian SET status = 'Dihantar', tarikh_hantar = NOW()
-                WHERE id = :id AND penilai_id = :pid AND status = 'Draf'
-            ")->execute([':id' => $id, ':pid' => (int) $currentUser['id']]);
-            jsonResponse(['error' => false, 'message' => 'Laporan berjaya dihantar kepada admin.']);
+                // Validate the exact child snapshot while the parent report is
+                // locked, then make submission immutable in the same unit.
+                $pegawai = fetchPegawaiForLaporan($pdo, $id);
+                if ($pegawai === []) {
+                    $pdo->rollBack();
+                    jsonResponse(['error' => true, 'message' => 'Senarai penilaian KUP masih kosong.'], 400);
+                }
+                foreach ($pegawai as $p) {
+                    if ($p['markah'] === null || $p['markah'] === '') {
+                        $pdo->rollBack();
+                        jsonResponse(['error' => true, 'message' => 'Markah untuk semua pegawai perlu diisi sebelum menghantar.'], 400);
+                    }
+                }
+
+                $pdo->prepare("
+                    UPDATE laporan_penilaian
+                    SET status = 'Dihantar', tarikh_hantar = NOW()
+                    WHERE id = :id AND penilai_id = :pid AND status = 'Draf'
+                ")->execute([':id' => $id, ':pid' => $currentUserId]);
+                $pdo->commit();
+            } catch (Throwable $submissionError) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                throw $submissionError;
+            }
+            $delivery = null;
+            try {
+                $delivery = dispatchLaporanForPengerusi($pdo, $id);
+            } catch (Throwable $notificationError) {
+                error_log('[laporan-penilaian.php] Chair dispatch error: ' . $notificationError->getMessage());
+            }
+            $message = $delivery && $delivery['configured']
+                ? 'Laporan berjaya dihantar kepada Pengerusi Pengadil. Admin menerima salinan.'
+                : 'Laporan berjaya dihantar. Admin menerima salinan; penghantaran kepada Pengerusi Pengadil sedang menunggu tindakan pentadbir.';
+            jsonResponse(['error' => false, 'message' => $message, 'pengesahan' => $delivery]);
+        }
+
+        if ($action === 'log_pengerusi_link_copy' && $isAdmin) {
+            $state = ensureLaporanPengesahanState($pdo, $id);
+            $token = trim((string) ($state['approval_token'] ?? ''));
+            if ($state['status'] !== 'Menunggu' || $token === '') {
+                jsonResponse(['error' => true, 'message' => 'Pautan Pengerusi tidak lagi aktif.'], 409);
+            }
+            $url = buildPengerusiApprovalUrl($token);
+            recordLaporanPengesahanAudit(
+                $pdo,
+                (int) $state['id'],
+                $id,
+                'direct_link_copied',
+                'admin',
+                'success',
+                'admin',
+                $currentUserId,
+                null,
+                $url,
+                ['purpose' => 'chair_report_confirmation']
+            );
+            jsonResponse(['error' => false, 'message' => 'Salinan pautan direkodkan.']);
+        }
+
+        if ($action === 'retry_pengerusi_notification' && $isAdmin) {
+            $delivery = dispatchLaporanForPengerusi($pdo, $id);
+            $delivered = $delivery['email_sent'] || $delivery['telegram_sent'];
+            jsonResponse([
+                'error' => false,
+                'message' => $delivered
+                    ? 'Percubaan penghantaran kepada Pengerusi selesai. Sekurang-kurangnya satu saluran berjaya.'
+                    : 'Percubaan direkodkan tetapi tiada saluran berjaya. Gunakan pautan terus jika perlu.',
+                'pengesahan' => $delivery,
+            ]);
         }
 
         if ($action === 'sahkan' && $isAdmin) {
-            $catatan = trim($input['catatan_admin'] ?? '');
-            $pdo->prepare("
-                UPDATE laporan_penilaian SET status = 'Disahkan', catatan_admin = :catatan, tarikh_sahkan = NOW() WHERE id = :id
-            ")->execute([':catatan' => $catatan, ':id' => $id]);
-
-            $rowStmt = $pdo->prepare("SELECT jadual_id FROM laporan_penilaian WHERE id = :id");
-            $rowStmt->execute([':id' => $id]);
-            $row = $rowStmt->fetch();
-            if ($row) {
-                $pdo->prepare("UPDATE jadual_perlawanan SET status = 'Selesai' WHERE id = :jid")
-                    ->execute([':jid' => $row['jadual_id']]);
-            }
-
-            // Send notifications to each official
             try {
-                require_once __DIR__ . '/../config/email.php';
-                require_once __DIR__ . '/../config/telegram.php';
-                require_once __DIR__ . '/../config/env.php';
-
-                $baseUrl = env('BASE_URL', 'https://refpahang.com');
-                $reportUrl = $baseUrl . '/api/download-laporan-penilaian.php?id=' . $id;
-
-                $reportStmt = $pdo->prepare("
-                    SELECT lp.*, jp.no_perlawanan, jp.tarikh, jp.masa, jp.pasukan_home, jp.pasukan_away,
-                           k.nama AS nama_kejohanan,
-                           COALESCE(u_pen.nama_penuh, pl_pen.nama) AS nama_penilai
-                    FROM laporan_penilaian lp
-                    JOIN jadual_perlawanan jp ON lp.jadual_id = jp.id
-                    JOIN kejohanan k ON jp.kejohanan_id = k.id
-                    LEFT JOIN users u_pen ON lp.penilai_id = u_pen.id
-                    LEFT JOIN lantikan_pengadil lp3 ON lp.lantikan_id = lp3.id
-                    LEFT JOIN pengadil_luar pl_pen ON lp3.pengadil_luar_id = pl_pen.id
-                    WHERE lp.id = :id
-                ");
-                $reportStmt->execute([':id' => $id]);
-                $report = $reportStmt->fetch();
-
-                $pegawaiList = fetchPegawaiForLaporan($pdo, $id);
-                $pasukan = ($report['pasukan_home'] ?? '') . ' vs ' . ($report['pasukan_away'] ?? '');
-
-                foreach ($pegawaiList as $pg) {
-                    // Get official's email and telegram chat_id
-                    $lpStmt = $pdo->prepare("
-                        SELECT lp.pengadil_id, lp.pengadil_luar_id,
-                               u.email, u.nama_penuh, u.telegram_chat_id,
-                               pl.email AS pl_email, pl.nama AS pl_nama
-                        FROM lantikan_pengadil lp
-                        LEFT JOIN users u ON lp.pengadil_id = u.id
-                        LEFT JOIN pengadil_luar pl ON lp.pengadil_luar_id = pl.id
-                        WHERE lp.id = :lpid
-                    ");
-                    $lpStmt->execute([':lpid' => $pg['lantikan_pengadil_id']]);
-                    $official = $lpStmt->fetch();
-                    if (!$official) continue;
-
-                    $email = $official['email'] ?: $official['pl_email'];
-                    $nama  = $official['nama_penuh'] ?: $official['pl_nama'];
-
-                    // Merge all kekuatan/kelemahan from sections
-                    $allKekuatan = array_merge($pg['kawalan_kekuatan'] ?? [], $pg['fizikal_kekuatan'] ?? [], $pg['kerjasama_kekuatan'] ?? []);
-                    $allKelemahan = array_merge($pg['kawalan_kelemahan'] ?? [], $pg['fizikal_kelemahan'] ?? [], $pg['kerjasama_kelemahan'] ?? []);
-                    $allNasihat = implode("\n", array_filter([
-                        $pg['kawalan_nasihat'] ?? '', $pg['fizikal_nasihat'] ?? '', $pg['kerjasama_nasihat'] ?? ''
-                    ]));
-
-                    // Send email
-                    if ($email) {
-                        sendPenilaianEmail(
-                            $email,
-                            $nama ?: '-',
-                            $pg['jawatan'],
-                            $report['nama_kejohanan'] ?? '',
-                            $report['tarikh'] ?? '',
-                            $pasukan,
-                            $report['nama_penilai'] ?? '-',
-                            $pg['markah'] !== null ? (float)$pg['markah'] : null,
-                            $pg['prestasi'],
-                            $allKekuatan,
-                            $allKelemahan,
-                            $allNasihat,
-                            $report['ulasan_keseluruhan'] ?? '',
-                            $catatan,
-                            $reportUrl
-                        );
-                    }
-
-                    // Send Telegram
-                    $chatId = $official['telegram_chat_id'] ?? null;
-                    if ($chatId) {
-                        $markahStr = $pg['markah'] !== null ? number_format((float)$pg['markah'], 1) : '-';
-                        $tgMsg = "📋 <b>Laporan Penilaian</b>\n\n"
-                               . "⚽ <b>{$pasukan}</b>\n"
-                               . "🏆 {$report['nama_kejohanan']}\n"
-                               . "📅 {$report['tarikh']}\n\n"
-                               . "👤 Jawatan: <b>{$pg['jawatan']}</b>\n"
-                               . "📊 Markah: <b>{$markahStr}</b>/10\n"
-                               . ($pg['prestasi'] ? "⭐ Prestasi: {$pg['prestasi']}\n" : "")
-                               . "\n🔍 Penilai: {$report['nama_penilai']}";
-
-                        if (!empty($allKekuatan)) {
-                            $tgMsg .= "\n\n✅ <b>Kekuatan:</b>\n• " . implode("\n• ", array_slice($allKekuatan, 0, 5));
-                            if (count($allKekuatan) > 5) $tgMsg .= "\n  <i>+" . (count($allKekuatan) - 5) . " lagi</i>";
-                        }
-                        if (!empty($allKelemahan)) {
-                            $tgMsg .= "\n\n⚠️ <b>Perlu Diperbaiki:</b>\n• " . implode("\n• ", array_slice($allKelemahan, 0, 5));
-                            if (count($allKelemahan) > 5) $tgMsg .= "\n  <i>+" . (count($allKelemahan) - 5) . " lagi</i>";
-                        }
-
-                        $tgMsg .= "\n\n📋 <a href=\"{$reportUrl}\">Lihat Laporan Penuh</a>";
-
-                        tgSend($chatId, $tgMsg);
-                    }
-                }
-            } catch (Throwable $e) {
-                error_log('[laporan-penilaian.php] Notification error: ' . $e->getMessage());
-                // Don't fail the sahkan just because notification failed
+                overrideLaporanByAdmin(
+                    $pdo,
+                    $id,
+                    $currentUserId,
+                    trim((string) ($input['override_reason'] ?? '')),
+                    trim((string) ($input['catatan_admin'] ?? ''))
+                );
+            } catch (InvalidArgumentException $e) {
+                jsonResponse(['error' => true, 'message' => $e->getMessage()], 400);
+            } catch (DomainException $e) {
+                jsonResponse(['error' => true, 'message' => $e->getMessage()], 409);
             }
-
-            jsonResponse(['error' => false, 'message' => 'Laporan disahkan.']);
+            jsonResponse(['error' => false, 'message' => 'Override Admin direkodkan dan laporan disahkan.']);
         }
 
         jsonResponse(['error' => true, 'message' => 'Action tidak sah.'], 400);

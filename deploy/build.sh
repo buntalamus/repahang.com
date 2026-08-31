@@ -99,6 +99,7 @@ fi
 # Copy migration docs
 mkdir -p "$BUILD_DIR/docs"
 cp "$PROJECT_ROOT/docs"/*.sql "$BUILD_DIR/docs/" 2>/dev/null || true
+[ -f "$PROJECT_ROOT/docs/CHANGELOG.md" ] && cp "$PROJECT_ROOT/docs/CHANGELOG.md" "$BUILD_DIR/docs/"
 
 # Copy templates
 [ -d "$PROJECT_ROOT/api/templates" ] && cp -r "$PROJECT_ROOT/api/templates" "$BUILD_DIR/api/templates"
@@ -159,6 +160,18 @@ cat > "$BUILD_DIR/api/.htaccess" << 'APIHTACCESS'
 </IfModule>
 APIHTACCESS
 
+cat > "$BUILD_DIR/docs/.htaccess" << 'DOCSHTACCESS'
+# Recovery and migration SQL is for server administrators only.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>
+Options -Indexes
+DOCSHTACCESS
+
 echo "  ✓ .htaccess files created"
 
 # ---- Step 3b: Fix file permissions ----
@@ -172,14 +185,16 @@ echo "  ✓ Permissions set"
 echo ""
 echo "[4/4] Creating deployment zip..."
 
-# Remove old deploy zips
-rm -f "$DEPLOY_DIR"/refpahang-deploy-*.zip
+# Keep older deployment packages as rollback artifacts. ZIP names already carry
+# a timestamp, so a new build does not need to delete a known-good package.
 
 cd "$BUILD_DIR"
 zip -r -q "$ZIP_PATH" . \
     -x "*.DS_Store" \
     -x "__MACOSX/*" \
+    -x "api/telegram-poll.php" \
     -x "api/test-*.php" \
+    -x "api/admin-test-*.php" \
     -x "api/diagnose.php" \
     -x "api/connection-debug.php"
 cd "$PROJECT_ROOT"
@@ -205,10 +220,16 @@ echo "  1. Back up the production database"
 echo "  2. Before extracting the new code, run these schema migrations once:"
 echo "     docs/migration_status_perlawanan_lantikan.sql"
 echo "     docs/migration_pengadil_luar_daerah_penilai.sql"
+echo "     docs/migration_kup_crew_notifications.sql"
+echo "     docs/migration_lantikan_audit.sql"
+echo "     docs/migration_laporan_pengesahan_pengerusi.sql"
+echo "     docs/migrate_fairuz_nordin_to_registered_ra.sql"
 echo "  3. Upload the zip and extract it to public_html/"
 echo "  4. Keep the existing production .env/config.ini credentials"
-echo "  5. Delete old api/diagnose.php and api/connection-debug.php from the server"
-echo "  6. Preview, confirm, then run: docs/recover_mssp_late_auto_reject.sql"
-echo "  7. Complete the missing district values listed by the new migration"
-echo "  8. Verify: https://refpahang.com/api/check-maintenance.php"
+echo "  5. Add a 5-minute cron: php /path/to/public_html/api/kup-crew-notification-retry.php 100"
+echo "  6. Delete old api/diagnose.php and api/connection-debug.php from the server"
+echo "  7. Preview, confirm, then run: docs/recover_mssp_late_auto_reject.sql"
+echo "  8. Preview, confirm, then run: docs/recover_all_accepted_kup_history.sql"
+echo "  9. Complete the missing district values listed by the new migration"
+echo " 10. Verify: https://refpahang.com/api/check-maintenance.php"
 echo ""

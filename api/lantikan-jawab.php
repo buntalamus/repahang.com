@@ -36,7 +36,7 @@ try {
 
     // Verify this assignment belongs to current user
     $stmt = $pdo->prepare("
-        SELECT lp.id, lp.status, lp.komen,
+        SELECT lp.id, lp.jadual_id, lp.status, lp.komen,
                lp.jawatan,
                jp.tarikh, jp.masa, jp.tempat, jp.pasukan_home, jp.pasukan_away, jp.no_perlawanan,
                COALESCE(kj.nama, '') AS kejohanan
@@ -59,13 +59,23 @@ try {
     }
 
     $newStatus = $action === 'accept' ? 'Diterima' : 'Ditolak';
+    $shouldNotifyCompleteKup = false;
 
     // Wrap in transaction for atomicity (status update + perlawanan creation)
     $pdo->beginTransaction();
     try {
+        lockMatchForAppointmentResponse($pdo, (int) $assignment['jadual_id']);
+        requireLantikanAuditSchema($pdo);
+        $responseAuditSnapshot = getLantikanAuditSnapshot($pdo, $lantikan_id, true);
+        if (!$responseAuditSnapshot) {
+            throw new RuntimeException('Snapshot audit jawapan portal tidak dijumpai.');
+        }
+
         // Atomic update — only succeeds if status is still 'Belum Jawab' (prevents race)
         $updStmt = $pdo->prepare("
-            UPDATE lantikan_pengadil SET status = :status, komen = :komen, tarikh_jawab = NOW()
+            UPDATE lantikan_pengadil
+            SET status = :status, komen = :komen, tarikh_jawab = NOW(), status_dikemaskini_at = NOW(),
+                tg_token = NULL, email_token = NULL
             WHERE id = :id AND status = 'Belum Jawab'
         ");
         $updStmt->execute([':status' => $newStatus, ':komen' => $komen, ':id' => $lantikan_id]);
@@ -75,16 +85,46 @@ try {
             jsonResponse(['error' => true, 'message' => 'Lantikan ini sudah dijawab.'], 400);
         }
 
-        // Create perlawanan record if accepted; generate penilaian token for RA
-        if ($newStatus === 'Diterima') {
-            createPerlawananFromLantikan($pdo, $lantikan_id);
-            generatePenilaianToken($pdo, $lantikan_id);
-        }
+        // Keep every accepted registered KUP history aligned for both accept
+        // and reject responses. RA is intentionally excluded by the history
+        // helper because it is not a KUP role.
+        syncPerlawananHistoryForJadual($pdo, (int) $assignment['jadual_id']);
+        $shouldNotifyCompleteKup = isKupPosition((string) $assignment['jawatan'])
+            && isAcceptedKupCrewComplete($pdo, (int) $assignment['jadual_id']);
+
+        recordLantikanAudit(
+            $pdo,
+            $lantikan_id,
+            'appointment_response',
+            'portal',
+            'success',
+            ['action' => $action, 'new_status' => $newStatus, 'comment' => $komen],
+            null,
+            'official',
+            (int) $currentUser['id'],
+            $responseAuditSnapshot
+        );
 
         $pdo->commit();
     } catch (Throwable $txErr) {
         $pdo->rollBack();
         throw $txErr;
+    }
+
+    if ($newStatus === 'Diterima') {
+        try {
+            generatePenilaianToken($pdo, $lantikan_id);
+        } catch (Throwable $helperError) {
+            error_log('[lantikan-jawab.php] generatePenilaianToken error: ' . $helperError->getMessage());
+        }
+    }
+
+    if ($shouldNotifyCompleteKup) {
+        try {
+            notifyCompleteKupCrew($pdo, (int) $assignment['jadual_id']);
+        } catch (Throwable $crewNotifyError) {
+            error_log('[lantikan-jawab.php] KUP crew notification error: ' . $crewNotifyError->getMessage());
+        }
     }
 
     // ── Portal notification for the pengadil ──────────────────────────

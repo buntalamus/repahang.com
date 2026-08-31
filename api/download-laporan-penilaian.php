@@ -2,8 +2,9 @@
 /**
  * Download / View Laporan Penilaian Pengadil (RA Report) — printable HTML
  * 
- * GET /api/download-laporan-penilaian.php?id=X        — by laporan ID (session auth)
- * GET /api/download-laporan-penilaian.php?token=X      — by penilaian token (no auth needed)
+ * GET /api/download-laporan-penilaian.php?id=X                    — session auth
+ * GET /api/download-laporan-penilaian.php?id=X&view_token=Y       — read-only signed link
+ * GET /api/download-laporan-penilaian.php?id=X&approval_token=Y   — chair review
  * 
  * Outputs full HTML page matching FAM RA Report format.
  * User presses Cmd+P / Ctrl+P → "Save as PDF" (A4 portrait).
@@ -14,8 +15,10 @@ date_default_timezone_set('Asia/Kuala_Lumpur');
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../config/env.php';
 require_once __DIR__ . '/../config/kriteria-penilaian.php';
+require_once __DIR__ . '/../config/penilaian-helper.php';
 
-$token     = trim($_GET['token'] ?? '');
+$viewToken = trim($_GET['view_token'] ?? '');
+$approvalToken = trim($_GET['approval_token'] ?? '');
 $laporanId = (int) ($_GET['id'] ?? 0);
 $autoprint = isset($_GET['print']);
 $sessionUserId = 0;
@@ -29,24 +32,43 @@ try {
     exit;
 }
 
-/* ── Resolve laporan ID ── */
-if ($token) {
-    // Token-based access (from email link)
+/* ── Resolve access mode ── */
+if ($approvalToken !== '' && $laporanId > 0) {
+    // Purpose-bound read-only link for the configured tournament chair.
     $stmt = $pdo->prepare("
-        SELECT lp2.id AS laporan_id
-        FROM lantikan_pengadil lp
-        JOIN laporan_penilaian lp2 ON lp2.lantikan_id = lp.id
-        WHERE lp.penilaian_token = :token AND lp2.status = 'Disahkan'
+        SELECT 1
+        FROM laporan_pengesahan_pengerusi approval
+        JOIN laporan_penilaian laporan ON laporan.id = approval.laporan_id
+        WHERE approval.laporan_id = :id
+          AND approval.approval_token = :token
+          AND laporan.status IN ('Dihantar', 'Disahkan')
         LIMIT 1
     ");
-    $stmt->execute([':token' => $token]);
-    $row = $stmt->fetch();
-    if (!$row) {
+    $stmt->execute([':id' => $laporanId, ':token' => $approvalToken]);
+    if (!$stmt->fetchColumn()) {
+        http_response_code(404);
+        echo '<p style="font-family:sans-serif;color:red;padding:20px;">Pautan semakan laporan tidak sah.</p>';
+        exit;
+    }
+} elseif ($viewToken !== '' && $laporanId > 0) {
+    // Purpose-bound read-only link sent to KUP after admin confirmation.
+    $stmt = $pdo->prepare("
+        SELECT lp.penilaian_token
+        FROM laporan_penilaian laporan
+        JOIN lantikan_pengadil lp ON lp.id = laporan.lantikan_id
+        WHERE laporan.id = :id
+          AND lp.status = 'Diterima'
+          AND lp.jawatan = 'Penilai Pengadil'
+          AND laporan.status = 'Disahkan'
+        LIMIT 1
+    ");
+    $stmt->execute([':id' => $laporanId]);
+    $penilaianToken = (string) ($stmt->fetchColumn() ?: '');
+    if (!verifyReportViewToken($laporanId, $penilaianToken, $viewToken)) {
         http_response_code(404);
         echo '<p style="font-family:sans-serif;color:red;padding:20px;">Laporan tidak dijumpai atau belum disahkan.</p>';
         exit;
     }
-    $laporanId = (int) $row['laporan_id'];
 } elseif ($laporanId) {
     // Session-based auth
     if (session_status() === PHP_SESSION_NONE) {
@@ -75,6 +97,9 @@ if ($token) {
     exit;
 }
 
+$publicReadOnly = $viewToken !== '' || $approvalToken !== '';
+$allowSubmittedPreview = $approvalToken !== '' ? 1 : 0;
+
 /* ── Fetch report data ── */
 $stmt = $pdo->prepare("
     SELECT lp.*,
@@ -83,16 +108,23 @@ $stmt = $pdo->prepare("
            k.nama AS nama_kejohanan,
            k.logo_kiri, k.logo_kanan,
            COALESCE(u_pen.nama_penuh, pl_pen.nama) AS nama_penilai,
-           COALESCE(u_pen.negeri, 'Pahang') AS penilai_negeri
+           COALESCE(NULLIF(TRIM(u_pen.negeri), ''), NULLIF(TRIM(pl_pen.negeri), ''), '-') AS penilai_negeri,
+           approval.status AS pengesahan_status,
+           approval.pengesah_nama,
+           approval.pengesah_jawatan,
+           approval.catatan_pengerusi,
+           approval.alasan_override
     FROM laporan_penilaian lp
     JOIN jadual_perlawanan jp ON lp.jadual_id = jp.id
     JOIN kejohanan k ON jp.kejohanan_id = k.id
     LEFT JOIN users u_pen ON lp.penilai_id = u_pen.id
     LEFT JOIN lantikan_pengadil lp2 ON lp.lantikan_id = lp2.id
     LEFT JOIN pengadil_luar pl_pen ON lp2.pengadil_luar_id = pl_pen.id
-    WHERE lp.id = :id AND lp.status = 'Disahkan'
+    LEFT JOIN laporan_pengesahan_pengerusi approval ON approval.laporan_id = lp.id
+    WHERE lp.id = :id
+      AND (lp.status = 'Disahkan' OR (:allow_submitted = 1 AND lp.status = 'Dihantar'))
 ");
-$stmt->execute([':id' => $laporanId]);
+$stmt->execute([':id' => $laporanId, ':allow_submitted' => $allowSubmittedPreview]);
 $report = $stmt->fetch();
 
 if (!$report) {
@@ -101,10 +133,8 @@ if (!$report) {
     exit;
 }
 
-// Pengadil may download only a report belonging to an appointment in which
-// they are one of the KUP officials. Other privileged roles retain their
-// existing report access.
-if (!$token && $sessionRole === 'Pengadil') {
+// Scope every non-admin role to the report it actually owns or supervises.
+if (!$publicReadOnly && $sessionRole === 'Pengadil') {
     $accessStmt = $pdo->prepare("
         SELECT 1
         FROM laporan_penilaian_pegawai lpp
@@ -118,15 +148,51 @@ if (!$token && $sessionRole === 'Pengadil') {
         echo '<p style="font-family:sans-serif;color:red;padding:20px;">Anda tidak mempunyai akses kepada laporan ini.</p>';
         exit;
     }
+} elseif (!$publicReadOnly && $sessionRole === 'Penilai') {
+    if ((int) ($report['penilai_id'] ?? 0) !== $sessionUserId) {
+        http_response_code(403);
+        echo '<p style="font-family:sans-serif;color:red;padding:20px;">Anda tidak mempunyai akses kepada laporan ini.</p>';
+        exit;
+    }
+} elseif (!$publicReadOnly && $sessionRole === 'PP Daerah') {
+    $accessStmt = $pdo->prepare("
+        SELECT 1
+        FROM users pp
+        WHERE pp.id = :uid
+          AND (
+                :penilai_id = :owner_uid
+             OR EXISTS (
+                    SELECT 1
+                    FROM laporan_penilaian_pegawai lpp
+                    JOIN lantikan_pengadil la ON la.id = lpp.lantikan_pengadil_id
+                    JOIN users kup ON kup.id = la.pengadil_id
+                    WHERE lpp.laporan_id = :lid
+                      AND kup.persatuan_id = pp.persatuan_id
+                )
+          )
+        LIMIT 1
+    ");
+    $accessStmt->execute([
+        ':uid' => $sessionUserId,
+        ':penilai_id' => (int) ($report['penilai_id'] ?? 0),
+        ':owner_uid' => $sessionUserId,
+        ':lid' => $laporanId,
+    ]);
+    if (!$accessStmt->fetchColumn()) {
+        http_response_code(403);
+        echo '<p style="font-family:sans-serif;color:red;padding:20px;">Anda tidak mempunyai akses kepada laporan ini.</p>';
+        exit;
+    }
 }
 
 /* ── Fetch pegawai data ── */
 $stmt = $pdo->prepare("
     SELECT lpp.*,
-           COALESCE(u.negeri, 'Pahang') AS negeri
+           COALESCE(NULLIF(TRIM(u.negeri), ''), NULLIF(TRIM(pl.negeri), ''), '-') AS negeri
     FROM laporan_penilaian_pegawai lpp
     LEFT JOIN lantikan_pengadil lp ON lpp.lantikan_pengadil_id = lp.id
     LEFT JOIN users u ON lp.pengadil_id = u.id
+    LEFT JOIN pengadil_luar pl ON lp.pengadil_luar_id = pl.id
     WHERE lpp.laporan_id = :lid
     ORDER BY FIELD(lpp.jawatan, 'Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4')
 ");
@@ -618,15 +684,26 @@ if ($skorHTHome !== '-' && $skor2H !== '-') {
 </div>
 <?php endif; ?>
 
-<?php if (!empty($report['catatan_admin'])): ?>
+<?php
+$finalComment = (string) ($report['catatan_pengerusi'] ?? $report['catatan_admin'] ?? '');
+$commentLabel = match ((string) ($report['pengesahan_status'] ?? '')) {
+    'Override Admin' => 'Catatan Override Admin',
+    'Disahkan' => 'Catatan Pengerusi Pengadil',
+    default => 'Catatan Admin',
+};
+?>
+<?php if ($finalComment !== ''): ?>
 <div style="margin-top:6px;border:1px solid #ccc;padding:5px 8px;font-size:8.5pt;">
-  <strong>Catatan Admin :</strong> <?= nl2br(e($report['catatan_admin'])) ?>
+  <strong><?= e($commentLabel) ?> :</strong> <?= nl2br(e($finalComment)) ?>
 </div>
 <?php endif; ?>
 
 <!-- FOOTER -->
 <div class="footer">
   <div>Tarikh Sahkan : <?= $report['tarikh_sahkan'] ? fmtDate($report['tarikh_sahkan']) : '-' ?></div>
+  <?php if (!empty($report['pengesah_nama'])): ?>
+  <div style="margin-top:3px;">Pengesah : <?= e($report['pengesah_nama']) ?> (<?= e($report['pengesah_jawatan'] ?: 'Pengerusi Pengadil') ?>)</div>
+  <?php endif; ?>
   <div style="margin-top:3px;">Dijana oleh Sistem Pengadil PBNP — <?= date('d/m/Y H:i') ?></div>
 </div>
 

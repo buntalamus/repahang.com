@@ -191,7 +191,7 @@ function tgBatalMessage(
            $noLine .
            "<b>Perlawanan:</b> {$matchLine}\n" .
            "<b>Tarikh:</b> {$tarikhFmt}\n" .
-           "<b>Masa:</b> {$masaFmt} WIB\n" .
+           "<b>Masa:</b> {$masaFmt} MYT\n" .
            "<b>Tempat:</b> " . htmlspecialchars($tempat) . "\n" .
            $sebabText . "\n<i>Sila hubungi pengurus kejohanan untuk maklumat lanjut.</i>";
 }
@@ -207,6 +207,57 @@ function tgLantikanKeyboard(string $token): array
 }
 
 /**
+ * Format the three-or-four-official KUP roster for a Telegram message.
+ */
+function tgKupOfficialsSection(array $kupOfficials, string $regionLabel): string
+{
+    if ($kupOfficials === []) {
+        return '';
+    }
+
+    $kupLines = [];
+    foreach ($kupOfficials as $official) {
+        $kupLines[] = "<b>" . htmlspecialchars((string) ($official['jawatan'] ?? '-')) . "</b>\n"
+            . "Nama: " . htmlspecialchars((string) ($official['nama'] ?? '-')) . "\n"
+            . "No. Tel: " . htmlspecialchars((string) ($official['no_telefon'] ?? '-')) . "\n"
+            . htmlspecialchars($regionLabel) . ": " . htmlspecialchars((string) ($official['wilayah'] ?? '-'));
+    }
+
+    return "\n\n<b>\u{1F465} Krew KUP Perlawanan</b>\n\n" . implode("\n\n", $kupLines);
+}
+
+/** Format the final crew-confirmation message sent to every accepted KUP. */
+function tgKupCrewCompleteMessage(
+    string $nama,
+    string $kejohanan,
+    string $tarikh,
+    string $masa,
+    string $tempat,
+    string $pasukanHome,
+    string $pasukanAway,
+    string $noMatch,
+    array $kupOfficials,
+    string $regionLabel
+): string {
+    $tarikhFmt = date('d M Y', strtotime($tarikh));
+    $masaFmt = $masa ? date('H:i', strtotime($masa)) : '-';
+    $noMatchFmt = $noMatch ? 'P' . ltrim($noMatch, '0Pp') : '';
+    $noLine = $noMatchFmt ? "<b>No. Perlawanan:</b> {$noMatchFmt}\n" : '';
+
+    return "<b>\u{2705} Krew KUP Lengkap</b>\n\n"
+        . "Assalamualaikum <b>" . htmlspecialchars($nama) . "</b>,\n\n"
+        . "Semua KUP yang dilantik telah menerima lantikan. Gunakan maklumat berikut "
+        . "untuk berhubung dan menyelaras tugasan perlawanan.\n\n"
+        . "<b>Kejohanan:</b> " . htmlspecialchars($kejohanan) . "\n"
+        . $noLine
+        . "<b>Perlawanan:</b> " . htmlspecialchars($pasukanHome) . " lwn " . htmlspecialchars($pasukanAway) . "\n"
+        . "<b>Tarikh:</b> {$tarikhFmt}\n"
+        . "<b>Masa:</b> {$masaFmt} MYT\n"
+        . "<b>Tempat:</b> " . htmlspecialchars($tempat)
+        . tgKupOfficialsSection($kupOfficials, $regionLabel);
+}
+
+/**
  * Format a match notification message (HTML).
  */
 function tgLantikanMessage(
@@ -219,7 +270,9 @@ function tgLantikanMessage(
     string $pasukanHome,
     string $pasukanAway,
     string $noMatch = '',
-    string $jenisKejohanan = 'Persahabatan'
+    string $jenisKejohanan = 'Persahabatan',
+    array $kupOfficials = [],
+    string $regionLabel = 'Negeri'
 ): string {
     $tarikhFmt  = date('d M Y', strtotime($tarikh));
     $masaFmt    = $masa ? date('H:i', strtotime($masa)) : '-';
@@ -232,6 +285,8 @@ function tgLantikanMessage(
     $deadlineDt    = calcDeadlineFromNotif($jenisKejohanan);
     $ruleText      = getDeadlineRuleText($jenisKejohanan);
 
+    $kupSection = tgKupOfficialsSection($kupOfficials, $regionLabel);
+
     return "<b>\u{1F3DF} Lantikan Pengadil</b>\n\n" .
            "Assalamualaikum <b>" . htmlspecialchars($nama) . "</b>,\n\n" .
            "Anda telah dilantik sebagai <b>" . htmlspecialchars($jawatan) . "</b> " .
@@ -240,8 +295,9 @@ function tgLantikanMessage(
            $noLine .
            "<b>Perlawanan:</b> {$matchLine}\n" .
            "<b>Tarikh:</b> {$tarikhFmt}\n" .
-           "<b>Masa:</b> {$masaFmt} WIB\n" .
-           "<b>Tempat:</b> " . htmlspecialchars($tempat) . "\n\n" .
+           "<b>Masa:</b> {$masaFmt} MYT\n" .
+           "<b>Tempat:</b> " . htmlspecialchars($tempat) .
+           $kupSection . "\n\n" .
            "\u{26A0}\u{FE0F} <b>Garis Masa Jawapan:</b>\n" .
            "Sila <b>terima atau tolak</b> tugasan ini <b>sebelum {$deadlineDt}</b> ({$deadlineHours} jam selepas notifikasi ini).\n\n" .
            "\u{2139}\u{FE0F} <i>{$ruleText}</i>";

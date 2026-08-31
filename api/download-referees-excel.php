@@ -66,10 +66,18 @@ function handleDownload(): void
     $type = isset($_GET['type']) && in_array($_GET['type'], $allowedTypes, true) ? $_GET['type'] : 'pengadil_berdaftar';
 
     if ($type === 'penilai_berdaftar') {
-        $roleCondition = "AND a.jenis_pengadil IN ('Penilai Pengadil', 'Pegawai Pembangunan')";
+        // Semua PP Daerah juga RA secara automatik, tanpa permohonan tahunan.
+        // Peranan akses lain seperti Admin boleh mempunyai klasifikasi RA
+        // tanpa menukar role log masuknya.
+        $roleCondition = "AND (
+            u.role = 'PP Daerah'
+            OR u.jenis_pengadil IN ('Penilai Pengadil', 'Pegawai Pembangunan')
+            OR a.jenis_pengadil IN ('Penilai Pengadil', 'Pegawai Pembangunan')
+        )";
         $typeLabel = 'RA';
     } else {
-        $roleCondition = "AND (a.jenis_pengadil NOT IN ('Penilai Pengadil', 'Pegawai Pembangunan') OR a.jenis_pengadil IS NULL)";
+        $roleCondition = "AND a.id IS NOT NULL
+            AND (a.jenis_pengadil NOT IN ('Penilai Pengadil', 'Pegawai Pembangunan') OR a.jenis_pengadil IS NULL)";
         $typeLabel = 'pengadil';
     }
 
@@ -85,29 +93,35 @@ function handleDownload(): void
                 u.email as emel,
                 u.no_telefon,
                 u.saiz_baju,
-                a.jenis_pengadil,
-                a.alamat1,
-                a.alamat2,
-                a.poskod,
-                a.daerah,
-                a.negeri,
-                a.status_kerja,
-                a.jawatan,
-                a.nama_majikan,
-                a.nama_waris,
-                a.hubungan_waris,
-                a.telefon_waris,
+                CASE
+                    WHEN u.role = 'PP Daerah' THEN 'Penilai Pengadil'
+                    WHEN u.jenis_pengadil IN ('Penilai Pengadil', 'Pegawai Pembangunan')
+                        THEN u.jenis_pengadil
+                    ELSE a.jenis_pengadil
+                END AS jenis_pengadil,
+                COALESCE(a.alamat1, u.alamat1) AS alamat1,
+                COALESCE(a.alamat2, u.alamat2) AS alamat2,
+                COALESCE(a.poskod, u.poskod) AS poskod,
+                COALESCE(a.daerah, u.daerah) AS daerah,
+                COALESCE(a.negeri, u.negeri) AS negeri,
+                COALESCE(a.status_kerja, u.status_kerja) AS status_kerja,
+                COALESCE(a.jawatan, u.jawatan) AS jawatan,
+                COALESCE(a.nama_majikan, u.nama_majikan) AS nama_majikan,
+                COALESCE(a.nama_waris, u.nama_waris) AS nama_waris,
+                COALESCE(a.hubungan_waris, u.hubungan_waris) AS hubungan_waris,
+                COALESCE(a.telefon_waris, u.telefon_waris) AS telefon_waris,
                 p.nama_persatuan as persatuan
             FROM users u
-            INNER JOIN permohonan a ON u.id = a.user_id
-            LEFT JOIN persatuan_bolasepak_daerah p ON a.persatuan_id = p.id
-            WHERE a.jenis_borang IN ('pengadil_berdaftar', 'penilai_berdaftar')
+            LEFT JOIN permohonan a ON u.id = a.user_id
+                AND a.jenis_borang IN ('pengadil_berdaftar', 'penilai_berdaftar')
+                AND a.status = 'Approved'
+                AND (
+                    (a.status_kemaskini IS NOT NULL AND YEAR(a.status_kemaskini) = :year)
+                    OR (a.status_kemaskini IS NULL AND YEAR(a.tarikh_hantar) = :year)
+                )
+            LEFT JOIN persatuan_bolasepak_daerah p ON p.id = COALESCE(a.persatuan_id, u.persatuan_id)
+            WHERE 1 = 1
             {$roleCondition}
-            AND a.status = 'Approved'
-            AND (
-                (a.status_kemaskini IS NOT NULL AND YEAR(a.status_kemaskini) = :year)
-                OR (a.status_kemaskini IS NULL AND YEAR(a.tarikh_hantar) = :year)
-            )
             ORDER BY u.nama_penuh ASC
         SQL;
 

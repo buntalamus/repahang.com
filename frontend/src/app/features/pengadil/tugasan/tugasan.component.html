@@ -129,8 +129,17 @@
                 @if (a.rakan_tugasan?.length) {
                   <div class="mt-1.5 text-xs text-slate-600">
                     <span class="font-semibold text-slate-700">Pegawai bertugas bersama:</span>
-                    @for (rakan of a.rakan_tugasan; track rakan.id; let last = $last) {
-                      <span>{{ rakan.jawatan }}: {{ rakan.nama }}{{ last ? '' : ' · ' }}</span>
+                    @for (rakan of a.rakan_tugasan; track rakan.id) {
+                      <span class="block mt-0.5">
+                        {{ rakan.jawatan }}: {{ rakan.nama }} ·
+                        @if (rakan.no_telefon !== '-') {
+                          <a [href]="'tel:' + rakan.no_telefon" class="text-blue-700 hover:underline">{{ rakan.no_telefon }}</a>
+                        } @else {
+                          <span>-</span>
+                        }
+                        ·
+                        {{ rakan.wilayah_label }}: {{ rakan.wilayah }}
+                      </span>
                     }
                   </div>
                 }
@@ -202,7 +211,15 @@
           <div class="border-t border-slate-100 pt-2 text-xs text-slate-600">
             <p class="font-semibold text-slate-700 mb-1">Pegawai bertugas bersama</p>
             @for (rakan of a.rakan_tugasan; track rakan.id) {
-              <p>{{ rakan.jawatan }}: {{ rakan.nama }}</p>
+              <p class="mb-1">
+                <span class="font-medium">{{ rakan.jawatan }}:</span> {{ rakan.nama }}<br>
+                @if (rakan.no_telefon !== '-') {
+                  <a [href]="'tel:' + rakan.no_telefon" class="text-blue-700 hover:underline">{{ rakan.no_telefon }}</a>
+                } @else {
+                  <span>-</span>
+                }
+                · {{ rakan.wilayah_label }}: {{ rakan.wilayah }}
+              </p>
             }
           </div>
         }
