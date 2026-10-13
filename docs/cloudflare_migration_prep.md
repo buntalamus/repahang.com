@@ -168,6 +168,9 @@ Penandaan notifikasi sebagai dibaca sudah dipindahkan tetapi dikunci oleh
 `STAGING_WRITES_ENABLED=0`. Bacaan tugasan masih belum menjalankan auto-tolak
 lantikan tamat tempoh atau cuba semula emel/Telegram; kedua-duanya memerlukan
 Worker berjadual sebelum staging boleh menerima pengguna sebenar.
+Profil serta kiraan tugas/statistik papan pemuka Admin juga membaca D1.
+Kiraan permohonan menunggu menggunakan `status_workflow`, iaitu medan yang
+digunakan oleh aliran permohonan dan kiraan tugas sedia ada.
 Tindakan Admin `delete_application` turut disediakan tetapi dikunci oleh
 `STAGING_WRITES_ENABLED=0` pada Worker staging. Ujian tempatan D1 mengesahkan
 pemadaman permohonan melepaskan `perlawanan.permohonan_id` dahulu dalam satu
@@ -190,9 +193,9 @@ Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
 100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
 pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
 permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
-Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 18 daripada
+Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 21 daripada
 68 endpoint PHP yang disebut oleh frontend sudah mempunyai laluan Worker;
-50 masih tiada. Angka 18 ialah **laluan sahaja**, bukan bukti semua kaedah
+47 masih tiada. Angka 21 ialah **laluan sahaja**, bukan bukti semua kaedah
 GET/POST dan semua peranan sudah setara. Jangan buka log masuk staging atau
 alih domain sehingga matriks fungsi ini dan ujian integrasi selesai.
 

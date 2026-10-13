@@ -1,5 +1,6 @@
 import { currentUser, json, login, logout, session } from './auth';
 import { adminUsers } from './admin-users';
+import { adminDashboardStats, adminDashboardTasks, adminProfile } from './admin-dashboard';
 import { appointments } from './appointments';
 import { adminApplications, applicationHistory, applicationSettings, deleteApplication } from './applications';
 import { announcements, notifications } from './notifications';
@@ -164,6 +165,9 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/pengadil-application-history.php') return applicationHistory(request, env);
   if (pathname === '/api/admin-applications.php') return adminApplications(request, env);
   if (pathname === '/api/admin-users.php') return adminUsers(request, env);
+  if (pathname === '/api/admin-profile.php') return adminProfile(request, env);
+  if (pathname === '/api/admin-dashboard-tasks.php') return adminDashboardTasks(request, env);
+  if (pathname === '/api/admin-dashboard-stats.php') return adminDashboardStats(request, env);
   if (pathname === '/api/pengadil-matches.php') return refereeMatches(request, env);
   if (pathname === '/api/pengadil-application.php') return ownApplications(request, env);
   if (pathname === '/api/notifications.php') return notifications(request, env);
