@@ -1,5 +1,6 @@
 import { compare } from 'bcryptjs';
 
+import { boundedJson } from './request';
 import type { Env } from './types';
 
 export interface SessionUser {
@@ -86,38 +87,8 @@ export async function login(request: Request, env: Env): Promise<Response> {
   if (env.STAGING_AUTH_ENABLED !== '1') {
     return json({ error: true, message: 'Staging masih dalam proses migrasi.' }, 503);
   }
-  if (request.headers.get('Content-Type')?.split(';')[0] !== 'application/json') {
-    return json({ error: true, message: 'JSON diperlukan.' }, 415);
-  }
-  if (Number(request.headers.get('Content-Length') ?? 0) > 4096) {
-    return json({ error: true, message: 'Permintaan terlalu besar.' }, 413);
-  }
-  let input: unknown;
-  try {
-    const reader = request.body?.getReader();
-    if (!reader) return json({ error: true, message: 'JSON tidak sah.' }, 400);
-    const chunks: Uint8Array[] = [];
-    let length = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      length += value.byteLength;
-      if (length > 4096) {
-        await reader.cancel();
-        return json({ error: true, message: 'Permintaan terlalu besar.' }, 413);
-      }
-      chunks.push(value);
-    }
-    const bodyBytes = new Uint8Array(length);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bodyBytes.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bodyBytes));
-  } catch {
-    return json({ error: true, message: 'JSON tidak sah.' }, 400);
-  }
+  const input = await boundedJson(request);
+  if (input instanceof Response) return input;
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     return json({ error: true, message: 'Data log masuk tidak sah.' }, 422);
   }

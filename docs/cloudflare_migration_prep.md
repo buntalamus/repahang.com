@@ -159,7 +159,12 @@ lengkap. Endpoint yang sudah dipindahkan: pengumuman awam, status pendaftaran,
 persatuan awam, log masuk/sesi/log keluar, daerah, profil pengguna, tetapan
 permohonan, sejarah permohonan milik sendiri, senarai permohonan Admin,
 semakan penyelenggaraan, dan muat turun media terhad kepada pemilik/Admin.
-Laluan API lain
+Tindakan Admin `delete_application` turut disediakan tetapi dikunci oleh
+`STAGING_WRITES_ENABLED=0` pada Worker staging. Ujian tempatan D1 mengesahkan
+pemadaman permohonan melepaskan `perlawanan.permohonan_id` dahulu dalam satu
+batch transaksi, dan rekod perlawanan kekal. Akaun serta rekod sintetik ujian
+telah dibuang. Tindakan approve dan keputusan ujian belum dipindahkan kerana
+emel susulan masih perlu disambung. Laluan API lain
 menjawab 503 secara jelas. Ini **bukan** pengganti production yang boleh
 digunakan untuk permohonan, lantikan, PDF atau emel.
 
@@ -265,6 +270,7 @@ MX perlu dipisahkan daripada hos web yang bakal diproksi sebelum cutover.
    deploy Worker, tanpa ZIP cPanel.
 
 Rujukan Cloudflare: [D1 import](https://developers.cloudflare.com/d1/best-practices/import-export-data/),
+[transaksi batch D1](https://developers.cloudflare.com/d1/worker-api/d1-database/#batch),
 [had D1](https://developers.cloudflare.com/d1/platform/limits/),
 [Email Service](https://developers.cloudflare.com/email-service/get-started/send-emails/),
 [Workers Email API](https://developers.cloudflare.com/email-service/api/send-emails/workers-api/),

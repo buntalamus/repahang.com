@@ -23,6 +23,7 @@
     }
   ],
   "vars": {
-    "STAGING_AUTH_ENABLED": "0"
+    "STAGING_AUTH_ENABLED": "0",
+    "STAGING_WRITES_ENABLED": "0"
   }
 }

@@ -1,5 +1,5 @@
 import { currentUser, json, login, logout, session } from './auth';
-import { adminApplications, applicationHistory, applicationSettings } from './applications';
+import { adminApplications, applicationHistory, applicationSettings, deleteApplication } from './applications';
 import type { Env } from './types';
 
 function isSameOrigin(request: Request): boolean {
@@ -137,6 +137,9 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/login.php') return login(request, env);
   if (pathname === '/api/session.php') return session(request, env);
   if (pathname === '/api/logout.php') return logout(request, env);
+  if (pathname === '/api/admin-applications.php' && request.method === 'POST') {
+    return deleteApplication(request, env);
+  }
   if (request.method !== 'GET') {
     return json({ error: true, message: 'Fungsi ini belum tersedia di staging.' }, 503);
   }

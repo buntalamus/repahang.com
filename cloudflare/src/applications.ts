@@ -1,4 +1,5 @@
 import { currentUser, json } from './auth';
+import { boundedJson } from './request';
 import type { Env } from './types';
 
 const APPLICATION_TYPES: Record<string, string> = {
@@ -165,4 +166,45 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
     FROM permohonan p
   `).bind(month).first();
   return json({ error: false, applications: rows.results, statistics: stats });
+}
+
+/** Retain match history when an Admin removes an annual application. */
+export async function deleteApplication(request: Request, env: Env): Promise<Response> {
+  const user = await currentUser(request, env);
+  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (user.role !== 'Admin') {
+    return json({ error: true, message: 'Akses ditolak. Hanya admin boleh mengakses.' }, 403);
+  }
+  if (env.STAGING_WRITES_ENABLED !== '1') {
+    return json({ error: true, message: 'Tindakan tulis belum tersedia di staging.' }, 503);
+  }
+  const input = await boundedJson(request);
+  if (input instanceof Response) return input;
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return json({ error: true, message: 'Data tidak sah.' }, 400);
+  }
+  const body = input as Record<string, unknown>;
+  if (body.action !== 'delete_application') {
+    return json({ error: true, message: 'Tindakan belum tersedia di staging.' }, 503);
+  }
+  const id = positiveId(String(body.id ?? ''));
+  if (id === null) return json({ error: true, message: 'ID permohonan diperlukan.' }, 400);
+  const exists = await env.DB.prepare('SELECT id FROM permohonan WHERE id=?').bind(id).first();
+  if (!exists) return json({ error: true, message: 'Permohonan tidak dijumpai.' }, 404);
+
+  // D1 batch is transactional. Detach match history before the FK cascade
+  // could remove it, then delete the application and its true child rows.
+  const results = await env.DB.batch([
+    env.DB.prepare('UPDATE perlawanan SET permohonan_id=NULL WHERE permohonan_id=?').bind(id),
+    env.DB.prepare('DELETE FROM permohonan WHERE id=?').bind(id),
+  ]);
+  if (results[1].meta.changes !== 1) {
+    return json({ error: true, message: 'Permohonan sudah diproses.' }, 409);
+  }
+  return json({
+    error: false,
+    message: 'Permohonan berjaya dipadam; rekod perlawanan dikekalkan.',
+    affected_rows: results[1].meta.changes,
+    unlinked_matches: results[0].meta.changes,
+  });
 }
