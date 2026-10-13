@@ -190,6 +190,11 @@ Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
 100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
 pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
 permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
+Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 18 daripada
+68 endpoint PHP yang disebut oleh frontend sudah mempunyai laluan Worker;
+50 masih tiada. Angka 18 ialah **laluan sahaja**, bukan bukti semua kaedah
+GET/POST dan semua peranan sudah setara. Jangan buka log masuk staging atau
+alih domain sehingga matriks fungsi ini dan ujian integrasi selesai.
 
 ## Semua tetapan emel semasa
 
