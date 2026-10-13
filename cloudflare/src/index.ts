@@ -1,4 +1,5 @@
 import { currentUser, json, login, logout, session } from './auth';
+import { adminUsers } from './admin-users';
 import { adminApplications, applicationHistory, applicationSettings, deleteApplication } from './applications';
 import type { Env } from './types';
 
@@ -156,6 +157,7 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/application-settings.php') return applicationSettings(request, env);
   if (pathname === '/api/pengadil-application-history.php') return applicationHistory(request, env);
   if (pathname === '/api/admin-applications.php') return adminApplications(request, env);
+  if (pathname === '/api/admin-users.php') return adminUsers(request, env);
   return json({ error: true, message: 'Fungsi ini belum tersedia di staging.' }, 503);
 }
 

@@ -158,6 +158,7 @@ Deployment staging berada di
 lengkap. Endpoint yang sudah dipindahkan: pengumuman awam, status pendaftaran,
 persatuan awam, log masuk/sesi/log keluar, daerah, profil pengguna, tetapan
 permohonan, sejarah permohonan milik sendiri, senarai permohonan Admin,
+senarai/kiraan/profil pengguna khusus Admin (tanpa hash kata laluan),
 semakan penyelenggaraan, dan muat turun media terhad kepada pemilik/Admin.
 Tindakan Admin `delete_application` turut disediakan tetapi dikunci oleh
 `STAGING_WRITES_ENABLED=0` pada Worker staging. Ujian tempatan D1 mengesahkan
