@@ -6,7 +6,7 @@
     "typecheck": "tsc --noEmit",
     "build:frontend": "npm --prefix ../frontend run build:prod",
     "dev": "wrangler dev",
-    "deploy:staging": "wrangler deploy"
+    "deploy:staging": "npm run typecheck && npm run build:frontend && wrangler deploy"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3"

@@ -32,8 +32,9 @@ staging; aplikasi production, DNS, peti masuk dan penghantaran emel belum diubah
   tugas berkala perlu dialih ke kod Worker.
 - `uploads/` tempatan berukuran 328 MB dengan 763 fail. Audit silang dump
   mengenal pasti 584 laluan fail tempatan unik yang dirujuk, tetapi 74 tiada
-  dalam salinan `uploads/` ini. Kebanyakannya logo; bahan production yang
-  lengkap perlu dikumpul dan dibandingkan sebelum salinan R2 diterima.
+  dalam salinan `uploads/` ini. Kesemua 74 kemudian diperoleh daripada
+  pelayan production dan disimpan dalam R2 private. 42 pautan resit Google
+  Drive kekal sebagai pautan luar; ia tidak termasuk dalam salinan R2.
 - PDF TCPDF dan lampiran borang R1/R2/R4 perlu dibina semula dan diuji di
   Worker. Penghantaran borang berlampiran juga perlu ikut had penyedia emel.
 
@@ -135,26 +136,42 @@ Bucket private `refpahang-staging-20261013-media` telah menerima 761 fail
 tempatan dengan jumlah 341,976,988 bait. Manifest per fail dalam
 `output/cloudflare/r2-media-upload-manifest.json` menyimpan saiz dan SHA-256;
 tiada ralat muat naik. Tiga objek R2 yang dimuat turun semula mempunyai SHA-256
-sepadan dengan sumber. Jalankan semula
+sepadan dengan sumber. Sebanyak 74 fail tambahan (28,769,132 bait) yang tiada
+dalam `uploads/` tempatan diperoleh daripada URL tepat dalam dump di
+`https://refpahang.com/uploads/`, disahkan sebagai imej/PDF, lalu dimuat naik
+ke R2. Tiga fail pemulihan yang dimuat turun semula juga sepadan SHA-256.
+Sandaran private fail ini ialah
+`output/cloudflare/refpahang_recovered_74_media.zip`; manifest berasingan
+menyimpan checksum. Jumlah objek staging kini **835**. Jalankan semula
 `python3 cloudflare/sync_media.py --bucket refpahang-staging-20261013-media`
-untuk menyambung muat naik yang terganggu. Ini belum menyelesaikan 74 laluan
-yang dirujuk oleh pangkalan data tetapi tidak wujud dalam `uploads/` tempatan.
+untuk menyambung salinan tempatan, atau jalankan
+`python3 cloudflare/recover_missing_media.py --snapshot output/cloudflare/refpahang_2026-10-13_hanafi51.sqlite --bucket refpahang-staging-20261013-media`
+untuk salinan tambahan jika sumber production masih wujud. Fail luaran Google
+Drive belum dipindahkan ke R2.
 
 ## Worker staging
 
 `cloudflare/wrangler.jsonc` mengikat D1 staging, R2 private dan aset Angular.
+Deployment staging berada di
+`https://refpahang-staging-20261013.buntalamus2.workers.dev`.
 `STAGING_AUTH_ENABLED=0` mengunci log masuk serta media ketika port API belum
 lengkap. Endpoint yang sudah dipindahkan: pengumuman awam, status pendaftaran,
-persatuan awam, log masuk/sesi/log keluar, daerah, profil pengguna, semakan
-penyelenggaraan, dan muat turun media terhad kepada sesi. Laluan API lain
+persatuan awam, log masuk/sesi/log keluar, daerah, profil pengguna, tetapan
+permohonan, sejarah permohonan milik sendiri, senarai permohonan Admin,
+semakan penyelenggaraan, dan muat turun media terhad kepada pemilik/Admin.
+Laluan API lain
 menjawab 503 secara jelas. Ini **bukan** pengganti production yang boleh
 digunakan untuk permohonan, lantikan, PDF atau emel.
 
 Ujian tempatan dengan pengguna sintetik membuktikan kata laluan bcrypt PHP,
-sesi D1, profil, peranan Admin, log keluar dan had saiz permintaan. Pengguna
+sesi D1, profil, peranan Admin dan Pengadil, tetapan, sejarah milik sendiri,
+senarai Admin, penolakan rekod/fail milik orang lain, log keluar dan had saiz
+permintaan. Pengguna
 sintetik sudah dipadam daripada D1 tempatan; ia tidak pernah diimport ke D1
-jauh. Build Angular production dan typecheck Worker lulus. Pengesahan fungsi
-semua peranan dan laluan belum selesai.
+jauh. Build Angular production dan typecheck Worker lulus. Semakan HTTP pada
+Worker sebenar: aset dan API awam 200, API belum dipindahkan 503, media private
+tanpa sesi 401, mod penyelenggaraan aktif. Pengesahan fungsi semua peranan dan
+laluan belum selesai.
 
 ## Semua tetapan emel semasa
 
@@ -206,6 +223,10 @@ Email Service. Jika SMTP lama dipilih sebagai pengangkutan, tambah
 Tambah `--activate` hanya selepas Worker staging wujud untuk menerbitkan
 secret pada Worker staging aktif; tanpa pilihan ini, versi secret disediakan
 tetapi belum dideploy. Tiada nilai rahsia ditulis ke fail atau argumen shell.
+Pada 13 Oktober, semua **18 nama secret** SMTP lama termasuk lima identiti
+penghantar telah dipasang pada Worker staging aktif dengan `BASE_URL` menunjuk
+ke alamat `workers.dev` di atas. Nilai rahsia tidak dicatat dalam Git, log
+atau dokumen. Penyimpanan ini belum menghidupkan penghantaran emel.
 `cloudflare/mail.ts`
 menyediakan pemetaan kelima-lima penghantar untuk API Email Service serta
 lampiran dan imej inline. Ia belum disambung kepada endpoint Worker, maka

@@ -1,4 +1,5 @@
 import { currentUser, json, login, logout, session } from './auth';
+import { adminApplications, applicationHistory, applicationSettings } from './applications';
 import type { Env } from './types';
 
 function isSameOrigin(request: Request): boolean {
@@ -77,7 +78,8 @@ async function userProfile(request: Request, env: Env): Promise<Response> {
 }
 
 async function privateMedia(request: Request, env: Env, pathname: string): Promise<Response> {
-  if (!await currentUser(request, env)) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  const user = await currentUser(request, env);
+  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
   let key: string;
   try {
     key = decodeURIComponent(pathname.slice('/uploads/'.length));
@@ -86,6 +88,37 @@ async function privateMedia(request: Request, env: Env, pathname: string): Promi
   }
   if (!key || key.includes('\\') || key.split('/').some((part) => part === '..' || part === '.')) {
     return json({ error: true, message: 'Laluan fail tidak sah.' }, 400);
+  }
+  if (user.role !== 'Admin') {
+    const reference = `/uploads/${key}`;
+    const allowed = await env.DB.prepare(`
+      SELECT 1 FROM users WHERE id=? AND url_gambar_profil IN (?, ?, ?)
+      UNION ALL
+      SELECT 1 FROM permohonan WHERE user_id=? AND (
+        url_resit IN (?, ?, ?) OR url_gambar_profil IN (?, ?, ?)
+        OR payment_receipt_url IN (?, ?, ?)
+      )
+      UNION ALL
+      SELECT 1 FROM permohonan_pp WHERE user_id=? AND (
+        resit_pembayaran_path IN (?, ?, ?) OR resit_path IN (?, ?, ?)
+      )
+      UNION ALL
+      SELECT 1 FROM penilai_permohonan pen
+      JOIN permohonan p ON p.id=pen.permohonan_id
+      WHERE p.user_id=? AND (
+        pen.sijil_kursus_url IN (?, ?, ?) OR pen.sijil_kesihatan_url IN (?, ?, ?)
+      ) LIMIT 1
+    `).bind(
+      user.id, reference, reference.slice(1), key,
+      user.id, reference, reference.slice(1), key,
+      reference, reference.slice(1), key,
+      reference, reference.slice(1), key,
+      user.id, reference, reference.slice(1), key,
+      reference, reference.slice(1), key,
+      user.id, reference, reference.slice(1), key,
+      reference, reference.slice(1), key,
+    ).first();
+    if (!allowed) return json({ error: true, message: 'Akses ditolak.' }, 403);
   }
   const object = request.method === 'HEAD' ? await env.MEDIA.head(key) : await env.MEDIA.get(key);
   if (!object) return json({ error: true, message: 'Fail tidak dijumpai.' }, 404);
@@ -117,6 +150,9 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/public-persatuan.php') return publicPersatuan(env);
   if (pathname === '/api/districts.php') return districts(request, env);
   if (pathname === '/api/get-user-profile.php') return userProfile(request, env);
+  if (pathname === '/api/application-settings.php') return applicationSettings(request, env);
+  if (pathname === '/api/pengadil-application-history.php') return applicationHistory(request, env);
+  if (pathname === '/api/admin-applications.php') return adminApplications(request, env);
   return json({ error: true, message: 'Fungsi ini belum tersedia di staging.' }, 503);
 }
 
