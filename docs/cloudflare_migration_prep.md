@@ -160,6 +160,14 @@ persatuan awam, log masuk/sesi/log keluar, daerah, profil pengguna, tetapan
 permohonan, sejarah permohonan milik sendiri, senarai permohonan Admin,
 senarai/kiraan/profil pengguna khusus Admin (tanpa hash kata laluan),
 semakan penyelenggaraan, dan muat turun media terhad kepada pemilik/Admin.
+Staging juga mempunyai bacaan perlawanan Pengadil, senarai permohonan milik
+sendiri, notifikasi, pengumuman dan tugasan lantikan. Respons perlawanan
+mengekalkan had 100 rekod setiap halaman seperti API PHP; salinan setempat
+Hanafi mempunyai 51 perlawanan bertarikh 2026 (71 sepanjang tahun lain).
+Penandaan notifikasi sebagai dibaca sudah dipindahkan tetapi dikunci oleh
+`STAGING_WRITES_ENABLED=0`. Bacaan tugasan masih belum menjalankan auto-tolak
+lantikan tamat tempoh atau cuba semula emel/Telegram; kedua-duanya memerlukan
+Worker berjadual sebelum staging boleh menerima pengguna sebenar.
 Tindakan Admin `delete_application` turut disediakan tetapi dikunci oleh
 `STAGING_WRITES_ENABLED=0` pada Worker staging. Ujian tempatan D1 mengesahkan
 pemadaman permohonan melepaskan `perlawanan.permohonan_id` dahulu dalam satu
@@ -178,6 +186,10 @@ jauh. Build Angular production dan typecheck Worker lulus. Semakan HTTP pada
 Worker sebenar: aset dan API awam 200, API belum dipindahkan 503, media private
 tanpa sesi 401, mod penyelenggaraan aktif. Pengesahan fungsi semua peranan dan
 laluan belum selesai.
+Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
+100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
+pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
+permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
 
 ## Semua tetapan emel semasa
 

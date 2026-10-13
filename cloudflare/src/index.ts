@@ -1,6 +1,9 @@
 import { currentUser, json, login, logout, session } from './auth';
 import { adminUsers } from './admin-users';
+import { appointments } from './appointments';
 import { adminApplications, applicationHistory, applicationSettings, deleteApplication } from './applications';
+import { announcements, notifications } from './notifications';
+import { ownApplications, refereeMatches } from './referee';
 import type { Env } from './types';
 
 function isSameOrigin(request: Request): boolean {
@@ -141,6 +144,9 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/admin-applications.php' && request.method === 'POST') {
     return deleteApplication(request, env);
   }
+  if (pathname === '/api/notifications.php' && request.method === 'POST') {
+    return notifications(request, env);
+  }
   if (request.method !== 'GET') {
     return json({ error: true, message: 'Fungsi ini belum tersedia di staging.' }, 503);
   }
@@ -158,6 +164,11 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/pengadil-application-history.php') return applicationHistory(request, env);
   if (pathname === '/api/admin-applications.php') return adminApplications(request, env);
   if (pathname === '/api/admin-users.php') return adminUsers(request, env);
+  if (pathname === '/api/pengadil-matches.php') return refereeMatches(request, env);
+  if (pathname === '/api/pengadil-application.php') return ownApplications(request, env);
+  if (pathname === '/api/notifications.php') return notifications(request, env);
+  if (pathname === '/api/announcements.php') return announcements(request, env);
+  if (pathname === '/api/tugasan.php') return appointments(request, env);
   return json({ error: true, message: 'Fungsi ini belum tersedia di staging.' }, 503);
 }
 
