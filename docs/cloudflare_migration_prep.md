@@ -171,6 +171,10 @@ Worker berjadual sebelum staging boleh menerima pengguna sebenar.
 Profil serta kiraan tugas/statistik papan pemuka Admin juga membaca D1.
 Kiraan permohonan menunggu menggunakan `status_workflow`, iaitu medan yang
 digunakan oleh aliran permohonan dan kiraan tugas sedia ada.
+Papan pemuka RA dan gambaran keseluruhan PP Daerah kini mempunyai laluan
+bacaan D1; senarai pengumuman PP juga tersedia. Kiraan PP masih mengikut
+persatuan/daerah pegawai, termasuk pengelompokan rekod perlawanan yang sama.
+Admin yang juga RA boleh membaca papan pemuka RA miliknya sendiri.
 Tindakan Admin `delete_application` turut disediakan tetapi dikunci oleh
 `STAGING_WRITES_ENABLED=0` pada Worker staging. Ujian tempatan D1 mengesahkan
 pemadaman permohonan melepaskan `perlawanan.permohonan_id` dahulu dalam satu
@@ -193,9 +197,9 @@ Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
 100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
 pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
 permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
-Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 21 daripada
+Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 24 daripada
 68 endpoint PHP yang disebut oleh frontend sudah mempunyai laluan Worker;
-47 masih tiada. Angka 21 ialah **laluan sahaja**, bukan bukti semua kaedah
+44 masih tiada. Angka 24 ialah **laluan sahaja**, bukan bukti semua kaedah
 GET/POST dan semua peranan sudah setara. Jangan buka log masuk staging atau
 alih domain sehingga matriks fungsi ini dan ujian integrasi selesai.
 

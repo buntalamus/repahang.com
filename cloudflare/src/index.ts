@@ -5,6 +5,7 @@ import { appointments } from './appointments';
 import { adminApplications, applicationHistory, applicationSettings, deleteApplication } from './applications';
 import { announcements, notifications } from './notifications';
 import { ownApplications, refereeMatches } from './referee';
+import { assessorDashboard, districtAnnouncements, districtOverview } from './role-dashboards';
 import type { Env } from './types';
 
 function isSameOrigin(request: Request): boolean {
@@ -173,6 +174,9 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/notifications.php') return notifications(request, env);
   if (pathname === '/api/announcements.php') return announcements(request, env);
   if (pathname === '/api/tugasan.php') return appointments(request, env);
+  if (pathname === '/api/penilai-dashboard.php') return assessorDashboard(request, env);
+  if (pathname === '/api/pp-announcements.php') return districtAnnouncements(request, env);
+  if (pathname === '/api/pp-dashboard-overview.php') return districtOverview(request, env);
   return json({ error: true, message: 'Fungsi ini belum tersedia di staging.' }, 503);
 }
 
