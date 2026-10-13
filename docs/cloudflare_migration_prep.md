@@ -1,7 +1,9 @@
 # Persediaan migrasi RefPahang ke Cloudflare
 
 Tarikh audit: 13 Oktober 2026. Ini ialah inventori dan alat persediaan untuk
-staging; aplikasi production, DNS, peti masuk dan penghantaran emel belum diubah.
+staging. DNS kini diurus oleh Cloudflare dan rekod hos emel telah dibetulkan;
+aplikasi production masih berjalan pada pelayan PHP lama. Peti masuk dan
+penghantaran emel belum dipindahkan ke Worker.
 
 ## Sumber data yang dipilih
 
@@ -266,14 +268,30 @@ dipindahkan dan diuji; Email Service mengehadkan jumlah mesej bersama lampiran
 kepada 5 MiB untuk penerima biasa.
 
 Email Service Cloudflare menggunakan binding `send_email` dan memerlukan domain
-berada pada Cloudflare DNS. Semasa audit, NS masih `ns1.awedns.com` dan
-`ns2.awedns.com`, MX `0 refpahang.com`, dan kedua-dua `refpahang.com` serta
-`mail.refpahang.com` menunjuk `101.99.77.148`. Rekod SPF semasa mengizinkan
-pelayan lama/mailsentinel; DMARC ialah `p=none`. Sebelum pertukaran DNS,
-inventori DNS penuh termasuk DKIM perlu diambil. MX mesti kekal menuju pelayan
-mel sedia ada melalui rekod DNS yang sesuai ketika laman web dialih; jangan
-mematikan peti masuk lama. MX semasa menunjuk ke domain utama, jadi sasaran
-MX perlu dipisahkan daripada hos web yang bakal diproksi sebelum cutover.
+berada pada Cloudflare DNS. Pada 13 Oktober, NS aktif ialah
+`odin.ns.cloudflare.com` dan `raegan.ns.cloudflare.com`. Import DNS asal
+menjadikan `mail.refpahang.com` CNAME yang diproksi ke domain utama;
+sambungan SMTP ke port 465 melalui nama hos itu gagal. Rekod tersebut telah
+ditukar kepada `A mail -> 101.99.77.148` dengan status **DNS only**, dan
+`MX @ -> mail.refpahang.com` (keutamaan 0). Kedua-dua nameserver autoritatif
+dan resolver 1.1.1.1/8.8.8.8 mengembalikan sasaran MX baharu. Sambungan SMTP
+465 serta pengesahan TLS untuk `mail.refpahang.com` berjaya. Login webmail
+melalui port 2096 juga mengembalikan halaman `Webmail Login`.
+
+Eksport zon sebelum dan selepas pembetulan disimpan secara private di
+`output/cloudflare/refpahang_dns_before_mail_fix_2026-10-13.txt` dan
+`output/cloudflare/refpahang_dns_after_mail_fix_2026-10-13.txt` (diabaikan
+Git). Perbezaannya hanya perubahan hos `mail`, sasaran MX, dan metadata
+eksport/SOA. Rekod SPF, DKIM dan DMARC kekal seperti sebelum ini. Ujian
+sambungan dan DNS tidak membuktikan penghantaran serta penerimaan mesej
+sebenar; ujian mesej terkawal diperlukan sebelum cutover aplikasi.
+
+`https://refpahang.com` masih memulangkan laman PHP lama melalui proksi
+Cloudflare (`x-turbo-charged-by: LiteSpeed`). Endpoint Worker
+`/api/__migration-health` memulangkan 404 pada domain production tetapi 200
+pada URL staging. Pemindahan nameserver **tidak** memasang route atau custom
+domain Worker pada laman production. Jangan route trafik production ke Worker
+staging yang masih mempunyai 44 endpoint frontend belum dipindahkan.
 
 ## Laluan staging hingga pertukaran domain
 
@@ -291,7 +309,7 @@ MX perlu dipisahkan daripada hos web yang bakal diproksi sebelum cutover.
    penolakan dan logging tanpa menghantar secara besar-besaran.
 5. Apabila staging setara, bekukan tulis sebentar, ambil dump terkini,
    migrasikan delta, semak jumlah/ID dan jalankan ujian akhir. Sediakan laluan
-   balik sebelum menukar DNS/domain. Matlamat operasi ialah `git`/IDE ->
+   balik sebelum menghalakan domain ke Worker. Matlamat operasi ialah `git`/IDE ->
    deploy Worker, tanpa ZIP cPanel.
 
 Rujukan Cloudflare: [D1 import](https://developers.cloudflare.com/d1/best-practices/import-export-data/),
