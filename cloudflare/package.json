@@ -1,0 +1,19 @@
+{
+  "name": "refpahang-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build:frontend": "npm --prefix ../frontend run build:prod",
+    "dev": "wrangler dev",
+    "deploy:staging": "wrangler deploy"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261013.1",
+    "typescript": "~5.9.3",
+    "wrangler": "4.150.0"
+  }
+}

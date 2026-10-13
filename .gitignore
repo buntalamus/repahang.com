@@ -4,6 +4,8 @@
 .env.production
 
 # Testing & Debug Files
+__pycache__/
+*.pyc
 test_*.php
 test_*.html
 test_*.json
@@ -70,6 +72,9 @@ desktop.ini
 
 # SQLite DB
 database.sqlite
+/cloudflare/.dev.vars*
+/output/cloudflare/
+/output/recovery/
 
 # Large SQL dumps (root level only)
 /if0_*.sql
@@ -122,6 +127,7 @@ composer.lock
 
 # NPM
 package-lock.json
+!/cloudflare/package-lock.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
