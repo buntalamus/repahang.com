@@ -231,6 +231,13 @@ statistik dan kod pengesahan. Ujian Worker tempatan mengesahkan respons 200
 untuk Admin, 403 tanpa sesi, 400 bagi ID tiada dan 404 bagi kejohanan tidak
 wujud; PDF cetakan tiga halaman turut diperiksa secara visual. Logo dokumen
 dibaca melalui media private apabila sesi Admin sah.
+Laluan lama `download-borang-ujian-kecergasan.php` kini menjana R4 HTML
+untuk cetak/PDF daripada permohonan D1 milik Pengadil sendiri. Musim dibaca
+daripada `tahun_permohonan`; deklarasi, kotak semakan dan ruang tandatangan
+dikekalkan. Ujian setempat mengesahkan 200 bagi pemilik, 404 bagi pengguna
+lain, 403 bagi peranan lain dan 400 bagi ID tidak sah;
+cetakan A4 dua halaman diperiksa secara visual. Ini **bukan** PDF gabungan
+R1/R2/R4 atau lampiran emel pendaftaran; laluan tersebut masih perlu dialih.
 Gambar profil dalam `users` boleh dibaca oleh pengguna yang log masuk, selaras
 dengan modal profil umum; resit permohonan pengguna lain tetap ditolak.
 Eksport CSV `download-referees-excel.php` dan `pp-export-referees.php` kini
@@ -327,16 +334,22 @@ memadankan role `Pengadil` tanpa peka huruf besar/kecil; kod PHP lama menggunaka
 di Worker jauh kerana staging masih berkunci.
 
 **Kiraan laluan frontend tidak merangkumi semua aliran production.** Enam
-endpoint yang dicapai di luar kod Angular: tiga pautan bertoken dalam
+endpoint dikenal pasti di luar kod Angular: tiga pautan bertoken dalam
 emel (`lantikan-jawab-token.php`, `penilaian-token.php`,
 `laporan-pengesahan-token.php`), webhook Telegram, dan dua borang lama yang
-boleh dibuka melalui URL terus selepas log masuk. Keenam-enamnya belum
-mempunyai laluan Worker.
+boleh dibuka melalui URL terus selepas log masuk. Satu daripada enam, iaitu
+R4 ujian kecergasan, kini mempunyai laluan Worker; lima lagi belum.
 Tugas CLI `kup-crew-notification-retry.php` juga memerlukan pengganti berjadual;
 `telegram-poll.php` ialah alat pembangunan, bukan webhook production. Oleh itu
 58/67 ialah **kehadiran laluan frontend sahaja**, bukan bukti semua kaedah
 GET/POST, peranan, emel atau pautan luaran sudah setara. Jangan buka log masuk
 staging atau alih domain sehingga matriks fungsi ini dan ujian integrasi selesai.
+
+Jawapan lantikan melalui portal, pautan emel dan Telegram berkongsi perubahan
+status, sejarah `perlawanan`, audit dan notifikasi kru KUP. Port Worker mesti
+mengekalkan kemas kini bersyarat sekali sahaja serta transaksi D1 sebelum
+ketiga-tiga saluran dibuka; menyediakan salah satu saluran secara bersendirian
+akan membolehkan keputusan bercanggah atau sejarah tidak selaras.
 
 ## Semua tetapan emel semasa
 
