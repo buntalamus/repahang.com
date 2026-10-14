@@ -478,6 +478,14 @@ binaan Angular. GET dan POST tanpa sesi menjawab 401, manakala POST dengan
 sesi Admin masih 503 mengikut ujian sintetik. Health kekal 200 dengan
 `api_complete:false`; D1 jauh kekal 370 pengguna, tiga pemetaan Pengerusi,
 sifar tugas Worker dan 51 perlawanan Hanafi 2026. Empat suis staging masih `0`.
+Commit `13125bf` menambah tindakan Admin `record_copy` dalam audit lantikan.
+Deployment staging versi `b7c5ce52-c8c6-4e5f-befc-e97278904b85` lulus
+typecheck dan binaan Angular. SQL baca serta INSERT audit disahkan pada
+salinan D1 setempat dalam transaksi yang dibatalkan selepas ujian. GET dan
+POST tanpa sesi di Worker staging menjawab 401; suis tulis staging masih `0`,
+jadi tiada log baharu daripada ujian HTTP. Health kekal 200 dengan
+`api_complete:false`; D1 jauh masih 370 pengguna dan 51 perlawanan Hanafi
+2026. Domain production masih PHP LiteSpeed.
 
 ## Semua tetapan emel semasa
 
