@@ -33,6 +33,34 @@ export interface EmailEnv {
   MAIL_PENGESAHAN_NAME: string;
 }
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[character] ?? character);
+}
+
+/** Shared, escaped template for transactional messages. */
+export function buildRefpahangEmail(
+  title: string,
+  recipientName: string,
+  paragraphs: string[],
+  action?: { label: string; url: string },
+): { html: string; text: string } {
+  const safeTitle = escapeHtml(title);
+  const safeName = escapeHtml(recipientName);
+  const body = paragraphs.map((paragraph) =>
+    `<p style="margin:0 0 16px;color:#334155;line-height:1.6">${escapeHtml(paragraph)}</p>`,
+  ).join('');
+  const button = action ? `<p style="margin:24px 0;text-align:center"><a href="${escapeHtml(action.url)}" style="display:inline-block;background:#111827;color:#fada00;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700">${escapeHtml(action.label)}</a></p>` : '';
+  const link = action ? `<p style="color:#64748b;font-size:12px;word-break:break-all">Jika butang tidak berfungsi, salin pautan ini: ${escapeHtml(action.url)}</p>` : '';
+  return {
+    html: `<div style="background:#f8fafc;padding:24px;font-family:Arial,sans-serif"><div style="max-width:600px;margin:auto;background:white;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden"><div style="background:#111827;color:#fada00;padding:20px 24px;font-size:18px;font-weight:700">Sistem Pengadil Pahang</div><div style="padding:24px"><h1 style="font-size:20px;color:#111827;margin:0 0 20px">${safeTitle}</h1><p style="margin:0 0 16px;color:#334155">Salam <strong>${safeName}</strong>,</p>${body}${button}${link}</div><div style="border-top:1px solid #e2e8f0;padding:16px 24px;color:#64748b;font-size:12px">Emel automatik Sistem Pengadil Pahang.</div></div></div>`,
+    text: [title, `Salam ${recipientName},`, ...paragraphs,
+      ...(action ? [`${action.label}: ${action.url}`] : []),
+      'Emel automatik Sistem Pengadil Pahang.'].join('\n\n'),
+  };
+}
+
 export async function sendRefpahangEmail(
   env: EmailEnv,
   type: MailType,

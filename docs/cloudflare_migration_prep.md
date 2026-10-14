@@ -203,9 +203,9 @@ Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
 100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
 pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
 permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
-Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 33 daripada
+Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 35 daripada
 67 endpoint PHP sebenar yang disebut oleh frontend sudah mempunyai laluan Worker;
-34 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
+32 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
 dikecualikan kerana ia bukan API. Dua laluan GET laporan penilaian turut
 dipindahkan: Pengadil
 boleh melihat laporan yang disahkan bagi lantikan sendiri, manakala PP Daerah
@@ -229,7 +229,14 @@ yang boleh dibaca PHP, penolakan kata laluan lama selepas tukar, kemas kini
 `password_changed` pada sesi aktif, kawalan asal permintaan dan kunci tulis
 staging. Togol taraf Pengadil Admin turut menggunakan D1 dan disekat oleh
 kunci tulis staging; ujian setempat mengesahkan kawalan peranan, input,
-deduplikasi ID dan tiga kolum taraf yang bebas. Angka 33
+deduplikasi ID dan tiga kolum taraf yang bebas. Laluan lupa/tetap semula kata
+laluan kini menggunakan token rawak yang disimpan sebagai SHA-256 dalam D1,
+had tiga token aktif sejam, emel template seragam, token sekali pakai dan
+penamatan sesi aktif selepas kata laluan ditukar. Ujian D1 setempat mengesahkan
+token sah/tamat tempoh/diguna semula, hash serasi PHP, had permintaan,
+penyamaran kewujudan akaun dan emel yang ditangkap oleh Miniflare. **Tiada
+emel production dihantar atau disahkan diterima.** Kedua-dua laluan ini kekal
+503 apabila staging dikunci. Angka 35
 ialah **laluan sahaja**, bukan bukti semua kaedah
 GET/POST dan semua peranan sudah setara. Jangan buka log masuk staging atau
 alih domain sehingga matriks fungsi ini dan ujian integrasi selesai.
@@ -304,10 +311,12 @@ ia akan menukar MX peti masuk. Cloudflare Email Sending hanya mengendalikan
 emel keluar dan bounce pada subdomainnya sendiri.
 
 `cloudflare/mail.ts` menyediakan pemetaan kelima-lima penghantar untuk API
-Email Service serta lampiran dan imej inline. Ia belum disambung kepada
-endpoint Worker, maka tiada emel akan terkirim oleh persediaan ini. Menyimpan
-tetapan dan binding pada Worker belum mengalihkan peti masuk atau sejarah
-emel. Templat sedia ada masih perlu dipindahkan dan diuji; Email Service
+Email Service serta lampiran dan imej inline. Endpoint lupa kata laluan kini
+menggunakannya bersama template seragam dan pautan daripada `BASE_URL`.
+Kedua-dua suis staging kekal `0`, jadi endpoint ini menjawab 503 dan belum
+menghantar emel sebenar. Menyimpan tetapan dan binding pada Worker belum
+mengalihkan peti masuk atau sejarah emel. Templat untuk aliran emel lain masih
+perlu dipindahkan dan diuji; Email Service
 mengehadkan jumlah mesej bersama lampiran kepada 5 MiB untuk penerima biasa.
 Tiada emel sebenar dihantar semasa persediaan ini.
 
@@ -335,7 +344,7 @@ Cloudflare (`x-turbo-charged-by: LiteSpeed`). Endpoint Worker
 `/api/__migration-health` memulangkan 404 pada domain production tetapi 200
 pada URL staging. Pemindahan nameserver **tidak** memasang route atau custom
 domain Worker pada laman production. Jangan route trafik production ke Worker
-staging yang masih mempunyai 34 endpoint frontend belum dipindahkan.
+staging yang masih mempunyai 32 endpoint frontend belum dipindahkan.
 
 ## Laluan staging hingga pertukaran domain
 

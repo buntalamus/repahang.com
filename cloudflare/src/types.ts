@@ -1,8 +1,10 @@
-export interface Env {
+import type { EmailEnv } from '../mail';
+
+export interface Env extends EmailEnv {
   DB: D1Database;
   MEDIA: R2Bucket;
   ASSETS: Fetcher;
-  EMAIL: import('../mail').EmailEnv['EMAIL'];
+  BASE_URL: string;
   STAGING_AUTH_ENABLED: string;
   STAGING_WRITES_ENABLED: string;
 }
