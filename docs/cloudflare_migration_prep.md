@@ -203,9 +203,9 @@ Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
 100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
 pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
 permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
-Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 52 daripada
+Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 53 daripada
 67 endpoint PHP sebenar yang disebut oleh frontend sudah mempunyai laluan Worker;
-15 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
+14 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
 dikecualikan kerana ia bukan API. Dua laluan GET laporan penilaian turut
 dipindahkan: Pengadil
 boleh melihat laporan yang disahkan bagi lantikan sendiri, manakala PP Daerah
@@ -282,8 +282,15 @@ penambahan/pemadaman sintetik, kawalan peranan, had 14 hari, pegawai aktif,
 serta sekatan ubah/padam rekod rasmi atau yang telah disahkan. Sebagai
 perlindungan integriti, suntingan rekod berkumpulan perlu melalui pentadbir.
 Rekod sintetik dibersihkan dan 51 perlawanan Hanafi 2026 kekal.
+Statistik Admin juga kini dijana daripada D1 untuk permohonan, Pengadil
+Berdaftar, ujian, perlawanan, penilaian, Telegram, lantikan dan kejohanan.
+Semakan setempat bagi tahun 2026, 2027 dan tahun kosong mengesahkan bentuk
+respons serta jumlah pecahan yang konsisten. Kiraan perlawanan manual kini
+memadankan role `Pengadil` tanpa peka huruf besar/kecil; kod PHP lama menggunakan
+`pengadil` huruf kecil sahaja. Laluan ini belum diuji pada sesi Admin sebenar
+di Worker jauh kerana staging masih berkunci.
 
-Angka 52
+Angka 53
 ialah **laluan sahaja**, bukan bukti semua kaedah
 GET/POST dan semua peranan sudah setara. Jangan buka log masuk staging atau
 alih domain sehingga matriks fungsi ini dan ujian integrasi selesai.
@@ -391,7 +398,7 @@ Cloudflare (`x-turbo-charged-by: LiteSpeed`). Endpoint Worker
 `/api/__migration-health` memulangkan 404 pada domain production tetapi 200
 pada URL staging. Pemindahan nameserver **tidak** memasang route atau custom
 domain Worker pada laman production. Jangan route trafik production ke Worker
-staging yang masih mempunyai 15 endpoint frontend belum dipindahkan.
+staging yang masih mempunyai 14 endpoint frontend belum dipindahkan.
 
 ## Laluan staging hingga pertukaran domain
 
