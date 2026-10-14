@@ -210,9 +210,9 @@ Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
 100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
 pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
 permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
-Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 57 daripada
+Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 58 daripada
 67 endpoint PHP sebenar yang disebut oleh frontend sudah mempunyai laluan Worker;
-10 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
+9 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
 dikecualikan kerana ia bukan API. Dua laluan GET laporan penilaian turut
 dipindahkan: Pengadil
 boleh melihat laporan yang disahkan bagi lantikan sendiri, manakala PP Daerah
@@ -224,6 +224,12 @@ profil tidak membawa `users.password` atau `tg_link_token`. Modal profil GET
 juga memaparkan sejarah perlawanan dan permohonan. Ujian setempat mengesahkan
 51 perlawanan Hanafi pada 2026, sementara maklumat hubungan serta nota Admin
 disembunyikan daripada pengguna luar daerah yang melihat profilnya.
+Cetakan `download-jadual-lantikan.php` kini menggunakan data D1 yang sama
+dengan laporan jadual Admin. HTML A4 landskap memaparkan lima jawatan, status,
+statistik dan kod pengesahan. Ujian Worker tempatan mengesahkan respons 200
+untuk Admin, 403 tanpa sesi, 400 bagi ID tiada dan 404 bagi kejohanan tidak
+wujud; PDF cetakan tiga halaman turut diperiksa secara visual. Logo dokumen
+dibaca melalui media private apabila sesi Admin sah.
 Gambar profil dalam `users` boleh dibaca oleh pengguna yang log masuk, selaras
 dengan modal profil umum; resit permohonan pengguna lain tetap ditolak.
 Eksport CSV `download-referees-excel.php` dan `pp-export-referees.php` kini
@@ -319,10 +325,16 @@ memadankan role `Pengadil` tanpa peka huruf besar/kecil; kod PHP lama menggunaka
 `pengadil` huruf kecil sahaja. Laluan ini belum diuji pada sesi Admin sebenar
 di Worker jauh kerana staging masih berkunci.
 
-Angka 53
-ialah **laluan sahaja**, bukan bukti semua kaedah
-GET/POST dan semua peranan sudah setara. Jangan buka log masuk staging atau
-alih domain sehingga matriks fungsi ini dan ujian integrasi selesai.
+**Kiraan laluan frontend tidak merangkumi semua aliran production.** Enam
+endpoint awam lain tidak disebut dalam kod Angular: tiga pautan bertoken dalam
+emel (`lantikan-jawab-token.php`, `penilaian-token.php`,
+`laporan-pengesahan-token.php`), webhook Telegram, dan dua borang lama yang
+boleh dibuka melalui URL terus. Keenam-enamnya belum mempunyai laluan Worker.
+Tugas CLI `kup-crew-notification-retry.php` juga memerlukan pengganti berjadual;
+`telegram-poll.php` ialah alat pembangunan, bukan webhook production. Oleh itu
+58/67 ialah **kehadiran laluan frontend sahaja**, bukan bukti semua kaedah
+GET/POST, peranan, emel atau pautan luaran sudah setara. Jangan buka log masuk
+staging atau alih domain sehingga matriks fungsi ini dan ujian integrasi selesai.
 
 ## Semua tetapan emel semasa
 
@@ -427,7 +439,7 @@ Cloudflare (`x-turbo-charged-by: LiteSpeed`). Endpoint Worker
 `/api/__migration-health` memulangkan 404 pada domain production tetapi 200
 pada URL staging. Pemindahan nameserver **tidak** memasang route atau custom
 domain Worker pada laman production. Jangan route trafik production ke Worker
-staging yang masih mempunyai 10 endpoint frontend belum dipindahkan.
+staging yang masih mempunyai 9 endpoint frontend belum dipindahkan.
 
 ## Laluan staging hingga pertukaran domain
 
