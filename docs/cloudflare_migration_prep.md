@@ -235,12 +235,13 @@ merekodkan salinan pautan aktif bersama snapshot lantikan dan identiti Admin
 dalam D1 apabila suis tulis diaktifkan. Ia menolak pautan tidak aktif atau
 jenis pautan salah. `prepare_links` juga menjana token yang belum wujud tanpa
 memulakan tempoh jawapan; selepas batch D1, ia membaca semula token sebenar
-sebelum menulis audit dan memulangkan pautan. Dua tindakan POST lain,
-`mark_manual_delivery` dan `admin_override_acceptance`, masih menjawab 503
-sehingga transaksi, audit dan notifikasinya dipindahkan lengkap. Audit
-`prepare_links` masih ditulis selepas batch token, jadi operasi itu belum
-menyamai transaksi tunggal MySQL jika kegagalan berlaku tepat di antara kedua
-langkah tersebut; ia perlu disatukan sebelum suis tulis dibuka.
+dan memulangkan pautan. Token dan audit ditulis dalam batch D1 yang sama.
+`mark_manual_delivery` kini merekodkan penghantaran manual dan, bagi lantikan,
+memulakan tempoh jawapan sekali sahaja dalam transaksi bersama audit. Tindakan
+`admin_override_acceptance` masih menjawab 503 sehingga sejarah perlawanan,
+audit dan notifikasinya dipindahkan lengkap. Audit
+`prepare_links` menyimpan pautan yang terhasil daripada token sebenar dalam
+transaksi tersebut.
 `kejohanan-pengesah-laporan.php` pula menyediakan GET khusus Admin untuk
 kejohanan, calon RA, pengerusi semasa dan audit tanpa mendedahkan ID Telegram.
 POST menetapkan pengerusi masih 503 kerana aliran itu juga perlu menyediakan

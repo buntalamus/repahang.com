@@ -133,7 +133,20 @@ function randomHex(bytes = 32): string {
 async function prepareLinks(request: Request, env: Env, actorId: number, id: number): Promise<Response> {
   const before = await loadSnapshot(env,id);
   if (!before) return json({error:true,message:'Lantikan tidak dijumpai.'},404);
-  await env.DB.batch([
+  const base = env.BASE_URL.replace(/\/$/,'');
+  const emailPrefix = `${base}/api/lantikan-jawab-token.php?token=`;
+  const raPrefix = `${base}/penilaian-borang.html?token=`;
+  const telegramPrefix = env.TELEGRAM_BOT_USERNAME
+    ? `https://t.me/${encodeURIComponent(env.TELEGRAM_BOT_USERNAME.replace(/^@/,''))}?start=` : null;
+  const email = (action: 'accept' | 'reject') =>
+    `CASE WHEN lp.status='Belum Jawab' AND trim(COALESCE(lp.email_token,''))<>''
+      THEN ? || lp.email_token || '&action=${action}' END`;
+  const ra = `CASE WHEN lp.status='Diterima' AND lp.jawatan='Penilai Pengadil'
+    AND trim(COALESCE(lp.penilaian_token,''))<>'' THEN ? || lp.penilaian_token END`;
+  const telegram = `CASE WHEN COALESCE(u.telegram_chat_id,pl.telegram_chat_id) IS NULL
+    AND trim(COALESCE(u.tg_link_token,pl.tg_link_token,''))<>''
+    THEN ? || COALESCE(u.tg_link_token,pl.tg_link_token) END`;
+  const changes = await env.DB.batch([
     env.DB.prepare(`
       UPDATE lantikan_pengadil SET email_token=?
       WHERE id=? AND status='Belum Jawab' AND trim(COALESCE(email_token,''))=''
@@ -148,16 +161,108 @@ async function prepareLinks(request: Request, env: Env, actorId: number, id: num
       WHERE id=? AND status='Diterima' AND jawatan='Penilai Pengadil'
         AND trim(COALESCE(penilaian_token,''))=''
     `).bind(randomHex(),id),
+    env.DB.prepare(`
+      INSERT INTO lantikan_audit_log (
+        event_key,lantikan_id,jadual_id,kejohanan_id,pengadil_id,pengadil_luar_id,
+        jawatan,nama_pegawai,emel_pegawai,no_telefon_pegawai,event_type,channel,
+        event_status,link_url,details_json,actor_type,actor_user_id,ip_address,user_agent,created_at
+      )
+      SELECT NULL,lp.id,lp.jadual_id,jp.kejohanan_id,lp.pengadil_id,lp.pengadil_luar_id,
+        lp.jawatan,COALESCE(u.nama_penuh,pl.nama,''),COALESCE(u.email,pl.emel,''),
+        COALESCE(u.no_telefon,pl.no_tel,''),'direct_links_prepared','manual','success',
+        COALESCE(${email('accept')},${ra},${telegram}),
+        json_object('accept_url',${email('accept')},'reject_url',${email('reject')},
+          'ra_form_url',${ra},'telegram_link_url',${telegram}),
+        'admin',?,?,?,datetime('now','+8 hours')
+      FROM lantikan_pengadil lp
+      JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id
+      LEFT JOIN users u ON u.id=lp.pengadil_id
+      LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
+      WHERE lp.id=?
+    `).bind(emailPrefix,raPrefix,telegramPrefix,
+      emailPrefix,emailPrefix,raPrefix,telegramPrefix,
+      actorId,request.headers.get('CF-Connecting-IP'),
+      request.headers.get('User-Agent')?.slice(0,255) ?? null,id),
   ]);
+  if (changes[3].meta.changes !== 1) {
+    return json({error:true,message:'Lantikan berubah semasa menyediakan pautan.'},409);
+  }
   const after = await loadSnapshot(env,id);
   if (!after) return json({error:true,message:'Lantikan berubah semasa menyediakan pautan.'},409);
-  const links = activeLinks(env,after);
-  await insertAudit(request,env,actorId,after,'direct_links_prepared',links,
-    links.accept_url ?? links.ra_form_url ?? links.telegram_link_url);
   const data = await auditData(env,id,after);
   return json({error:false,
     message:'Pautan aktif disediakan. Tempoh jawapan belum bermula sehingga penghantaran ditandakan.',
     data});
+}
+
+async function markManualDelivery(request: Request, env: Env, actorId: number,
+  body: Record<string,unknown>, id: number): Promise<Response> {
+  const deliveryType = body.delivery_type === undefined ? 'appointment' : body.delivery_type;
+  if (deliveryType !== 'appointment' && deliveryType !== 'ra_form' && deliveryType !== 'telegram_link') {
+    return json({error:true,message:'Jenis penghantaran manual tidak sah.'},400);
+  }
+  const snapshot = await loadSnapshot(env,id);
+  if (!snapshot) return json({error:true,message:'Lantikan tidak dijumpai.'},404);
+  const link = activeLinks(env,snapshot)[deliveryType === 'appointment' ? 'accept_url'
+    : deliveryType === 'ra_form' ? 'ra_form_url' : 'telegram_link_url'];
+  if (!link) {
+    return json({error:true,message:deliveryType === 'appointment'
+      ? 'Pautan lantikan aktif belum tersedia.' : 'Pautan aktif tidak tersedia untuk ditandakan.'},409);
+  }
+  if (deliveryType === 'appointment' && Number(snapshot.notif_hantar ?? 0) !== 0) {
+    return json({error:true,
+      message:'Tempoh jawapan lantikan ini sudah bermula. Gunakan tindakan hantar semula jika benar-benar perlu.'},409);
+  }
+  const prefix = deliveryType === 'appointment'
+    ? `${env.BASE_URL.replace(/\/$/,'')}/api/lantikan-jawab-token.php?token=`
+    : deliveryType === 'ra_form'
+      ? `${env.BASE_URL.replace(/\/$/,'')}/penilaian-borang.html?token=`
+      : `https://t.me/${encodeURIComponent((env.TELEGRAM_BOT_USERNAME ?? '').replace(/^@/,''))}?start=`;
+  const linkExpression = deliveryType === 'appointment'
+    ? "? || lp.email_token || '&action=accept'"
+    : deliveryType === 'ra_form'
+      ? '? || lp.penilaian_token' : '? || COALESCE(u.tg_link_token,pl.tg_link_token)';
+  const guard = deliveryType === 'appointment'
+    ? "lp.status='Belum Jawab' AND trim(COALESCE(lp.email_token,''))<>'' AND changes()=1"
+    : deliveryType === 'ra_form'
+      ? "lp.status='Diterima' AND lp.jawatan='Penilai Pengadil' AND trim(COALESCE(lp.penilaian_token,''))<>''"
+      : "COALESCE(u.telegram_chat_id,pl.telegram_chat_id) IS NULL AND trim(COALESCE(u.tg_link_token,pl.tg_link_token,''))<>''";
+  const audit = env.DB.prepare(`
+    INSERT INTO lantikan_audit_log (
+      event_key,lantikan_id,jadual_id,kejohanan_id,pengadil_id,pengadil_luar_id,
+      jawatan,nama_pegawai,emel_pegawai,no_telefon_pegawai,event_type,channel,
+      event_status,link_url,details_json,actor_type,actor_user_id,ip_address,user_agent,created_at
+    )
+    SELECT NULL,lp.id,lp.jadual_id,jp.kejohanan_id,lp.pengadil_id,lp.pengadil_luar_id,
+      lp.jawatan,COALESCE(u.nama_penuh,pl.nama,''),COALESCE(u.email,pl.emel,''),
+      COALESCE(u.no_telefon,pl.no_tel,''),'manual_delivery_confirmed','manual','success',
+      ${linkExpression},json_object('delivery_type',?,'deadline_started',json(?)),
+      'admin',?,?,?,datetime('now','+8 hours')
+    FROM lantikan_pengadil lp
+    JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id
+    LEFT JOIN users u ON u.id=lp.pengadil_id
+    LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
+    WHERE lp.id=? AND ${guard}
+  `).bind(prefix,deliveryType,deliveryType === 'appointment' ? 'true' : 'false',actorId,
+    request.headers.get('CF-Connecting-IP'),request.headers.get('User-Agent')?.slice(0,255) ?? null,id);
+  const results = deliveryType === 'appointment'
+    ? await env.DB.batch([
+      env.DB.prepare(`
+        UPDATE lantikan_pengadil SET notif_hantar=1,tarikh_notif=datetime('now','+8 hours')
+        WHERE id=? AND status='Belum Jawab' AND COALESCE(notif_hantar,0)=0
+          AND trim(COALESCE(email_token,''))<>''
+      `).bind(id),audit,
+    ])
+    : [await audit.run()];
+  if (deliveryType === 'appointment' && results[0].meta.changes !== 1 ||
+      results.at(-1)?.meta.changes !== 1) {
+    return json({error:true,message:'Lantikan berubah semasa penghantaran manual. Muat semula log pautan.'},409);
+  }
+  const after = await loadSnapshot(env,id);
+  if (!after) return json({error:true,message:'Lantikan berubah semasa penghantaran manual.'},409);
+  return json({error:false,message:deliveryType === 'appointment'
+    ? 'Penghantaran manual direkodkan dan tempoh jawapan bermula sekarang.'
+    : 'Penghantaran pautan manual direkodkan.',data:await auditData(env,id,after)});
 }
 
 async function auditPost(request: Request, env: Env, actorId: number): Promise<Response> {
@@ -170,13 +275,15 @@ async function auditPost(request: Request, env: Env, actorId: number): Promise<R
     return json({error:true,message:'Data tidak sah.'},400);
   }
   const body = input as Record<string,unknown>;
-  if (body.action !== 'record_copy' && body.action !== 'prepare_links') {
+  if (body.action !== 'record_copy' && body.action !== 'prepare_links'
+      && body.action !== 'mark_manual_delivery') {
     return json({error:true,message:'Tindakan audit lantikan belum tersedia di staging.'},503);
   }
   const id = positiveId(body.lantikan_id);
   if (!id) return json({error:true,message:'lantikan_id diperlukan.'},400);
-  return body.action === 'record_copy'
-    ? recordCopy(request,env,actorId,body,id) : prepareLinks(request,env,actorId,id);
+  if (body.action === 'record_copy') return recordCopy(request,env,actorId,body,id);
+  if (body.action === 'mark_manual_delivery') return markManualDelivery(request,env,actorId,body,id);
+  return prepareLinks(request,env,actorId,id);
 }
 
 async function auditData(env: Env,id: number,snapshot: Snapshot): Promise<Record<string,unknown>> {
@@ -207,7 +314,7 @@ async function auditData(env: Env,id: number,snapshot: Snapshot): Promise<Record
   };
 }
 
-/** Admin audit lookup and direct-link actions; delivery/override stay gated. */
+/** Admin audit lookup and direct-link actions; override stays gated. */
 export async function appointmentAudit(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request,env);
   if (!user) return json({error:true,message:'Sila log masuk.'},401);
