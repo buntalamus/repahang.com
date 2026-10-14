@@ -463,6 +463,11 @@ jadual menolak pengguna tanpa sesi (403), dan D1 jauh masih mempunyai 370
 pengguna serta 51 perlawanan Hanafi 2026. Domain production masih memulangkan
 pengepala LiteSpeed. Kedua-dua flag staging kekal `0`; tiada emel atau perubahan
 data production dijalankan dalam deployment ini.
+Deployment susulan daripada commit `a1c8dd3`, versi
+`ee76e304-f0e5-4185-8a80-a78cf5dfa3c6`, menambah laluan R4 lama.
+Semakan jauh mengesahkan 403 tanpa sesi, `api_complete:false`, 370 pengguna
+dan 51 perlawanan Hanafi 2026. Domain production masih melalui LiteSpeed;
+kedua-dua flag staging kekal `0`.
 
 ## Laluan staging hingga pertukaran domain
 
