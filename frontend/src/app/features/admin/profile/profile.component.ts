@@ -85,6 +85,7 @@ export class AdminProfileComponent implements OnInit {
         if (!res.error) {
           this.toast.success('Gambar profil dikemaskini.');
           this.profileImageUrl = res.data?.url || res.url || '';
+          this.profile.url_gambar_profil = this.profileImageUrl;
         } else {
           this.toast.error(res.message);
         }

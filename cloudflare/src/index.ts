@@ -13,6 +13,7 @@ import { announcements, notifications } from './notifications';
 import { activeReferees, ownApplications, refereeMatches } from './referee';
 import { refereeGrades } from './referee-grades';
 import { refereePool } from './referee-pool';
+import { updateProfile, uploadProfileImage } from './profile-write';
 import { forgotPassword, resetPassword } from './password-reset';
 import { assessorDashboard, districtAnnouncements, districtOverview } from './role-dashboards';
 import { tournaments } from './tournaments';
@@ -160,6 +161,8 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/admin-settings.php') return adminSettings(request, env);
   if (pathname === '/api/kejohanan.php') return tournaments(request, env);
   if (pathname === '/api/pool-pengadil.php') return refereePool(request, env);
+  if (pathname === '/api/update-profile.php') return updateProfile(request, env);
+  if (pathname === '/api/upload-profile-image.php') return uploadProfileImage(request, env);
   if (pathname === '/api/admin-applications.php' && request.method === 'POST') {
     return deleteApplication(request, env);
   }

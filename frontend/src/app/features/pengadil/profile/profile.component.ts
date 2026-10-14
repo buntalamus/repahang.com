@@ -98,6 +98,7 @@ export class PengadilProfileComponent implements OnInit {
         if (!res.error) {
           this.toast.success('Gambar dikemaskini.');
           this.profileImageUrl = res.data?.url || '';
+          this.profile.url_gambar_profil = this.profileImageUrl;
         } else {
           this.toast.error(res.message);
         }
