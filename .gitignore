@@ -73,7 +73,6 @@ desktop.ini
 # SQLite DB
 database.sqlite
 /cloudflare/.dev.vars*
-/cloudflare/.wrangler/
 /output/cloudflare/
 /output/recovery/
 
