@@ -213,9 +213,16 @@ Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
 100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
 pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
 permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
-Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 59 daripada
+Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 60 daripada
 67 endpoint PHP sebenar yang disebut oleh frontend sudah mempunyai laluan Worker;
-8 masih tiada. Laluan jawapan portal masih dikunci oleh tiga suis staging.
+7 masih tiada. Laluan jawapan portal masih dikunci oleh tiga suis staging.
+Laluan `lantikan-audit.php` kini menyediakan GET khusus Admin bagi ringkasan,
+pautan aktif dan 100 peristiwa audit terakhir. Tindakan POST `prepare_links`,
+`record_copy`, `mark_manual_delivery` dan `admin_override_acceptance` masih
+menjawab 503 sehingga transaksi, audit dan notifikasinya dipindahkan lengkap.
+Pautan Telegram tidak dibina pada staging tanpa `TELEGRAM_BOT_USERNAME` yang
+ditetapkan secara nyata. Ujian `npm run test:appointment-audit` meliputi peranan,
+pautan, butiran JSON dan penguncian POST.
 Rujukan dalam komen kepada `config/kriteria-penilaian.php`
 dikecualikan kerana ia bukan API. Dua laluan GET laporan penilaian turut
 dipindahkan: Pengadil
@@ -348,7 +355,7 @@ untuk **jawapan baharu Worker sahaja**; 445 rekod baris gilir PHP yang diimport
 tidak dihantar semula. Kitaran auto-tolak mempunyai implementasi cron berkunci;
 notifikasi lantikan awal masih perlu dipindahkan;
 `telegram-poll.php` ialah alat pembangunan, bukan webhook production. Oleh itu
-59/67 ialah **kehadiran laluan frontend sahaja**, bukan bukti semua kaedah
+60/67 ialah **kehadiran laluan frontend sahaja**, bukan bukti semua kaedah
 GET/POST, peranan, emel atau pautan luaran sudah setara. Jangan buka log masuk
 staging atau alih domain sehingga matriks fungsi ini dan ujian integrasi selesai.
 
