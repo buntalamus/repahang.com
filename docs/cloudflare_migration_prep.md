@@ -216,6 +216,18 @@ permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
 Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 60 daripada
 67 endpoint PHP sebenar yang disebut oleh frontend sudah mempunyai laluan Worker;
 7 masih tiada. Laluan jawapan portal masih dikunci oleh tiga suis staging.
+Daripada enam endpoint PHP awam tambahan yang tidak dipanggil terus oleh
+frontend, tiga kini mempunyai route Worker. `download-borang-futsal.php`
+memerlukan sesi Pengadil/PP Daerah/Admin dan membaca hanya permohonan Futsal
+yang diluluskan milik akaun itu. Borang R3 dicetak daripada HTML dengan jenis
+kandungan `text/html` yang betul; endpoint PHP lama memulangkan HTML tetapi
+melabelkannya `application/pdf`. Tahun diambil daripada permohonan, dan alamat
+panjang mengalir mengikut kandungan. Ujian sintetik mengesahkan kawalan akses,
+escaping dan cetakan; pertanyaan SQL juga diuji pada salinan D1 setempat.
+Dump staging belum mempunyai permohonan Futsal yang diluluskan, jadi paparan
+berjaya untuk rekod sebenar masih perlu diuji apabila rekod yang sesuai wujud.
+Ini belum menghasilkan fail PDF binari secara langsung; pengguna boleh memilih
+“Cetak / Simpan PDF” dalam pelayar.
 Laluan `lantikan-audit.php` kini menyediakan GET khusus Admin bagi ringkasan,
 pautan aktif dan 100 peristiwa audit terakhir. Tindakan POST `prepare_links`,
 `record_copy`, `mark_manual_delivery` dan `admin_override_acceptance` masih

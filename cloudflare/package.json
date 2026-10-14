@@ -10,6 +10,7 @@
     "test:appointment-email-link": "node --no-warnings tests/appointment-email-link.mjs",
     "test:appointment-expiry": "node --no-warnings tests/appointment-expiry.mjs",
     "test:appointment-audit": "node --no-warnings tests/appointment-audit.mjs",
+    "test:futsal-form": "node --no-warnings tests/futsal-form.mjs",
     "build:frontend": "npm --prefix ../frontend run build:prod",
     "dev": "wrangler dev",
     "deploy:staging": "npm run typecheck && npm run build:frontend && wrangler deploy"
