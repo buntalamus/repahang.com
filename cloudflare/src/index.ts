@@ -1,5 +1,6 @@
 import { currentUser, json, login, logout, session } from './auth';
 import { adminUsers } from './admin-users';
+import { adminSettings, maintenanceEnabled } from './admin-settings';
 import { adminDashboardStats, adminDashboardTasks, adminProfile } from './admin-dashboard';
 import { appointments } from './appointments';
 import { districtAssessments, refereeAssessments } from './assessments';
@@ -147,6 +148,7 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/login.php') return login(request, env);
   if (pathname === '/api/session.php') return session(request, env);
   if (pathname === '/api/logout.php') return logout(request, env);
+  if (pathname === '/api/admin-settings.php') return adminSettings(request, env);
   if (pathname === '/api/admin-applications.php' && request.method === 'POST') {
     return deleteApplication(request, env);
   }
@@ -157,7 +159,7 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
     return json({ error: true, message: 'Fungsi ini belum tersedia di staging.' }, 503);
   }
   if (pathname === '/api/check-maintenance.php') {
-    const maintenance = env.STAGING_AUTH_ENABLED !== '1';
+    const maintenance = await maintenanceEnabled(env);
     const isAdmin = (await currentUser(request, env))?.role === 'Admin';
     return json({ maintenance_mode: maintenance, is_admin: isAdmin, can_access: !maintenance || isAdmin });
   }
