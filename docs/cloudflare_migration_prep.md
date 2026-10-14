@@ -452,6 +452,12 @@ GET awal pada satu lokasi masih menjawab 503 versi lama sebelum propagasi
 selesai. SQL skema bacaan disahkan pada D1 jauh tanpa memulangkan data.
 D1 kekal 370 pengguna, sifar tugas Worker dan 51 perlawanan Hanafi 2026.
 Empat suis staging masih `0`; domain utama masih PHP LiteSpeed.
+Commit `440a9f8` menambah cetakan borang Futsal R3. Deployment staging versi
+`4f6df13f-cbd3-4cf9-9a0c-c45aeeb7ea80` lulus typecheck dan binaan
+Angular. GET R3 tanpa sesi menjawab 403 dengan `text/html` dan `no-store`;
+`/api/__migration-health` menjawab 200 dengan `api_complete:false`.
+D1 jauh kekal 370 pengguna, sifar tugas Worker dan 51 perlawanan Hanafi 2026.
+Empat suis staging masih `0`; domain utama masih PHP LiteSpeed.
 
 ## Semua tetapan emel semasa
 
@@ -556,7 +562,7 @@ Cloudflare (`x-turbo-charged-by: LiteSpeed`). Endpoint Worker
 `/api/__migration-health` memulangkan 404 pada domain production tetapi 200
 pada URL staging. Pemindahan nameserver **tidak** memasang route atau custom
 domain Worker pada laman production. Jangan route trafik production ke Worker
-staging yang masih mempunyai 9 endpoint frontend belum dipindahkan.
+staging yang masih mempunyai 7 endpoint frontend belum dipindahkan.
 
 Deployment staging 14 Oktober daripada commit `edbc69a`, versi Worker
 `437e71ab-2360-420c-80cf-58069c2bd9b1`, disahkan pada URL staging:
