@@ -35,6 +35,10 @@ BACKGROUND_JOBS = {
 
 # A routed GET must not be mistaken for complete PHP GET/POST parity.
 KNOWN_PARTIAL_ROUTES = {
+    "admin-applications.php": "blast_kelas3_welcome belum dipindahkan",
+    "download-borang-futsal.php": "HTML boleh dicetak; belum PDF binari",
+    "download-borang-ujian-kecergasan.php": "HTML boleh dicetak; belum PDF binari",
+    "download-jadual-lantikan.php": "HTML boleh dicetak; belum PDF binari",
     "lantikan-audit.php": "GET tersedia; empat tindakan POST masih 503",
     "kejohanan-pengesah-laporan.php": "GET tersedia; tetapan POST masih 503",
 }

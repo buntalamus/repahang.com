@@ -238,7 +238,10 @@ kejohanan, calon RA, pengerusi semasa dan audit tanpa mendedahkan ID Telegram.
 POST menetapkan pengerusi masih 503 kerana aliran itu juga perlu menyediakan
 token, menghantar laporan RA yang menunggu dan merekodkan notifikasi.
 Empat pertanyaan GET diuji terhadap skema D1 setempat; ujian sintetik mengesahkan
-sekatan peranan, skop kejohanan dan penolakan POST.
+sekatan peranan, skop kejohanan dan penolakan POST. Inventori turut menandakan
+`admin-applications.php` sebagai separa kerana tindakan blast emel Kelas 3
+masih tiada, serta tiga laluan borang/jadual yang sekarang memberi HTML boleh
+dicetak tetapi belum PDF binari.
 Pautan Telegram tidak dibina pada staging tanpa `TELEGRAM_BOT_USERNAME` yang
 ditetapkan secara nyata. Ujian `npm run test:appointment-audit` meliputi peranan,
 pautan, butiran JSON dan penguncian POST.
@@ -576,8 +579,8 @@ Cloudflare (`x-turbo-charged-by: LiteSpeed`). Endpoint Worker
 `/api/__migration-health` memulangkan 404 pada domain production tetapi 200
 pada URL staging. Pemindahan nameserver **tidak** memasang route atau custom
 domain Worker pada laman production. Jangan route trafik production ke Worker
-staging yang masih mempunyai 6 endpoint frontend tanpa route dan dua route
-separa yang belum selesai.
+staging yang masih mempunyai 6 endpoint frontend tanpa route dan beberapa
+route separa yang belum selesai.
 
 Deployment staging 14 Oktober daripada commit `edbc69a`, versi Worker
 `437e71ab-2360-420c-80cf-58069c2bd9b1`, disahkan pada URL staging:
