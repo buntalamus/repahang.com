@@ -20,6 +20,9 @@ def main() -> None:
     used = set()
     for path in FRONTEND.rglob("*.ts"):
         used.update(ENDPOINT.findall(path.read_text(encoding="utf-8")))
+    # A source comment mentions config/kriteria-penilaian.php, which is not
+    # an HTTP endpoint. Count only files served from the PHP API directory.
+    used = {name for name in used if (ROOT / "api" / name).is_file()}
     routed = set(ROUTE.findall(WORKER_ROUTES.read_text(encoding="utf-8")))
     missing = sorted(used - routed)
     print(f"Frontend PHP endpoints: {len(used)}")
