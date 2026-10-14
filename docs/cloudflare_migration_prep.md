@@ -480,6 +480,13 @@ Deployment susulan daripada commit `a1c8dd3`, versi
 Semakan jauh mengesahkan 403 tanpa sesi, `api_complete:false`, 370 pengguna
 dan 51 perlawanan Hanafi 2026. Domain production masih melalui LiteSpeed;
 kedua-dua flag staging kekal `0`.
+Deployment 14 Oktober daripada commit `80cc447`, versi
+`d0520b3e-eb7d-40f9-b1ea-c5adf22f2519`, dibina daripada worktree bersih.
+Ini membawa teras transaksi jawapan lantikan yang belum disambungkan ke HTTP.
+Semakan jauh menunjukkan kesihatan staging 200 dengan `api_complete:false`,
+POST `lantikan-jawab.php` masih 503, D1 jauh masih 370 pengguna dan 51
+perlawanan Hanafi 2026, serta domain production masih melalui LiteSpeed.
+`STAGING_AUTH_ENABLED=0` dan `STAGING_WRITES_ENABLED=0` kekal.
 
 ## Laluan staging hingga pertukaran domain
 
