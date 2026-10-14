@@ -4,7 +4,7 @@ import { adminDashboardStats, adminDashboardTasks, adminProfile } from './admin-
 import { appointments } from './appointments';
 import { adminApplications, applicationHistory, applicationSettings, deleteApplication } from './applications';
 import { announcements, notifications } from './notifications';
-import { ownApplications, refereeMatches } from './referee';
+import { activeReferees, ownApplications, refereeMatches } from './referee';
 import { assessorDashboard, districtAnnouncements, districtOverview } from './role-dashboards';
 import type { Env } from './types';
 
@@ -170,6 +170,7 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/admin-dashboard-tasks.php') return adminDashboardTasks(request, env);
   if (pathname === '/api/admin-dashboard-stats.php') return adminDashboardStats(request, env);
   if (pathname === '/api/pengadil-matches.php') return refereeMatches(request, env);
+  if (pathname === '/api/get-active-referees.php') return activeReferees(request, env);
   if (pathname === '/api/pengadil-application.php') return ownApplications(request, env);
   if (pathname === '/api/notifications.php') return notifications(request, env);
   if (pathname === '/api/announcements.php') return announcements(request, env);

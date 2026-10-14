@@ -7,6 +7,28 @@ function pageNumber(value: string | null, fallback: number): number {
   return Number.isSafeInteger(number) ? number : fallback;
 }
 
+/** The appointment picker and referee search use the same active-user list. */
+export async function activeReferees(request: Request, env: Env): Promise<Response> {
+  const user = await currentUser(request, env);
+  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!['Pengadil', 'Penilai', 'PP Daerah', 'Admin'].includes(user.role)) {
+    return json({ error: true, message: 'Akses ditolak.' }, 403);
+  }
+
+  const referees = await env.DB.prepare(`
+    SELECT u.id, u.nama_penuh, u.role, u.no_ic AS no_kp, u.jenis_pengadil,
+           u.no_telefon, u.saiz_baju, u.email, u.url_gambar_profil,
+           u.daerah, u.negeri, p.nama_persatuan AS persatuan_nama
+    FROM users u
+    LEFT JOIN persatuan_bolasepak_daerah p ON p.id=u.persatuan_id
+    WHERE (u.role IN ('Pengadil','PP Daerah','Penilai')
+           OR u.jenis_pengadil='Penilai Pengadil')
+      AND u.aktif=1
+    ORDER BY u.nama_penuh ASC
+  `).all();
+  return json({ error: false, data: referees.results });
+}
+
 /** The legacy referee dashboard and match list share this owner-scoped feed. */
 export async function refereeMatches(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
