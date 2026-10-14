@@ -26,13 +26,25 @@ let dbReads=0;
 let insertedAudit=null;
 const env={BASE_URL:'https://staging.example.test/',TELEGRAM_BOT_USERNAME:'refpahang_bot',
   STAGING_WRITES_ENABLED:'0',
-  DB:{prepare:(sql)=>({bind:(...params)=>({
+  DB:{prepare:(sql)=>({bind:(...params)=>({sql,params,
     first:async()=>{dbReads++;return globalThis.auditSnapshot;},
     all:async()=>{dbReads++;return {results:[{id:1,event_type:'appointment_auto_rejected',
       channel:'system',event_status:'success',link_url:null,details_json:'{"reason":"timeout"}',
       actor_type:'system',actor_user_id:null,ip_address:null,created_at:'2026-10-01 12:00:00'}]};},
     run:async()=>{insertedAudit={sql,params};return {meta:{changes:1}};},
-  })})},
+  })}),batch:async(statements)=>{
+    for(const {sql,params} of statements){
+      if(sql.includes('SET email_token=') && globalThis.auditSnapshot.status==='Belum Jawab'
+          && !globalThis.auditSnapshot.email_token) globalThis.auditSnapshot.email_token=params[0];
+      if(sql.includes('SET tg_link_token=') && !globalThis.auditSnapshot.tg_link_token)
+        globalThis.auditSnapshot.tg_link_token=params[0];
+      if(sql.includes('SET penilaian_token=') && globalThis.auditSnapshot.status==='Diterima'
+          && globalThis.auditSnapshot.jawatan==='Penilai Pengadil'
+          && !globalThis.auditSnapshot.penilaian_token)
+        globalThis.auditSnapshot.penilaian_token=params[0];
+    }
+    return statements.map(()=>({meta:{changes:1}}));
+  }},
 };
 const url='https://staging.example.test/api/lantikan-audit.php?lantikan_id=12';
 globalThis.auditUser=null;
@@ -65,7 +77,7 @@ assert.equal((await appointmentAudit(new Request(url,{method:'POST'}),env)).stat
 env.STAGING_WRITES_ENABLED='1';
 const post=(body)=>new Request(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 assert.equal((await appointmentAudit(post({action:'record_copy',lantikan_id:12,link_type:'bad'}),env)).status,400);
-assert.equal((await appointmentAudit(post({action:'prepare_links',lantikan_id:12}),env)).status,503);
+assert.equal((await appointmentAudit(post({action:'mark_manual_delivery',lantikan_id:12}),env)).status,503);
 assert.equal(insertedAudit,null);
 globalThis.auditSnapshot={...snapshot,status:'Diterima'};
 assert.equal((await appointmentAudit(post({action:'record_copy',lantikan_id:12,link_type:'accept_url'}),env)).status,409);
@@ -75,7 +87,20 @@ const copied=await appointmentAudit(post({action:'record_copy',lantikan_id:12,li
 assert.equal(copied.status,200);
 assert.match(insertedAudit.sql,/INSERT INTO lantikan_audit_log/);
 assert.equal(insertedAudit.params[0],12);
-assert.match(insertedAudit.params[9],/action=accept$/);
-assert.deepEqual(JSON.parse(insertedAudit.params[10]),{link_type:'accept_url'});
-assert.equal(insertedAudit.params[11],6,'Admin ID is recorded');
-console.log('appointment audit: Admin-only GET, links, details and write gate passed');
+assert.equal(insertedAudit.params[9],'direct_link_copied');
+assert.match(insertedAudit.params[10],/action=accept$/);
+assert.deepEqual(JSON.parse(insertedAudit.params[11]),{link_type:'accept_url'});
+assert.equal(insertedAudit.params[12],6,'Admin ID is recorded');
+insertedAudit=null;
+globalThis.auditSnapshot={...snapshot,status:'Belum Jawab',email_token:null,tg_link_token:null};
+const prepared=await appointmentAudit(post({action:'prepare_links',lantikan_id:12}),env);
+assert.equal(prepared.status,200);
+const preparedData=await prepared.json();
+assert.match(globalThis.auditSnapshot.email_token,/^[a-f0-9]{64}$/);
+assert.match(globalThis.auditSnapshot.tg_link_token,/^[a-f0-9]{64}$/);
+assert.match(preparedData.data.links.accept_url,/action=accept$/);
+assert.equal(insertedAudit.params[9],'direct_links_prepared');
+assert.deepEqual(JSON.parse(insertedAudit.params[11]),preparedData.data.links);
+assert.equal(preparedData.data.lantikan.notif_hantar,1,
+  'Preparing links must not change an existing delivery flag');
+console.log('appointment audit: Admin GET, copy, prepare links, redaction and write gates passed');

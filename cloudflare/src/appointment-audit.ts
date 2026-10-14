@@ -92,21 +92,26 @@ function activeLinks(env: Env, snapshot: Snapshot): Record<string,string | null>
   };
 }
 
-async function recordCopy(request: Request, env: Env, actorId: number): Promise<Response> {
-  if (env.STAGING_WRITES_ENABLED !== '1') {
-    return json({error:true,message:'Tindakan audit lantikan belum tersedia di staging.'},503);
-  }
-  const input = await boundedJson(request,8192);
-  if (input instanceof Response) return input;
-  if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    return json({error:true,message:'Data tidak sah.'},400);
-  }
-  const body = input as Record<string,unknown>;
-  if (body.action !== 'record_copy') {
-    return json({error:true,message:'Tindakan audit lantikan belum tersedia di staging.'},503);
-  }
-  const id = positiveId(body.lantikan_id);
-  if (!id) return json({error:true,message:'lantikan_id diperlukan.'},400);
+async function insertAudit(request: Request, env: Env, actorId: number,
+  snapshot: Snapshot, eventType: string, eventDetails: Record<string,unknown>, linkUrl: string | null): Promise<void> {
+  const id = snapshot.lantikan_id;
+  await env.DB.prepare(`
+    INSERT INTO lantikan_audit_log (
+      event_key,lantikan_id,jadual_id,kejohanan_id,pengadil_id,pengadil_luar_id,
+      jawatan,nama_pegawai,emel_pegawai,no_telefon_pegawai,event_type,channel,
+      event_status,link_url,details_json,actor_type,actor_user_id,ip_address,user_agent,created_at
+    ) VALUES (NULL,?,?,?,?,?,?,?,?,?,?,'manual','success',?,?,'admin',?,?,?,datetime('now','+8 hours'))
+  `).bind(
+    id,snapshot.jadual_id,snapshot.kejohanan_id,snapshot.pengadil_id,
+    snapshot.pengadil_luar_id,snapshot.jawatan,snapshot.nama_pegawai,
+    snapshot.emel_pegawai,snapshot.no_telefon_pegawai,eventType,linkUrl,
+    JSON.stringify(eventDetails),actorId,
+    request.headers.get('CF-Connecting-IP'),request.headers.get('User-Agent')?.slice(0,255) ?? null,
+  ).run();
+}
+
+async function recordCopy(request: Request, env: Env, actorId: number,
+  body: Record<string,unknown>, id: number): Promise<Response> {
   const linkType = body.link_type;
   if (typeof linkType !== 'string' ||
       !['accept_url','reject_url','ra_form_url','telegram_link_url'].includes(linkType)) {
@@ -116,39 +121,65 @@ async function recordCopy(request: Request, env: Env, actorId: number): Promise<
   if (!snapshot) return json({error:true,message:'Lantikan tidak dijumpai.'},404);
   const linkUrl = activeLinks(env,snapshot)[linkType];
   if (!linkUrl) return json({error:true,message:'Pautan ini tidak aktif. Muat semula log pautan.'},409);
-  await env.DB.prepare(`
-    INSERT INTO lantikan_audit_log (
-      event_key,lantikan_id,jadual_id,kejohanan_id,pengadil_id,pengadil_luar_id,
-      jawatan,nama_pegawai,emel_pegawai,no_telefon_pegawai,event_type,channel,
-      event_status,link_url,details_json,actor_type,actor_user_id,ip_address,user_agent,created_at
-    ) VALUES (NULL,?,?,?,?,?,?,?,?,?,'direct_link_copied','manual','success',?,?,'admin',?,?,?,datetime('now','+8 hours'))
-  `).bind(
-    id,snapshot.jadual_id,snapshot.kejohanan_id,snapshot.pengadil_id,
-    snapshot.pengadil_luar_id,snapshot.jawatan,snapshot.nama_pegawai,
-    snapshot.emel_pegawai,snapshot.no_telefon_pegawai,linkUrl,
-    JSON.stringify({link_type:linkType}),actorId,
-    request.headers.get('CF-Connecting-IP'),request.headers.get('User-Agent')?.slice(0,255) ?? null,
-  ).run();
+  await insertAudit(request,env,actorId,snapshot,'direct_link_copied',{link_type:linkType},linkUrl);
   return json({error:false,message:'Salinan pautan direkodkan.'});
 }
 
-/** Admin audit lookup and copy event; remaining mutations stay gated. */
-export async function appointmentAudit(request: Request, env: Env): Promise<Response> {
-  const user = await currentUser(request,env);
-  if (!user) return json({error:true,message:'Sila log masuk.'},401);
-  if (user.role !== 'Admin') return json({error:true,message:'Akses ditolak.'},403);
-  if (request.method === 'POST') {
-    return recordCopy(request,env,user.id);
+function randomHex(bytes = 32): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(bytes)),
+    (byte) => byte.toString(16).padStart(2,'0')).join('');
+}
+
+async function prepareLinks(request: Request, env: Env, actorId: number, id: number): Promise<Response> {
+  const before = await loadSnapshot(env,id);
+  if (!before) return json({error:true,message:'Lantikan tidak dijumpai.'},404);
+  await env.DB.batch([
+    env.DB.prepare(`
+      UPDATE lantikan_pengadil SET email_token=?
+      WHERE id=? AND status='Belum Jawab' AND trim(COALESCE(email_token,''))=''
+    `).bind(randomHex(),id),
+    env.DB.prepare(`
+      UPDATE pengadil_luar SET tg_link_token=?
+      WHERE id=? AND trim(COALESCE(tg_link_token,''))=''
+        AND trim(COALESCE(telegram_chat_id,''))=''
+    `).bind(randomHex(),before.pengadil_luar_id ?? -1),
+    env.DB.prepare(`
+      UPDATE lantikan_pengadil SET penilaian_token=?
+      WHERE id=? AND status='Diterima' AND jawatan='Penilai Pengadil'
+        AND trim(COALESCE(penilaian_token,''))=''
+    `).bind(randomHex(),id),
+  ]);
+  const after = await loadSnapshot(env,id);
+  if (!after) return json({error:true,message:'Lantikan berubah semasa menyediakan pautan.'},409);
+  const links = activeLinks(env,after);
+  await insertAudit(request,env,actorId,after,'direct_links_prepared',links,
+    links.accept_url ?? links.ra_form_url ?? links.telegram_link_url);
+  const data = await auditData(env,id,after);
+  return json({error:false,
+    message:'Pautan aktif disediakan. Tempoh jawapan belum bermula sehingga penghantaran ditandakan.',
+    data});
+}
+
+async function auditPost(request: Request, env: Env, actorId: number): Promise<Response> {
+  if (env.STAGING_WRITES_ENABLED !== '1') {
+    return json({error:true,message:'Tindakan audit lantikan belum tersedia di staging.'},503);
   }
-  if (request.method !== 'GET') {
-    return json({error:true,message:'Kaedah tidak disokong.'},405);
+  const input = await boundedJson(request,8192);
+  if (input instanceof Response) return input;
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return json({error:true,message:'Data tidak sah.'},400);
   }
-  const id = positiveId(new URL(request.url).searchParams.get('lantikan_id'));
-  if (!id) {
-    return json({error:true,message:'lantikan_id diperlukan.'},400);
+  const body = input as Record<string,unknown>;
+  if (body.action !== 'record_copy' && body.action !== 'prepare_links') {
+    return json({error:true,message:'Tindakan audit lantikan belum tersedia di staging.'},503);
   }
-  const snapshot = await loadSnapshot(env,id);
-  if (!snapshot) return json({error:true,message:'Lantikan tidak dijumpai.'},404);
+  const id = positiveId(body.lantikan_id);
+  if (!id) return json({error:true,message:'lantikan_id diperlukan.'},400);
+  return body.action === 'record_copy'
+    ? recordCopy(request,env,actorId,body,id) : prepareLinks(request,env,actorId,id);
+}
+
+async function auditData(env: Env,id: number,snapshot: Snapshot): Promise<Record<string,unknown>> {
   const events = await env.DB.prepare(`
     SELECT id,event_type,channel,event_status,link_url,details_json,
       actor_type,actor_user_id,ip_address,created_at
@@ -158,7 +189,7 @@ export async function appointmentAudit(request: Request, env: Env): Promise<Resp
   const isRejected = snapshot.status === 'Ditolak';
   const isAutoRejected = isRejected && snapshot.komen === AUTO_REJECT_COMMENT;
   const isManualKupRejected = isRejected && !isAutoRejected && KUP_ROLES.has(snapshot.jawatan);
-  return json({error:false,data:{
+  return {
     lantikan:{
       id:snapshot.lantikan_id,jadual_id:snapshot.jadual_id,
       jawatan:snapshot.jawatan,status:snapshot.status,nama_pegawai:snapshot.nama_pegawai,
@@ -173,5 +204,25 @@ export async function appointmentAudit(request: Request, env: Env): Promise<Resp
     },
     links,
     events:events.results.map(({details_json,...event})=>({...event,details:details(details_json)})),
-  }});
+  };
+}
+
+/** Admin audit lookup and direct-link actions; delivery/override stay gated. */
+export async function appointmentAudit(request: Request, env: Env): Promise<Response> {
+  const user = await currentUser(request,env);
+  if (!user) return json({error:true,message:'Sila log masuk.'},401);
+  if (user.role !== 'Admin') return json({error:true,message:'Akses ditolak.'},403);
+  if (request.method === 'POST') {
+    return auditPost(request,env,user.id);
+  }
+  if (request.method !== 'GET') {
+    return json({error:true,message:'Kaedah tidak disokong.'},405);
+  }
+  const id = positiveId(new URL(request.url).searchParams.get('lantikan_id'));
+  if (!id) {
+    return json({error:true,message:'lantikan_id diperlukan.'},400);
+  }
+  const snapshot = await loadSnapshot(env,id);
+  if (!snapshot) return json({error:true,message:'Lantikan tidak dijumpai.'},404);
+  return json({error:false,data:await auditData(env,id,snapshot)});
 }
