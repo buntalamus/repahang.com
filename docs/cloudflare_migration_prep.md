@@ -210,9 +210,9 @@ Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
 100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
 pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
 permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
-Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 53 daripada
+Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 55 daripada
 67 endpoint PHP sebenar yang disebut oleh frontend sudah mempunyai laluan Worker;
-14 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
+12 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
 dikecualikan kerana ia bukan API. Dua laluan GET laporan penilaian turut
 dipindahkan: Pengadil
 boleh melihat laporan yang disahkan bagi lantikan sendiri, manakala PP Daerah
@@ -223,9 +223,16 @@ persatuan, termasuk statistik, sejarah perlawanan dan senarai RA. Respons
 profil tidak membawa `users.password` atau `tg_link_token`. Modal profil GET
 juga memaparkan sejarah perlawanan dan permohonan. Ujian setempat mengesahkan
 51 perlawanan Hanafi pada 2026, sementara maklumat hubungan serta nota Admin
-disembunyikan daripada pengguna luar daerah yang melihat profilnya. Gambar
-profil dalam `users` boleh dibaca oleh pengguna yang log masuk, selaras dengan
-modal profil umum; resit permohonan pengguna lain tetap ditolak. Tetapan Admin
+disembunyikan daripada pengguna luar daerah yang melihat profilnya.
+Gambar profil dalam `users` boleh dibaca oleh pengguna yang log masuk, selaras
+dengan modal profil umum; resit permohonan pengguna lain tetap ditolak.
+Eksport CSV `download-referees-excel.php` dan `pp-export-referees.php` kini
+membaca D1. Ujian setempat mengesahkan 221 pengadil dan 39 RA bagi eksport
+Admin tahun 2026, 26 pengadil bagi eksport persatuan PP Daerah yang diuji,
+serta penolakan peranan silang (403), sesi tiada (401), dan tahun tidak sah
+(422). Nilai CSV yang boleh dibaca sebagai formula oleh aplikasi spreadsheet
+diapit dengan awalan teks.
+Tetapan Admin
 GET/POST/DELETE kini menggunakan D1; mod penyelenggaraan dibaca daripada D1
 apabila staging dibuka, sementara `STAGING_AUTH_ENABLED=0` terus memaksa mod
 penyelenggaraan. Ujian D1 setempat mengesahkan akses Admin sahaja, validasi
@@ -405,7 +412,7 @@ Cloudflare (`x-turbo-charged-by: LiteSpeed`). Endpoint Worker
 `/api/__migration-health` memulangkan 404 pada domain production tetapi 200
 pada URL staging. Pemindahan nameserver **tidak** memasang route atau custom
 domain Worker pada laman production. Jangan route trafik production ke Worker
-staging yang masih mempunyai 14 endpoint frontend belum dipindahkan.
+staging yang masih mempunyai 12 endpoint frontend belum dipindahkan.
 
 ## Laluan staging hingga pertukaran domain
 
