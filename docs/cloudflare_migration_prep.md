@@ -491,6 +491,12 @@ POST tanpa sesi di Worker staging menjawab 401; suis tulis staging masih `0`,
 jadi tiada log baharu daripada ujian HTTP. Health kekal 200 dengan
 `api_complete:false`; D1 jauh masih 370 pengguna dan 51 perlawanan Hanafi
 2026. Domain production masih PHP LiteSpeed.
+Commit `07f6fa9` menambah `prepare_links` dalam audit lantikan. Deployment
+staging versi `cc382436-0946-43d0-b0c6-56f3cb8ef539` lulus typecheck dan
+binaan Angular. SQL kemas kini token dan INSERT audit diuji pada salinan D1
+setempat dengan rollback. POST tanpa sesi di staging menjawab 401, health
+menjawab 200 dengan `api_complete:false`, dan D1 jauh masih 370 pengguna
+serta 51 perlawanan Hanafi 2026. Suis tulis kekal `0`.
 
 ## Semua tetapan emel semasa
 
