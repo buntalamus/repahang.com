@@ -23,6 +23,7 @@ import { register } from './register';
 import { adminApprove } from './admin-approve';
 import { telegramLinkSelf } from './telegram-link-self';
 import { ppVerify } from './pp-verify';
+import { adminTestApplications } from './admin-test-applications';
 import { updateProfile, uploadProfileImage } from './profile-write';
 import { forgotPassword, resetPassword } from './password-reset';
 import { assessorDashboard, districtAnnouncements, districtOverview } from './role-dashboards';
@@ -175,6 +176,7 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/admin-approve.php') return adminApprove(request, env);
   if (pathname === '/api/telegram-link-self.php') return telegramLinkSelf(request, env);
   if (pathname === '/api/pp-verify.php') return ppVerify(request, env);
+  if (pathname === '/api/admin-test-applications.php') return adminTestApplications(request, env);
   if (pathname === '/api/session.php') return session(request, env);
   if (pathname === '/api/logout.php') return logout(request, env);
   if (pathname === '/api/change-password.php') return changePassword(request, env);

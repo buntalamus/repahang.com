@@ -61,6 +61,7 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
                   @if (app.status === 'pending') {
                     <button (click)="approve(app.id)" class="text-green-600 hover:text-green-800 text-xs font-medium">Lulus</button>
                     <button (click)="reject(app.id)" class="text-red-600 hover:text-red-800 text-xs font-medium">Tolak</button>
+                    <button (click)="absent(app.id)" class="text-amber-700 hover:text-amber-900 text-xs font-medium">Tidak Hadir</button>
                   }
                 </td>
               </tr>
@@ -99,7 +100,7 @@ export class TestApplicationsComponent implements OnInit {
   }
 
   approve(id: number): void {
-    this.api.post<any>('admin-test-applications.php', { id, action: 'approve' }).subscribe({
+    this.api.post<any>('admin-test-applications.php', { id, type: this.activeTab, action: 'approve' }).subscribe({
       next: (res) => {
         if (!res.error) { this.toast.success('Diluluskan.'); this.loadData(); }
         else this.toast.error(res.message);
@@ -110,11 +111,21 @@ export class TestApplicationsComponent implements OnInit {
   reject(id: number): void {
     const reason = prompt('Sebab penolakan:');
     if (!reason) return;
-    this.api.post<any>('admin-test-applications.php', { id, action: 'reject', reason }).subscribe({
+    this.api.post<any>('admin-test-applications.php', { id, type: this.activeTab, action: 'reject', notes: reason }).subscribe({
       next: (res) => {
         if (!res.error) { this.toast.success('Ditolak.'); this.loadData(); }
         else this.toast.error(res.message);
       },
+    });
+  }
+
+  absent(id: number): void {
+    this.api.post<any>('admin-test-applications.php', { id, type: this.activeTab, action: 'absent' }).subscribe({
+      next: (res) => {
+        if (!res.error) { this.toast.success('Tidak Hadir direkodkan.'); this.loadData(); }
+        else this.toast.error(res.message);
+      },
+      error: (err) => this.toast.error(err?.error?.message || 'Gagal merekod kehadiran.'),
     });
   }
 }
