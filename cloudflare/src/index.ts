@@ -27,6 +27,7 @@ import { adminTestApplications } from './admin-test-applications';
 import { refereeMatchManage } from './referee-match-manage';
 import { statistics } from './statistics';
 import { adminRefereeExport, districtRefereeExport } from './referee-exports';
+import { scheduleUpload } from './schedule-upload';
 import { updateProfile, uploadProfileImage } from './profile-write';
 import { forgotPassword, resetPassword } from './password-reset';
 import { assessorDashboard, districtAnnouncements, districtOverview } from './role-dashboards';
@@ -184,6 +185,7 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/statistics.php') return statistics(request, env);
   if (pathname === '/api/download-referees-excel.php') return adminRefereeExport(request, env);
   if (pathname === '/api/pp-export-referees.php') return districtRefereeExport(request, env);
+  if (pathname === '/api/jadual-upload.php') return scheduleUpload(request, env);
   if (pathname === '/api/session.php') return session(request, env);
   if (pathname === '/api/logout.php') return logout(request, env);
   if (pathname === '/api/change-password.php') return changePassword(request, env);
