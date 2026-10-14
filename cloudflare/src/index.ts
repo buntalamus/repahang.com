@@ -3,6 +3,9 @@ import { adminUsers } from './admin-users';
 import { adminDashboardStats, adminDashboardTasks, adminProfile } from './admin-dashboard';
 import { appointments } from './appointments';
 import { districtAssessments, refereeAssessments } from './assessments';
+import { districtApplications } from './district-applications';
+import { districtReferees } from './district-referees';
+import { refereeProfile } from './profile';
 import { adminApplications, applicationHistory, applicationSettings, deleteApplication } from './applications';
 import { announcements, notifications } from './notifications';
 import { activeReferees, ownApplications, refereeMatches } from './referee';
@@ -99,7 +102,7 @@ async function privateMedia(request: Request, env: Env, pathname: string): Promi
   if (user.role !== 'Admin') {
     const reference = `/uploads/${key}`;
     const allowed = await env.DB.prepare(`
-      SELECT 1 FROM users WHERE id=? AND url_gambar_profil IN (?, ?, ?)
+      SELECT 1 FROM users WHERE url_gambar_profil IN (?, ?, ?)
       UNION ALL
       SELECT 1 FROM permohonan WHERE user_id=? AND (
         url_resit IN (?, ?, ?) OR url_gambar_profil IN (?, ?, ?)
@@ -116,7 +119,7 @@ async function privateMedia(request: Request, env: Env, pathname: string): Promi
         pen.sijil_kursus_url IN (?, ?, ?) OR pen.sijil_kesihatan_url IN (?, ?, ?)
       ) LIMIT 1
     `).bind(
-      user.id, reference, reference.slice(1), key,
+      reference, reference.slice(1), key,
       user.id, reference, reference.slice(1), key,
       reference, reference.slice(1), key,
       reference, reference.slice(1), key,
@@ -173,6 +176,9 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/pengadil-matches.php') return refereeMatches(request, env);
   if (pathname === '/api/pengadil-penilaian.php') return refereeAssessments(request, env);
   if (pathname === '/api/pp-penilaian.php') return districtAssessments(request, env);
+  if (pathname === '/api/pp-applications.php') return districtApplications(request, env);
+  if (pathname === '/api/pp-referees.php') return districtReferees(request, env);
+  if (pathname === '/api/profil-pengadil.php') return refereeProfile(request, env);
   if (pathname === '/api/get-active-referees.php') return activeReferees(request, env);
   if (pathname === '/api/pengadil-application.php') return ownApplications(request, env);
   if (pathname === '/api/notifications.php') return notifications(request, env);
