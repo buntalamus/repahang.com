@@ -1,9 +1,10 @@
 # Persediaan migrasi RefPahang ke Cloudflare
 
-Tarikh audit: 13 Oktober 2026. Ini ialah inventori dan alat persediaan untuk
+Tarikh audit: 13–14 Oktober 2026. Ini ialah inventori dan alat persediaan untuk
 staging. DNS kini diurus oleh Cloudflare dan rekod hos emel telah dibetulkan;
-aplikasi production masih berjalan pada pelayan PHP lama. Peti masuk dan
-penghantaran emel belum dipindahkan ke Worker.
+aplikasi production masih berjalan pada pelayan PHP lama. Peti masuk kekal
+pada pelayan lama. Domain telah didaftarkan untuk Cloudflare Email Sending,
+tetapi penghantaran emel aplikasi belum dipindahkan ke Worker.
 
 ## Sumber data yang dipilih
 
@@ -276,13 +277,28 @@ Pada 13 Oktober, semua **18 nama secret** SMTP lama termasuk lima identiti
 penghantar telah dipasang pada Worker staging aktif dengan `BASE_URL` menunjuk
 ke alamat `workers.dev` di atas. Nilai rahsia tidak dicatat dalam Git, log
 atau dokumen. Penyimpanan ini belum menghidupkan penghantaran emel.
-`cloudflare/mail.ts`
-menyediakan pemetaan kelima-lima penghantar untuk API Email Service serta
-lampiran dan imej inline. Ia belum disambung kepada endpoint Worker, maka
-tiada emel akan terkirim oleh persediaan ini. Menyimpan tetapan pada Worker
-belum mengalihkan peti masuk atau sejarah emel. Templat sedia ada masih perlu
-dipindahkan dan diuji; Email Service mengehadkan jumlah mesej bersama lampiran
-kepada 5 MiB untuk penerima biasa.
+Pada 14 Oktober, `refpahang.com` telah diaktifkan untuk **Cloudflare Email
+Sending**. Rekod SPF, DKIM dan MX khusus `cf-bounce.refpahang.com` telah
+ditambah dan dashboard menunjukkan status Enabled/Configured. Worker staging
+mempunyai binding `EMAIL` yang hanya membenarkan lima alamat penghantar dalam
+jadual di atas. Akaun Cloudflare sudah melanggan Workers Paid; dashboard
+menunjukkan had harian semasa 200 emel. Periksa had semasa sebelum menghantar
+emel secara besar-besaran.
+
+Rekod `MX @ -> mail.refpahang.com`, SPF akar dan DMARC akar `p=none` kekal
+seperti sebelumnya selepas pengaktifan. Pratonton onboarding mencadangkan
+`p=reject`, tetapi rekod sedia ada **tidak ditukar**; `dig` selepas pengaktifan
+mengesahkan hanya satu DMARC akar `p=none`. Jangan aktifkan Email Routing kerana
+ia akan menukar MX peti masuk. Cloudflare Email Sending hanya mengendalikan
+emel keluar dan bounce pada subdomainnya sendiri.
+
+`cloudflare/mail.ts` menyediakan pemetaan kelima-lima penghantar untuk API
+Email Service serta lampiran dan imej inline. Ia belum disambung kepada
+endpoint Worker, maka tiada emel akan terkirim oleh persediaan ini. Menyimpan
+tetapan dan binding pada Worker belum mengalihkan peti masuk atau sejarah
+emel. Templat sedia ada masih perlu dipindahkan dan diuji; Email Service
+mengehadkan jumlah mesej bersama lampiran kepada 5 MiB untuk penerima biasa.
+Tiada emel sebenar dihantar semasa persediaan ini.
 
 Email Service Cloudflare menggunakan binding `send_email` dan memerlukan domain
 berada pada Cloudflare DNS. Pada 13 Oktober, NS aktif ialah

@@ -22,6 +22,18 @@
       "bucket_name": "refpahang-staging-20261013-media"
     }
   ],
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "allowed_sender_addresses": [
+        "admin@refpahang.com",
+        "daftar@refpahang.com",
+        "lantikan@refpahang.com",
+        "support@refpahang.com",
+        "pengesahan@refpahang.com"
+      ]
+    }
+  ],
   "vars": {
     "STAGING_AUTH_ENABLED": "0",
     "STAGING_WRITES_ENABLED": "0"
