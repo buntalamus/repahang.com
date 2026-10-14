@@ -23,6 +23,7 @@ import { scheduleReport } from './schedule-report';
 import { printSchedule } from './print-schedule';
 import { fitnessForm } from './fitness-form';
 import { futsalForm } from './futsal-form';
+import { chairConfig } from './chair-config';
 import { registeredReferees, deactivateReferee } from './registered-referees';
 import { adminMatches } from './admin-matches';
 import { districtMatchVerification } from './district-match-verification';
@@ -213,6 +214,7 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/download-jadual-lantikan.php') return printSchedule(request, env);
   if (pathname === '/api/download-borang-ujian-kecergasan.php') return fitnessForm(request, env);
   if (pathname === '/api/download-borang-futsal.php') return futsalForm(request, env);
+  if (pathname === '/api/kejohanan-pengesah-laporan.php') return chairConfig(request, env);
   if (pathname === '/api/referees.php') return registeredReferees(request, env);
   if (pathname === '/api/admin-delete-referee.php') return deactivateReferee(request, env);
   if (pathname === '/api/admin-matches.php') return adminMatches(request, env);

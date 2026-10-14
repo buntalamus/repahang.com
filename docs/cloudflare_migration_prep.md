@@ -213,9 +213,10 @@ Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
 100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
 pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
 permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
-Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 60 daripada
+Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 61 daripada
 67 endpoint PHP sebenar yang disebut oleh frontend sudah mempunyai laluan Worker;
-7 masih tiada. Laluan jawapan portal masih dikunci oleh tiga suis staging.
+6 masih tiada. Kiraan ini menunjukkan route wujud, bukan kesetaraan fungsi.
+Laluan jawapan portal masih dikunci oleh tiga suis staging.
 Daripada enam endpoint PHP awam tambahan yang tidak dipanggil terus oleh
 frontend, tiga kini mempunyai route Worker. `download-borang-futsal.php`
 memerlukan sesi Pengadil/PP Daerah/Admin dan membaca hanya permohonan Futsal
@@ -232,6 +233,12 @@ Laluan `lantikan-audit.php` kini menyediakan GET khusus Admin bagi ringkasan,
 pautan aktif dan 100 peristiwa audit terakhir. Tindakan POST `prepare_links`,
 `record_copy`, `mark_manual_delivery` dan `admin_override_acceptance` masih
 menjawab 503 sehingga transaksi, audit dan notifikasinya dipindahkan lengkap.
+`kejohanan-pengesah-laporan.php` pula menyediakan GET khusus Admin untuk
+kejohanan, calon RA, pengerusi semasa dan audit tanpa mendedahkan ID Telegram.
+POST menetapkan pengerusi masih 503 kerana aliran itu juga perlu menyediakan
+token, menghantar laporan RA yang menunggu dan merekodkan notifikasi.
+Empat pertanyaan GET diuji terhadap skema D1 setempat; ujian sintetik mengesahkan
+sekatan peranan, skop kejohanan dan penolakan POST.
 Pautan Telegram tidak dibina pada staging tanpa `TELEGRAM_BOT_USERNAME` yang
 ditetapkan secara nyata. Ujian `npm run test:appointment-audit` meliputi peranan,
 pautan, butiran JSON dan penguncian POST.
@@ -562,7 +569,8 @@ Cloudflare (`x-turbo-charged-by: LiteSpeed`). Endpoint Worker
 `/api/__migration-health` memulangkan 404 pada domain production tetapi 200
 pada URL staging. Pemindahan nameserver **tidak** memasang route atau custom
 domain Worker pada laman production. Jangan route trafik production ke Worker
-staging yang masih mempunyai 7 endpoint frontend belum dipindahkan.
+staging yang masih mempunyai 6 endpoint frontend tanpa route dan dua route
+separa yang belum selesai.
 
 Deployment staging 14 Oktober daripada commit `edbc69a`, versi Worker
 `437e71ab-2360-420c-80cf-58069c2bd9b1`, disahkan pada URL staging:

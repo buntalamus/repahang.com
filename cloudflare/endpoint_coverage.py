@@ -33,6 +33,12 @@ BACKGROUND_JOBS = {
     "kup-crew-notification-retry.php": "cuba semula notifikasi kru KUP",
 }
 
+# A routed GET must not be mistaken for complete PHP GET/POST parity.
+KNOWN_PARTIAL_ROUTES = {
+    "lantikan-audit.php": "GET tersedia; empat tindakan POST masih 503",
+    "kejohanan-pengesah-laporan.php": "GET tersedia; tetapan POST masih 503",
+}
+
 
 def main() -> None:
     used = set()
@@ -56,6 +62,11 @@ def main() -> None:
     print(f"Still without route: {len(missing_external)}")
     for name in missing_external:
         print(f"  {name} — {EXTERNAL_HTTP_ENDPOINTS[name]}")
+
+    partial = {name: note for name, note in KNOWN_PARTIAL_ROUTES.items() if name in routed}
+    print(f"Known partial Worker routes: {len(partial)}")
+    for name, note in partial.items():
+        print(f"  {name} — {note}")
 
     print(f"Background PHP jobs requiring a Worker replacement: {len(BACKGROUND_JOBS)}")
     for name, purpose in BACKGROUND_JOBS.items():
