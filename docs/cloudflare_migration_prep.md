@@ -85,8 +85,13 @@ WHERE user_id=80 AND tarikh >= '2026-01-01' AND tarikh < '2027-01-01';
 ```
 
 SQL gabungan telah diimport melalui Wrangler 4.150.0 ke **D1 tempatan dan
-D1 staging jauh** `refpahang-staging-20261013-hanafi51`. Kedua-duanya mempunyai
-40 jadual aplikasi/58,657 baris dan 51 perlawanan Hanafi yang unik.
+D1 staging jauh**. Binding Worker kini menggunakan `refpahan_pahang_staging`
+di rantau APAC; nama ini merujuk pangkalan RefPahang penuh, bukan Hanafi sahaja.
+Semakan terus pada D1 jauh membandingkan setiap satu daripada 40 jadual aplikasi
+dengan salinan staging terdahulu `refpahang-staging-20261013-hanafi51`: semua
+kiraan sepadan, sejumlah 58,657 baris. Sebanyak 51 ID perlawanan Hanafi 2026
+adalah unik. Pangkalan terdahulu dikekalkan sebagai salinan sandaran sementara
+dan tidak lagi diikat kepada Worker staging.
 Migrasi `cloudflare/migrations/0001_worker_sessions.sql` menambah dua jadual
 untuk sesi Worker tanpa mengubah baris aplikasi. `foreign_key_check=0` pada
 salinan tempatan dan jauh; `integrity_check=ok` disahkan pada salinan tempatan.
@@ -157,6 +162,8 @@ Drive belum dipindahkan ke R2.
 `cloudflare/wrangler.jsonc` mengikat D1 staging, R2 private dan aset Angular.
 Deployment staging berada di
 `https://refpahang-staging-20261013.buntalamus2.workers.dev`.
+`BASE_URL` staging menunjuk ke URL Worker ini supaya pautan emel ujian tidak
+tersalah menuju ke aplikasi PHP production.
 `STAGING_AUTH_ENABLED=0` mengunci log masuk serta media ketika port API belum
 lengkap. Endpoint yang sudah dipindahkan: pengumuman awam, status pendaftaran,
 persatuan awam, log masuk/sesi/log keluar, daerah, profil pengguna, tetapan
@@ -402,7 +409,7 @@ staging yang masih mempunyai 14 endpoint frontend belum dipindahkan.
 
 ## Laluan staging hingga pertukaran domain
 
-1. Salinan staging `hanafi51` sudah memasukkan 51 perlawanan Hanafi. Semak
+1. D1 staging `refpahan_pahang_staging` sudah memasukkan 51 perlawanan Hanafi. Semak
    production dan ambil sandaran baharu sebelum migrasi sebenar; bandingkan
    kiraan/ID penting dengan fail gabungan ini.
 2. Uji SQL yang telah ditukar pada D1 staging, kemudian lengkapkan skema dan
