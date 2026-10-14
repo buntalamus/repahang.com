@@ -203,9 +203,9 @@ Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
 100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
 pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
 permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
-Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 39 daripada
+Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 50 daripada
 67 endpoint PHP sebenar yang disebut oleh frontend sudah mempunyai laluan Worker;
-28 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
+17 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
 dikecualikan kerana ia bukan API. Dua laluan GET laporan penilaian turut
 dipindahkan: Pengadil
 boleh melihat laporan yang disahkan bagi lantikan sendiri, manakala PP Daerah
@@ -254,7 +254,23 @@ notifikasi, dimensi imej, akses media dengan sesi dan 51 perlawanan Hanafi.
 Muat naik terus melalui multipart `update-profile.php` lama belum dipindahkan;
 frontend menggunakan `upload-profile-image.php` berasingan. Fail imej yang
 berjaya dimuat naik kini terus direkod pada profil pengguna.
-Angka 39
+Pada 14 Oktober, laluan jadual perlawanan, laporan lantikan, pengadil berdaftar,
+perlawanan Admin/PP Daerah dan pengadil luar turut mempunyai implementasi D1
+setempat. Ujian terhadap salinan D1 mengesahkan kawalan peranan, transaksi
+pukal, sekatan pemadaman rekod yang masih dirujuk, dan 51 perlawanan Hanafi
+kekal selepas tindakan pada rekod sintetik. Butang padam pengadil dalam UI
+kini menyahaktif akaun dan mengekalkan sejarahnya. Aliran ini belum diuji dengan
+log masuk pengguna sebenar pada Worker jauh kerana staging masih dikunci.
+Penolakan lantikan automatik semasa membaca jadual, ciptaan semula snapshot
+sejarah lantikan yang hilang, dan ujian penerimaan antara modul masih perlu
+disiapkan sebelum pertukaran domain.
+Pendaftaran akaun awam, keputusan Admin, keputusan PP Daerah dan pautan
+Telegram sendiri turut dipindahkan. Semakan setempat menggunakan akaun dan
+permohonan sintetik: kelulusan Admin untuk pengadil sesi 2027 kekal `Pending`
+dengan status `Admin Diluluskan`, manakala keputusan PP Daerah hanya boleh
+dibuat bagi persatuan sendiri. Penghantaran emel sebenar masih belum disahkan.
+
+Angka 50
 ialah **laluan sahaja**, bukan bukti semua kaedah
 GET/POST dan semua peranan sudah setara. Jangan buka log masuk staging atau
 alih domain sehingga matriks fungsi ini dan ujian integrasi selesai.
@@ -362,7 +378,7 @@ Cloudflare (`x-turbo-charged-by: LiteSpeed`). Endpoint Worker
 `/api/__migration-health` memulangkan 404 pada domain production tetapi 200
 pada URL staging. Pemindahan nameserver **tidak** memasang route atau custom
 domain Worker pada laman production. Jangan route trafik production ke Worker
-staging yang masih mempunyai 32 endpoint frontend belum dipindahkan.
+staging yang masih mempunyai 17 endpoint frontend belum dipindahkan.
 
 ## Laluan staging hingga pertukaran domain
 

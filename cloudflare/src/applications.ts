@@ -1,4 +1,5 @@
 import { currentUser, json } from './auth';
+import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
 import { boundedJson } from './request';
 import type { Env } from './types';
 
@@ -184,6 +185,7 @@ export async function deleteApplication(request: Request, env: Env): Promise<Res
     return json({ error: true, message: 'Data tidak sah.' }, 400);
   }
   const body = input as Record<string, unknown>;
+  if (body.action === 'update_status_ujian') return updateFitnessResult(body, env);
   if (body.action !== 'delete_application') {
     return json({ error: true, message: 'Tindakan belum tersedia di staging.' }, 503);
   }
@@ -207,4 +209,95 @@ export async function deleteApplication(request: Request, env: Env): Promise<Res
     affected_rows: results[1].meta.changes,
     unlinked_matches: results[0].meta.changes,
   });
+}
+
+async function updateFitnessResult(body: Record<string, unknown>, env: Env): Promise<Response> {
+  const id = positiveId(String(body.id ?? ''));
+  const decision = body.status_ujian;
+  if (!id || !['Lulus', 'Tidak Lulus', 'Tidak Hadir'].includes(String(decision))) {
+    return json({ error: true, message: 'Parameter tidak sah.' }, 400);
+  }
+  const application = await env.DB.prepare(`SELECT p.id,p.user_id,p.nama_penuh,p.emel,
+    p.jenis_borang,p.jenis_pengadil,p.tahun_permohonan,p.tarikh_hantar,
+    p.status_workflow,p.status_ujian,u.email AS user_email
+    FROM permohonan p LEFT JOIN users u ON u.id=p.user_id WHERE p.id=? LIMIT 1`)
+    .bind(id).first<{
+      id: number; user_id: number | null; nama_penuh: string; emel: string;
+      jenis_borang: string; jenis_pengadil: string | null; tahun_permohonan: number | null;
+      tarikh_hantar: string | null; status_workflow: string | null;
+      status_ujian: string | null; user_email: string | null;
+    }>();
+  if (!application) return json({ error: true, message: 'Permohonan tidak dijumpai.' }, 404);
+  const gated = application.jenis_borang === 'pengadil_berdaftar' &&
+    Number(application.tahun_permohonan) >= 2027 &&
+    !['Penilai Pengadil', 'Pegawai Pembangunan'].includes(application.jenis_pengadil ?? '');
+  if (gated && !['Admin Diluluskan', 'Lengkap'].includes(application.status_workflow ?? '')) {
+    return json({ error: true,
+      message: 'Sahkan dokumen permohonan dahulu sebelum merekod keputusan ujian.' }, 409);
+  }
+  if (application.status_ujian === decision) {
+    return json({ error: false, message: 'Keputusan ujian tidak berubah.', email_sent: true });
+  }
+  const passed = decision === 'Lulus';
+  if (gated) {
+    const results = await env.DB.batch([
+      env.DB.prepare(`UPDATE permohonan SET status_ujian=?,status=?,status_workflow=?,
+        final_approved_at=CASE WHEN ? THEN datetime('now','+8 hours') ELSE NULL END,
+        status_kemaskini=datetime('now','+8 hours')
+        WHERE id=? AND status_workflow IN ('Admin Diluluskan','Lengkap')
+          AND COALESCE(status_ujian,'')<>?`)
+        .bind(decision, passed ? 'Approved' : 'Pending', passed ? 'Lengkap' : 'Admin Diluluskan',
+          passed ? 1 : 0, id, decision),
+      env.DB.prepare(`INSERT INTO notifications(user_id,type,subject,message,created_at)
+        SELECT ?,'Keputusan Ujian Kecergasan',?,?,datetime('now','+8 hours')
+        WHERE ? IS NOT NULL AND changes()=1`)
+        .bind(application.user_id, `Keputusan Ujian Kecergasan: ${decision}`,
+          passed ? 'Anda lulus ujian kecergasan dan kini Pengadil Berdaftar.'
+            : `Keputusan ujian kecergasan anda: ${decision}. Pendaftaran belum diluluskan.`,
+          application.user_id),
+    ]);
+    if (results[0].meta.changes !== 1) {
+      return json({ error: true, message: 'Keputusan berubah semasa semakan. Sila muat semula.' }, 409);
+    }
+    let emailSent = false;
+    const to = application.user_email || application.emel;
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      try {
+        const title = `Keputusan Ujian Kecergasan: ${decision}`;
+        const paragraphs = [passed
+          ? `Anda telah lulus ujian kecergasan sesi ${application.tahun_permohonan} dan kini Pengadil Berdaftar.`
+          : `Keputusan ujian kecergasan sesi ${application.tahun_permohonan}: ${decision}. Pendaftaran Pengadil Berdaftar belum diluluskan.`,
+          `No. Permohonan: #${id}`];
+        const { html, text } = buildRefpahangEmail(title, application.nama_penuh, paragraphs,
+          { label: 'Semak Permohonan', url: new URL('/pengadil', env.BASE_URL).toString() });
+        await sendRefpahangEmail(env, 'daftar', to, application.nama_penuh, `${title} - PBNP`, html, text);
+        if (passed) {
+          const registered = buildRefpahangEmail('Pendaftaran Pengadil Berdaftar Diluluskan',
+            application.nama_penuh,
+            [`Pendaftaran Pengadil Berdaftar sesi ${application.tahun_permohonan} telah diluluskan.`,
+              `No. Permohonan: #${id}`],
+            { label: 'Semak Pendaftaran', url: new URL('/pengadil', env.BASE_URL).toString() });
+          await sendRefpahangEmail(env, 'daftar', to, application.nama_penuh,
+            'Pendaftaran Pengadil Berdaftar Diluluskan - PBNP', registered.html, registered.text);
+        }
+        emailSent = true;
+      } catch {
+        console.error('Fitness decision email could not be sent');
+      }
+    }
+    return json({ error: false, message: 'Keputusan ujian berjaya dikemaskini.', email_sent: emailSent });
+  }
+  const year = (application.tarikh_hantar ?? '').slice(0, 4) || String(application.tahun_permohonan ?? '');
+  const isClassThree = ['kelas3_fam', 'ujian_bertulis'].includes(application.jenis_borang);
+  const statements = [env.DB.prepare('UPDATE permohonan SET status_ujian=? WHERE id=? AND COALESCE(status_ujian,\'\')<>?')
+    .bind(decision, id, decision)];
+  if (isClassThree && application.user_id && /^20\d{2}$/.test(year)) {
+    statements.push(env.DB.prepare(passed
+      ? `UPDATE users SET tahun_lulus_kelas3=?,tahun_mohon_kelas3=COALESCE(tahun_mohon_kelas3,?) WHERE id=?`
+      : `UPDATE users SET tahun_lulus_kelas3=NULL WHERE id=? AND tahun_lulus_kelas3=?`)
+      .bind(...(passed ? [year, year, application.user_id] : [application.user_id, year])));
+  }
+  const results = await env.DB.batch(statements);
+  return json({ error: false, message: 'Status ujian berjaya dikemaskini.',
+    affected_rows: results[0].meta.changes });
 }

@@ -13,6 +13,16 @@ import { announcements, notifications } from './notifications';
 import { activeReferees, ownApplications, refereeMatches } from './referee';
 import { refereeGrades } from './referee-grades';
 import { refereePool } from './referee-pool';
+import { schedule } from './schedule';
+import { scheduleReport } from './schedule-report';
+import { registeredReferees, deactivateReferee } from './registered-referees';
+import { adminMatches } from './admin-matches';
+import { districtMatchVerification } from './district-match-verification';
+import { externalReferees } from './external-referees';
+import { register } from './register';
+import { adminApprove } from './admin-approve';
+import { telegramLinkSelf } from './telegram-link-self';
+import { ppVerify } from './pp-verify';
 import { updateProfile, uploadProfileImage } from './profile-write';
 import { forgotPassword, resetPassword } from './password-reset';
 import { assessorDashboard, districtAnnouncements, districtOverview } from './role-dashboards';
@@ -108,7 +118,7 @@ async function privateMedia(request: Request, env: Env, pathname: string): Promi
   }
   if (user.role !== 'Admin') {
     const reference = `/uploads/${key}`;
-    const allowed = await env.DB.prepare(`
+    let allowed = await env.DB.prepare(`
       SELECT 1 FROM users WHERE url_gambar_profil IN (?, ?, ?)
       UNION ALL
       SELECT 1 FROM permohonan WHERE user_id=? AND (
@@ -135,6 +145,15 @@ async function privateMedia(request: Request, env: Env, pathname: string): Promi
       user.id, reference, reference.slice(1), key,
       reference, reference.slice(1), key,
     ).first();
+    // Tournament/team logos are shown to officials as well as Admin. Keep
+    // receipts and other private uploads under the owner checks above.
+    if (!allowed && key.startsWith('logos/')) {
+      allowed = await env.DB.prepare(`
+        SELECT 1 FROM kejohanan WHERE logo_kiri=? OR logo_kanan=?
+        UNION ALL SELECT 1 FROM jadual_perlawanan WHERE logo_home=? OR logo_away=?
+        UNION ALL SELECT 1 FROM pasukan_logo WHERE logo_path=? LIMIT 1
+      `).bind(reference, reference, reference, reference, reference).first();
+    }
     if (!allowed) return json({ error: true, message: 'Akses ditolak.' }, 403);
   }
   const object = request.method === 'HEAD' ? await env.MEDIA.head(key) : await env.MEDIA.get(key);
@@ -152,6 +171,10 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
     return json({ ok: true, stage: 'migration', api_complete: false });
   }
   if (pathname === '/api/login.php') return login(request, env);
+  if (pathname === '/api/register.php') return register(request, env);
+  if (pathname === '/api/admin-approve.php') return adminApprove(request, env);
+  if (pathname === '/api/telegram-link-self.php') return telegramLinkSelf(request, env);
+  if (pathname === '/api/pp-verify.php') return ppVerify(request, env);
   if (pathname === '/api/session.php') return session(request, env);
   if (pathname === '/api/logout.php') return logout(request, env);
   if (pathname === '/api/change-password.php') return changePassword(request, env);
@@ -161,6 +184,13 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/admin-settings.php') return adminSettings(request, env);
   if (pathname === '/api/kejohanan.php') return tournaments(request, env);
   if (pathname === '/api/pool-pengadil.php') return refereePool(request, env);
+  if (pathname === '/api/jadual-perlawanan.php') return schedule(request, env);
+  if (pathname === '/api/jadual-lantikan-report.php') return scheduleReport(request, env);
+  if (pathname === '/api/referees.php') return registeredReferees(request, env);
+  if (pathname === '/api/admin-delete-referee.php') return deactivateReferee(request, env);
+  if (pathname === '/api/admin-matches.php') return adminMatches(request, env);
+  if (pathname === '/api/pp-verify-match.php') return districtMatchVerification(request, env);
+  if (pathname === '/api/pengadil-luar.php') return externalReferees(request, env);
   if (pathname === '/api/update-profile.php') return updateProfile(request, env);
   if (pathname === '/api/upload-profile-image.php') return uploadProfileImage(request, env);
   if (pathname === '/api/admin-applications.php' && request.method === 'POST') {

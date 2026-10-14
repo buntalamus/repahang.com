@@ -1211,7 +1211,7 @@ export class LantikanPengadilComponent implements OnInit {
 
   deleteJadual(id: number, no: string): void {
     this.confirmTitle = 'Padam Perlawanan';
-    this.confirmMessage = `Padam perlawanan ${no}? Semua lantikan berkaitan akan dipadam.`;
+    this.confirmMessage = `Padam perlawanan ${no}? Perlawanan yang mempunyai lantikan, laporan atau audit tidak boleh dipadam.`;
     this.confirmFn = () => {
       this.api.delete<any>(`jadual-perlawanan.php?id=${id}`).subscribe({
         next: (res) => { this.toast.show(res.message, 'success'); this.loadJadual(this.selectedKejohanan!.id); },

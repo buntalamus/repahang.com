@@ -334,7 +334,7 @@ export class PengadilBerdaftarComponent implements OnInit {
     this.api.delete<any>(`admin-delete-referee.php?id=${id}`).subscribe({
       next: (res) => {
         if (!res.error) {
-          this.toast.success('Pengadil berjaya dipadam.');
+          this.toast.success(res.message || 'Akaun pengadil dinyahaktifkan.');
           this.referees = this.referees.filter((r) => r.user_id !== id);
           this.updateStats();
           this.applyFilter();
