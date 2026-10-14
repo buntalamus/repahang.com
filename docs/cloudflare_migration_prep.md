@@ -203,9 +203,9 @@ Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
 100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
 pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
 permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
-Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 36 daripada
+Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 37 daripada
 67 endpoint PHP sebenar yang disebut oleh frontend sudah mempunyai laluan Worker;
-31 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
+30 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
 dikecualikan kerana ia bukan API. Dua laluan GET laporan penilaian turut
 dipindahkan: Pengadil
 boleh melihat laporan yang disahkan bagi lantikan sendiri, manakala PP Daerah
@@ -243,7 +243,11 @@ padam rekod pengesahan/pool pada kejohanan kosong, serta penolakan padam jika
 ada jadual perlawanan atau rekod audit. Kiraan 51 perlawanan Hanafi kekal.
 Logo SVG lama masih boleh dibaca daripada R2, tetapi muat naik SVG baharu
 belum dibenarkan kerana fail aktif itu perlu disanitasi sebelum disiarkan.
-Angka 36
+Pool Pengadil Admin juga menggunakan D1 untuk senarai, tambah seorang atau
+berkumpulan, dan buang ahli. Ujian setempat mengesahkan deduplikasi,
+identiti wujud, pembatasan peranan, penyembunyian ID Telegram, serta sekatan
+pembuangan jika pegawai masih mempunyai lantikan dalam kejohanan.
+Angka 37
 ialah **laluan sahaja**, bukan bukti semua kaedah
 GET/POST dan semua peranan sudah setara. Jangan buka log masuk staging atau
 alih domain sehingga matriks fungsi ini dan ujian integrasi selesai.
