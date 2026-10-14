@@ -351,6 +351,18 @@ mengekalkan kemas kini bersyarat sekali sahaja serta transaksi D1 sebelum
 ketiga-tiga saluran dibuka; menyediakan salah satu saluran secara bersendirian
 akan membolehkan keputusan bercanggah atau sejarah tidak selaras.
 
+Pada 14 Oktober, `cloudflare/src/appointment-response-core.ts` menyediakan
+teras transaksi D1 untuk tiga jenis pemilik (akaun, token emel, token Telegram).
+Ia menukar status secara bersyarat, merekod audit, menyelaraskan sejarah KUP
+tanpa membuang markah sedia ada, menjana token RA dan memasukkan notifikasi
+portal dalam satu batch atomik. Ujian `npm run test:appointment-core` di
+`cloudflare/` merangkumi akses salah, pemilikan chat Telegram, klik berulang,
+penerimaan, penolakan, RA, tempoh tamat dan rollback apabila notifikasi gagal.
+**Teras ini belum dipanggil oleh laluan HTTP**: penghantaran
+emel/Telegram RA, notifikasi kru KUP yang boleh dicuba semula, serta laluan
+pautan bertoken masih perlu dipindahkan sebelum jawapan lantikan Worker
+dibuka. Kedua-dua suis staging kekal `0`; tiada rekod sebenar diubah.
+
 ## Semua tetapan emel semasa
 
 `config/email.php` menggunakan SMTP TLS tersirat dengan `SMTP_HOST` dan
