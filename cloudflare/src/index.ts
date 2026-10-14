@@ -2,6 +2,7 @@ import { currentUser, json, login, logout, session } from './auth';
 import { adminUsers } from './admin-users';
 import { adminDashboardStats, adminDashboardTasks, adminProfile } from './admin-dashboard';
 import { appointments } from './appointments';
+import { districtAssessments, refereeAssessments } from './assessments';
 import { adminApplications, applicationHistory, applicationSettings, deleteApplication } from './applications';
 import { announcements, notifications } from './notifications';
 import { activeReferees, ownApplications, refereeMatches } from './referee';
@@ -170,6 +171,8 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/admin-dashboard-tasks.php') return adminDashboardTasks(request, env);
   if (pathname === '/api/admin-dashboard-stats.php') return adminDashboardStats(request, env);
   if (pathname === '/api/pengadil-matches.php') return refereeMatches(request, env);
+  if (pathname === '/api/pengadil-penilaian.php') return refereeAssessments(request, env);
+  if (pathname === '/api/pp-penilaian.php') return districtAssessments(request, env);
   if (pathname === '/api/get-active-referees.php') return activeReferees(request, env);
   if (pathname === '/api/pengadil-application.php') return ownApplications(request, env);
   if (pathname === '/api/notifications.php') return notifications(request, env);

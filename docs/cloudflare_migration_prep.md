@@ -202,9 +202,13 @@ Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
 100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
 pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
 permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
-Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 25 daripada
+Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 27 daripada
 68 endpoint PHP yang disebut oleh frontend sudah mempunyai laluan Worker;
-43 masih tiada. Angka 25 ialah **laluan sahaja**, bukan bukti semua kaedah
+41 masih tiada. Dua laluan GET laporan penilaian turut dipindahkan: Pengadil
+boleh melihat laporan yang disahkan bagi lantikan sendiri, manakala PP Daerah
+boleh melihat laporan yang melibatkan pengadil dari persatuannya. Ujian tempatan
+mengesahkan butiran, senarai dan penolakan akses silang peranan/daerah. Angka
+27 ialah **laluan sahaja**, bukan bukti semua kaedah
 GET/POST dan semua peranan sudah setara. Jangan buka log masuk staging atau
 alih domain sehingga matriks fungsi ini dan ujian integrasi selesai.
 
@@ -294,7 +298,7 @@ Cloudflare (`x-turbo-charged-by: LiteSpeed`). Endpoint Worker
 `/api/__migration-health` memulangkan 404 pada domain production tetapi 200
 pada URL staging. Pemindahan nameserver **tidak** memasang route atau custom
 domain Worker pada laman production. Jangan route trafik production ke Worker
-staging yang masih mempunyai 43 endpoint frontend belum dipindahkan.
+staging yang masih mempunyai 41 endpoint frontend belum dipindahkan.
 
 ## Laluan staging hingga pertukaran domain
 
