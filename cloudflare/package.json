@@ -8,6 +8,7 @@
     "test:appointment-delivery": "node --no-warnings tests/appointment-delivery.mjs",
     "test:appointment-reply": "node --no-warnings tests/appointment-reply.mjs",
     "test:appointment-email-link": "node --no-warnings tests/appointment-email-link.mjs",
+    "test:appointment-expiry": "node --no-warnings tests/appointment-expiry.mjs",
     "build:frontend": "npm --prefix ../frontend run build:prod",
     "dev": "wrangler dev",
     "deploy:staging": "npm run typecheck && npm run build:frontend && wrangler deploy"

@@ -178,8 +178,9 @@ Carian pengadil aktif untuk pemilih lantikan kini membaca D1 dengan medan dan
 syarat peranan yang sama seperti API PHP; salinan data mengandungi 369 akaun
 aktif yang layak. Ia masih memerlukan sesi sebelum mengembalikan data peribadi.
 Penandaan notifikasi sebagai dibaca sudah dipindahkan tetapi dikunci oleh
-`STAGING_WRITES_ENABLED=0`. Bacaan tugasan masih belum menjalankan auto-tolak
-lantikan tamat tempoh. Worker berjadual kini memproses hanya tugas penghantaran
+`STAGING_WRITES_ENABLED=0`. Bacaan tugasan tidak menjalankan auto-tolak
+secara sampingan. Cron Worker menyemak tempoh lantikan dengan suis berasingan
+yang masih ditutup. Worker berjadual kini memproses hanya tugas penghantaran
 jawapan lantikan baharu yang dihasilkan oleh Worker, apabila tiga suis berkaitan
 dibuka kelak; ia tidak memproses cubaan emel/Telegram PHP lama yang diimport.
 Profil serta kiraan tugas/statistik papan pemuka Admin juga membaca D1.
@@ -339,14 +340,15 @@ di Worker jauh kerana staging masih berkunci.
 endpoint dikenal pasti di luar kod Angular: tiga pautan bertoken dalam
 emel (`lantikan-jawab-token.php`, `penilaian-token.php`,
 `laporan-pengesahan-token.php`), webhook Telegram, dan dua borang lama yang
-boleh dibuka melalui URL terus selepas log masuk. Satu daripada enam, iaitu
-R4 ujian kecergasan, kini mempunyai laluan Worker; lima lagi belum.
+boleh dibuka melalui URL terus selepas log masuk. Dua daripada enam, iaitu
+R4 ujian kecergasan dan pautan jawapan lantikan emel, kini mempunyai laluan
+Worker; empat lagi belum.
 Tugas CLI `kup-crew-notification-retry.php` kini mempunyai pengganti berjadual
 untuk **jawapan baharu Worker sahaja**; 445 rekod baris gilir PHP yang diimport
-tidak dihantar semula. Kitaran auto-tolak dan notifikasi lantikan awal masih
-perlu dipindahkan;
+tidak dihantar semula. Kitaran auto-tolak mempunyai implementasi cron berkunci;
+notifikasi lantikan awal masih perlu dipindahkan;
 `telegram-poll.php` ialah alat pembangunan, bukan webhook production. Oleh itu
-58/67 ialah **kehadiran laluan frontend sahaja**, bukan bukti semua kaedah
+59/67 ialah **kehadiran laluan frontend sahaja**, bukan bukti semua kaedah
 GET/POST, peranan, emel atau pautan luaran sudah setara. Jangan buka log masuk
 staging atau alih domain sehingga matriks fungsi ini dan ujian integrasi selesai.
 
@@ -387,8 +389,17 @@ borang RA, dan webhook masih perlu dipindahkan serta diuji sebelum jawapan
 lantikan Worker dibuka. Daripada enam laluan awam di luar frontend, dua kini
 mempunyai route dan empat masih belum. `TELEGRAM_BOT_TOKEN` mesti
 disimpan sebagai Worker secret sebelum penghantaran Telegram diaktifkan.
-`STAGING_AUTH_ENABLED=0`, `STAGING_WRITES_ENABLED=0` dan
-`APPOINTMENT_DELIVERY_ENABLED=0` kekal; tiada emel/Telegram atau rekod sebenar
+Cron auto-tolak menggunakan `appointment-expiry.ts` dan teras transaksi yang
+sama. Ia hanya memilih lantikan yang sudah dihantar notifikasinya, melepasi
+tempoh 48 jam bagi Liga atau tiga jam bagi kejohanan lain, dan mempunyai
+tarikh akhir sebelum sepak mula. Teras menyemak semula syarat itu ketika
+menulis; jawapan serentak tidak menghasilkan audit atau sejarah pendua.
+Penolakan Pegawai ke4 yang pilihan boleh melengkapkan krew tiga jawatan wajib
+dan memasukkan tugas notifikasi krew. Ujian `npm run test:appointment-expiry`
+menyemak suis serta penapis calon; ujian teras menyemak kes krew ini.
+`STAGING_AUTH_ENABLED=0`, `STAGING_WRITES_ENABLED=0`,
+`APPOINTMENT_DELIVERY_ENABLED=0` dan `APPOINTMENT_AUTO_REJECT_ENABLED=0` kekal;
+tiada emel/Telegram atau rekod sebenar
 diubah oleh Worker ini.
 
 Deployment staging daripada commit `b95ade9`, versi
@@ -402,6 +413,13 @@ Deployment susulan commit `c7e1e17`, versi
 berkunci. Ujian HTTP jauh: POST 503 apabila suis ditutup, GET 405, health 200
 dengan `api_complete:false`; D1 kekal 370 pengguna, sifar tugas baharu dan 51
 perlawanan Hanafi 2026. Build dibuat daripada worktree bersih.
+Deployment commit `e9c2b6b`, versi
+`126d5579-0caf-4095-9b22-2a5e9fb84e49`, menambah halaman pengesahan emel
+yang GET-nya tidak mengubah data. Selepas propagasi staging, GET menjawab 503
+teks biasa kerana suis masih ditutup. Kesihatan 200 dengan
+`api_complete:false`; D1 masih 370 pengguna, 445 baris baris gilir PHP lama,
+sifar tugas Worker dan 51 perlawanan Hanafi 2026. Domain utama masih PHP
+LiteSpeed. Cron auto-tolak baharu masih belum diaktifkan.
 
 ## Semua tetapan emel semasa
 

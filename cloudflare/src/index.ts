@@ -5,6 +5,7 @@ import { changePassword } from './change-password';
 import { adminDashboardStats, adminDashboardTasks, adminProfile } from './admin-dashboard';
 import { appointments } from './appointments';
 import { processAppointmentDeliveries } from './appointment-delivery';
+import { processExpiredAppointments } from './appointment-expiry';
 import { appointmentReply } from './appointment-reply';
 import { appointmentEmailLink } from './appointment-email-link';
 import { districtAssessments, refereeAssessments } from './assessments';
@@ -279,6 +280,7 @@ export default {
     }
   },
   async scheduled(_event: ScheduledController, env: Env): Promise<void> {
+    await processExpiredAppointments(env);
     await processAppointmentDeliveries(env);
   },
 } satisfies ExportedHandler<Env>;

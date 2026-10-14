@@ -8,7 +8,7 @@ const source = readFileSync(fileURLToPath(new URL('../src/appointment-response-c
 const compiled = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText;
-const { recordAppointmentReply } = await import(`data:text/javascript,${encodeURIComponent(compiled)}`);
+const { recordAppointmentReply, recordExpiredAppointment } = await import(`data:text/javascript,${encodeURIComponent(compiled)}`);
 const db = new DatabaseSync(':memory:');
 db.exec(`
   CREATE TABLE users(id INTEGER PRIMARY KEY,nama_penuh TEXT,email TEXT,no_telefon TEXT,
@@ -165,4 +165,25 @@ assert.equal(scalar("SELECT COUNT(*) AS n FROM worker_appointment_deliveries WHE
 assert.equal(scalar("SELECT count(DISTINCT crew_key) AS n FROM worker_appointment_deliveries WHERE kind='kup_crew'").n,1);
 assert.equal(scalar("SELECT crew_key AS value FROM worker_appointment_deliveries WHERE kind='kup_crew' LIMIT 1").value,
   'Pengadil:8|Penolong Pengadil 1:9|Penolong Pengadil 2:10');
+db.exec(`
+  INSERT INTO jadual_perlawanan VALUES
+    (4,1,'2099-12-01','18:00:00','Dewasa','Akhir','Padang Pahang','G','H');
+  INSERT INTO lantikan_pengadil VALUES
+    (11,4,1,NULL,'Pengadil','Diterima',NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),
+    (12,4,2,NULL,'Penolong Pengadil 1','Diterima',NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),
+    (13,4,3,NULL,'Penolong Pengadil 2','Diterima',NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),
+    (14,4,NULL,10,'Pegawai ke4','Belum Jawab',NULL,NULL,NULL,1,'2026-10-01 09:00:00',NULL,NULL,NULL),
+    (15,4,4,NULL,'Penilai Pengadil','Belum Jawab',NULL,NULL,NULL,0,NULL,NULL,NULL,NULL);
+`);
+assert.deepEqual(await recordExpiredAppointment(env,15),{kind:'not_found'},
+  'Cron cannot reject an appointment with no notification deadline');
+assert.equal(scalar('SELECT COUNT(*) AS n FROM lantikan_audit_log WHERE lantikan_id=15').n,0);
+const autoRejected = await recordExpiredAppointment(env,14);
+assert.equal(autoRejected.kind,'expired');
+assert.equal(scalar('SELECT status AS value FROM lantikan_pengadil WHERE id=14').value,'Ditolak');
+assert.equal(scalar('SELECT event_type AS value FROM lantikan_audit_log WHERE lantikan_id=14').value,
+  'appointment_auto_rejected');
+assert.equal(scalar("SELECT COUNT(*) AS n FROM worker_appointment_deliveries WHERE event_key IN (SELECT event_key FROM lantikan_audit_log WHERE lantikan_id=14) AND kind='kup_crew'").n,6,
+  'Rejected optional fourth official leaves a complete three-person crew');
+assert.deepEqual(await recordExpiredAppointment(env,14),{kind:'already_answered'});
 console.log('appointment response core: ownership, Telegram chat, acceptance, history, duplicate, RA, expiry, rollback passed');

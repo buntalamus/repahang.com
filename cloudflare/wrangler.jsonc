@@ -38,7 +38,8 @@
     "BASE_URL": "https://refpahang-staging-20261013.buntalamus2.workers.dev",
     "STAGING_AUTH_ENABLED": "0",
     "STAGING_WRITES_ENABLED": "0",
-    "APPOINTMENT_DELIVERY_ENABLED": "0"
+    "APPOINTMENT_DELIVERY_ENABLED": "0",
+    "APPOINTMENT_AUTO_REJECT_ENABLED": "0"
   },
   "triggers": {
     "crons": ["*/5 * * * *"]

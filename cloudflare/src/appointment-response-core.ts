@@ -2,13 +2,13 @@ import type { Env } from './types';
 
 /**
  * Shared D1 state transition for portal, email-link and Telegram replies.
- * External delivery (RA form, KUP roster, admin/PP Telegram) must be added
- * before any HTTP reply route calls this function in staging.
+ * The same transaction is used for portal, email, Telegram and scheduled expiry.
  */
 export type ReplyGuard =
   | { kind: 'user'; value: number }
   | { kind: 'email'; value: string }
-  | { kind: 'telegram'; value: string; chatId: number };
+  | { kind: 'telegram'; value: string; chatId: number }
+  | { kind: 'system'; value: number };
 
 export type ReplyAction = 'accept' | 'reject';
 export type ReplyOutcome =
@@ -97,6 +97,7 @@ function guardSql(guard: ReplyGuard): { clause: string; values: Array<number | s
       )`,
       values: [guard.value, guard.chatId, guard.chatId],
     };
+    case 'system': return { clause: 'lp.id=?', values: [guard.value] };
   }
 }
 
@@ -161,6 +162,10 @@ export async function recordAppointmentReply(
   if (row.status !== 'Belum Jawab') return { kind: 'already_answered' };
 
   const expiredAt = expiryDeadline(row);
+  // A scheduled call may only reject an appointment whose answer window expired.
+  if (guard.kind === 'system' && (guard.value !== id || expiredAt === null)) {
+    return { kind: 'not_found' };
+  }
   const newStatus = expiredAt === null && action === 'accept' ? 'Diterima' : 'Ditolak';
   const finalComment = expiredAt !== null ? AUTO_REJECT_COMMENT : comment;
   const answeredAt = expiredAt !== null ? localDateTime(expiredAt) : localDateTime(Date.now());
@@ -282,7 +287,9 @@ export async function recordAppointmentReply(
         AND ${marker}
     `).bind(auditKey,auditKey,id,auditKey));
   }
-  if (newStatus === 'Diterima' && KUP_POSITION.has(row.jawatan)) {
+  // A rejected optional fourth official can leave the three required KUP
+  // positions complete, just as the PHP auto-reject path does.
+  if ((newStatus === 'Diterima' || expiredAt !== null) && KUP_POSITION.has(row.jawatan)) {
     for (const channel of ['email','telegram'] as const) {
       const hasContact = channel === 'email'
         ? "COALESCE(NULLIF(trim(u.email),''),NULLIF(trim(pl.emel),''),'')<>''"
@@ -309,4 +316,9 @@ export async function recordAppointmentReply(
   if (expiredAt !== null) return { kind: 'expired', jadualId: row.jadual_id, auditKey };
   return { kind: 'answered', status: newStatus, jadualId: row.jadual_id,
     jawatan: row.jawatan, auditKey };
+}
+
+/** Called only by the gated cron; no public request supplies this guard. */
+export async function recordExpiredAppointment(env: Env, id: number): Promise<ReplyOutcome> {
+  return recordAppointmentReply(env,id,'reject','',{kind:'system',value:id});
 }
