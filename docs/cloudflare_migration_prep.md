@@ -230,9 +230,12 @@ berjaya untuk rekod sebenar masih perlu diuji apabila rekod yang sesuai wujud.
 Ini belum menghasilkan fail PDF binari secara langsung; pengguna boleh memilih
 “Cetak / Simpan PDF” dalam pelayar.
 Laluan `lantikan-audit.php` kini menyediakan GET khusus Admin bagi ringkasan,
-pautan aktif dan 100 peristiwa audit terakhir. Tindakan POST `prepare_links`,
-`record_copy`, `mark_manual_delivery` dan `admin_override_acceptance` masih
-menjawab 503 sehingga transaksi, audit dan notifikasinya dipindahkan lengkap.
+pautan aktif dan 100 peristiwa audit terakhir. Tindakan POST `record_copy` kini
+merekodkan salinan pautan aktif bersama snapshot lantikan dan identiti Admin
+dalam D1 apabila suis tulis diaktifkan. Ia menolak pautan tidak aktif atau
+jenis pautan salah. Tiga tindakan POST lain, `prepare_links`,
+`mark_manual_delivery` dan `admin_override_acceptance`, masih menjawab 503
+sehingga transaksi, audit dan notifikasinya dipindahkan lengkap.
 `kejohanan-pengesah-laporan.php` pula menyediakan GET khusus Admin untuk
 kejohanan, calon RA, pengerusi semasa dan audit tanpa mendedahkan ID Telegram.
 POST menetapkan pengerusi masih 503 kerana aliran itu juga perlu menyediakan
