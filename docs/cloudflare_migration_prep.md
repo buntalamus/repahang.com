@@ -379,8 +379,13 @@ setiap saluran, tidak menghantar semula tugas selesai, retry, krew lama dan
 perubahan daerah PP. Laluan `lantikan-jawab.php` kini memanggil teras dengan
 semakan sesi, peranan, ID dan sebab penolakan. Ujian
 `npm run test:appointment-reply` meliputi suis, pemilikan dan respons.
-Laluan pautan emel, Telegram, borang RA dan webhook masih perlu dipindahkan
-serta diuji sebelum jawapan lantikan Worker dibuka. `TELEGRAM_BOT_TOKEN` mesti
+Laluan pautan emel `lantikan-jawab-token.php` kini menyediakan halaman GET
+yang tidak mengubah data dan borang POST yang memanggil teras transaksi sama.
+Ujian `npm run test:appointment-email-link` meliputi pautan salah, HTML
+terlepas, GET tanpa perubahan, keputusan POST dan suis staging. Telegram,
+borang RA, dan webhook masih perlu dipindahkan serta diuji sebelum jawapan
+lantikan Worker dibuka. Daripada enam laluan awam di luar frontend, dua kini
+mempunyai route dan empat masih belum. `TELEGRAM_BOT_TOKEN` mesti
 disimpan sebagai Worker secret sebelum penghantaran Telegram diaktifkan.
 `STAGING_AUTH_ENABLED=0`, `STAGING_WRITES_ENABLED=0` dan
 `APPOINTMENT_DELIVERY_ENABLED=0` kekal; tiada emel/Telegram atau rekod sebenar
@@ -392,6 +397,11 @@ dan migrasi `0002_appointment_outbox.sql` pada D1 jauh. Semakan selepas deploy:
 health 200 dengan `api_complete:false`, POST jawapan lantikan 503, 370 pengguna,
 445 baris notifikasi PHP yang diimport, sifar tugas Worker baharu, dan 51
 perlawanan Hanafi 2026. Domain utama masih menggunakan LiteSpeed PHP.
+Deployment susulan commit `c7e1e17`, versi
+`769f507c-1499-4d0b-b629-0e537a9e777e`, menambah laluan jawapan portal
+berkunci. Ujian HTTP jauh: POST 503 apabila suis ditutup, GET 405, health 200
+dengan `api_complete:false`; D1 kekal 370 pengguna, sifar tugas baharu dan 51
+perlawanan Hanafi 2026. Build dibuat daripada worktree bersih.
 
 ## Semua tetapan emel semasa
 

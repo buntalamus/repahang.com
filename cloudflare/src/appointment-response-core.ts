@@ -165,7 +165,8 @@ export async function recordAppointmentReply(
   const finalComment = expiredAt !== null ? AUTO_REJECT_COMMENT : comment;
   const answeredAt = expiredAt !== null ? localDateTime(expiredAt) : localDateTime(Date.now());
   const eventType = expiredAt !== null ? 'appointment_auto_rejected' : 'appointment_response';
-  const channel = expiredAt !== null ? 'system' : guard.kind === 'user' ? 'portal' : guard.kind;
+  const channel = expiredAt !== null ? 'system'
+    : guard.kind === 'user' ? 'portal' : guard.kind === 'email' ? 'email_link' : 'telegram';
   const auditKey = `worker-${eventType}-${id}-${crypto.randomUUID()}`;
   const details = JSON.stringify(expiredAt !== null
     ? { reason: AUTO_REJECT_COMMENT, deadline_timestamp: Math.floor(expiredAt / 1000) }
