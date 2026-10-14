@@ -14,6 +14,7 @@ import { activeReferees, ownApplications, refereeMatches } from './referee';
 import { refereeGrades } from './referee-grades';
 import { forgotPassword, resetPassword } from './password-reset';
 import { assessorDashboard, districtAnnouncements, districtOverview } from './role-dashboards';
+import { tournaments } from './tournaments';
 import type { Env } from './types';
 
 function isSameOrigin(request: Request): boolean {
@@ -156,6 +157,7 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/reset-password.php') return resetPassword(request, env);
   if (pathname === '/api/pengadil-taraf.php') return refereeGrades(request, env);
   if (pathname === '/api/admin-settings.php') return adminSettings(request, env);
+  if (pathname === '/api/kejohanan.php') return tournaments(request, env);
   if (pathname === '/api/admin-applications.php' && request.method === 'POST') {
     return deleteApplication(request, env);
   }

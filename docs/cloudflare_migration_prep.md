@@ -203,9 +203,9 @@ Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
 100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
 pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
 permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
-Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 35 daripada
+Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 36 daripada
 67 endpoint PHP sebenar yang disebut oleh frontend sudah mempunyai laluan Worker;
-32 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
+31 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
 dikecualikan kerana ia bukan API. Dua laluan GET laporan penilaian turut
 dipindahkan: Pengadil
 boleh melihat laporan yang disahkan bagi lantikan sendiri, manakala PP Daerah
@@ -236,7 +236,14 @@ penamatan sesi aktif selepas kata laluan ditukar. Ujian D1 setempat mengesahkan
 token sah/tamat tempoh/diguna semula, hash serasi PHP, had permintaan,
 penyamaran kewujudan akaun dan emel yang ditangkap oleh Miniflare. **Tiada
 emel production dihantar atau disahkan diterima.** Kedua-dua laluan ini kekal
-503 apabila staging dikunci. Angka 35
+503 apabila staging dikunci. API kejohanan Admin kini mempunyai senarai,
+butiran, cipta, kemas kini, padam dan muat naik logo raster ke R2. Ujian D1
+setempat mengesahkan akses peranan, validasi tarikh, bacaan semula logo private,
+padam rekod pengesahan/pool pada kejohanan kosong, serta penolakan padam jika
+ada jadual perlawanan atau rekod audit. Kiraan 51 perlawanan Hanafi kekal.
+Logo SVG lama masih boleh dibaca daripada R2, tetapi muat naik SVG baharu
+belum dibenarkan kerana fail aktif itu perlu disanitasi sebelum disiarkan.
+Angka 36
 ialah **laluan sahaja**, bukan bukti semua kaedah
 GET/POST dan semua peranan sudah setara. Jangan buka log masuk staging atau
 alih domain sehingga matriks fungsi ini dan ujian integrasi selesai.
