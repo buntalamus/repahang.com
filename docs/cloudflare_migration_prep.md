@@ -192,8 +192,9 @@ Tindakan Admin `delete_application` turut disediakan tetapi dikunci oleh
 `STAGING_WRITES_ENABLED=0` pada Worker staging. Ujian tempatan D1 mengesahkan
 pemadaman permohonan melepaskan `perlawanan.permohonan_id` dahulu dalam satu
 batch transaksi, dan rekod perlawanan kekal. Akaun serta rekod sintetik ujian
-telah dibuang. Tindakan approve dan keputusan ujian belum dipindahkan kerana
-emel susulan masih perlu disambung. Laluan API lain
+telah dibuang. Keputusan Admin dan keputusan ujian kini mempunyai implementasi
+D1 setempat seperti dihuraikan di bawah; penghantaran emel sebenar masih perlu
+disahkan. Laluan API lain
 menjawab 503 secara jelas. Ini **bukan** pengganti production yang boleh
 digunakan untuk permohonan, lantikan, PDF atau emel.
 
@@ -326,10 +327,11 @@ memadankan role `Pengadil` tanpa peka huruf besar/kecil; kod PHP lama menggunaka
 di Worker jauh kerana staging masih berkunci.
 
 **Kiraan laluan frontend tidak merangkumi semua aliran production.** Enam
-endpoint awam lain tidak disebut dalam kod Angular: tiga pautan bertoken dalam
+endpoint yang dicapai di luar kod Angular: tiga pautan bertoken dalam
 emel (`lantikan-jawab-token.php`, `penilaian-token.php`,
 `laporan-pengesahan-token.php`), webhook Telegram, dan dua borang lama yang
-boleh dibuka melalui URL terus. Keenam-enamnya belum mempunyai laluan Worker.
+boleh dibuka melalui URL terus selepas log masuk. Keenam-enamnya belum
+mempunyai laluan Worker.
 Tugas CLI `kup-crew-notification-retry.php` juga memerlukan pengganti berjadual;
 `telegram-poll.php` ialah alat pembangunan, bukan webhook production. Oleh itu
 58/67 ialah **kehadiran laluan frontend sahaja**, bukan bukti semua kaedah
@@ -440,6 +442,14 @@ Cloudflare (`x-turbo-charged-by: LiteSpeed`). Endpoint Worker
 pada URL staging. Pemindahan nameserver **tidak** memasang route atau custom
 domain Worker pada laman production. Jangan route trafik production ke Worker
 staging yang masih mempunyai 9 endpoint frontend belum dipindahkan.
+
+Deployment staging 14 Oktober daripada commit `edbc69a`, versi Worker
+`437e71ab-2360-420c-80cf-58069c2bd9b1`, disahkan pada URL staging:
+`/api/__migration-health` masih 200 dengan `api_complete:false`, laluan cetak
+jadual menolak pengguna tanpa sesi (403), dan D1 jauh masih mempunyai 370
+pengguna serta 51 perlawanan Hanafi 2026. Domain production masih memulangkan
+pengepala LiteSpeed. Kedua-dua flag staging kekal `0`; tiada emel atau perubahan
+data production dijalankan dalam deployment ini.
 
 ## Laluan staging hingga pertukaran domain
 
