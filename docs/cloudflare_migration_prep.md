@@ -212,9 +212,10 @@ Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
 100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
 pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
 permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
-Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 58 daripada
+Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 59 daripada
 67 endpoint PHP sebenar yang disebut oleh frontend sudah mempunyai laluan Worker;
-9 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
+8 masih tiada. Laluan jawapan portal masih dikunci oleh tiga suis staging.
+Rujukan dalam komen kepada `config/kriteria-penilaian.php`
 dikecualikan kerana ia bukan API. Dua laluan GET laporan penilaian turut
 dipindahkan: Pengadil
 boleh melihat laporan yang disahkan bagi lantikan sendiri, manakala PP Daerah
@@ -375,13 +376,22 @@ Ujian `npm run test:appointment-core` di
 penerimaan, penolakan, RA, tempoh tamat dan rollback apabila notifikasi gagal.
 `npm run test:appointment-delivery` menguji suis berasingan, satu tugas bagi
 setiap saluran, tidak menghantar semula tugas selesai, retry, krew lama dan
-perubahan daerah PP. **Teras ini belum dipanggil oleh laluan HTTP**: laluan
-jawapan portal/emel/Telegram, borang RA dan webhook masih perlu dipindahkan
+perubahan daerah PP. Laluan `lantikan-jawab.php` kini memanggil teras dengan
+semakan sesi, peranan, ID dan sebab penolakan. Ujian
+`npm run test:appointment-reply` meliputi suis, pemilikan dan respons.
+Laluan pautan emel, Telegram, borang RA dan webhook masih perlu dipindahkan
 serta diuji sebelum jawapan lantikan Worker dibuka. `TELEGRAM_BOT_TOKEN` mesti
 disimpan sebagai Worker secret sebelum penghantaran Telegram diaktifkan.
 `STAGING_AUTH_ENABLED=0`, `STAGING_WRITES_ENABLED=0` dan
 `APPOINTMENT_DELIVERY_ENABLED=0` kekal; tiada emel/Telegram atau rekod sebenar
 diubah oleh Worker ini.
+
+Deployment staging daripada commit `b95ade9`, versi
+`7f0a7f4c-700d-4651-b607-c9257131c78d`, memasang jadual lima minit
+dan migrasi `0002_appointment_outbox.sql` pada D1 jauh. Semakan selepas deploy:
+health 200 dengan `api_complete:false`, POST jawapan lantikan 503, 370 pengguna,
+445 baris notifikasi PHP yang diimport, sifar tugas Worker baharu, dan 51
+perlawanan Hanafi 2026. Domain utama masih menggunakan LiteSpeed PHP.
 
 ## Semua tetapan emel semasa
 

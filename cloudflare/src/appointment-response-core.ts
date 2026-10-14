@@ -14,7 +14,8 @@ export type ReplyAction = 'accept' | 'reject';
 export type ReplyOutcome =
   | { kind: 'answered'; status: 'Diterima' | 'Ditolak'; jadualId: number; jawatan: string; auditKey: string }
   | { kind: 'expired'; jadualId: number; auditKey: string }
-  | { kind: 'not_found' | 'already_answered' };
+  | { kind: 'not_found' }
+  | { kind: 'already_answered' };
 
 interface Assignment {
   id: number;

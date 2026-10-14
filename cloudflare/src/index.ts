@@ -5,6 +5,7 @@ import { changePassword } from './change-password';
 import { adminDashboardStats, adminDashboardTasks, adminProfile } from './admin-dashboard';
 import { appointments } from './appointments';
 import { processAppointmentDeliveries } from './appointment-delivery';
+import { appointmentReply } from './appointment-reply';
 import { districtAssessments, refereeAssessments } from './assessments';
 import { districtApplications } from './district-applications';
 import { districtReferees } from './district-referees';
@@ -186,6 +187,7 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/pp-verify.php') return ppVerify(request, env);
   if (pathname === '/api/admin-test-applications.php') return adminTestApplications(request, env);
   if (pathname === '/api/pengadil-match-manage.php') return refereeMatchManage(request, env);
+  if (pathname === '/api/lantikan-jawab.php') return appointmentReply(request, env);
   if (pathname === '/api/statistics.php') return statistics(request, env);
   if (pathname === '/api/download-referees-excel.php') return adminRefereeExport(request, env);
   if (pathname === '/api/pp-export-referees.php') return districtRefereeExport(request, env);
