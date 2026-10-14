@@ -427,6 +427,19 @@ teks biasa kerana suis masih ditutup. Kesihatan 200 dengan
 `api_complete:false`; D1 masih 370 pengguna, 445 baris baris gilir PHP lama,
 sifar tugas Worker dan 51 perlawanan Hanafi 2026. Domain utama masih PHP
 LiteSpeed. Cron auto-tolak baharu masih belum diaktifkan.
+Commit `29e4e0f` menambah cron auto-tolak dengan suis keempat yang kekal `0`.
+Deployment staging versi `ee0d6a1e-2121-4788-a252-f16f5462a362` lulus
+typecheck dan binaan Angular; build masih memberi amaran bajet awal 11.42 KB.
+Selepas deploy, health 200 (`api_complete:false`), POST jawapan 503, dan GET
+pautan emel 503. Bacaan D1 jauh masih 370 pengguna, 445 baris gilir PHP lama,
+sifar tugas Worker dan 51 perlawanan Hanafi 2026.
+Commit `9fe0c20` menambah GET log lantikan Admin. Deployment staging versi
+`d4cf0325-b554-4f57-b10f-36930b7690a5` lulus typecheck dan binaan
+Angular. GET dan POST tanpa sesi akhirnya menjawab 401 selepas propagasi;
+GET awal pada satu lokasi masih menjawab 503 versi lama sebelum propagasi
+selesai. SQL skema bacaan disahkan pada D1 jauh tanpa memulangkan data.
+D1 kekal 370 pengguna, sifar tugas Worker dan 51 perlawanan Hanafi 2026.
+Empat suis staging masih `0`; domain utama masih PHP LiteSpeed.
 
 ## Semua tetapan emel semasa
 
