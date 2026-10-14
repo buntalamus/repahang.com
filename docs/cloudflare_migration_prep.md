@@ -459,12 +459,19 @@ GET awal pada satu lokasi masih menjawab 503 versi lama sebelum propagasi
 selesai. SQL skema bacaan disahkan pada D1 jauh tanpa memulangkan data.
 D1 kekal 370 pengguna, sifar tugas Worker dan 51 perlawanan Hanafi 2026.
 Empat suis staging masih `0`; domain utama masih PHP LiteSpeed.
+
 Commit `440a9f8` menambah cetakan borang Futsal R3. Deployment staging versi
 `4f6df13f-cbd3-4cf9-9a0c-c45aeeb7ea80` lulus typecheck dan binaan
 Angular. GET R3 tanpa sesi menjawab 403 dengan `text/html` dan `no-store`;
 `/api/__migration-health` menjawab 200 dengan `api_complete:false`.
 D1 jauh kekal 370 pengguna, sifar tugas Worker dan 51 perlawanan Hanafi 2026.
 Empat suis staging masih `0`; domain utama masih PHP LiteSpeed.
+Commit `5ac8d67` menambah bacaan konfigurasi Pengerusi khusus Admin. Deployment
+staging versi `1612ab89-a7f9-48e0-95c9-dcce3d4ed19d` lulus typecheck dan
+binaan Angular. GET dan POST tanpa sesi menjawab 401, manakala POST dengan
+sesi Admin masih 503 mengikut ujian sintetik. Health kekal 200 dengan
+`api_complete:false`; D1 jauh kekal 370 pengguna, tiga pemetaan Pengerusi,
+sifar tugas Worker dan 51 perlawanan Hanafi 2026. Empat suis staging masih `0`.
 
 ## Semua tetapan emel semasa
 
