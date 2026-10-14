@@ -210,9 +210,9 @@ Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
 100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
 pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
 permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
-Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 56 daripada
+Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 57 daripada
 67 endpoint PHP sebenar yang disebut oleh frontend sudah mempunyai laluan Worker;
-11 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
+10 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
 dikecualikan kerana ia bukan API. Dua laluan GET laporan penilaian turut
 dipindahkan: Pengadil
 boleh melihat laporan yang disahkan bagi lantikan sendiri, manakala PP Daerah
@@ -240,6 +240,13 @@ terjana unik dan semua 202 rekod ujian telah dibuang. Berbeza daripada PHP,
 tarikh import perlu dalam format ISO `YYYY-MM-DD`; pratonton Excel Angular
 sedia ada menghantar format itu. Ralat pangkalan data menggagalkan keseluruhan
 transaksi dan tidak meninggalkan import separa.
+Import Excel pengadil luar `pengadil-luar-upload.php` menerima sehingga 500
+baris, menormalkan negeri/gred, dan memadankan pengguna berdaftar mengikut
+telefon, emel lalu nama sebelum menyimpan. Akaun Admin yang mempunyai
+klasifikasi RA turut dicari supaya import tidak mewujudkan semula identiti
+luar pendua. Ujian setempat mengesahkan satu rekod baharu, satu baris tidak
+sah, padanan emel kepada Admin RA, serta import 500 baris; kesemua 501
+rekod ujian kemudian dibuang. Kegagalan D1 menggagalkan keseluruhan batch.
 Tetapan Admin
 GET/POST/DELETE kini menggunakan D1; mod penyelenggaraan dibaca daripada D1
 apabila staging dibuka, sementara `STAGING_AUTH_ENABLED=0` terus memaksa mod
@@ -420,7 +427,7 @@ Cloudflare (`x-turbo-charged-by: LiteSpeed`). Endpoint Worker
 `/api/__migration-health` memulangkan 404 pada domain production tetapi 200
 pada URL staging. Pemindahan nameserver **tidak** memasang route atau custom
 domain Worker pada laman production. Jangan route trafik production ke Worker
-staging yang masih mempunyai 11 endpoint frontend belum dipindahkan.
+staging yang masih mempunyai 10 endpoint frontend belum dipindahkan.
 
 ## Laluan staging hingga pertukaran domain
 

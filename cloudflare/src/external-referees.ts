@@ -2,12 +2,12 @@ import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
 
-const states = ['Johor','Kedah','Kelantan','Melaka','Negeri Sembilan','Pahang','Perak','Perlis',
+export const states = ['Johor','Kedah','Kelantan','Melaka','Negeri Sembilan','Pahang','Perak','Perlis',
   'Pulau Pinang','Sabah','Sarawak','Selangor','Terengganu','WP Kuala Lumpur','WP Putrajaya','WP Labuan'];
-const grades = ['Pengadil Negeri','Pengadil Kebangsaan','Kelas 1','Kelas 2','Kelas 3','Penilai Pengadil'];
-const stateAliases: Record<string, string> = { 'kuala lumpur': 'WP Kuala Lumpur', kl: 'WP Kuala Lumpur',
+export const grades = ['Pengadil Negeri','Pengadil Kebangsaan','Kelas 1','Kelas 2','Kelas 3','Penilai Pengadil'];
+export const stateAliases: Record<string, string> = { 'kuala lumpur': 'WP Kuala Lumpur', kl: 'WP Kuala Lumpur',
   putrajaya: 'WP Putrajaya', labuan: 'WP Labuan' };
-const gradeAliases: Record<string, string> = { keb: 'Pengadil Kebangsaan', kebangsaan: 'Pengadil Kebangsaan',
+export const gradeAliases: Record<string, string> = { keb: 'Pengadil Kebangsaan', kebangsaan: 'Pengadil Kebangsaan',
   negeri: 'Pengadil Negeri', k1: 'Kelas 1', k2: 'Kelas 2', k3: 'Kelas 3', penilai: 'Penilai Pengadil',
   ra: 'Penilai Pengadil' };
 
@@ -18,7 +18,7 @@ function idOf(value: unknown): number | null {
   return Number.isSafeInteger(number) ? number : null;
 }
 
-function normalize(value: string, canonical: string[], aliases: Record<string, string>): string | null {
+export function normalize(value: string, canonical: string[], aliases: Record<string, string>): string | null {
   const lower = value.trim().toLowerCase();
   return aliases[lower] ?? canonical.find((item) => item.toLowerCase() === lower) ?? null;
 }
