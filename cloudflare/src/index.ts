@@ -1,6 +1,7 @@
 import { currentUser, json, login, logout, session } from './auth';
 import { adminUsers } from './admin-users';
 import { adminSettings, maintenanceEnabled } from './admin-settings';
+import { changePassword } from './change-password';
 import { adminDashboardStats, adminDashboardTasks, adminProfile } from './admin-dashboard';
 import { appointments } from './appointments';
 import { districtAssessments, refereeAssessments } from './assessments';
@@ -10,6 +11,7 @@ import { refereeProfile } from './profile';
 import { adminApplications, applicationHistory, applicationSettings, deleteApplication } from './applications';
 import { announcements, notifications } from './notifications';
 import { activeReferees, ownApplications, refereeMatches } from './referee';
+import { refereeGrades } from './referee-grades';
 import { assessorDashboard, districtAnnouncements, districtOverview } from './role-dashboards';
 import type { Env } from './types';
 
@@ -148,6 +150,8 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/login.php') return login(request, env);
   if (pathname === '/api/session.php') return session(request, env);
   if (pathname === '/api/logout.php') return logout(request, env);
+  if (pathname === '/api/change-password.php') return changePassword(request, env);
+  if (pathname === '/api/pengadil-taraf.php') return refereeGrades(request, env);
   if (pathname === '/api/admin-settings.php') return adminSettings(request, env);
   if (pathname === '/api/admin-applications.php' && request.method === 'POST') {
     return deleteApplication(request, env);

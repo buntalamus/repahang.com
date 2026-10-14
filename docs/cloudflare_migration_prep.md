@@ -203,9 +203,9 @@ Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
 100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
 pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
 permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
-Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 31 daripada
+Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 33 daripada
 67 endpoint PHP sebenar yang disebut oleh frontend sudah mempunyai laluan Worker;
-36 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
+34 masih tiada. Rujukan dalam komen kepada `config/kriteria-penilaian.php`
 dikecualikan kerana ia bukan API. Dua laluan GET laporan penilaian turut
 dipindahkan: Pengadil
 boleh melihat laporan yang disahkan bagi lantikan sendiri, manakala PP Daerah
@@ -223,7 +223,13 @@ GET/POST/DELETE kini menggunakan D1; mod penyelenggaraan dibaca daripada D1
 apabila staging dibuka, sementara `STAGING_AUTH_ENABLED=0` terus memaksa mod
 penyelenggaraan. Ujian D1 setempat mengesahkan akses Admin sahaja, validasi
 sebelum batch, simpanan dan reset, serta penolakan tulis oleh
-`STAGING_WRITES_ENABLED=0`. Angka 31
+`STAGING_WRITES_ENABLED=0`. API tukar kata laluan juga sudah dipindahkan;
+ujian D1 setempat mengesahkan validasi, semakan bcrypt PHP lama, hash baharu
+yang boleh dibaca PHP, penolakan kata laluan lama selepas tukar, kemas kini
+`password_changed` pada sesi aktif, kawalan asal permintaan dan kunci tulis
+staging. Togol taraf Pengadil Admin turut menggunakan D1 dan disekat oleh
+kunci tulis staging; ujian setempat mengesahkan kawalan peranan, input,
+deduplikasi ID dan tiga kolum taraf yang bebas. Angka 33
 ialah **laluan sahaja**, bukan bukti semua kaedah
 GET/POST dan semua peranan sudah setara. Jangan buka log masuk staging atau
 alih domain sehingga matriks fungsi ini dan ujian integrasi selesai.
@@ -329,7 +335,7 @@ Cloudflare (`x-turbo-charged-by: LiteSpeed`). Endpoint Worker
 `/api/__migration-health` memulangkan 404 pada domain production tetapi 200
 pada URL staging. Pemindahan nameserver **tidak** memasang route atau custom
 domain Worker pada laman production. Jangan route trafik production ke Worker
-staging yang masih mempunyai 36 endpoint frontend belum dipindahkan.
+staging yang masih mempunyai 34 endpoint frontend belum dipindahkan.
 
 ## Laluan staging hingga pertukaran domain
 
