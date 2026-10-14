@@ -33,6 +33,11 @@ db.exec(`
     skor_ft_home INTEGER);
   CREATE TABLE notifications(id INTEGER PRIMARY KEY,user_id INTEGER,type TEXT,subject TEXT,
     message TEXT,created_at TEXT);
+  CREATE TABLE worker_appointment_outbox(event_key TEXT PRIMARY KEY,lantikan_id INTEGER,
+    jadual_id INTEGER,response_status TEXT,response_channel TEXT);
+  CREATE TABLE worker_appointment_deliveries(delivery_key TEXT PRIMARY KEY,event_key TEXT,
+    kind TEXT,channel TEXT,recipient_user_id INTEGER,recipient_lantikan_id INTEGER,
+    crew_key TEXT,status TEXT DEFAULT 'pending');
   INSERT INTO users VALUES
     (1,'Pengadil Utama','r@example.com','011',10,'Pengadil',1,1001),
     (2,'Penolong Satu','ar1@example.com','012',10,'Pengadil',1,1002),
@@ -44,7 +49,8 @@ db.exec(`
   INSERT INTO pengadil_luar VALUES(10,'Pengadil Luar','luar@example.com','017',1010);
   INSERT INTO jadual_perlawanan VALUES
     (1,1,'2026-12-01','18:00:00','Dewasa','Akhir','Padang Pahang','A','B'),
-    (2,1,'2026-12-01','20:00:00','Dewasa','Akhir','Padang Pahang','C','D');
+    (2,1,'2026-12-01','20:00:00','Dewasa','Akhir','Padang Pahang','C','D'),
+    (3,1,'2026-12-02','20:00:00','Dewasa','Akhir','Padang Pahang','E','F');
   INSERT INTO lantikan_pengadil VALUES
     (1,1,1,NULL,'Pengadil','Belum Jawab',NULL,NULL,NULL,0,NULL,NULL,'email-1',NULL),
     (2,1,2,NULL,'Penolong Pengadil 1','Diterima',NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),
@@ -52,7 +58,10 @@ db.exec(`
     (4,1,4,NULL,'Penilai Pengadil','Belum Jawab',NULL,NULL,NULL,0,NULL,NULL,'email-4',NULL),
     (5,2,1,NULL,'Pengadil','Belum Jawab',NULL,NULL,NULL,1,'2026-10-01 09:00:00',NULL,'email-5',NULL),
     (6,2,3,NULL,'Penolong Pengadil 2','Belum Jawab',NULL,NULL,NULL,0,NULL,'tg-6','email-6',NULL),
-    (7,2,NULL,10,'Pegawai ke4','Belum Jawab',NULL,NULL,NULL,0,NULL,NULL,'email-7',NULL);
+    (7,2,NULL,10,'Pegawai ke4','Belum Jawab',NULL,NULL,NULL,0,NULL,NULL,'email-7',NULL),
+    (8,3,1,NULL,'Pengadil','Diterima',NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),
+    (9,3,2,NULL,'Penolong Pengadil 1','Diterima',NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),
+    (10,3,3,NULL,'Penolong Pengadil 2','Belum Jawab',NULL,NULL,NULL,0,NULL,NULL,'email-10',NULL);
   INSERT INTO perlawanan(user_id,lantikan_id,tarikh,status_pp,created_at,skor_ft_home)
     VALUES(2,2,'2026-12-01','Disahkan','2026-10-01 10:00:00',4);
 `);
@@ -93,6 +102,11 @@ assert.equal(scalar('SELECT head_referee_id AS n FROM perlawanan WHERE lantikan_
 assert.deepEqual(await recordAppointmentReply(env,1,'accept','',{kind:'user',value:1},1),
   { kind:'already_answered' });
 assert.equal(scalar('SELECT COUNT(*) AS n FROM lantikan_audit_log WHERE lantikan_id=1').n,1);
+assert.equal(scalar('SELECT COUNT(*) AS n FROM worker_appointment_outbox WHERE lantikan_id=1').n,1);
+assert.equal(scalar("SELECT COUNT(*) AS n FROM worker_appointment_deliveries WHERE kind='admin_response'").n,1);
+assert.equal(scalar("SELECT COUNT(*) AS n FROM worker_appointment_deliveries WHERE kind='pp_response'").n,1);
+assert.equal(scalar("SELECT COUNT(*) AS n FROM worker_appointment_deliveries WHERE kind='kup_crew'").n,0,
+  'A partial KUP crew must not receive a contact roster');
 assert.equal(scalar('SELECT COUNT(*) AS n FROM notifications WHERE user_id=1').n,1);
 
 const rejected = await recordAppointmentReply(env,3,'reject','Sakit',{kind:'email',value:'email-3'});
@@ -101,6 +115,7 @@ assert.equal(scalar('SELECT COUNT(*) AS n FROM perlawanan WHERE lantikan_id=3').
 assert.equal(scalar('SELECT email_token AS value FROM lantikan_pengadil WHERE id=3').value,null);
 const ra = await recordAppointmentReply(env,4,'accept','',{kind:'user',value:4},4);
 assert.equal(ra.status,'Diterima');
+assert.equal(scalar("SELECT COUNT(*) AS n FROM worker_appointment_deliveries WHERE kind='ra_form'").n,2);
 assert.equal(scalar('SELECT length(penilaian_token) AS n FROM lantikan_pengadil WHERE id=4').n,64);
 assert.equal(scalar('SELECT COUNT(*) AS n FROM perlawanan WHERE lantikan_id=4').n,0,
   'RA is not KUP match history');
@@ -140,4 +155,14 @@ await assert.rejects(recordAppointmentReply(env,6,'accept','',{kind:'user',value
 assert.equal(scalar('SELECT status AS value FROM lantikan_pengadil WHERE id=6').value,'Belum Jawab');
 assert.equal(scalar('SELECT COUNT(*) AS n FROM lantikan_audit_log WHERE lantikan_id=6').n,0);
 assert.equal(scalar('SELECT COUNT(*) AS n FROM perlawanan WHERE lantikan_id=6').n,0);
+assert.equal(scalar('SELECT COUNT(*) AS n FROM worker_appointment_outbox WHERE lantikan_id=6').n,0);
+assert.equal(scalar("SELECT COUNT(*) AS n FROM worker_appointment_deliveries WHERE recipient_lantikan_id=6").n,0);
+db.exec('DROP TRIGGER fail_notification');
+const crewComplete = await recordAppointmentReply(env,10,'accept','',{kind:'user',value:3},3);
+assert.equal(crewComplete.status,'Diterima');
+assert.equal(scalar("SELECT COUNT(*) AS n FROM worker_appointment_deliveries WHERE kind='kup_crew'").n,6,
+  'Final KUP acceptance queues email and Telegram for the full three-person crew');
+assert.equal(scalar("SELECT count(DISTINCT crew_key) AS n FROM worker_appointment_deliveries WHERE kind='kup_crew'").n,1);
+assert.equal(scalar("SELECT crew_key AS value FROM worker_appointment_deliveries WHERE kind='kup_crew' LIMIT 1").value,
+  'Pengadil:8|Penolong Pengadil 1:9|Penolong Pengadil 2:10');
 console.log('appointment response core: ownership, Telegram chat, acceptance, history, duplicate, RA, expiry, rollback passed');

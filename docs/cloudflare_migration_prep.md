@@ -179,8 +179,9 @@ syarat peranan yang sama seperti API PHP; salinan data mengandungi 369 akaun
 aktif yang layak. Ia masih memerlukan sesi sebelum mengembalikan data peribadi.
 Penandaan notifikasi sebagai dibaca sudah dipindahkan tetapi dikunci oleh
 `STAGING_WRITES_ENABLED=0`. Bacaan tugasan masih belum menjalankan auto-tolak
-lantikan tamat tempoh atau cuba semula emel/Telegram; kedua-duanya memerlukan
-Worker berjadual sebelum staging boleh menerima pengguna sebenar.
+lantikan tamat tempoh. Worker berjadual kini memproses hanya tugas penghantaran
+jawapan lantikan baharu yang dihasilkan oleh Worker, apabila tiga suis berkaitan
+dibuka kelak; ia tidak memproses cubaan emel/Telegram PHP lama yang diimport.
 Profil serta kiraan tugas/statistik papan pemuka Admin juga membaca D1.
 Kiraan permohonan menunggu menggunakan `status_workflow`, iaitu medan yang
 digunakan oleh aliran permohonan dan kiraan tugas sedia ada.
@@ -339,7 +340,10 @@ emel (`lantikan-jawab-token.php`, `penilaian-token.php`,
 `laporan-pengesahan-token.php`), webhook Telegram, dan dua borang lama yang
 boleh dibuka melalui URL terus selepas log masuk. Satu daripada enam, iaitu
 R4 ujian kecergasan, kini mempunyai laluan Worker; lima lagi belum.
-Tugas CLI `kup-crew-notification-retry.php` juga memerlukan pengganti berjadual;
+Tugas CLI `kup-crew-notification-retry.php` kini mempunyai pengganti berjadual
+untuk **jawapan baharu Worker sahaja**; 445 rekod baris gilir PHP yang diimport
+tidak dihantar semula. Kitaran auto-tolak dan notifikasi lantikan awal masih
+perlu dipindahkan;
 `telegram-poll.php` ialah alat pembangunan, bukan webhook production. Oleh itu
 58/67 ialah **kehadiran laluan frontend sahaja**, bukan bukti semua kaedah
 GET/POST, peranan, emel atau pautan luaran sudah setara. Jangan buka log masuk
@@ -355,13 +359,29 @@ Pada 14 Oktober, `cloudflare/src/appointment-response-core.ts` menyediakan
 teras transaksi D1 untuk tiga jenis pemilik (akaun, token emel, token Telegram).
 Ia menukar status secara bersyarat, merekod audit, menyelaraskan sejarah KUP
 tanpa membuang markah sedia ada, menjana token RA dan memasukkan notifikasi
-portal dalam satu batch atomik. Ujian `npm run test:appointment-core` di
+portal dalam satu batch atomik. Migrasi `0002_appointment_outbox.sql` menambah
+acara serta tugas khusus Worker bagi setiap penerima/saluran dalam transaksi
+yang sama. Tugas meliputi Telegram Admin/PP Daerah, emel/Telegram borang RA,
+dan senarai krew KUP melalui emel/Telegram apabila tiga jawatan wajib telah
+menerima lantikan. Tugas KUP menyimpan versi krew dan digugurkan jika krew
+berubah sebelum penghantaran. Worker berjadual setiap lima minit menggunakan
+lease dan sela cuba semula; saluran yang berjaya tidak dicuba semula. Seperti
+mana-mana penghantaran luaran dengan pangkalan data berasingan, gangguan tepat
+selepas penyedia menerima mesej tetapi sebelum status D1 disimpan masih boleh
+menyebabkan satu salinan tambahan semasa retry.
+
+Ujian `npm run test:appointment-core` di
 `cloudflare/` merangkumi akses salah, pemilikan chat Telegram, klik berulang,
 penerimaan, penolakan, RA, tempoh tamat dan rollback apabila notifikasi gagal.
-**Teras ini belum dipanggil oleh laluan HTTP**: penghantaran
-emel/Telegram RA, notifikasi kru KUP yang boleh dicuba semula, serta laluan
-pautan bertoken masih perlu dipindahkan sebelum jawapan lantikan Worker
-dibuka. Kedua-dua suis staging kekal `0`; tiada rekod sebenar diubah.
+`npm run test:appointment-delivery` menguji suis berasingan, satu tugas bagi
+setiap saluran, tidak menghantar semula tugas selesai, retry, krew lama dan
+perubahan daerah PP. **Teras ini belum dipanggil oleh laluan HTTP**: laluan
+jawapan portal/emel/Telegram, borang RA dan webhook masih perlu dipindahkan
+serta diuji sebelum jawapan lantikan Worker dibuka. `TELEGRAM_BOT_TOKEN` mesti
+disimpan sebagai Worker secret sebelum penghantaran Telegram diaktifkan.
+`STAGING_AUTH_ENABLED=0`, `STAGING_WRITES_ENABLED=0` dan
+`APPOINTMENT_DELIVERY_ENABLED=0` kekal; tiada emel/Telegram atau rekod sebenar
+diubah oleh Worker ini.
 
 ## Semua tetapan emel semasa
 

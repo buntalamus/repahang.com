@@ -7,5 +7,7 @@ export interface Env extends EmailEnv {
   BASE_URL: string;
   STAGING_AUTH_ENABLED: string;
   STAGING_WRITES_ENABLED: string;
+  APPOINTMENT_DELIVERY_ENABLED: string;
   TELEGRAM_BOT_USERNAME?: string;
+  TELEGRAM_BOT_TOKEN?: string;
 }

@@ -4,6 +4,7 @@ import { adminSettings, maintenanceEnabled } from './admin-settings';
 import { changePassword } from './change-password';
 import { adminDashboardStats, adminDashboardTasks, adminProfile } from './admin-dashboard';
 import { appointments } from './appointments';
+import { processAppointmentDeliveries } from './appointment-delivery';
 import { districtAssessments, refereeAssessments } from './assessments';
 import { districtApplications } from './district-applications';
 import { districtReferees } from './district-referees';
@@ -272,5 +273,8 @@ export default {
       console.error('RefPahang Worker request failed', error);
       return json({ error: true, message: 'Ralat pelayan dalaman.' }, 500);
     }
+  },
+  async scheduled(_event: ScheduledController, env: Env): Promise<void> {
+    await processAppointmentDeliveries(env);
   },
 } satisfies ExportedHandler<Env>;

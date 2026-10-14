@@ -40,6 +40,28 @@ interface Assignment {
 
 const AUTO_REJECT_COMMENT = 'Ditolak automatik - tiada jawapan dalam tempoh';
 const KUP_ROLES = "'Pengadil','Penolong Pengadil 1','Penolong Pengadil 2','Pegawai ke4'";
+const KUP_POSITION = new Set(['Pengadil','Penolong Pengadil 1','Penolong Pengadil 2','Pegawai ke4']);
+const crewComplete = `EXISTS (
+  SELECT 1 FROM (
+    SELECT count(*) AS total, count(DISTINCT jawatan) AS unique_roles,
+      sum(status='Diterima') AS accepted,
+      sum(jawatan='Pengadil') AS r,
+      sum(jawatan='Penolong Pengadil 1') AS ar1,
+      sum(jawatan='Penolong Pengadil 2') AS ar2
+    FROM lantikan_pengadil
+    WHERE jadual_id=? AND jawatan IN (${KUP_ROLES})
+      AND status IN ('Belum Jawab','Diterima')
+  ) c WHERE c.total BETWEEN 3 AND 4 AND c.unique_roles=c.total
+    AND c.accepted=c.total AND c.r=1 AND c.ar1=1 AND c.ar2=1
+)`;
+const crewKey = `(SELECT group_concat(jawatan||':'||id,'|') FROM (
+  SELECT id,jawatan FROM lantikan_pengadil
+  WHERE jadual_id=? AND jawatan IN (${KUP_ROLES})
+    AND status='Diterima'
+  ORDER BY CASE jawatan WHEN 'Pengadil' THEN 1
+    WHEN 'Penolong Pengadil 1' THEN 2
+    WHEN 'Penolong Pengadil 2' THEN 3 ELSE 4 END,id
+))`;
 
 function localTimestamp(value: string): number | null {
   const match = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})(?::(\d{2}))?$/.exec(value.trim());
@@ -170,6 +192,11 @@ export async function recordAppointmentReply(
       row.no_telefon_pegawai,eventType,channel,'success',details,
       expiredAt !== null ? 'system' : 'official',actorUserId),
     env.DB.prepare(`
+      INSERT INTO worker_appointment_outbox
+        (event_key,lantikan_id,jadual_id,response_status,response_channel)
+      SELECT ?,?,?,?,? WHERE ${marker}
+    `).bind(auditKey,id,row.jadual_id,newStatus,channel,auditKey),
+    env.DB.prepare(`
       DELETE FROM perlawanan WHERE lantikan_id IN (
         SELECT lp.id FROM lantikan_pengadil lp WHERE lp.jadual_id=?
           AND (lp.status<>'Diterima' OR lp.pengadil_id IS NULL OR lp.jawatan NOT IN (${KUP_ROLES}))
@@ -211,10 +238,72 @@ export async function recordAppointmentReply(
       `).bind(action === 'accept' ? 'Pengadil Terima Lantikan' : 'Pengadil Tolak Lantikan',
         `${row.nama_pegawai ?? ''} — ${match}`,adminsMessage,row.persatuan_id,auditKey));
     }
+    // Telegram responses follow the same Admin/PP audience as the PHP flow.
+    statements.push(env.DB.prepare(`
+      INSERT INTO worker_appointment_deliveries
+        (delivery_key,event_key,kind,channel,recipient_user_id)
+      SELECT ?||':admin:'||u.id||':telegram',?,'admin_response','telegram',u.id
+      FROM users u WHERE u.role='Admin' AND u.aktif=1
+        AND u.telegram_chat_id IS NOT NULL AND ${marker}
+    `).bind(auditKey,auditKey,auditKey));
+    if (row.pengadil_id !== null && row.persatuan_id) {
+      statements.push(env.DB.prepare(`
+        INSERT INTO worker_appointment_deliveries
+          (delivery_key,event_key,kind,channel,recipient_user_id)
+        SELECT ?||':pp:'||u.id||':telegram',?,'pp_response','telegram',u.id
+        FROM users u WHERE u.role='PP Daerah' AND u.aktif=1
+          AND u.persatuan_id=? AND u.telegram_chat_id IS NOT NULL AND ${marker}
+      `).bind(auditKey,auditKey,row.persatuan_id,auditKey));
+    }
+  }
+  if (newStatus === 'Diterima' && row.jawatan === 'Penilai Pengadil') {
+    statements.push(env.DB.prepare(`
+      INSERT INTO worker_appointment_deliveries
+        (delivery_key,event_key,kind,channel,recipient_lantikan_id)
+      SELECT ?||':ra:'||lp.id||':email',?,'ra_form','email',lp.id
+      FROM lantikan_pengadil lp
+      LEFT JOIN users u ON u.id=lp.pengadil_id
+      LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
+      WHERE lp.id=? AND lp.status='Diterima'
+        AND COALESCE(NULLIF(trim(u.email),''),NULLIF(trim(pl.emel),''),'')<>''
+        AND ${marker}
+    `).bind(auditKey,auditKey,id,auditKey));
+    statements.push(env.DB.prepare(`
+      INSERT INTO worker_appointment_deliveries
+        (delivery_key,event_key,kind,channel,recipient_lantikan_id)
+      SELECT ?||':ra:'||lp.id||':telegram',?,'ra_form','telegram',lp.id
+      FROM lantikan_pengadil lp
+      LEFT JOIN users u ON u.id=lp.pengadil_id
+      LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
+      WHERE lp.id=? AND lp.status='Diterima'
+        AND COALESCE(u.telegram_chat_id,pl.telegram_chat_id) IS NOT NULL
+        AND ${marker}
+    `).bind(auditKey,auditKey,id,auditKey));
+  }
+  if (newStatus === 'Diterima' && KUP_POSITION.has(row.jawatan)) {
+    for (const channel of ['email','telegram'] as const) {
+      const hasContact = channel === 'email'
+        ? "COALESCE(NULLIF(trim(u.email),''),NULLIF(trim(pl.emel),''),'')<>''"
+        : 'COALESCE(u.telegram_chat_id,pl.telegram_chat_id) IS NOT NULL';
+      statements.push(env.DB.prepare(`
+        INSERT INTO worker_appointment_deliveries
+          (delivery_key,event_key,kind,channel,recipient_lantikan_id,crew_key)
+        SELECT ?||':kup:'||lp.id||':${channel}',?,'kup_crew','${channel}',lp.id,
+          ${crewKey}
+        FROM lantikan_pengadil lp
+        LEFT JOIN users u ON u.id=lp.pengadil_id
+        LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
+        WHERE lp.jadual_id=? AND lp.jawatan IN (${KUP_ROLES})
+          AND lp.status='Diterima' AND ${hasContact}
+          AND ${crewComplete} AND ${marker}
+      `).bind(auditKey,auditKey,row.jadual_id,row.jadual_id,row.jadual_id,auditKey));
+    }
   }
   const results = await env.DB.batch(statements);
   if (results[0].meta.changes !== 1) return { kind: 'already_answered' };
-  if (results[1].meta.changes !== 1) throw new Error('Audit lantikan tidak disimpan.');
+  if (results[1].meta.changes !== 1 || results[2].meta.changes !== 1) {
+    throw new Error('Audit atau tugas penghantaran lantikan tidak disimpan.');
+  }
   if (expiredAt !== null) return { kind: 'expired', jadualId: row.jadual_id, auditKey };
   return { kind: 'answered', status: newStatus, jadualId: row.jadual_id,
     jawatan: row.jawatan, auditKey };
