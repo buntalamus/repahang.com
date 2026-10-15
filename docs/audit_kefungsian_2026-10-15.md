@@ -36,6 +36,10 @@ Pada 2026, terdapat 370 akaun, 488 permohonan dan 11,608 rekod perlawanan dalam 
 - Paparan pengguna produksi menunjukkan 370 akaun, 333 pengguna pengadil, 16 PP dan 28 RA. Statistik 2026 menunjukkan 221 pengadil berdaftar, 403 permohonan, 997 lantikan dan 5,842 rekod perlawanan.
 - Semakan langsung bagi akaun PP, RA dan pengadil sebenar belum boleh dibuktikan tanpa sesi peranan tersebut. Ujian peranan dibuat pada salinan D1, bukan dengan mengubah data produksi.
 
+## Risiko dependensi yang ditemui
+
+`npm audit --omit=dev` pada lockfile frontend melaporkan tujuh pakej produksi terjejas: lima tahap tinggi dan dua sederhana. Pakej Angular mempunyai versi pembetulan tersedia, manakala `xlsx` tidak mempunyai pembetulan melalui pakej npm semasa. Audit yang sama pada dependensi produksi Worker melaporkan sifar isu. Perubahan versi pustaka memerlukan semakan serasi dan ujian aliran import/eksport berasingan; penemuan ini tidak menandakan eksploitasi telah berlaku.
+
 ## Integrasi pelepasan
 
-Worker produksi menggunakan `cloudflare/wrangler.production.jsonc` dan domain `refpahang.com` serta `www.refpahang.com`. Cloudflare Builds kini disambungkan kepada `buntalamus/repahang.com`, cabang produksi `main`. Arahan build memasang dependensi Worker dan frontend daripada lockfile masing-masing, kemudian membina Angular; arahan deploy menjalankan Wrangler dengan konfigurasi produksi. Preview builds dimatikan. Push baharu ke `main` mencetuskan binaan automatik. Rahsia Worker kekal dalam Cloudflare dan tidak dimasukkan ke Git.
+Worker produksi menggunakan `cloudflare/wrangler.production.jsonc` dan domain `refpahang.com` serta `www.refpahang.com`. Cloudflare Builds kini disambungkan kepada `buntalamus/repahang.com`, cabang produksi `main`. Arahan build memasang dependensi Worker dan frontend daripada lockfile masing-masing, kemudian membina Angular; arahan deploy menjalankan Wrangler dengan konfigurasi produksi. Preview builds dimatikan. Push baharu ke `main` mencetuskan binaan automatik. Binaan Git `ae41c9bb` berjaya menerbitkan versi Worker `c2cc4d34`; kedua-dua domain, endpoint kesihatan migrasi dan aset Angular disemak selepas deploy. Rahsia Worker kekal dalam Cloudflare dan tidak dimasukkan ke Git.
