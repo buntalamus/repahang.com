@@ -551,6 +551,14 @@ GET laporan tanpa sesi 401, GET token RA 503 kerana suis auth `0`. D1 jauh
 kekal 370 pengguna, 51 perlawanan Hanafi 2026 dan sifar tugas penghantaran
 Worker. Domain production masih PHP LiteSpeed. Kesemua empat suis staging
 kekal `0`; emel dan tulis laporan tidak diuji pada persekitaran jauh.
+Commit `788b376` menambah draf RA atomik melalui sesi atau token. Migrasi
+`0003_assessment_drafts.sql` telah dipasang pada D1 staging selepas eksport
+sandaran. Deployment staging versi `07e9fbc6-21bf-4d81-894b-359cfcbc7059`
+dibina daripada worktree bersih. Selepas propagasi, kedua-dua POST draf
+memulangkan 503 seperti suis tulis `0`; health masih `api_complete:false`.
+D1 jauh mengekalkan 370 pengguna, 91 laporan asal, 51 perlawanan Hanafi 2026
+dan sifar draf Worker. Tiada penghantaran emel, tindakan Pengerusi atau
+pertukaran domain production dilakukan.
 
 ## Semua tetapan emel semasa
 
