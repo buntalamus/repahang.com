@@ -60,6 +60,19 @@ staging yang sedang dideploy sebelum cutover):
 Emel lama tidak akan muncul dalam peti masuk baharu. Jika keputusan tentang
 sejarah emel berubah sebelum pelayan ditutup, eksport MBOX/EML dahulu.
 
+## Kunci QA untuk ujian tulis staging, 15 Oktober
+
+Commit `575ab1f` dideploy daripada worktree bersih sebagai Worker staging
+versi `ddde2b2f-a1f3-490b-818a-77a20fda9d11`, dan secret
+`STAGING_QA_WRITE_TOKEN` dipasang. Apabila secret wujud, setiap POST/PUT/
+PATCH/DELETE selain `login.php`/`logout.php` mesti membawa pengepala
+`X-Refpahang-QA-Write-Token`. Semakan live: tanpa kunci atau kunci salah
+memberi 403, kunci betul sampai ke semakan sesi (401 tanpa sesi), log masuk
+dan GET tidak terjejas. Nilai kunci disimpan secara peribadi di luar repo.
+D1 staging mempunyai sifar `kup_crew_notifications` tertunggak, jadi cron
+tidak menghantar notifikasi lama apabila suis lantikan dibuka. Semua suis
+tulis dan emel staging masih `0`.
+
 ## Penutupan 12 laluan separa, 15 Oktober
 
 Dua tindakan POST yang sebelum ini belum wujud di Worker kini dipindahkan:
