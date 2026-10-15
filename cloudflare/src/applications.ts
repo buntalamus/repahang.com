@@ -4,11 +4,13 @@ import { boundedJson } from './request';
 import type { Env } from './types';
 import { blastKelas3Welcome } from './kelas3-welcome';
 import { wroteRow } from './d1-changes';
+import { APPLICATION_CATEGORY_SQL } from './application-category';
 
 const APPLICATION_TYPES: Record<string, string> = {
   berdaftar: 'pengadil_berdaftar',
   kecergasan: 'pengadil_berdaftar',
-  bertulis: 'ujian_bertulis',
+  bertulis: 'kelas3_fam',
+  kelas3: 'kelas3_fam',
   kelas1: 'ujian_kelas1_fam',
   penilai_berdaftar: 'penilai_berdaftar',
   pp_berdaftar: 'pp_berdaftar',
@@ -75,7 +77,7 @@ export async function applicationHistory(request: Request, env: Env): Promise<Re
     return json({ error: false, application });
   }
   const type = url.searchParams.get('type') ?? '';
-  const jenisBorang = APPLICATION_TYPES[type] ?? null;
+  const applicationCategory = APPLICATION_TYPES[type] ?? null;
   const result = await env.DB.prepare(`
     SELECT p.id, p.jenis_borang, p.tahun_permohonan, p.status,
            p.status_workflow, p.status_ujian, p.payment_amount, p.url_resit,
@@ -86,9 +88,9 @@ export async function applicationHistory(request: Request, env: Env): Promise<Re
            COALESCE(pb.nama_persatuan,'') AS district_name
     FROM permohonan p
     LEFT JOIN persatuan_bolasepak_daerah pb ON pb.id=p.persatuan_id
-    WHERE p.user_id=? AND (? IS NULL OR p.jenis_borang=?)
+    WHERE p.user_id=? AND (? IS NULL OR ${APPLICATION_CATEGORY_SQL}=?)
     ORDER BY p.tarikh_hantar DESC, p.id DESC
-  `).bind(user.id, jenisBorang, jenisBorang).all();
+  `).bind(user.id, applicationCategory, applicationCategory).all();
   return json({ error: false, data: result.results });
 }
 
@@ -100,18 +102,25 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
   }
   const url = new URL(request.url);
   const status = url.searchParams.get('status') ?? 'all';
-  const jenisBorang = ADMIN_TYPES[url.searchParams.get('type') ?? ''] ?? null;
+  const applicationCategory = ADMIN_TYPES[url.searchParams.get('type') ?? ''] ?? null;
+  const requestedYear = url.searchParams.get('year');
+  const year = requestedYear === null ? null : Number(requestedYear);
+  if (year !== null && (!Number.isInteger(year) || year < 2000 || year > 2100)) {
+    return json({ error: true, message: 'Tahun tidak sah.' }, 400);
+  }
   const limit = Number.parseInt(url.searchParams.get('limit') ?? '0', 10) || 0;
 
   const rows = await env.DB.prepare(`
     SELECT p.id, p.nama_penuh, p.jenis_permohonan AS jenis_permohonan_slug,
-           p.jenis_borang,
-           CASE p.jenis_borang
+           p.jenis_borang,${APPLICATION_CATEGORY_SQL} AS application_category,
+           CASE ${APPLICATION_CATEGORY_SQL}
              WHEN 'pengadil_berdaftar' THEN 'Pengadil Berdaftar'
-             WHEN 'penilai_berdaftar' THEN 'RA Berdaftar'
-             WHEN 'pp_berdaftar' THEN 'PP Berdaftar'
+             WHEN 'penilai_berdaftar' THEN 'Penilai Pengadil Berdaftar'
+             WHEN 'pp_berdaftar' THEN 'Pegawai Pembangunan Berdaftar'
              WHEN 'kelas3_fam' THEN 'Kelas III FAM'
              WHEN 'ujian_kelas1_fam' THEN 'Ujian Kelas I FAM'
+             WHEN 'ujian_kecergasan' THEN 'Ujian Kecergasan (Rekod Lama)'
+             WHEN 'pegawai_pembangunan' THEN 'Pegawai Pembangunan'
              ELSE p.jenis_borang END AS jenis_permohonan,
            CASE WHEN p.jenis_borang='ujian_kelas1_fam' THEN
              CASE p.workflow_status WHEN 'Pending' THEN 'Menunggu Admin'
@@ -141,9 +150,10 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
           WHEN 'Approved' THEN 'Lengkap' WHEN 'Rejected' THEN 'Ditolak'
           ELSE p.workflow_status END
       ELSE p.status_workflow END=?)
-      AND (? IS NULL OR p.jenis_borang=?)
+      AND (? IS NULL OR ${APPLICATION_CATEGORY_SQL}=?)
+      AND (? IS NULL OR p.tahun_permohonan=?)
     ORDER BY p.tarikh_hantar DESC
-  `).bind(status, status, jenisBorang, jenisBorang).all();
+  `).bind(status, status, applicationCategory, applicationCategory, year, year).all();
 
   const month = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Kuala_Lumpur', month: '2-digit',
@@ -163,7 +173,9 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
         OR (p.jenis_borang='ujian_kelas1_fam' AND p.workflow_status='Rejected')
         THEN 1 ELSE 0 END) AS total_rejected
     FROM permohonan p
-  `).bind(month).first();
+    WHERE (? IS NULL OR ${APPLICATION_CATEGORY_SQL}=?)
+      AND (? IS NULL OR p.tahun_permohonan=?)
+  `).bind(month, applicationCategory, applicationCategory, year, year).first();
   // PDO returns aggregate values as strings in the original PHP response.
   const statistics = Object.fromEntries(Object.entries(stats ?? {}).map(([key, value]) =>
     [key, value === null ? null : String(value)]));

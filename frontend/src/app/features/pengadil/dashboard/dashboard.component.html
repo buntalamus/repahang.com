@@ -25,7 +25,7 @@
         </div>
         <div>
           <p class="text-2xl font-bold">{{ matchStats.verified }}</p>
-          <p class="text-xs text-gray-500">Disahkan PP</p>
+          <p class="text-xs text-gray-500">Disahkan Pegawai Pembangunan</p>
         </div>
       </div>
       <!-- Rekod Belum Disahkan -->
@@ -43,7 +43,7 @@
             {{ matchStats.total - matchStats.verified }}
           </p>
           <p class="text-xs"
-            [class]="(matchStats.total - matchStats.verified) > 0 ? 'text-amber-600' : 'text-gray-500'">Belum Disahkan PP</p>
+            [class]="(matchStats.total - matchStats.verified) > 0 ? 'text-amber-600' : 'text-gray-500'">Belum Disahkan Pegawai Pembangunan</p>
         </div>
       </a>
       <div class="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">

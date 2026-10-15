@@ -125,7 +125,7 @@ async function assign(env: Env, input: Record<string, unknown>, user: User, meta
   if (!poolMember) return json({ error: true, message: 'Pegawai yang dipilih tiada dalam pool kejohanan ini.' }, 409);
   const jenisPengadil = String(poolMember.jenis_pengadil ?? '').trim();
   if (jawatan === 'Penilai Pengadil' && jenisPengadil !== 'Penilai Pengadil') {
-    return json({ error: true, message: 'Slot RA hanya boleh diberikan kepada pegawai berjenis Penilai Pengadil.' }, 409);
+    return json({ error: true, message: 'Slot Penilai Pengadil hanya boleh diberikan kepada pegawai berjenis Penilai Pengadil.' }, 409);
   }
   if (jawatan !== 'Penilai Pengadil' && jenisPengadil === 'Penilai Pengadil') {
     return json({ error: true, message: 'Penilai Pengadil tidak boleh ditempatkan dalam slot KUP.' }, 409);
@@ -157,7 +157,7 @@ async function assign(env: Env, input: Record<string, unknown>, user: User, meta
         message: `Pegawai ini sudah dilantik sebagai ${conflict.jawatan} pada tarikh dan masa yang sama.` }, 409);
     }
     if (await env.DB.prepare(reportSql).bind(jadualId).first()) {
-      return json({ error: true, message: 'Lantikan tidak boleh diubah kerana laporan RA untuk perlawanan ini telah diwujudkan.' }, 409);
+    return json({ error: true, message: 'Lantikan tidak boleh diubah kerana laporan Penilai Pengadil untuk perlawanan ini telah diwujudkan.' }, 409);
     }
     if (await env.DB.prepare(legacySql).bind(jadualId).first()) {
       return json({ error: true, message: 'Lantikan tidak boleh diubah kerana rekod penilaian pengadil telah wujud dalam sejarah perlawanan.' }, 409);
@@ -256,10 +256,10 @@ async function assign(env: Env, input: Record<string, unknown>, user: User, meta
       const row = await env.DB.prepare('SELECT id FROM lantikan_pengadil WHERE jadual_id=? AND jawatan=?')
         .bind(jadualId, jawatan).first<{ id: number }>();
       if (row) await generatePenilaianToken(env, row.id, meta);
-      message += ' Pautan borang penilaian RA telah dihantar.';
+      message += ' Pautan borang Penilai Pengadil telah dihantar.';
     } catch (error) {
       console.error('[lantikan.php] RA notification failed', error instanceof Error ? error.message : error);
-      message += ' Lantikan RA berjaya, tetapi notifikasi borang gagal dihantar.';
+      message += ' Lantikan Penilai Pengadil berjaya, tetapi notifikasi borang gagal dihantar.';
     }
   }
   return json({ error: false, message });
@@ -295,7 +295,7 @@ async function deleteAppointment(env: Env, request: Request, user: User, meta: A
   const legacySql = `SELECT pp.id FROM penilaian_pengadil pp JOIN perlawanan p ON p.id=pp.perlawanan_id
     WHERE p.lantikan_id=? LIMIT 1`;
   if (await env.DB.prepare(reportSql).bind(id, id).first()) {
-    return json({ error: true, message: 'Lantikan tidak boleh dibuang kerana sudah digunakan dalam laporan RA.' }, 409);
+    return json({ error: true, message: 'Lantikan tidak boleh dibuang kerana sudah digunakan dalam laporan Penilai Pengadil.' }, 409);
   }
   if (await env.DB.prepare(legacySql).bind(id).first()) {
     return json({ error: true, message: 'Lantikan tidak boleh dibuang kerana rekod penilaian pengadil telah wujud.' }, 409);
@@ -378,7 +378,7 @@ async function batalLantikanByJadual(env: Env, rawIds: number[], status: string,
   const legacySql = `SELECT pp.id FROM penilaian_pengadil pp JOIN perlawanan p ON p.id=pp.perlawanan_id
     JOIN lantikan_pengadil lp ON lp.id=p.lantikan_id WHERE lp.jadual_id IN ${inIds} LIMIT 1`;
   if (await env.DB.prepare(reportSql).bind(idsJson).first()) {
-    return json({ error: true, message: 'Perlawanan tidak boleh dibatalkan kerana laporan RA telah diwujudkan.' }, 409);
+    return json({ error: true, message: 'Perlawanan tidak boleh dibatalkan kerana laporan Penilai Pengadil telah diwujudkan.' }, 409);
   }
   if (await env.DB.prepare(legacySql).bind(idsJson).first()) {
     return json({ error: true, message: 'Perlawanan tidak boleh dibatalkan kerana rekod penilaian pengadil telah wujud.' }, 409);

@@ -11,13 +11,13 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
   imports: [FormsModule, DatePipe, LoadingComponent],
   template: `
     @if (loading) {
-      <app-loading message="Memuatkan senarai RA..." />
+      <app-loading message="Memuatkan senarai Penilai Pengadil..." />
     } @else {
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 class="text-xl font-bold text-slate-900">Senarai RA Berdaftar</h1>
-          <p class="text-sm text-slate-500 mt-0.5">{{ filtered.length }} RA (Penilai Pengadil) dalam daerah anda</p>
+          <h1 class="text-xl font-bold text-slate-900">Senarai Penilai Pengadil Berdaftar</h1>
+          <p class="text-sm text-slate-500 mt-0.5">{{ filtered.length }} Penilai Pengadil dalam daerah anda</p>
         </div>
       </div>
 
@@ -67,7 +67,7 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
                 <tr>
                   <td colspan="7" class="px-4 py-12 text-center">
                     <span class="material-icons text-slate-300 text-4xl mb-2">people_outline</span>
-                    <p class="text-sm text-slate-400">Tiada RA ditemui.</p>
+                    <p class="text-sm text-slate-400">Tiada Penilai Pengadil ditemui.</p>
                   </td>
                 </tr>
               }
@@ -151,7 +151,7 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
               </div>
 
               <div class="px-6 py-4 border-b border-slate-100">
-                <h4 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3">Maklumat RA</h4>
+                <h4 class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-3">Maklumat Penilai Pengadil</h4>
                 <div class="grid grid-cols-2 gap-3">
                   <div class="text-xs">
                     <p class="text-slate-400 mb-0.5">Jenis</p>

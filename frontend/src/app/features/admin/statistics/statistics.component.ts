@@ -76,38 +76,39 @@ declare const Chart: any;
             <!-- ── TAB: PERMOHONAN ── -->
             @if (activeTab === 'permohonan') {
               <div class="space-y-6">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div (click)="router.navigate(['/admin/permohonan'])" class="rounded-lg bg-amber-50 border border-amber-200 p-3 cursor-pointer hover:shadow-md hover:border-amber-300 transition-all">
-                    <p class="text-xs text-amber-600 font-medium">Menunggu</p>
-                    <p class="text-lg font-bold text-amber-700">{{ s.applications?.statusBreakdown?.['Menunggu'] || 0 }}</p>
-                  </div>
-                  <div (click)="router.navigate(['/admin/permohonan'])" class="rounded-lg bg-green-50 border border-green-200 p-3 cursor-pointer hover:shadow-md hover:border-green-300 transition-all">
-                    <p class="text-xs text-green-600 font-medium">Lengkap</p>
-                    <p class="text-lg font-bold text-green-700">{{ s.applications?.statusBreakdown?.['Lengkap'] || 0 }}</p>
-                  </div>
-                  <div (click)="router.navigate(['/admin/permohonan'])" class="rounded-lg bg-red-50 border border-red-200 p-3 cursor-pointer hover:shadow-md hover:border-red-300 transition-all">
-                    <p class="text-xs text-red-600 font-medium">Ditolak</p>
-                    <p class="text-lg font-bold text-red-700">{{ s.applications?.statusBreakdown?.['Ditolak'] || 0 }}</p>
-                  </div>
-                  <div (click)="router.navigate(['/admin/permohonan'])" class="rounded-lg bg-slate-50 border border-slate-200 p-3 cursor-pointer hover:shadow-md hover:border-slate-300 transition-all">
-                    <p class="text-xs text-slate-600 font-medium">Jumlah</p>
-                    <p class="text-lg font-bold text-slate-800">{{ s.applications?.total || 0 }}</p>
-                  </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                  @for (kind of applicationTypes; track kind.key) {
+                    <button (click)="selectApplicationType(kind.key)" type="button" [attr.aria-pressed]="selectedApplicationType === kind.key"
+                      class="rounded-lg border p-4 text-left hover:shadow-md transition"
+                      [class]="selectedApplicationType === kind.key ? 'bg-amber-50 border-pahang-yellow' : 'bg-white border-slate-200'">
+                      <p class="text-xs font-semibold text-slate-600">{{ kind.label }}</p>
+                      <p class="text-xl font-bold text-slate-900 mt-2">{{ s.applications?.byType?.[kind.key]?.total || 0 }}</p>
+                      <p class="text-xs text-amber-700 mt-1">Menunggu {{ s.applications?.byType?.[kind.key]?.pending || 0 }}</p>
+                    </button>
+                  }
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <h4 class="text-sm font-semibold text-slate-800">{{ selectedApplicationLabel }} · {{ yearFilter }}</h4>
+                  <button (click)="openSelectedApplications()" type="button" class="text-xs font-medium text-slate-700 hover:underline">Buka senarai</button>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                  <div class="rounded-lg bg-amber-50 border border-amber-200 p-3"><p class="text-xs text-amber-700">Menunggu</p><p class="text-lg font-bold text-amber-800">{{ selectedApplicationStats.pending || 0 }}</p></div>
+                  <div class="rounded-lg bg-green-50 border border-green-200 p-3"><p class="text-xs text-green-700">Diluluskan</p><p class="text-lg font-bold text-green-800">{{ selectedApplicationStats.approved || 0 }}</p></div>
+                  <div class="rounded-lg bg-red-50 border border-red-200 p-3"><p class="text-xs text-red-700">Ditolak</p><p class="text-lg font-bold text-red-800">{{ selectedApplicationStats.rejected || 0 }}</p></div>
                 </div>
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
                   <div>
-                    <h4 class="text-sm font-semibold text-slate-700 mb-3">Mengikut Jenis Borang</h4>
-                    <div class="h-64"><canvas id="chartAppTypes"></canvas></div>
-                  </div>
-                  <div>
-                    <h4 class="text-sm font-semibold text-slate-700 mb-3">Status Permohonan</h4>
+                    <h4 class="text-sm font-semibold text-slate-700 mb-3">Status {{ selectedApplicationLabel }}</h4>
                     <div class="h-64 flex items-center justify-center"><canvas id="chartAppStatus"></canvas></div>
                   </div>
+                  <div>
+                    <h4 class="text-sm font-semibold text-slate-700 mb-3">Trend {{ selectedApplicationLabel }} Bulanan</h4>
+                    <div class="h-64"><canvas id="chartAppMonthly"></canvas></div>
+                  </div>
                 </div>
-                <div>
-                  <h4 class="text-sm font-semibold text-slate-700 mb-3">Trend Permohonan Bulanan</h4>
-                  <div class="h-56"><canvas id="chartAppMonthly"></canvas></div>
-                </div>
+                @if (otherApplicationTypes.length) {
+                  <p class="text-xs text-slate-500">Rekod lain diasingkan: {{ otherApplicationTypes.join(' · ') }}.</p>
+                }
               </div>
             }
 
@@ -574,7 +575,31 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
   s: any = {};
   charts: any[] = [];
   activeTab = 'permohonan';
+  selectedApplicationType = 'pengadil_berdaftar';
   availableYears: number[] = [];
+  applicationTypes = [
+    { key: 'pengadil_berdaftar', label: 'Permohonan Pengadil Berdaftar', route: '/admin/permohonan', type: 'berdaftar' },
+    { key: 'penilai_berdaftar', label: 'Permohonan Penilai Pengadil Berdaftar', route: '/admin/permohonan-ra', type: 'penilai' },
+    { key: 'kelas3_fam', label: 'Permohonan Kelas III FAM', route: '/admin/permohonan', type: 'kelas3' },
+    { key: 'ujian_kelas1_fam', label: 'Permohonan Kelas I FAM', route: '/admin/permohonan', type: 'kelas1' },
+  ];
+
+  get selectedApplicationStats(): any {
+    return this.s.applications?.byType?.[this.selectedApplicationType] || {};
+  }
+
+  get selectedApplicationLabel(): string {
+    return this.applicationTypes.find(item => item.key === this.selectedApplicationType)?.label || '';
+  }
+
+  get otherApplicationTypes(): string[] {
+    const excluded = new Set(this.applicationTypes.map(item => item.key));
+    const labels: Record<string, string> = { ujian_kecergasan: 'Ujian Kecergasan (rekod lama)',
+      pegawai_pembangunan: 'Pegawai Pembangunan', pp_berdaftar: 'Pegawai Pembangunan Berdaftar', lain_lain: 'Lain-lain' };
+    return Object.entries(this.s.applications?.types || {})
+      .filter(([key, value]) => !excluded.has(key) && Number(value) > 0)
+      .map(([key, value]) => `${labels[key] || key}: ${value}`);
+  }
 
   tabs = [
     { key: 'permohonan', label: 'Permohonan', icon: 'assignment' },
@@ -585,7 +610,7 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
     { key: 'peperiksaan', label: 'Peperiksaan', icon: 'school' },
   ];
 
-  summaryCards: { label: string; value: string | number; icon: string; color: string; sub?: string; tab?: string; route?: string }[] = [];
+  summaryCards: { label: string; value: string | number; icon: string; color: string; sub?: string; tab?: string; route?: string; applicationType?: string }[] = [];
   employmentItems: { label: string; value: number; pct: number }[] = [];
   examCards: { key: string; label: string; icon: string; color: string; total: number; lulus: number; tidakLulus: number; belum: number; passRate: number | null }[] = [];
 
@@ -634,7 +659,12 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
     const tgPct = s.telegram?.total ? Math.round((s.telegram.linked / s.telegram.total) * 100) : 0;
     this.summaryCards = [
       { label: 'Pengadil Berdaftar', value: s.total || 0, icon: 'badge', color: '#1e293b', tab: 'pengadil', route: '/admin/pengadil-berdaftar' },
-      { label: 'Jumlah Permohonan', value: s.applications?.total || 0, icon: 'assignment', color: '#f59e0b', tab: 'permohonan', route: '/admin/permohonan' },
+      ...this.applicationTypes.map((item, index) => ({
+        label: item.label, value: s.applications?.byType?.[item.key]?.total || 0,
+        icon: ['assignment', 'rate_review', 'quiz', 'workspace_premium'][index],
+        color: ['#eab308', '#64748b', '#3b82f6', '#8b5cf6'][index],
+        route: item.route, applicationType: item.type,
+      })),
       { label: 'Lantikan', value: s.lantikan?.total || 0, icon: 'assignment_ind', color: '#10b981', tab: 'lantikan', route: '/admin/lantikan' },
       { label: 'Perlawanan', value: s.matches?.uniqueMatches || 0, icon: 'sports_soccer', color: '#f97316', sub: (s.matches?.total || 0) + ' rekod', tab: 'perlawanan' },
       { label: 'Penilaian', value: s.ratings?.total || 0, icon: 'assessment', color: '#3b82f6', sub: s.ratings?.average ? 'Purata: ' + s.ratings.average : undefined, tab: 'penilaian' },
@@ -686,30 +716,29 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
   }
 
   private renderAppCharts(): void {
-    const types = this.s.applications?.types || {};
-    const typeLabels: Record<string, string> = {
-      'pengadil_berdaftar': 'Pengadil Berdaftar', 'penilai_berdaftar': 'RA Berdaftar',
-      'pp_berdaftar': 'PP Berdaftar', 'ujian_kecergasan': 'Ujian Kecergasan',
-      'kelas3_fam': 'Kelas III FAM', 'ujian_bertulis': 'Ujian Kelas III',
-      'ujian_kelas1_fam': 'Ujian Kelas I',
-    };
-    this.makeChart('chartAppTypes', 'bar', {
-      labels: Object.keys(types).map(k => typeLabels[k] || k),
-      datasets: [{ label: 'Permohonan', data: Object.values(types), backgroundColor: ['#FADA00', '#1e293b', '#3b82f6', '#8b5cf6'], borderRadius: 6 }],
-    }, { indexAxis: 'y', plugins: { legend: { display: false } } });
-
-    const status = this.s.applications?.statusBreakdown || {};
+    const selected = this.selectedApplicationStats;
     this.makeChart('chartAppStatus', 'doughnut', {
-      labels: Object.keys(status),
-      datasets: [{ data: Object.values(status), backgroundColor: ['#f59e0b', '#10b981', '#ef4444'], borderWidth: 0 }],
+      labels: ['Menunggu', 'Diluluskan', 'Ditolak'],
+      datasets: [{ data: [selected.pending || 0, selected.approved || 0, selected.rejected || 0],
+        backgroundColor: ['#f59e0b', '#10b981', '#ef4444'], borderWidth: 0 }],
     }, { cutout: '65%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 10 } } } });
 
-    const monthly = this.s.applications?.monthlyTrend || {};
+    const monthly = selected.monthlyTrend || {};
     const months = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
     this.makeChart('chartAppMonthly', 'line', {
       labels: months,
-      datasets: [{ label: 'Permohonan', data: Object.values(monthly), borderColor: '#FADA00', backgroundColor: '#FADA0020', fill: true, tension: 0.4, pointRadius: 4, pointBackgroundColor: '#FADA00' }],
+      datasets: [{ label: this.selectedApplicationLabel, data: Object.values(monthly), borderColor: '#FADA00', backgroundColor: '#FADA0020', fill: true, tension: 0.4, pointRadius: 4, pointBackgroundColor: '#FADA00' }],
     }, { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } });
+  }
+
+  selectApplicationType(key: string): void {
+    this.selectedApplicationType = key;
+    this.renderActiveCharts();
+  }
+
+  openSelectedApplications(): void {
+    const type = this.applicationTypes.find(item => item.key === this.selectedApplicationType);
+    if (type) this.router.navigate([type.route], { queryParams: { type: type.type, year: this.yearFilter } });
   }
 
   private renderPengadilCharts(): void {
@@ -784,7 +813,8 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
 
   onCardClick(card: any): void {
     if (card.route) {
-      this.router.navigate([card.route]);
+      this.router.navigate([card.route], { queryParams: card.applicationType
+        ? { type: card.applicationType, year: this.yearFilter } : undefined });
     } else if (card.tab) {
       this.activeTab = card.tab;
       this.renderActiveCharts();

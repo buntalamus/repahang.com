@@ -20,8 +20,17 @@ export class AdminDashboardComponent implements OnInit {
   profile: any = {};
   tasks: any = {};
   announcements: any[] = [];
-  stats = { users: 0, applications: 0, matches: 0, verifyRate: 0 };
+  stats = { users: 0, matches: 0, verifyRate: 0 };
+  applicationYear = new Date().getFullYear();
+  applicationCards: { key: string; label: string; route: string; type?: string;
+    total: number; pending: number; approved: number }[] = [
+    { key: 'pengadil_berdaftar', label: 'Pengadil Berdaftar', route: '/admin/permohonan', type: 'berdaftar', total: 0, pending: 0, approved: 0 },
+    { key: 'penilai_berdaftar', label: 'Penilai Pengadil Berdaftar', route: '/admin/permohonan-ra', total: 0, pending: 0, approved: 0 },
+    { key: 'kelas3_fam', label: 'Kelas III FAM', route: '/admin/permohonan', type: 'kelas3', total: 0, pending: 0, approved: 0 },
+    { key: 'ujian_kelas1_fam', label: 'Kelas I FAM', route: '/admin/permohonan', type: 'kelas1', total: 0, pending: 0, approved: 0 },
+  ];
   recentApplications: any[] = [];
+  applicationGroups: { key: string; label: string; route: string; type?: string; items: any[] }[] = [];
   showRejectModal = false;
   rejectTargetId = 0;
   rejectTargetName = '';
@@ -56,7 +65,7 @@ export class AdminDashboardComponent implements OnInit {
         timeout(T),
         catchError(() => of({ error: true, data: [] })),
       ),
-      recentApplications: this.api.get<any>('admin-applications.php', { status: 'Menunggu Admin', limit: '6' }).pipe(
+      recentApplications: this.api.get<any>('admin-applications.php', { status: 'Menunggu Admin', year: String(this.applicationYear) }).pipe(
         timeout(T),
         catchError(() => of({ error: true, data: [] })),
       ),
@@ -70,20 +79,34 @@ export class AdminDashboardComponent implements OnInit {
         // Map new backend stats format
         if (!apiStats.error && apiStats.stats) {
             this.stats.users = apiStats.stats.total_pengadil || 0;
-            this.stats.applications = apiStats.stats.pending_applications || 0;
             this.stats.matches = apiStats.stats.matches_this_month || 0;
             this.stats.verifyRate = apiStats.stats.pending_reports || 0;
+            this.applicationYear = apiStats.stats.year || this.applicationYear;
+            const byType = apiStats.stats.applications_by_type || {};
+            this.applicationCards = this.applicationCards.map(card => ({ ...card,
+              total: byType[card.key]?.total || 0,
+              pending: byType[card.key]?.pending || 0,
+              approved: byType[card.key]?.approved || 0,
+            }));
         }
 
         if (!announcements.error) this.announcements = announcements.data || announcements.announcements || [];
 
         if (!recentApplications.error) {
           const items = recentApplications.data || recentApplications.applications || [];
-          this.recentApplications = Array.isArray(items) ? items.slice(0, 5) : [];
+          this.recentApplications = Array.isArray(items) ? items : [];
+          this.groupRecentApplications();
         }
       },
       error: () => { this.loading = false; },
     });
+  }
+
+  private groupRecentApplications(): void {
+    this.applicationGroups = this.applicationCards.map(({ key, label, route, type }) => ({
+      key, label, route, type,
+      items: this.recentApplications.filter(app => app.application_category === key).slice(0, 3),
+    }));
   }
 
   approveApplication(id: number): void {
@@ -92,6 +115,7 @@ export class AdminDashboardComponent implements OnInit {
         if (!res.error) {
           this.toast.success('Permohonan diluluskan.');
           this.recentApplications = this.recentApplications.filter((a) => a.id !== id);
+          this.groupRecentApplications();
         } else {
           this.toast.error(res.message);
         }
@@ -117,6 +141,7 @@ export class AdminDashboardComponent implements OnInit {
           this.toast.success('Permohonan ditolak.');
           this.showRejectModal = false;
           this.recentApplications = this.recentApplications.filter((a) => a.id !== this.rejectTargetId);
+          this.groupRecentApplications();
         } else {
           this.toast.error(res.message);
         }

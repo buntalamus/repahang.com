@@ -245,7 +245,7 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
                 <span class="text-xs text-slate-400">(justifikasi wajib)</span>
               </div>
               <textarea [(ngModel)]="justification" rows="2"
-                placeholder="Contoh: ralat data, permintaan PP, semakan audit..."
+                placeholder="Contoh: ralat data, permintaan Pegawai Pembangunan, semakan audit..."
                 class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs resize-none focus:ring-1 focus:ring-orange-300 outline-none"></textarea>
               @if (justificationError) {
                 <p class="text-xs text-red-600">{{ justificationError }}</p>

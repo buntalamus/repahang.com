@@ -53,7 +53,7 @@ function sendUserRegistrationEmail(env: Env, to: string, nama: string, role: str
   jenisPengadil: string | null, isReset: boolean): Promise<boolean> {
   const roleNames: Record<string, string> = {
     'Admin': 'Administrator',
-    'PP Daerah': 'Penolong Pegawai Pembangunan Daerah',
+    'PP Daerah': 'Pegawai Pembangunan Daerah',
     'Pengadil': 'Pengadil',
     'Penilai': 'Penilai Pengadil',
   };

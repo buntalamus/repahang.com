@@ -1,4 +1,5 @@
 import { currentUser, json } from './auth';
+import { APPLICATION_CATEGORY_SQL } from './application-category';
 import type { Env } from './types';
 
 type ExportRow = Record<string, string | number | null>;
@@ -70,9 +71,7 @@ export async function adminRefereeExport(request: Request, env: Env): Promise<Re
     return json({ error: true, message: 'Tahun tidak sah.' }, 422);
   }
   const ra = params.get('type') === 'penilai_berdaftar';
-  const filter = ra
-    ? "(u.role='Penilai' OR u.jenis_pengadil='Penilai Pengadil' OR a.id IS NOT NULL)"
-    : 'a.id IS NOT NULL';
+  const filter = 'a.id IS NOT NULL';
   const result = await env.DB.prepare(`
     SELECT DISTINCT u.id AS user_id, u.nama_penuh, u.no_ic AS no_kp, u.jantina,
       u.email AS emel, u.no_telefon, u.saiz_baju,
@@ -88,11 +87,10 @@ export async function adminRefereeExport(request: Request, env: Env): Promise<Re
       p.nama_persatuan AS persatuan
     FROM users u
     LEFT JOIN permohonan a ON a.user_id=u.id
-      AND a.jenis_borang=${ra ? "'penilai_berdaftar'" : "'pengadil_berdaftar'"}
-      ${ra ? '' : "AND COALESCE(a.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan')"}
+      AND ${ra ? "(a.jenis_borang='penilai_berdaftar' OR (a.jenis_borang='pengadil_berdaftar' AND UPPER(TRIM(COALESCE(a.jenis_pengadil,'')))='PENILAI PENGADIL'))"
+        : "a.jenis_borang='pengadil_berdaftar' AND UPPER(TRIM(COALESCE(a.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')"}
       AND a.status='Approved'
-      AND (a.jenis_borang<>'pengadil_berdaftar' OR a.tahun_permohonan<2027
-           OR a.jenis_pengadil IN ('Penilai Pengadil','Pegawai Pembangunan') OR a.status_ujian='Lulus')
+      AND ${ra ? '1=1' : "(a.tahun_permohonan<2027 OR a.status_ujian='Lulus')"}
       AND a.tahun_permohonan=?
     LEFT JOIN persatuan_bolasepak_daerah p ON p.id=COALESCE(a.persatuan_id,u.persatuan_id)
     WHERE ${filter} ORDER BY u.nama_penuh ASC
@@ -108,7 +106,7 @@ export async function adminRefereeExport(request: Request, env: Env): Promise<Re
     r.alamat1, r.alamat2, r.poskod, r.daerah, r.negeri, r.saiz_baju,
     r.status_kerja, r.jawatan, r.nama_majikan, r.nama_waris, r.hubungan_waris,
     r.telefon_waris]);
-  return csv(headers, rows, `senarai-${ra ? 'RA' : 'pengadil'}-${year}.csv`);
+  return csv(headers, rows, `senarai-${ra ? 'penilai-pengadil' : 'pengadil'}-${year}.csv`);
 }
 
 /** PP Daerah export, scoped to their own association. */
@@ -119,10 +117,14 @@ export async function districtRefereeExport(request: Request, env: Env): Promise
   if (user.role !== 'PP Daerah') return json({ error: true, message: 'Akses ditolak.' }, 403);
   if (!user.persatuan_id) return json({ error: true, message: 'Persatuan not assigned to your account.' }, 403);
   const typeMap: Record<string, string> = {
-    berdaftar: 'pengadil_berdaftar', futsal: 'pengadil_futsal',
-    kecergasan: 'ujian_kecergasan', bertulis: 'ujian_bertulis', kelas1: 'ujian_kelas1_fam',
+    pengadil: 'pengadil_berdaftar', berdaftar: 'pengadil_berdaftar',
+    penilai: 'penilai_berdaftar', kelas3: 'kelas3_fam',
+    bertulis: 'kelas3_fam', kelas1: 'ujian_kelas1_fam',
+    futsal: 'pengadil_futsal', kecergasan: 'ujian_kecergasan',
   };
-  const jenisBorang = typeMap[new URL(request.url).searchParams.get('type') ?? ''] ?? '';
+  const type = new URL(request.url).searchParams.get('type') ?? 'pengadil';
+  const category = typeMap[type];
+  if (!category) return json({ error: true, message: 'Jenis permohonan tidak sah.' }, 400);
   const result = await env.DB.prepare(`
     SELECT u.id, u.email, u.nama_penuh, u.no_ic, u.no_telefon, u.jenis_pengadil,
       u.aktif, u.created_at, u.last_login, COUNT(p.id) AS total_permohonan,
@@ -135,13 +137,19 @@ export async function districtRefereeExport(request: Request, env: Env): Promise
              OR p.jenis_pengadil IN ('Penilai Pengadil','Pegawai Pembangunan') OR p.status_ujian='Lulus')
         THEN 1 END) AS permohonan_lengkap
     FROM users u
-    LEFT JOIN permohonan p ON p.user_id=u.id AND (?='' OR p.jenis_borang=?)
+    LEFT JOIN permohonan p ON p.user_id=u.id AND ${APPLICATION_CATEGORY_SQL}=?
     WHERE u.role='Pengadil' AND u.persatuan_id=?
     GROUP BY u.id ORDER BY u.nama_penuh ASC
-  `).bind(jenisBorang, jenisBorang, user.persatuan_id).all<ExportRow>();
+  `).bind(category, user.persatuan_id).all<ExportRow>();
+  const typeLabel: Record<string, string> = {
+    pengadil_berdaftar: 'Pengadil Berdaftar', penilai_berdaftar: 'Penilai Pengadil Berdaftar',
+    kelas3_fam: 'Kelas III FAM', ujian_kelas1_fam: 'Kelas I FAM',
+    pengadil_futsal: 'Pengadil Futsal', ujian_kecergasan: 'Ujian Kecergasan',
+  };
+  const categoryLabel = typeLabel[category];
   const headers = ['Bil','Nama Penuh','Email','No. IC','No. Telefon','Jenis Pengadil',
-    'Status','Tarikh Daftar','Log Masuk Terakhir','Jumlah Permohonan',
-    'Permohonan Lulus','Permohonan Lengkap'];
+    'Status','Tarikh Daftar','Log Masuk Terakhir',`Jumlah Permohonan ${categoryLabel}`,
+    `Permohonan ${categoryLabel} Lulus`,`Permohonan ${categoryLabel} Lengkap`];
   const rows = result.results.map((r, i) => [i + 1, r.nama_penuh, r.email, r.no_ic,
     r.no_telefon, r.jenis_pengadil, Number(r.aktif) === 1 ? 'Aktif' : 'Tidak Aktif',
     shortDate(r.created_at), dateTime(r.last_login), r.total_permohonan,

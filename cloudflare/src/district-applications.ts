@@ -1,5 +1,6 @@
 import { currentUser, json } from './auth';
 import type { Env } from './types';
+import { APPLICATION_CATEGORY_SQL } from './application-category';
 
 type Row = Record<string, unknown>;
 
@@ -23,20 +24,21 @@ export async function districtApplications(request: Request, env: Env): Promise<
   if (type !== 'pengesahan' && !Object.hasOwn(TYPES, type)) {
     return json({ error: true, message: 'Jenis tidak sah.' }, 400);
   }
-  const jenisBorang = type === 'pengesahan' ? null : TYPES[type];
-  const filter = jenisBorang === null
+  const category = type === 'pengesahan' ? null : TYPES[type];
+  const filter = category === null
     ? "p.status_workflow='Menunggu PP Daerah'"
-    : `p.jenis_borang=? AND p.status_workflow IN
+    : `${APPLICATION_CATEGORY_SQL}=? AND p.status_workflow IN
        ('Menunggu PP Daerah','PP Daerah Disahkan','Menunggu Admin',
         'Admin Diluluskan','Lengkap','Ditolak')`;
-  const bindings = jenisBorang === null ? [user.persatuan_id] : [user.persatuan_id, jenisBorang];
+  const bindings = category === null ? [user.persatuan_id] : [user.persatuan_id, category];
 
   const rows = await env.DB.prepare(`
-    SELECT p.*, pb.nama_persatuan AS district_name
+    SELECT p.*, ${APPLICATION_CATEGORY_SQL} AS application_category,
+      pb.nama_persatuan AS district_name
     FROM permohonan p
     LEFT JOIN persatuan_bolasepak_daerah pb ON pb.id=p.persatuan_id
     WHERE p.persatuan_id=? AND ${filter}
-    ORDER BY ${jenisBorang === null ? '' : "(p.status_workflow='Menunggu PP Daerah') DESC,"}
+    ORDER BY ${category === null ? '' : "(p.status_workflow='Menunggu PP Daerah') DESC,"}
              p.tarikh_hantar DESC
   `).bind(...bindings).all<Row>();
 

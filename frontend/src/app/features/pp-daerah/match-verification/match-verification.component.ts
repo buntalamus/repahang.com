@@ -223,7 +223,7 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
             @if (!selectedMatch.status_pp || selectedMatch.status_pp === 'Belum Disahkan') {
               <div class="border-t border-slate-100 pt-3">
                 <textarea [(ngModel)]="actionNotes" rows="2"
-                  placeholder="Catatan PP (pilihan)..."
+                  placeholder="Catatan Pegawai Pembangunan (pilihan)..."
                   class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs resize-none focus:ring-1 focus:ring-pahang-yellow outline-none mb-2"></textarea>
                 <div class="flex justify-between items-center">
                   <button (click)="showDeleteConfirm = !showDeleteConfirm"

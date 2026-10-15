@@ -16,6 +16,10 @@ import { environment } from '../../../../environments/environment';
     @if (loading()) {
       <app-loading message="Memuatkan permohonan..." />
     } @else {
+      <div class="mb-5">
+        <h1 class="text-xl font-bold text-slate-900">{{ pageTitle }}</h1>
+        <p class="text-sm text-slate-500 mt-1">Senarai permohonan mengikut jenis borang.</p>
+      </div>
       <!-- Toolbar -->
       <div class="flex flex-col sm:flex-row gap-3 mb-6">
         <input type="text" [ngModel]="search()" (ngModelChange)="search.set($event)"
@@ -45,6 +49,9 @@ import { environment } from '../../../../environments/environment';
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Nama</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">No. KP</th>
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Tarikh</th>
+              @if (type === 'pengesahan') {
+                <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Jenis Permohonan</th>
+              }
               <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
               @if (isUjianType) {
                 <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Keputusan Ujian</th>
@@ -59,6 +66,9 @@ import { environment } from '../../../../environments/environment';
                 <td class="px-4 py-3 font-medium text-slate-900">{{ app.nama_penuh }}</td>
                 <td class="px-4 py-3 text-slate-500 font-mono text-xs">{{ app.no_kp }}</td>
                 <td class="px-4 py-3 text-slate-500 text-xs">{{ app.tarikh_hantar | slice:0:10 }}</td>
+                @if (type === 'pengesahan') {
+                  <td class="px-4 py-3 text-slate-600 text-xs">{{ applicationLabel(app.application_category) }}</td>
+                }
                 <td class="px-4 py-3">
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
                     [class]="statusClass(app.status_workflow)">
@@ -97,7 +107,7 @@ import { environment } from '../../../../environments/environment';
               </tr>
             } @empty {
               <tr>
-                <td [attr.colspan]="isUjianType ? 7 : 6" class="px-6 py-12 text-center text-slate-400 text-sm">
+                <td [attr.colspan]="(isUjianType ? 7 : 6) + (type === 'pengesahan' ? 1 : 0)" class="px-6 py-12 text-center text-slate-400 text-sm">
                   Tiada rekod ditemui.
                 </td>
               </tr>
@@ -143,6 +153,20 @@ export class PpApplicationsComponent implements OnInit {
   private route = inject(ActivatedRoute);
 
   type = 'pengesahan';
+
+  get pageTitle(): string {
+    return this.type === 'pengesahan' ? 'Pengesahan Permohonan' :
+      this.type === 'pengadil' ? 'Permohonan Pengadil Berdaftar' :
+      this.type === 'berdaftar' ? 'Permohonan Penilai Pengadil Berdaftar' :
+      this.type === 'kelas3' ? 'Permohonan Kelas III FAM' : 'Permohonan Kelas I FAM';
+  }
+
+  applicationLabel(category: string): string {
+    return ({ pengadil_berdaftar: 'Pengadil Berdaftar', penilai_berdaftar: 'Penilai Pengadil Berdaftar',
+      kelas3_fam: 'Kelas III FAM', ujian_kelas1_fam: 'Kelas I FAM',
+      ujian_kecergasan: 'Ujian Kecergasan (Rekod Lama)',
+      pegawai_pembangunan: 'Pegawai Pembangunan' } as Record<string, string>)[category] || 'Lain-lain';
+  }
 
   loading = signal(true);
   applications = signal<any[]>([]);

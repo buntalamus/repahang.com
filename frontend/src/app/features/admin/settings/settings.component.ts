@@ -231,14 +231,14 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
             <!-- Bayaran Pendaftaran Akaun Baru (RA) -->
             <div class="border-t pt-5">
               <p class="text-xs font-bold text-teal-600 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                <span class="material-icons text-sm">person_add</span> Bayaran Pendaftaran Akaun Baru (RA)
+                <span class="material-icons text-sm">person_add</span> Bayaran Pendaftaran Akaun Baharu Penilai Pengadil
               </p>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label class="block text-sm font-medium text-slate-700 mb-1">Yuran Pendaftaran Akaun (RM)</label>
                   <input type="number" [(ngModel)]="settings.registration_fee" min="0" step="0.01"
                     class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                  <p class="text-xs text-slate-400 mt-1">Yuran untuk daftar akaun baru (RA)</p>
+                  <p class="text-xs text-slate-400 mt-1">Yuran pendaftaran akaun baharu Penilai Pengadil</p>
                 </div>
                 <div>
                   <label class="block text-sm font-medium text-slate-700 mb-1">Nama Bank</label>

@@ -125,7 +125,7 @@ export async function assessmentReports(request: Request, env: Env): Promise<Res
         SELECT 1 FROM lantikan_pengadil WHERE jadual_id=? AND pengadil_id=?
           AND jawatan='Penilai Pengadil' AND status='Diterima' LIMIT 1
       `).bind(jadualId,user.id).first();
-      if (!ra) return json({error:true,message:'Anda bukan RA yang diterima untuk perlawanan ini.'},403);
+      if (!ra) return json({error:true,message:'Anda bukan Penilai Pengadil yang diterima untuk perlawanan ini.'},403);
     }
     const officials = await env.DB.prepare(`
       SELECT lp.id AS lantikan_pengadil_id,lp.jawatan,

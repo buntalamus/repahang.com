@@ -118,7 +118,7 @@ export class SidebarComponent implements OnDestroy {
     switch (this.auth.currentUser?.role) {
       case 'Admin':
         this.navItems = this.auth.currentUser?.jenis_pengadil === 'Penilai Pengadil'
-          ? [...ADMIN_NAV, { label: 'Pendaftaran RA Saya (R1)', icon: 'how_to_reg', route: '/admin/daftar/ra' }]
+          ? [...ADMIN_NAV, { label: 'Pendaftaran Penilai Pengadil Saya (R1)', icon: 'how_to_reg', route: '/admin/daftar/ra' }]
           : ADMIN_NAV;
         this.roleLabel = 'Admin';
         break;
@@ -131,9 +131,9 @@ export class SidebarComponent implements OnDestroy {
           );
         }
         if (this.auth.currentUser.can_ra === 1) {
-          this.navItems.push({ label: 'Panel RA Saya', icon: 'rate_review', route: '/penilai' });
+          this.navItems.push({ label: 'Panel Penilai Pengadil Saya', icon: 'rate_review', route: '/penilai' });
         }
-        this.roleLabel = 'PP Daerah';
+        this.roleLabel = 'Pegawai Pembangunan Daerah';
         break;
       case 'Pengadil':
         this.navItems = PENGADIL_NAV;
@@ -141,7 +141,7 @@ export class SidebarComponent implements OnDestroy {
         break;
       case 'Penilai':
         this.navItems = PENILAI_NAV;
-        this.roleLabel = 'Penilai';
+        this.roleLabel = 'Penilai Pengadil';
         break;
     }
   }

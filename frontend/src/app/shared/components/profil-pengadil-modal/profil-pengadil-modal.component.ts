@@ -777,8 +777,8 @@ export class ProfilPengadilModalComponent {
   jenisBorangLabel(jenis: string): string {
     const map: Record<string, string> = {
       pengadil_berdaftar: 'Pendaftaran Pengadil',
-      penilai_berdaftar: 'Pendaftaran Penilai (RA)',
-      pp_berdaftar: 'Pendaftaran PP Daerah',
+      penilai_berdaftar: 'Pendaftaran Penilai Pengadil',
+      pp_berdaftar: 'Pendaftaran Pegawai Pembangunan Daerah',
       pengadil_futsal: 'Futsal',
       ujian_kecergasan: 'Ujian Kecergasan',
       ujian_bertulis: 'Ujian Kelas III FAM',

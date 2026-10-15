@@ -5,6 +5,7 @@ import { ToastService } from '../../../core/services/toast.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
 import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { environment } from '../../../../environments/environment';
+import { forkJoin } from 'rxjs';
 
 @Component({
   selector: 'app-admin-reports',
@@ -17,7 +18,16 @@ export class AdminReportsComponent implements OnInit {
   applications: any[] = [];
   filtered: any[] = [];
   paged: any[] = [];
-  statusFilter = 'Menunggu Admin';
+  statusFilter = 'all';
+  yearFilter = String(new Date().getFullYear());
+  years = Array.from({ length: Math.max(new Date().getFullYear(), 2027) - 2023 }, (_, i) => 2024 + i);
+  selectedCategory = 'berdaftar';
+  applicationCategories = [
+    { key: 'berdaftar', category: 'pengadil_berdaftar', label: 'Permohonan Pengadil Berdaftar', total: 0, pending: 0 },
+    { key: 'penilai', category: 'penilai_berdaftar', label: 'Permohonan Penilai Pengadil Berdaftar', total: 0, pending: 0 },
+    { key: 'kelas3', category: 'kelas3_fam', label: 'Permohonan Kelas III FAM', total: 0, pending: 0 },
+    { key: 'kelas1', category: 'ujian_kelas1_fam', label: 'Permohonan Kelas I FAM', total: 0, pending: 0 },
+  ];
   searchQuery = '';
   currentPage = 1;
   pageSize = 10;
@@ -39,24 +49,39 @@ export class AdminReportsComponent implements OnInit {
     this.loadApplications();
   }
 
+  get selectedCategoryLabel(): string {
+    return this.applicationCategories.find((item) => item.key === this.selectedCategory)?.label || 'Permohonan';
+  }
+
+  selectCategory(category: string): void {
+    this.selectedCategory = category;
+    this.statusFilter = 'all';
+    this.loadApplications();
+  }
+
   loadApplications(): void {
     this.loading = true;
-    this.api.get<any>('admin-applications.php', { status: this.statusFilter === 'all' ? 'all' : this.statusFilter }).subscribe({
-      next: (res) => {
-        this.applications = res.data || res.applications || [];
-        this.updateStats();
+    forkJoin({
+      applications: this.api.get<any>('admin-applications.php', {
+        type: this.selectedCategory, year: this.yearFilter, status: 'all',
+      }),
+      statistics: this.api.get<any>('statistics.php', { year: this.yearFilter }),
+    }).subscribe({
+      next: ({ applications, statistics }) => {
+        this.applications = applications.data || applications.applications || [];
+        const byType = (statistics.data || statistics).applications?.byType || {};
+        this.applicationCategories = this.applicationCategories.map((item) => ({
+          ...item, total: byType[item.category]?.total || 0,
+          pending: byType[item.category]?.pending || 0,
+        }));
+        const selected = byType[this.applicationCategories.find((item) => item.key === this.selectedCategory)?.category || ''] || {};
+        this.stats = { total: selected.total || 0, approved: selected.approved || 0,
+          pending: selected.pending || 0, rejected: selected.rejected || 0 };
         this.applyFilter();
         this.loading = false;
       },
       error: () => (this.loading = false),
     });
-  }
-
-  updateStats(): void {
-    this.stats.total = this.applications.length;
-    this.stats.approved = this.applications.filter((a) => a.status === 'Lengkap' || a.status === 'Admin Diluluskan').length;
-    this.stats.pending = this.applications.filter((a) => a.status === 'Menunggu Admin' || a.status === 'Menunggu PP Daerah').length;
-    this.stats.rejected = this.applications.filter((a) => a.status === 'Ditolak').length;
   }
 
   applyFilter(): void {

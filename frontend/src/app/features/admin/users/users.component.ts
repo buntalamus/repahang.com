@@ -170,6 +170,12 @@ export class AdminUsersComponent implements OnInit {
     return 'bg-slate-100 text-slate-700';
   }
 
+  displayRole(role: string | null | undefined): string {
+    if (role === 'PP Daerah') return 'Pegawai Pembangunan Daerah';
+    if (role === 'Penilai') return 'Penilai Pengadil';
+    return role || '-';
+  }
+
   getProfileImage(url: string | null): string {
     if (!url) return '';
     if (url.startsWith('http')) return url;

@@ -79,7 +79,7 @@ export function renderFutsalForm(row: FutsalApplication, forPdf = false): string
     ${field('Hubungan:',row.hubungan_waris)}${field('No. Telefon Waris:',row.telefon_waris)}</section>
   <section><h3>Maklumat Pengadil Futsal</h3>${field('Saiz Baju Rasmi:',row.saiz_baju)}</section>
   <section><h3>Tandatangan</h3><p>Saya mengesahkan bahawa semua maklumat di atas adalah benar dan tepat.</p>
-    <div class="signatures">${signature('Tandatangan Pemohon')}${signature('Tandatangan PP Daerah')}</div></section>
+    <div class="signatures">${signature('Tandatangan Pemohon')}${signature('Tandatangan Pegawai Pembangunan Daerah')}</div></section>
   <section class="declaration"><h3>Perakuan</h3><ol>
     <li>Saya mengesahkan bahawa semua maklumat pengadil futsal adalah benar dan tepat.</li>
     <li>Saya faham bahawa sebarang maklumat palsu boleh menyebabkan permohonan pengadil futsal dibatalkan.</li>

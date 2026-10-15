@@ -52,19 +52,22 @@ export async function adminUsers(request: Request, env: Env): Promise<Response> 
       WITH annual AS (
         SELECT p.user_id,
           MAX(CASE WHEN p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan=?
-            AND COALESCE(p.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan')
+            AND UPPER(TRIM(COALESCE(p.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')
             THEN 1 ELSE 0 END) AS current_applied,
           MAX(CASE WHEN p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan=?
             AND p.status='Approved'
             AND (p.tahun_permohonan<2027 OR p.status_ujian='Lulus')
-            AND COALESCE(p.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan')
+            AND UPPER(TRIM(COALESCE(p.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')
             THEN 1 ELSE 0 END) AS current_approved,
           MAX(CASE WHEN p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan<?
             AND p.status='Approved'
             AND (p.tahun_permohonan<2027 OR p.status_ujian='Lulus')
-            AND COALESCE(p.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan')
+            AND UPPER(TRIM(COALESCE(p.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')
             THEN 1 ELSE 0 END) AS prior_approved,
-          MAX(CASE WHEN p.jenis_borang='penilai_berdaftar' AND p.status='Approved'
+          MAX(CASE WHEN (p.jenis_borang='penilai_berdaftar'
+            OR (p.jenis_borang='pengadil_berdaftar'
+              AND UPPER(TRIM(COALESCE(p.jenis_pengadil,'')))='PENILAI PENGADIL'))
+            AND p.status='Approved'
             THEN 1 ELSE 0 END) AS ra_approved,
           MAX(CASE WHEN p.jenis_borang IN ('kelas3_fam','ujian_bertulis')
             AND p.status_ujian='Lulus'
@@ -81,7 +84,8 @@ export async function adminUsers(request: Request, env: Env): Promise<Response> 
              COALESCE(a.current_applied,0) AS current_applied,
              COALESCE(a.current_approved,0) AS current_approved,
              COALESCE(a.prior_approved,0) AS prior_approved,
-             CASE WHEN u.role='Pengadil'
+             CASE WHEN (u.role='Pengadil' AND UPPER(TRIM(COALESCE(u.jenis_pengadil,'')))
+               NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN'))
                OR u.jenis_pengadil IN ('Pengadil Negeri','Pengadil Kebangsaan','Kelas III FAM','Kelas I FAM')
                OR COALESCE(a.current_applied,0)=1 OR COALESCE(a.prior_approved,0)=1
                THEN 1 ELSE 0 END AS is_referee,

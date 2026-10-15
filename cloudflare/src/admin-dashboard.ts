@@ -1,5 +1,19 @@
 import { currentUser, json } from './auth';
 import type { Env } from './types';
+import { APPLICATION_CATEGORY_SQL, countApplicationRows } from './application-category';
+
+function currentYear(): number {
+  return Number(new Intl.DateTimeFormat('en', {
+    timeZone: 'Asia/Kuala_Lumpur', year: 'numeric',
+  }).format(new Date()));
+}
+
+async function applicationCounts(env: Env, year: number) {
+  const rows = await env.DB.prepare(`SELECT ${APPLICATION_CATEGORY_SQL} AS application_category,
+    p.status,p.status_workflow,p.workflow_status
+    FROM permohonan p WHERE p.tahun_permohonan=?`).bind(year).all<Record<string, unknown>>();
+  return countApplicationRows(rows.results);
+}
 
 async function requireAdmin(request: Request, env: Env): Promise<Response | number> {
   const user = await currentUser(request, env);
@@ -42,18 +56,18 @@ export async function adminProfile(request: Request, env: Env): Promise<Response
 export async function adminDashboardTasks(request: Request, env: Env): Promise<Response> {
   const id = await requireAdmin(request, env);
   if (id instanceof Response) return id;
+  const year = currentYear();
   const [applications, reports] = await Promise.all([
-    env.DB.prepare(`
-      SELECT COUNT(*) AS total FROM permohonan
-      WHERE status_workflow IN ('Menunggu Admin','Menunggu PP Daerah')
-    `).first<{ total: number }>(),
+    applicationCounts(env, year),
     env.DB.prepare("SELECT COUNT(*) AS total FROM laporan_penilaian WHERE status='Dihantar'")
       .first<{ total: number }>(),
   ]);
   return json({
     error: false,
     tasks: {
-      pending_applications: Number(applications?.total ?? 0),
+      year,
+      pending_applications: Object.values(applications).reduce((total, item) => total + item.pending, 0),
+      applications_by_type: applications,
       pending_reports: Number(reports?.total ?? 0),
     },
   });
@@ -65,13 +79,11 @@ export async function adminDashboardStats(request: Request, env: Env): Promise<R
   const month = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit',
   }).format(new Date());
+  const year = currentYear();
   const [referees, applications, reports, matches] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS total FROM users WHERE role='Pengadil' AND aktif=1")
       .first<{ total: number }>(),
-    env.DB.prepare(`
-      SELECT COUNT(*) AS total FROM permohonan
-      WHERE status_workflow IN ('Menunggu Admin','Menunggu PP Daerah')
-    `).first<{ total: number }>(),
+    applicationCounts(env, year),
     env.DB.prepare("SELECT COUNT(*) AS total FROM laporan_penilaian WHERE status='Dihantar'")
       .first<{ total: number }>(),
     env.DB.prepare('SELECT COUNT(*) AS total FROM perlawanan WHERE substr(tarikh,1,7)=?')
@@ -81,7 +93,9 @@ export async function adminDashboardStats(request: Request, env: Env): Promise<R
     error: false,
     stats: {
       total_pengadil: Number(referees?.total ?? 0),
-      pending_applications: Number(applications?.total ?? 0),
+      year,
+      pending_applications: Object.values(applications).reduce((total, item) => total + item.pending, 0),
+      applications_by_type: applications,
       pending_reports: Number(reports?.total ?? 0),
       matches_this_month: Number(matches?.total ?? 0),
     },

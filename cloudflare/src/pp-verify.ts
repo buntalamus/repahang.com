@@ -41,8 +41,8 @@ export async function ppVerify(request: Request, env: Env): Promise<Response> {
   if (!application) return json({ error: true, message: 'Permohonan tidak dijumpai atau sudah diproses.' }, 404);
   const approved = action === 'approve';
   const decisionMessage = approved
-    ? 'Permohonan anda telah disahkan oleh PP Daerah dan kini menunggu keputusan Admin.'
-    : `Permohonan anda ditolak oleh PP Daerah. Sebab: ${notes}`;
+    ? 'Permohonan anda telah disahkan oleh Pegawai Pembangunan Daerah dan kini menunggu keputusan Admin.'
+    : `Permohonan anda ditolak oleh Pegawai Pembangunan Daerah. Sebab: ${notes}`;
   const result = await env.DB.batch([
     env.DB.prepare(`UPDATE permohonan SET status_workflow=?,
       status=CASE WHEN ? THEN status ELSE 'Rejected' END,
@@ -54,7 +54,7 @@ export async function ppVerify(request: Request, env: Env): Promise<Response> {
     env.DB.prepare(`INSERT INTO notifications(user_id,type,subject,message,created_at)
       SELECT ?,'Semakan Permohonan',?,?,datetime('now','+8 hours')
       WHERE ? IS NOT NULL AND changes()=1`)
-      .bind(application.user_id, approved ? 'Permohonan Disahkan PP Daerah' : 'Permohonan Ditolak PP Daerah',
+      .bind(application.user_id, approved ? 'Permohonan Disahkan Pegawai Pembangunan Daerah' : 'Permohonan Ditolak Pegawai Pembangunan Daerah',
         decisionMessage, application.user_id),
   ]);
   if (!wroteRow(result[0])) {
@@ -78,7 +78,7 @@ export async function ppVerify(request: Request, env: Env): Promise<Response> {
   }
   if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(application.emel)) {
     try {
-      const title = approved ? 'Permohonan Disahkan PP Daerah' : 'Permohonan Ditolak PP Daerah';
+      const title = approved ? 'Permohonan Disahkan Pegawai Pembangunan Daerah' : 'Permohonan Ditolak Pegawai Pembangunan Daerah';
       const { html, text } = buildRefpahangEmail(title, application.nama_penuh,
         [decisionMessage, `No. Permohonan: #${id}`],
         { label: 'Semak Permohonan', url: new URL('/pengadil', env.BASE_URL).toString() });

@@ -1,10 +1,28 @@
 @if (loading) {
   <app-loading message="Memuatkan laporan..." />
 } @else {
-  <!-- Stats Cards -->
+  <div class="flex flex-wrap items-center gap-3 mb-4">
+    <label class="text-sm font-medium text-slate-700" for="reports-year">Tahun</label>
+    <select id="reports-year" [(ngModel)]="yearFilter" (ngModelChange)="loadApplications()"
+      class="px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white">
+      @for (year of years; track year) { <option [value]="year">{{ year }}</option> }
+    </select>
+  </div>
+  <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mb-5">
+    @for (category of applicationCategories; track category.key) {
+      <button type="button" (click)="selectCategory(category.key)" [attr.aria-pressed]="selectedCategory === category.key"
+        class="rounded-xl border p-4 text-left bg-white hover:shadow-md transition"
+        [class]="selectedCategory === category.key ? 'border-pahang-yellow bg-amber-50' : 'border-slate-200'">
+        <p class="text-xs font-semibold text-slate-600">{{ category.label }}</p>
+        <p class="text-2xl font-bold text-slate-900 mt-2">{{ category.total }}</p>
+        <p class="text-xs text-amber-700 mt-1">Menunggu {{ category.pending }}</p>
+      </button>
+    }
+  </div>
+  <!-- Status permohonan bagi kategori pilihan -->
   <div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-      <p class="text-xs uppercase tracking-wide text-slate-400">Jumlah Permohonan</p>
+      <p class="text-xs uppercase tracking-wide text-slate-400">Jumlah {{ selectedCategoryLabel }}</p>
       <p class="text-3xl font-bold text-slate-900 mt-2">{{ stats.total }}</p>
       <p class="text-xs text-slate-400 mt-3">Data terkini daripada pangkalan data.</p>
     </div>
@@ -30,8 +48,8 @@
     <!-- Header + Filters -->
     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-6 py-4 border-b border-slate-200">
       <div>
-        <h3 class="text-lg font-semibold text-slate-900">Senarai Permohonan</h3>
-        <p class="text-xs text-slate-500 mt-1">Kemaskini status permohonan dan semak butiran penting.</p>
+        <h3 class="text-lg font-semibold text-slate-900">Senarai {{ selectedCategoryLabel }} · {{ yearFilter }}</h3>
+        <p class="text-xs text-slate-500 mt-1">Kemaskini status dan semak butiran kategori ini.</p>
       </div>
       <div class="flex flex-col sm:flex-row gap-3 sm:items-center">
         <label class="flex items-center bg-slate-100 px-3 py-2 rounded-lg">

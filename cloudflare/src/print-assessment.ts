@@ -20,7 +20,7 @@ function html(content:string,status=200):Response {
   }});
 }
 function error(message:string,status:number):Response {
-  return html(`<!doctype html><html lang="ms"><meta charset="utf-8"><title>Laporan RA</title><p style="font-family:Arial,sans-serif;padding:20px">${esc(message)}</p></html>`,status);
+  return html(`<!doctype html><html lang="ms"><meta charset="utf-8"><title>Laporan Penilai Pengadil</title><p style="font-family:Arial,sans-serif;padding:20px">${esc(message)}</p></html>`,status);
 }
 function positiveId(raw:string|null):number|null {
   if (!raw || !/^[1-9]\d*$/.test(raw)) return null;

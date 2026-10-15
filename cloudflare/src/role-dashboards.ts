@@ -1,5 +1,6 @@
 import { currentUser, json } from './auth';
 import type { Env } from './types';
+import { APPLICATION_CATEGORY_SQL, countApplicationRows } from './application-category';
 
 export async function assessorDashboard(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
@@ -92,18 +93,15 @@ export async function districtOverview(request: Request, env: Env): Promise<Resp
         AND EXISTS (SELECT 1 FROM permohonan p WHERE p.user_id=u.id
           AND p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan=?
           AND p.status='Approved'
-          AND COALESCE(p.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan')
+          AND UPPER(TRIM(COALESCE(p.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')
           AND (p.tahun_permohonan<2027 OR p.status_ujian='Lulus'))
     `).bind(persatuanId,year).first<{ total: number }>(),
     env.DB.prepare(`
-      SELECT
-        SUM(CASE WHEN p.status_workflow='Menunggu PP Daerah' THEN 1 ELSE 0 END)
-          AS pending,
-        SUM(CASE WHEN p.status='Approved' THEN 1 ELSE 0 END)
-          AS approved
+      SELECT ${APPLICATION_CATEGORY_SQL} AS application_category,
+        p.status,p.status_workflow,p.workflow_status
       FROM permohonan p JOIN users u ON u.id=p.user_id
       WHERE u.persatuan_id=? AND p.tahun_permohonan=?
-    `).bind(persatuanId,year).first<{ pending: number | null; approved: number | null }>(),
+    `).bind(persatuanId,year).all<Record<string, unknown>>(),
     env.DB.prepare(`
       SELECT
         COUNT(DISTINCT COALESCE(p.match_group_id,CAST(p.id AS TEXT))) AS total,
@@ -143,12 +141,15 @@ export async function districtOverview(request: Request, env: Env): Promise<Resp
   ]);
   const total = Number(matches?.total ?? 0);
   const verified = Number(matches?.verified ?? 0);
+  const applicationsByType = countApplicationRows(applications.results);
   return json({
     error: false,
     overview: {
       total_referees: Number(referees?.total ?? 0),
-      pending_applications: Number(applications?.pending ?? 0),
-      approved_applications: Number(applications?.approved ?? 0),
+      year,
+      pending_applications: Object.values(applicationsByType).reduce((sum, item) => sum + item.pending, 0),
+      approved_applications: Object.values(applicationsByType).reduce((sum, item) => sum + item.approved, 0),
+      applications_by_type: applicationsByType,
       total_matches: total,
       matches_this_month: Number(matches?.this_month ?? 0),
       verified_matches: verified,

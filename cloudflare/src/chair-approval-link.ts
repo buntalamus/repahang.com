@@ -111,7 +111,7 @@ export async function chairApprovalLink(request:Request,env:Env):Promise<Respons
       return approvalPage('Laporan Telah Diproses',`<h1>Laporan Telah Diproses</h1><div class="notice">${h(status)}</div>`);
     }
     const previewUrl=buildPengerusiReportPreviewUrl(env,Number(state.laporan_id),token);
-    const content='<h1>Semak & Sahkan Laporan RA</h1>'
+    const content='<h1>Semak & Sahkan Laporan Penilai Pengadil</h1>'
       +`<p class="muted">Tuan/Puan ditetapkan sebagai <strong>${h(state.pengesah_jawatan)}</strong> bagi kejohanan ini. Semak laporan penuh sebelum mengesahkan.</p>`
       +`<table class="info"><tr><td>Pengerusi</td><td><strong>${h(state.pengesah_nama)}</strong></td></tr>`
       +`<tr><td>Kejohanan</td><td>${h(state.nama_kejohanan)}</td></tr>`
@@ -125,7 +125,7 @@ export async function chairApprovalLink(request:Request,env:Env):Promise<Respons
       +'<label class="label" for="catatan">Komen Pengerusi Pengadil (pilihan)</label>'
       +'<textarea id="catatan" name="catatan_pengerusi" maxlength="5000" placeholder="Tulis komen atau arahan sebelum mengesahkan..."></textarea>'
       +'<div class="actions"><button class="btn primary" type="submit">Sahkan Laporan</button></div></form>';
-    return approvalPage('Pengesahan Laporan RA',content);
+    return approvalPage('Pengesahan Laporan Penilai Pengadil',content);
   } catch (error) {
     console.error('[laporan-pengesahan-token.php]',error instanceof Error ? error.message : error);
     return approvalPage('Ralat Pelayan','<h1>Ralat Pelayan</h1><div class="notice error">Pengesahan tidak dapat diproses sekarang. Sila cuba semula atau hubungi pentadbir.</div>',500);

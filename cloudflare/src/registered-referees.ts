@@ -22,9 +22,7 @@ export async function registeredReferees(request: Request, env: Env): Promise<Re
     return json({ error: true, message: 'Tahun tidak sah.' }, 422);
   }
   const ra = query.get('type') === 'penilai_berdaftar';
-  const roleCondition = ra
-    ? "(u.role='Penilai' OR u.jenis_pengadil='Penilai Pengadil' OR a.id IS NOT NULL)"
-    : 'a.id IS NOT NULL';
+  const roleCondition = 'a.id IS NOT NULL';
   const rows = await env.DB.prepare(`SELECT DISTINCT u.id AS user_id,u.role AS user_role,
     u.nama_penuh,u.no_ic AS no_kp,u.jantina,u.email AS emel,u.no_telefon,u.saiz_baju,
     COALESCE(NULLIF(a.url_gambar_profil,''),u.url_gambar_profil) AS url_gambar_profil,
@@ -48,15 +46,14 @@ export async function registeredReferees(request: Request, env: Env): Promise<Re
     u.tahun_mohon_kelas3,u.tahun_lulus_kelas3,
     u.pengadil_kebangsaan,u.pengadil_negeri,u.pengadil_daerah,
     p.nama_persatuan AS persatuan,
-    CASE WHEN a.id IS NOT NULL THEN 'Permohonan RA'
-      WHEN u.role='Penilai' OR u.jenis_pengadil='Penilai Pengadil' THEN 'Peranan RA pada akaun'
+    CASE WHEN a.id IS NOT NULL THEN 'Permohonan Penilai Pengadil'
+      WHEN u.role='Penilai' OR u.jenis_pengadil='Penilai Pengadil' THEN 'Peranan Penilai Pengadil pada akaun'
       ELSE NULL END AS sumber_ra
     FROM users u LEFT JOIN permohonan a ON a.user_id=u.id
-      AND a.jenis_borang=${ra ? "'penilai_berdaftar'" : "'pengadil_berdaftar'"}
-      ${ra ? '' : "AND COALESCE(a.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan')"}
+      AND ${ra ? "(a.jenis_borang='penilai_berdaftar' OR (a.jenis_borang='pengadil_berdaftar' AND UPPER(TRIM(COALESCE(a.jenis_pengadil,'')))='PENILAI PENGADIL'))"
+        : "a.jenis_borang='pengadil_berdaftar' AND UPPER(TRIM(COALESCE(a.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')"}
       AND a.status='Approved'
-      AND (a.jenis_borang<>'pengadil_berdaftar' OR a.tahun_permohonan<2027
-        OR a.jenis_pengadil IN ('Penilai Pengadil','Pegawai Pembangunan') OR a.status_ujian='Lulus')
+      AND ${ra ? '1=1' : "(a.tahun_permohonan<2027 OR a.status_ujian='Lulus')"}
       AND a.tahun_permohonan=?
     LEFT JOIN persatuan_bolasepak_daerah p ON p.id=COALESCE(a.persatuan_id,u.persatuan_id)
     WHERE u.aktif=1 AND ${roleCondition} ORDER BY u.nama_penuh`)

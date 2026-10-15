@@ -14,14 +14,14 @@
       <p class="text-[10px] text-gray-400 mt-1">Semua akaun pengadil; status tahunan berasingan.</p>
     </div>
     <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-      <p class="text-sm text-gray-500 font-medium mb-1">PP Daerah</p>
+      <p class="text-sm text-gray-500 font-medium mb-1">Pegawai Pembangunan Daerah</p>
       <p class="text-2xl font-bold text-blue-600">{{ stats.pp }}</p>
-      <p class="text-[10px] text-gray-400 mt-1">Pengerusi Pengadil daerah.</p>
+      <p class="text-[10px] text-gray-400 mt-1">Peranan pentadbiran daerah.</p>
     </div>
     <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-      <p class="text-sm text-gray-500 font-medium mb-1">RA</p>
+      <p class="text-sm text-gray-500 font-medium mb-1">Penilai Pengadil</p>
       <p class="text-2xl font-bold text-slate-600">{{ stats.ra }}</p>
-      <p class="text-[10px] text-gray-400 mt-1">Penilai Pengadil; boleh juga menjadi PP.</p>
+      <p class="text-[10px] text-gray-400 mt-1">Boleh juga memegang peranan Pegawai Pembangunan Daerah.</p>
     </div>
   </div>
 
@@ -38,7 +38,7 @@
         class="px-4 py-2.5 border border-slate-300 rounded-lg text-sm bg-white">
         <option value="all">Semua Peranan</option>
         @for (role of roles; track role) {
-          <option [value]="role">{{ role }}</option>
+          <option [value]="role">{{ displayRole(role) }}</option>
         }
       </select>
       <select [(ngModel)]="yearFilter" (ngModelChange)="loadUsers()" aria-label="Tahun pendaftaran"
@@ -54,8 +54,8 @@
         <option value="tidak_aktif">Pengadil Tidak Aktif</option>
         <option value="kelas3">Kelas III FAM</option>
         <option value="kelas1">Kelas I FAM</option>
-        <option value="ra">RA</option>
-        <option value="pp">PP</option>
+        <option value="ra">Penilai Pengadil</option>
+        <option value="pp">Pegawai Pembangunan Daerah</option>
       </select>
       <label class="inline-flex items-center gap-2 px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white whitespace-nowrap">
         <input type="checkbox" [(ngModel)]="showInactive" (ngModelChange)="applyFilter()" />
@@ -122,7 +122,7 @@
               </td>
               <td class="px-4 py-3">
                 <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" [class]="getRoleClass(user.user_role || user.role)">
-                  {{ user.user_role || user.role || '-' }}
+                  {{ displayRole(user.user_role || user.role) }}
                 </span>
               </td>
               <td class="px-4 py-3 text-slate-600 text-xs">{{ user.persatuan_nama || '-' }}</td>
@@ -203,7 +203,7 @@
             </div>
           </div>
           <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium shrink-0" [class]="getRoleClass(user.user_role || user.role)">
-            {{ user.user_role || user.role || '-' }}
+            {{ displayRole(user.user_role || user.role) }}
           </span>
         </div>
         <div class="grid grid-cols-2 gap-2 text-xs mb-3">
@@ -266,7 +266,7 @@
               <label class="block text-xs text-gray-500 mb-1">Peranan</label>
               <select [(ngModel)]="editUser.user_role" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                 @for (role of roles; track role) {
-                  <option [value]="role">{{ role }}</option>
+                  <option [value]="role">{{ displayRole(role) }}</option>
                 }
               </select>
             </div>
@@ -389,7 +389,7 @@
           <label class="block text-xs text-gray-500 mb-1">Peranan</label>
           <select [(ngModel)]="newUser.user_role" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
             @for (role of roles; track role) {
-              <option [value]="role">{{ role }}</option>
+              <option [value]="role">{{ displayRole(role) }}</option>
             }
           </select>
         </div>

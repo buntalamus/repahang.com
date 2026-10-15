@@ -19,14 +19,14 @@ import { catchError, finalize } from 'rxjs/operators';
       <div class="bg-linear-to-br from-slate-900 via-slate-800 to-slate-900 rounded-2xl p-6 lg:p-8 mb-6 text-white relative overflow-hidden">
         <div class="absolute top-0 right-0 w-64 h-64 bg-pahang-yellow/5 rounded-full -translate-y-1/2 translate-x-1/3"></div>
         <div class="relative">
-          <p class="text-white/50 text-xs font-medium uppercase tracking-wider mb-1">Panel PP Daerah</p>
+          <p class="text-white/50 text-xs font-medium uppercase tracking-wider mb-1">Panel Pegawai Pembangunan Daerah</p>
           <h2 class="text-xl lg:text-2xl font-bold">{{ auth.currentUser?.nama_penuh }}</h2>
           <p class="text-white/60 text-sm mt-1">{{ auth.currentUser?.persatuan_nama }}</p>
         </div>
       </div>
 
       <!-- Stat Cards -->
-      <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
+      <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-6">
         <!-- Pengadil -->
         <a routerLink="/pp-daerah/pengadil" class="bg-white rounded-xl p-5 border border-slate-200 hover:shadow-md transition group">
           <div class="flex items-center justify-between mb-3">
@@ -39,32 +39,15 @@ import { catchError, finalize } from 'rxjs/operators';
           <p class="text-xs text-slate-500 mt-1">Pengadil Berdaftar</p>
         </a>
 
-        <!-- Menunggu Pengesahan Permohonan -->
-        <a routerLink="/pp-daerah/pengesahan" class="bg-white rounded-xl p-5 border border-amber-200 hover:shadow-md transition group relative">
-          @if (overview.pending_applications > 0) {
-            <div class="absolute top-3 right-3 w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse"></div>
-          }
-          <div class="flex items-center justify-between mb-3">
-            <div class="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center group-hover:bg-amber-100 transition">
-              <span class="material-icons text-amber-600 text-xl">pending_actions</span>
-            </div>
-            <span class="text-[10px] font-semibold text-amber-400 uppercase tracking-wide">Permohonan</span>
-          </div>
-          <p class="text-2xl font-bold text-amber-700">{{ overview.pending_applications || 0 }}</p>
-          <p class="text-xs text-amber-600 mt-1">Permohonan Belum Disahkan</p>
-        </a>
-
-        <!-- Diluluskan Permohonan -->
-        <div class="bg-white rounded-xl p-5 border border-green-200">
-          <div class="flex items-center justify-between mb-3">
-            <div class="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
-              <span class="material-icons text-green-600 text-xl">check_circle</span>
-            </div>
-            <span class="text-[10px] font-semibold text-green-400 uppercase tracking-wide">Permohonan</span>
-          </div>
-          <p class="text-2xl font-bold text-green-700">{{ overview.approved_applications || 0 }}</p>
-          <p class="text-xs text-green-600 mt-1">Permohonan Diluluskan</p>
-        </div>
+        @for (card of applicationCards; track card.key) {
+          <a [routerLink]="card.route" class="bg-white rounded-xl p-5 border border-slate-200 hover:border-pahang-yellow hover:shadow-md transition">
+            <span class="material-icons text-slate-600 text-xl">{{ card.icon }}</span>
+            <p class="text-sm font-semibold text-slate-800 mt-2">{{ card.label }}</p>
+            <p class="text-2xl font-bold text-slate-900 mt-2">{{ overview.applications_by_type?.[card.key]?.total || 0 }}</p>
+            <p class="text-xs text-amber-700 mt-1">Menunggu {{ overview.applications_by_type?.[card.key]?.pending || 0 }}</p>
+            <p class="text-xs text-green-700">Diluluskan {{ overview.applications_by_type?.[card.key]?.approved || 0 }}</p>
+          </a>
+        }
 
         <!-- Rekod Perlawanan Belum Disahkan -->
         <a routerLink="/pp-daerah/pengesahan-perlawanan"
@@ -99,19 +82,21 @@ import { catchError, finalize } from 'rxjs/operators';
         </div>
       </div>
 
-      <!-- Pengesahan CTA (only if pending > 0) -->
-      @if (overview.pending_applications > 0) {
-        <a routerLink="/pp-daerah/pengesahan"
+      <!-- Pengesahan mengikut jenis permohonan -->
+      @for (card of applicationCards; track card.key) {
+      @if (overview.applications_by_type?.[card.key]?.pending > 0) {
+        <a [routerLink]="card.route"
           class="flex items-center gap-4 bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 hover:bg-amber-100 transition group">
           <div class="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center shrink-0 group-hover:bg-amber-200 transition">
             <span class="material-icons text-amber-600 text-2xl">verified</span>
           </div>
           <div class="flex-1 min-w-0">
-            <p class="text-sm font-semibold text-amber-900">{{ overview.pending_applications }} permohonan menunggu pengesahan anda</p>
-            <p class="text-xs text-amber-700/70 mt-0.5">Klik untuk semak dan sahkan permohonan pengadil</p>
+            <p class="text-sm font-semibold text-amber-900">{{ overview.applications_by_type[card.key].pending }} permohonan {{ card.label }} menunggu pengesahan</p>
+            <p class="text-xs text-amber-700/70 mt-0.5">Sesi {{ overview.year }} · Buka senarai {{ card.label }}</p>
           </div>
           <span class="material-icons text-amber-400 group-hover:text-amber-600 transition">arrow_forward</span>
         </a>
+      }
       }
 
       @if (overview.pending_matches > 0) {
@@ -200,17 +185,17 @@ import { catchError, finalize } from 'rxjs/operators';
       <div class="mb-6">
         <h3 class="text-sm font-semibold text-slate-900 mb-3">Pintasan</h3>
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <a routerLink="/pp-daerah/permohonan/berdaftar"
+          <a routerLink="/pp-daerah/permohonan/pengadil"
             class="flex flex-col items-center gap-2 bg-white rounded-xl p-4 border border-slate-200 hover:border-pahang-yellow hover:shadow-sm transition text-center">
             <span class="material-icons text-pahang-yellow text-xl">badge</span>
-            <span class="text-xs font-medium text-slate-700">Pendaftaran Tahunan</span>
+            <span class="text-xs font-medium text-slate-700">Pengadil Berdaftar</span>
           </a>
-          <a routerLink="/pp-daerah/permohonan/kecergasan"
+          <a routerLink="/pp-daerah/permohonan/berdaftar"
             class="flex flex-col items-center gap-2 bg-white rounded-xl p-4 border border-slate-200 hover:border-pahang-yellow hover:shadow-sm transition text-center">
-            <span class="material-icons text-pahang-yellow text-xl">fitness_center</span>
-            <span class="text-xs font-medium text-slate-700">Ujian Kecergasan</span>
+            <span class="material-icons text-pahang-yellow text-xl">rate_review</span>
+            <span class="text-xs font-medium text-slate-700">Penilai Pengadil Berdaftar</span>
           </a>
-          <a routerLink="/pp-daerah/permohonan/bertulis"
+          <a routerLink="/pp-daerah/permohonan/kelas3"
             class="flex flex-col items-center gap-2 bg-white rounded-xl p-4 border border-slate-200 hover:border-pahang-yellow hover:shadow-sm transition text-center">
             <span class="material-icons text-pahang-yellow text-xl">quiz</span>
             <span class="text-xs font-medium text-slate-700">Kelas III FAM</span>
@@ -255,6 +240,12 @@ import { catchError, finalize } from 'rxjs/operators';
 export class PpDashboardComponent implements OnInit {
   loading = true;
   overview: any = {};
+  applicationCards = [
+    { key: 'pengadil_berdaftar', label: 'Pengadil Berdaftar', route: '/pp-daerah/permohonan/pengadil', icon: 'badge' },
+    { key: 'penilai_berdaftar', label: 'Penilai Pengadil Berdaftar', route: '/pp-daerah/permohonan/berdaftar', icon: 'rate_review' },
+    { key: 'kelas3_fam', label: 'Kelas III FAM', route: '/pp-daerah/permohonan/kelas3', icon: 'quiz' },
+    { key: 'ujian_kelas1_fam', label: 'Kelas I FAM', route: '/pp-daerah/permohonan/kelas1', icon: 'military_tech' },
+  ];
   topReferees: any[] = [];
   currentAssignments: any[] = [];
   announcements: any[] = [];

@@ -97,7 +97,7 @@ try {
 
   // Chair page: GET only reviews, POST confirms and notifies every official.
   const review=await chairPage('GET',{token:approval.approval_token});
-  assert.match(review.html,/Semak &amp; Sahkan Laporan RA|Semak & Sahkan Laporan RA/);
+  assert.match(review.html,/Semak &amp; Sahkan Laporan Penilai Pengadil|Semak & Sahkan Laporan Penilai Pengadil/);
   assert.equal(one('SELECT status FROM laporan_penilaian WHERE id=?',reportId).status,'Dihantar');
   assert.equal((await chairPage('GET',{token:'z'})).status,404);
   emails.length=0;telegrams.length=0;

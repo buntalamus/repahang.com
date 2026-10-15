@@ -48,10 +48,12 @@ export async function adminApprove(request: Request, env: Env): Promise<Response
   if (!application) {
     return json({ error: true, message: 'Permohonan tidak dijumpai atau sudah diproses.' }, 404);
   }
+  const refereeType = (application.jenis_pengadil ?? '').trim().toUpperCase();
+  const isRa = application.jenis_borang === 'penilai_berdaftar' ||
+    (application.jenis_borang === 'pengadil_berdaftar' && refereeType === 'PENILAI PENGADIL');
   const fitness = action === 'approve' && application.jenis_borang === 'pengadil_berdaftar' &&
     Number(application.tahun_permohonan) >= 2027 &&
-    !['Penilai Pengadil', 'Pegawai Pembangunan'].includes(application.jenis_pengadil ?? '');
-  const isRa = application.jenis_borang === 'penilai_berdaftar';
+    !['PENILAI PENGADIL', 'PEGAWAI PEMBANGUNAN'].includes(refereeType);
   const status = action === 'reject' ? 'Rejected' : fitness ? 'Pending' : 'Approved';
   const workflow = action === 'reject' ? 'Ditolak' : fitness ? 'Admin Diluluskan' : 'Lengkap';
   const classOne = application.jenis_borang === 'ujian_kelas1_fam';

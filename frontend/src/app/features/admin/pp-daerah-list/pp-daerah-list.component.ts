@@ -12,12 +12,12 @@ import { environment } from '../../../../environments/environment';
   imports: [FormsModule, LoadingComponent, PaginationComponent],
   template: `
     @if (loading) {
-      <app-loading message="Memuatkan senarai PP Daerah..." />
+      <app-loading message="Memuatkan senarai Pegawai Pembangunan Daerah..." />
     } @else {
       <!-- Kad Statistik -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-          <p class="text-sm text-gray-500 font-medium mb-1">Jumlah PP</p>
+          <p class="text-sm text-gray-500 font-medium mb-1">Jumlah Pegawai Pembangunan Daerah</p>
           <p class="text-2xl font-bold text-gray-900">{{ stats.total }}</p>
           <p class="text-[10px] text-gray-400 mt-1">Pegawai Pembangunan Daerah</p>
         </div>
@@ -64,7 +64,7 @@ import { environment } from '../../../../environments/environment';
         </div>
         @if (searchQuery || persatuanFilter !== 'all' || statusFilter !== 'all') {
           <div class="mt-3 text-xs text-slate-500">
-            Menunjukkan {{ filtered.length }} daripada {{ users.length }} PP Daerah
+            Menunjukkan {{ filtered.length }} daripada {{ users.length }} Pegawai Pembangunan Daerah
           </div>
         }
       </div>
@@ -131,7 +131,7 @@ import { environment } from '../../../../environments/environment';
                 <tr>
                   <td colspan="7" class="px-4 py-16 text-center">
                     <span class="material-symbols-outlined text-4xl text-slate-300 mb-2">person_off</span>
-                    <p class="text-slate-400 text-sm">Tiada PP Daerah ditemui.</p>
+                    <p class="text-slate-400 text-sm">Tiada Pegawai Pembangunan Daerah ditemui.</p>
                   </td>
                 </tr>
               }
@@ -182,7 +182,7 @@ import { environment } from '../../../../environments/environment';
         } @empty {
           <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
             <span class="material-symbols-outlined text-4xl text-slate-300 mb-2">person_off</span>
-            <p class="text-slate-400 text-sm">Tiada PP Daerah ditemui.</p>
+            <p class="text-slate-400 text-sm">Tiada Pegawai Pembangunan Daerah ditemui.</p>
           </div>
         }
         <app-pagination [totalItems]="filtered.length" [pageSize]="pageSize" [currentPage]="currentPage"
@@ -214,7 +214,7 @@ import { environment } from '../../../../environments/environment';
                 <h3 class="text-lg font-bold text-gray-900 truncate">{{ selectedUser.nama_penuh }}</h3>
                 <p class="text-sm text-gray-500 mt-0.5">{{ selectedUser.email || '-' }}</p>
                 <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
-                  <span>PP Daerah</span>
+                  <span>Pegawai Pembangunan Daerah</span>
                   @if (selectedUser.persatuan_nama) {
                     <span>{{ selectedUser.persatuan_nama }}</span>
                   }
@@ -380,7 +380,7 @@ import { environment } from '../../../../environments/environment';
       <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" (click)="showEditModal = false">
         <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
           <div class="p-5 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl">
-            <h3 class="text-base font-semibold text-gray-900">Kemaskini Profil PP Daerah</h3>
+            <h3 class="text-base font-semibold text-gray-900">Kemaskini Profil Pegawai Pembangunan Daerah</h3>
             <button (click)="showEditModal = false" class="text-gray-400 hover:text-gray-600">&#x2715;</button>
           </div>
           <div class="p-5 space-y-5">
@@ -617,7 +617,7 @@ export class PpDaerahListComponent implements OnInit {
       next: (res) => {
         this.savingEdit = false;
         if (!res.error) {
-          this.toast.success('Profil PP Daerah berjaya dikemaskini.');
+          this.toast.success('Profil Pegawai Pembangunan Daerah berjaya dikemaskini.');
           this.showEditModal = false;
           this.loading = true;
           this.ngOnInit();

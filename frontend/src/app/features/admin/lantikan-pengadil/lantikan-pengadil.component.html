@@ -239,7 +239,7 @@
                 {{ selectedKejohanan.peringkat_kejohanan }}
               </span>
             </div>
-            <p class="text-xs text-slate-500 mt-1">Pengesah rasmi semua laporan RA untuk kejohanan ini. Admin menerima salinan dan hanya boleh membuat override bersebab.</p>
+            <p class="text-xs text-slate-500 mt-1">Pengesah rasmi semua laporan Penilai Pengadil untuk kejohanan ini. Admin menerima salinan dan hanya boleh membuat override bersebab.</p>
           </div>
           <button type="button" (click)="openPengerusiModal()" [disabled]="loadingPengerusi"
             class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-violet-600 text-white text-xs font-semibold rounded-lg hover:bg-violet-700 disabled:opacity-50 transition whitespace-nowrap">
@@ -276,7 +276,7 @@
           </div>
         } @else {
           <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-            Belum ditetapkan. Laporan RA yang dihantar akan kekal menunggu dan Admin perlu menetapkan Pengerusi atau menggunakan override bersebab.
+            Belum ditetapkan. Laporan Penilai Pengadil yang dihantar akan kekal menunggu dan Admin perlu menetapkan Pengerusi atau menggunakan override bersebab.
           </div>
         }
       </div>
@@ -732,7 +732,7 @@
               <div class="px-4 py-2 border-b border-slate-100 text-[11px]"
                    [class]="hasRequiredSlotsInCurrentMatch() ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'">
                 @if (hasRequiredSlotsInCurrentMatch()) {
-                  Lengkap untuk dihantar: Pengadil, AR1 dan AR2 tersedia. P4 ialah slot 4 pilihan; RA ialah slot 5 pilihan.
+                  Lengkap untuk dihantar: Pengadil, AR1 dan AR2 tersedia. P4 ialah slot 4 pilihan; Penilai Pengadil ialah slot 5 pilihan.
                 } @else {
                   Belum lengkap. Slot wajib: {{ missingRequiredSlots().join(', ') }}.
                 }
@@ -939,7 +939,7 @@
                                   @if (audit.links.ra_form_url) {
                                     <div class="rounded-lg border border-purple-200 bg-purple-50 p-3">
                                       <div class="flex items-center justify-between gap-2 mb-1.5">
-                                        <p class="text-[11px] font-bold text-purple-900">Pautan Borang RA</p>
+                                        <p class="text-[11px] font-bold text-purple-900">Pautan Borang Penilai Pengadil</p>
                                         <button type="button" (click)="copyDirectLink(assignment.id, 'ra_form_url', audit.links.ra_form_url!)"
                                           class="px-2 py-1 rounded bg-purple-700 text-white text-[10px] font-semibold">Salin</button>
                                       </div>
@@ -1451,7 +1451,7 @@
                           [class.bg-emerald-50]="a?.status_lantikan === 'Diterima'"
                           [class.bg-orange-50]="isAutoTolak(a)"
                           [class.bg-rose-50]="a?.status_lantikan === 'Ditolak' && !isAutoTolak(a)">
-                        {{ getJawatanCode(jaw) }}
+                        <span [title]="jaw">{{ getJawatanCode(jaw) }}</span>
                       </td>
                       <!-- Nama Pegawai -->
                       <td class="px-2 py-1 border-y border-slate-200 text-slate-800"
@@ -2338,7 +2338,7 @@
         <div class="flex items-center gap-3">
           @if (laporanDetail?.status === 'Disahkan') {
             <button (click)="downloadLaporanPdf(laporanDetail.id)" class="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition">
-              <span class="material-icons text-sm">download</span> RA Report
+              <span class="material-icons text-sm">download</span> Laporan Penilai Pengadil
             </button>
           }
           @if (laporanDetail) {
@@ -2639,7 +2639,7 @@
       <div class="px-6 py-4 border-t flex items-center justify-between">
         @if (laporanDetail?.status === 'Disahkan') {
           <button (click)="downloadLaporanPdf(laporanDetail.id)" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition">
-            <span class="material-icons text-sm">download</span> Muat Turun RA Report
+            <span class="material-icons text-sm">download</span> Muat Turun Laporan Penilai Pengadil
           </button>
         } @else {
           <div></div>

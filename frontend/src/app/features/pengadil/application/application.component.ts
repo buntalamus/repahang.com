@@ -46,7 +46,7 @@ export class PengadilApplicationComponent implements OnInit {
     kelas1:             'Ujian Kelas I FAM',
     ujian_kelas1_fam:   'Ujian Kelas I FAM',
     penilai_berdaftar:  'Pendaftaran Tahunan Penilai Pengadil (R1)',
-    pp_berdaftar:       'Pendaftaran Tahunan PP Daerah (R1)',
+    pp_berdaftar:       'Pendaftaran Tahunan Pegawai Pembangunan Daerah (R1)',
   };
 
   constructor(

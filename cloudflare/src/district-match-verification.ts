@@ -144,10 +144,10 @@ async function change(request: Request, env: Env, userId: number,
   const subject = action === 'verify' ? 'Perlawanan Disahkan'
     : action === 'reject' ? 'Perlawanan Tidak Disahkan' : 'Perlawanan Dikembalikan';
   const message = action === 'verify'
-    ? `Rekod perlawanan ${first.home_team} vs ${first.away_team} pada ${day} telah disahkan oleh PP Daerah.`
+    ? `Rekod perlawanan ${first.home_team} vs ${first.away_team} pada ${day} telah disahkan oleh Pegawai Pembangunan Daerah.`
     : action === 'reject'
       ? `Rekod perlawanan ${first.home_team} vs ${first.away_team} pada ${day} tidak disahkan. Catatan: ${notes || '-'}`
-      : `Rekod perlawanan ${first.home_team} vs ${first.away_team} pada ${day} telah dikembalikan untuk semakan semula oleh PP Daerah.`;
+      : `Rekod perlawanan ${first.home_team} vs ${first.away_team} pada ${day} telah dikembalikan untuk semakan semula oleh Pegawai Pembangunan Daerah.`;
   const recipients = [...new Set(rows.map((row) => row.user_id))];
   const results = await env.DB.batch([
     env.DB.prepare(`UPDATE perlawanan SET status_pp=?,catatan_pp=?,verified_at=datetime('now','+8 hours'),verified_by=?
@@ -173,7 +173,7 @@ export async function districtMatchVerification(request: Request, env: Env): Pro
   }
   const user = await currentUser(request, env);
   if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
-  if (user.role !== 'PP Daerah') return json({ error: true, message: 'Akses ditolak - hanya PP Daerah sahaja' }, 403);
+  if (user.role !== 'PP Daerah') return json({ error: true, message: 'Akses ditolak - hanya Pegawai Pembangunan Daerah sahaja' }, 403);
   if (!user.persatuan_id) return json({ error: true, message: 'Persatuan not assigned.' }, 403);
   const district = await env.DB.prepare(`SELECT d.id FROM persatuan_bolasepak_daerah p
     JOIN districts d ON d.nama=p.daerah WHERE p.id=?`).bind(user.persatuan_id).first<{ id: number }>();

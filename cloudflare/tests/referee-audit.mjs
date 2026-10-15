@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import {bundle,openDatabase,sessionCookie} from './_harness.mjs';
 
-const {adminUsers,registeredReferees,statistics,currentUser,refereeMatches,assessorDashboard,deleteApplication}=await bundle(
-  "export {adminUsers} from '../src/admin-users'; export {registeredReferees} from '../src/registered-referees'; export {statistics} from '../src/statistics'; export {currentUser} from '../src/auth'; export {refereeMatches} from '../src/referee'; export {assessorDashboard} from '../src/role-dashboards'; export {deleteApplication} from '../src/applications';"
+const {adminUsers,registeredReferees,statistics,currentUser,refereeMatches,assessorDashboard,
+  districtOverview,districtApplications,adminDashboardStats,adminApplications,
+  applicationHistory,adminRefereeExport,districtRefereeExport,deleteApplication}=await bundle(
+  "export {adminUsers} from '../src/admin-users'; export {registeredReferees} from '../src/registered-referees'; export {statistics} from '../src/statistics'; export {currentUser} from '../src/auth'; export {refereeMatches} from '../src/referee'; export {assessorDashboard,districtOverview} from '../src/role-dashboards'; export {districtApplications} from '../src/district-applications'; export {adminDashboardStats} from '../src/admin-dashboard'; export {adminApplications,applicationHistory,deleteApplication} from '../src/applications'; export {adminRefereeExport,districtRefereeExport} from '../src/referee-exports';"
 );
 const {db,DB,close}=openDatabase(['0001_worker_sessions']);
 const admin=db.prepare("SELECT id FROM users WHERE role='Admin' AND aktif=1 LIMIT 1").get();
@@ -16,8 +18,8 @@ try {
   const users=(await usersResponse.json()).users;
   const expected=db.prepare(`SELECT COUNT(DISTINCT user_id) AS total FROM permohonan
     WHERE jenis_borang='pengadil_berdaftar' AND tahun_permohonan=2026
-      AND status='Approved' AND COALESCE(jenis_pengadil,'')
-        NOT IN ('Penilai Pengadil','Pegawai Pembangunan')`).get().total;
+      AND status='Approved' AND UPPER(TRIM(COALESCE(jenis_pengadil,'')))
+        NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')`).get().total;
   assert.equal(users.filter((user)=>user.current_approved===1).length,expected);
   const failedClassThree=db.prepare(`SELECT p.user_id FROM permohonan p JOIN users u ON u.id=p.user_id
     WHERE p.jenis_borang='kelas3_fam' AND p.status_ujian='Tidak Lulus'
@@ -37,6 +39,39 @@ try {
   ).get().total);
   assert.equal(stats.applications.total,Object.values(stats.applications.types)
     .reduce((sum,count)=>sum+count,0));
+  assert.equal(stats.applications.byType.pengadil_berdaftar.total,219);
+  assert.equal(stats.applications.byType.penilai_berdaftar.total,17);
+  assert.equal(stats.applications.byType.kelas3_fam.total,42);
+  assert.equal(stats.applications.byType.ujian_kelas1_fam.total,0);
+  assert.equal(stats.applications.byType.ujian_kecergasan.total,116);
+  assert.equal(stats.applications.byType.pegawai_pembangunan.total,9);
+  for (const item of Object.values(stats.applications.byType)) {
+    assert.equal(item.total,item.pending+item.approved+item.rejected);
+    assert.equal(item.total,Object.values(item.monthlyTrend).reduce((sum,count)=>sum+count,0));
+  }
+  const adminDashboard=(await (await adminDashboardStats(request('admin-dashboard-stats.php'),env)).json()).stats;
+  assert.equal(adminDashboard.applications_by_type.penilai_berdaftar.total,17);
+  assert.equal(adminDashboard.applications_by_type.pengadil_berdaftar.total,219);
+  for (const [type,count] of [['berdaftar',219],['penilai',17],['kelas3',42],['kelas1',0]]) {
+    const response=await adminApplications(request(`admin-applications.php?type=${type}&year=2026`),env);
+    assert.equal(response.status,200);
+    const rows=(await response.json()).applications;
+    assert.equal(rows.length,count);
+    const category={berdaftar:'pengadil_berdaftar',penilai:'penilai_berdaftar',
+      kelas3:'kelas3_fam',kelas1:'ujian_kelas1_fam'}[type];
+    assert.ok(rows.every((row)=>row.application_category===category));
+  }
+  const classThreeUser=db.prepare(`SELECT p.user_id FROM permohonan p JOIN users u ON u.id=p.user_id
+    WHERE p.jenis_borang='kelas3_fam' AND u.aktif=1 LIMIT 1`).get();
+  assert.ok(classThreeUser);
+  const ownCookie=await sessionCookie(db,classThreeUser.user_id);
+  const ownHistory=await applicationHistory(new Request(
+    'https://refpahang.example/api/pengadil-application-history.php?type=kelas3',
+    {headers:{Cookie:ownCookie}}),env);
+  assert.equal(ownHistory.status,200);
+  const ownRows=(await ownHistory.json()).data;
+  assert.ok(ownRows.length>0);
+  assert.ok(ownRows.every((row)=>['kelas3_fam','ujian_bertulis'].includes(row.jenis_borang)));
   const appointmentCounts=db.prepare(`SELECT lp.status,COUNT(*) AS total
     FROM lantikan_pengadil lp JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id
     WHERE substr(jp.tarikh,1,4)='2026' GROUP BY lp.status`).all();
@@ -54,7 +89,13 @@ try {
   const raResponse=await registeredReferees(request('referees.php?year=2026&type=penilai_berdaftar'),env);
   assert.equal(raResponse.status,200);
   const ra=(await raResponse.json()).data;
+  assert.equal(ra.length,17);
+  assert.ok(ra.every((user)=>user.id != null));
   assert.ok(ra.every((user)=>user.user_role!=='PP Daerah' || user.jenis_pengadil==='Penilai Pengadil'));
+  const raCsv=await adminRefereeExport(request('download-referees-excel.php?year=2026&type=penilai_berdaftar'),env);
+  assert.equal(raCsv.status,200);
+  assert.match(raCsv.headers.get('Content-Disposition'),/penilai-pengadil-2026/);
+  assert.equal((await raCsv.text()).trim().split('\r\n').length,18);
 
   const ppRef=db.prepare("SELECT id FROM users WHERE role='PP Daerah' AND jenis_pengadil='Pengadil Negeri' LIMIT 1").get();
   const ppRa=db.prepare("SELECT id FROM users WHERE role='PP Daerah' AND jenis_pengadil='Penilai Pengadil' LIMIT 1").get();
@@ -69,6 +110,21 @@ try {
   assert.equal((await actor(ppRa.id)).can_ra,1);
   assert.equal((await actor(ppOther.id)).can_referee,0);
   const ppRefCookie=await sessionCookie(db,ppRef.id);
+  const ppEnv={...env};
+  const ppRequest=(route)=>new Request(`https://refpahang.example/api/${route}`,
+    {headers:{Cookie:ppRefCookie}});
+  const ppOverview=(await (await districtOverview(ppRequest('pp-dashboard-overview.php'),ppEnv)).json()).overview;
+  assert.equal(Object.values(ppOverview.applications_by_type)
+    .reduce((sum,item)=>sum+item.total,0),
+    db.prepare(`SELECT COUNT(*) AS total FROM permohonan p JOIN users u ON u.id=p.user_id
+      WHERE u.persatuan_id=(SELECT persatuan_id FROM users WHERE id=?)
+        AND p.tahun_permohonan=2026`).get(ppRef.id).total);
+  const districtRa=(await (await districtApplications(ppRequest('pp-applications.php?type=berdaftar'),ppEnv)).json()).applications;
+  assert.ok(districtRa.length>0);
+  assert.ok(districtRa.every((application)=>application.application_category==='penilai_berdaftar'));
+  const districtCsv=await districtRefereeExport(ppRequest('pp-export-referees.php?type=pengadil'),ppEnv);
+  assert.equal(districtCsv.status,200);
+  assert.match(await districtCsv.text(),/Jumlah Permohonan Pengadil Berdaftar/);
   assert.equal((await refereeMatches(new Request('https://refpahang.example/api/pengadil-matches.php',{
     headers:{Cookie:ppRefCookie}
   }),env)).status,200);
@@ -103,5 +159,5 @@ try {
     .find((user)=>user.id===previous.user_id);
   assert.equal(after.current_approved,0);
   assert.equal(after.prior_approved,1);
-  console.log('referee audit: annual categories, RA/PP separation, statistics and full match counts passed');
+  console.log('referee audit: four application categories, RA legacy records, annual roles and match integrity passed');
 } finally {close();}

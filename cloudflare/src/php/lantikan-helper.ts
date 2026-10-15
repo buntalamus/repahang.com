@@ -211,7 +211,7 @@ export async function notifyPPDaerahLantikan(env: Env, persatuanId: number, nama
   const masaText = masaFmt(masa);
   const pasukan = `${pasukanHome} lwn ${pasukanAway}`;
   for (const pp of users.results) {
-    await createPortalNotification(env, pp.id, 'Lantikan PP Daerah', `Lantikan Pengadil Daerah: ${pasukan}`,
+    await createPortalNotification(env, pp.id, 'Lantikan Pegawai Pembangunan Daerah', `Lantikan Pengadil Daerah: ${pasukan}`,
       `${namaPengadil} telah dilantik sebagai ${jawatan} untuk perlawanan ${pasukan} (${kejohanan}) pada ${tarikhText}.`);
     if (pp.telegram_chat_id) {
       const message = '<b>📋 Makluman Lantikan Pengadil</b>\n\n'
@@ -390,7 +390,7 @@ export async function generatePenilaianToken(env: Env, lantikanId: number,
       email_error: emailError, telegram_error: telegramError, ra_form_url: borangUrl,
     }, borangUrl, 'system', null, snapshot, meta);
   if (!emailDelivered && !telegramDelivered) {
-    throw new Error('Pautan borang RA telah disediakan tetapi gagal dihantar melalui emel dan Telegram. Gunakan pautan terus Admin.');
+    throw new Error('Pautan borang Penilai Pengadil telah disediakan tetapi gagal dihantar melalui emel dan Telegram. Gunakan pautan terus Admin.');
   }
   return token;
 }

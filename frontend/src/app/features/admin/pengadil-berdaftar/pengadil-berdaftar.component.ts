@@ -77,8 +77,8 @@ export class PengadilBerdaftarComponent implements OnInit {
   ngOnInit(): void {
     this.listType = this.route.snapshot.data['type'] || 'pengadil_berdaftar';
     if (this.listType === 'penilai_berdaftar') {
-      this.typeLabel = 'RA';
-      this.typeLabelFull = 'RA Berdaftar';
+      this.typeLabel = 'Penilai Pengadil';
+      this.typeLabelFull = 'Penilai Pengadil Berdaftar';
     }
     this.generateYears();
     this.loadPersatuanList();
@@ -469,7 +469,7 @@ export class PengadilBerdaftarComponent implements OnInit {
   getJenisLabel(jenis: string): string {
     const map: Record<string, string> = {
       pengadil_berdaftar: 'Pendaftaran Pengadil',
-      penilai_berdaftar: 'Pendaftaran Penilai (RA)',
+      penilai_berdaftar: 'Pendaftaran Penilai Pengadil',
       pengadil_futsal: 'Futsal',
       ujian_kecergasan: 'Ujian Kecergasan',
       ujian_bertulis: 'Ujian Kelas III FAM',

@@ -27,12 +27,12 @@
 
   <div class="max-w-7xl mx-auto">
     <!-- KPI Indicators (Stats) - Minimalist -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
 
       <!-- Stat 1 -->
-      <a routerLink="/admin/pengadil-berdaftar" class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-gray-300 transition-all cursor-pointer group">
+      <a routerLink="/admin/pengguna" class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-gray-300 transition-all cursor-pointer group">
         <div class="flex justify-between items-start mb-4">
-          <p class="text-sm font-medium text-gray-500 group-hover:text-gray-700 transition-colors">Pengadil Aktif</p>
+          <p class="text-sm font-medium text-gray-500 group-hover:text-gray-700 transition-colors">Akaun Pengadil Aktif</p>
           <div class="p-1.5 bg-gray-100 text-gray-600 rounded-md group-hover:bg-gray-200 transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
           </div>
@@ -41,25 +41,6 @@
       </a>
 
       <!-- Stat 2 -->
-      <a routerLink="/admin/permohonan" class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-gray-300 transition-all cursor-pointer group">
-        <div class="flex justify-between items-start mb-4">
-          <div class="flex items-center gap-2">
-            <p class="text-sm font-medium text-gray-500 group-hover:text-gray-700 transition-colors">Permohonan Baru</p>
-            @if (stats.applications > 0) {
-              <span class="flex h-2 w-2">
-                <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-blue-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
-              </span>
-            }
-          </div>
-          <div class="p-1.5 bg-gray-100 text-gray-600 rounded-md group-hover:bg-gray-200 transition-colors">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-          </div>
-        </div>
-        <h3 class="text-2xl font-semibold text-gray-900">{{ stats.applications }}</h3>
-      </a>
-
-      <!-- Stat 3 -->
       <a routerLink="/admin/lantikan" class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-gray-300 transition-all cursor-pointer group">
         <div class="flex justify-between items-start mb-4">
           <p class="text-sm font-medium text-gray-500 group-hover:text-gray-700 transition-colors">Laporan Semakan</p>
@@ -70,7 +51,7 @@
         <h3 class="text-2xl font-semibold text-gray-900">{{ stats.verifyRate }}</h3>
       </a>
 
-      <!-- Stat 4 -->
+      <!-- Stat 3 -->
       <a routerLink="/admin/statistik" class="bg-white rounded-xl p-5 border border-gray-200 shadow-sm flex flex-col justify-between hover:shadow-md hover:border-gray-300 transition-all cursor-pointer group">
         <div class="flex justify-between items-start mb-4">
           <p class="text-sm font-medium text-gray-500 group-hover:text-gray-700 transition-colors">Perlawanan (Bulan Ini)</p>
@@ -81,6 +62,21 @@
         <h3 class="text-2xl font-semibold text-gray-900">{{ stats.matches }}</h3>
       </a>
 
+    </div>
+
+    <h3 class="text-sm font-semibold text-gray-800 mb-3">Permohonan Mengikut Jenis · {{ applicationYear }}</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+      @for (card of applicationCards; track card.key) {
+        <a [routerLink]="card.route" [queryParams]="{ type: card.type, year: applicationYear }"
+          class="bg-white rounded-xl p-5 border border-slate-200 hover:border-pahang-yellow hover:shadow-md transition">
+          <p class="text-sm font-semibold text-slate-800">{{ card.label }}</p>
+          <p class="text-2xl font-bold text-slate-900 mt-3">{{ card.total }}</p>
+          <div class="flex gap-4 text-xs mt-2">
+            <span class="text-amber-700">Menunggu {{ card.pending }}</span>
+            <span class="text-green-700">Diluluskan {{ card.approved }}</span>
+          </div>
+        </a>
+      }
     </div>
 
     <!-- Content Grid -->
@@ -95,17 +91,20 @@
             <h3 class="text-sm font-semibold text-gray-800">Perhatian Segera</h3>
           </div>
           <div class="p-2">
-            <a routerLink="/admin/permohonan" class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors group">
+            @for (card of applicationCards; track card.key) {
+            <a [routerLink]="card.route" [queryParams]="{ type: card.type, year: applicationYear }"
+              class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors group">
               <div class="flex items-center gap-3">
                 <div class="text-gray-400 group-hover:text-gray-900 transition-colors">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
                 </div>
-                <p class="text-sm font-medium text-gray-700 group-hover:text-gray-900 transition-colors">Semak Permohonan Baru</p>
+                <p class="text-sm font-medium text-gray-700 group-hover:text-gray-900 transition-colors">{{ card.label }}</p>
               </div>
               <span class="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-md bg-gray-100 text-gray-700 text-xs font-semibold group-hover:bg-gray-200">
-                {{ tasks.pending_applications || 0 }}
+                {{ card.pending }}
               </span>
             </a>
+            }
 
             <a routerLink="/admin/lantikan" class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors group">
               <div class="flex items-center gap-3">
@@ -146,12 +145,16 @@
         <!-- Recent Applications Table -->
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div class="border-b border-gray-200 bg-white px-5 py-4 flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-gray-800">Senarai Permohonan Terkini</h3>
-            <a routerLink="/admin/permohonan" class="text-[13px] text-blue-600 hover:text-blue-800 font-medium">
-              Lihat Penuh &rarr;
-            </a>
+            <h3 class="text-sm font-semibold text-gray-800">Permohonan Terkini Mengikut Jenis · {{ applicationYear }}</h3>
           </div>
 
+          @for (applicationGroup of applicationGroups; track applicationGroup.key) {
+          <div class="flex items-center justify-between px-5 py-2.5 bg-slate-50 border-b border-slate-200">
+            <h4 class="text-xs font-semibold text-slate-700">{{ applicationGroup.label }}</h4>
+            <a [routerLink]="applicationGroup.route"
+              [queryParams]="{ type: applicationGroup.type, year: applicationYear }"
+              class="text-xs text-slate-700 hover:underline">Lihat penuh</a>
+          </div>
           <div class="overflow-x-auto">
             <table class="w-full text-left text-sm whitespace-nowrap">
               <thead class="bg-gray-50 border-b border-gray-200 text-gray-500">
@@ -163,7 +166,7 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100 bg-white">
-                @for (app of recentApplications; track app.id) {
+                @for (app of applicationGroup.items; track app.id) {
                   <tr class="hover:bg-gray-50 transition-colors group">
                     <td class="px-5 py-3 align-middle">
                       <div class="flex items-center gap-3">
@@ -209,13 +212,14 @@
                 } @empty {
                   <tr>
                     <td colspan="4" class="px-5 py-10 text-center text-sm text-gray-500">
-                      Tiada permohonan terkini.
+                      Tiada permohonan menunggu tindakan admin.
                     </td>
                   </tr>
                 }
               </tbody>
             </table>
           </div>
+          }
         </div>
 
         <!-- Live Announcements / Broadcast -->

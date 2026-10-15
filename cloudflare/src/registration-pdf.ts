@@ -80,7 +80,7 @@ function r1(rowData: Row, logo: string, photo: string): string {
     ${row(['1. Mula aktif sebagai Pengadil, Tahun:', value(rowData, 'tahun_mula_aktif')])}
     <p>2. Butir-butir perlawanan, saya sebagai pengadil pada tahun semasa seperti disenaraikan di Lampiran R2.</p>
     <div class="signatures"><div><div class="sign-line"></div>Nama pemohon: ${esc(name)}<br>Tarikh: ____________________</div>
-      <div><div class="sign-line"></div>Nama PP Daerah: ${esc(upper(value(rowData, 'pp_daerah_nama')))}<br>Tarikh: ${today()}</div></div>
+      <div><div class="sign-line"></div>Nama Pegawai Pembangunan Daerah: ${esc(upper(value(rowData, 'pp_daerah_nama')))}<br>Tarikh: ${today()}</div></div>
     <div class="approval"><strong>PERMOHONAN PENDAFTARAN TAHUNAN PENGADIL NEGERI</strong>
       <p>Saya akui Pengadil di atas aktif dalam pengadilan di peringkat negeri sepanjang tahun ${esc(year)} dan butir-butir perlawanan yang dinyatakan di Lampiran R2 adalah benar.</p>
       <p>Tarikh: ____________________ &nbsp;&nbsp;&nbsp; Tandatangan: ____________________</p>
@@ -106,9 +106,9 @@ function r1Penilai(rowData: Row, logo: string, photo: string): string {
     ${row(['Telefon Waris:', value(rowData, 'telefon_waris', '-')])}
     <div class="keep-together">${section('PERAKUAN PEMOHON')}
       <div class="declaration">Saya memohon pendaftaran tahunan sebagai Penilai Pengadil bagi sesi ${esc(year)}. Saya mengesahkan maklumat yang diberikan adalah benar dan bersetuju mematuhi peraturan serta etika pengadilan PBNP.</div>
-      <div class="signatures"><div>Tandatangan Pemohon: ______________________<p>Pengesahan PP Daerah: _____________________</p></div>
+      <div class="signatures"><div>Tandatangan Pemohon: ______________________<p>Pengesahan Pegawai Pembangunan Daerah: _____________________</p></div>
         <div>Tarikh: ____________________<p>Tarikh: ____________________</p></div></div>
-      ${value(rowData, 'pp_daerah_nama') ? `<p>Nama PP Daerah: ${esc(upper(value(rowData, 'pp_daerah_nama')))}</p>` : ''}
+      ${value(rowData, 'pp_daerah_nama') ? `<p>Nama Pegawai Pembangunan Daerah: ${esc(upper(value(rowData, 'pp_daerah_nama')))}</p>` : ''}
     </div></section>`;
 }
 
@@ -336,7 +336,7 @@ export async function registrationPdf(request: Request, env: Env): Promise<Respo
   if (!types.includes(type as FormType)) return json({error:true,message:'Jenis borang tidak sah'},400);
   const form = params.get('form');
   if (type === 'penilai_berdaftar' && form !== null && form !== 'r1') {
-    return json({error:true,message:'Pendaftaran RA hanya mempunyai borang R1.'},400);
+    return json({error:true,message:'Pendaftaran Penilai Pengadil hanya mempunyai borang R1.'},400);
   }
   if (type === 'pengadil_berdaftar' && form !== null && !['r1','r2','r4'].includes(form)) {
     return json({error:true,message:'Jenis borang tidak sah.'},400);

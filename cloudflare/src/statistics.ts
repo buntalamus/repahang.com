@@ -1,5 +1,6 @@
 import { currentUser, json } from './auth';
 import type { Env } from './types';
+import { APPLICATION_CATEGORY_SQL, applicationStatus, countApplicationRows } from './application-category';
 
 type Row = Record<string, unknown>;
 type Counts = Record<string, number>;
@@ -75,14 +76,15 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
       LEFT JOIN persatuan_bolasepak_daerah p ON p.id=a.persatuan_id
       WHERE a.jenis_borang='pengadil_berdaftar' AND a.status='Approved'
         AND a.tahun_permohonan=?
-        AND COALESCE(a.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan')
+        AND UPPER(TRIM(COALESCE(a.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')
         AND (a.tahun_permohonan<2027 OR a.status_ujian='Lulus')
         AND a.id=(SELECT MAX(p2.id) FROM permohonan p2
           WHERE p2.user_id=a.user_id AND p2.jenis_borang='pengadil_berdaftar'
             AND p2.tahun_permohonan=a.tahun_permohonan AND p2.status='Approved')`)
       .bind(year).all<Row>(),
-    env.DB.prepare(`SELECT status,status_workflow,tarikh_hantar,jenis_borang
-      FROM permohonan WHERE tahun_permohonan=?`).bind(year).all<Row>(),
+    env.DB.prepare(`SELECT p.status,p.status_workflow,p.workflow_status,p.tarikh_hantar,
+      ${APPLICATION_CATEGORY_SQL} AS application_category
+      FROM permohonan p WHERE p.tahun_permohonan=?`).bind(year).all<Row>(),
     env.DB.prepare(`SELECT p.id,p.match_group_id,p.user_id,p.jawatan,p.tarikh,p.masa,
         p.tempat,p.jenis,p.nama_kejohanan,p.home_team,p.away_team,u.nama_penuh
       FROM perlawanan p JOIN users u ON u.id=p.user_id
@@ -91,7 +93,9 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
       p.tarikh_hantar,p.daerah,pb.nama_persatuan
       FROM permohonan p LEFT JOIN persatuan_bolasepak_daerah pb ON pb.id=p.persatuan_id
       WHERE (p.jenis_borang IN ('ujian_kecergasan','ujian_bertulis','kelas3_fam','ujian_kelas1_fam')
-        OR (p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan>=2027)
+        OR (p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan>=2027
+          AND UPPER(TRIM(COALESCE(p.jenis_pengadil,'')))
+            NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN'))
         OR p.jenis_permohonan IN ('ujian_kecergasan','ujian_bertulis','kelas3_fam','ujian_kelas1_fam'))
         AND p.tahun_permohonan=?`)
       .bind(year).all<Row>(),
@@ -167,21 +171,23 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
     monthCount(monthlyTrend, referee.approval_date);
   }
 
+  const categoryCounts = countApplicationRows(applications.results);
   const applicationStats = {
     total: applications.results.length, approved: 0,
-    types: { pengadil_berdaftar: 0, penilai_berdaftar: 0, pp_berdaftar: 0,
-      ujian_kecergasan: 0, kelas3_fam: 0, ujian_bertulis: 0, ujian_kelas1_fam: 0 } as Counts,
+    types: Object.fromEntries(Object.entries(categoryCounts).map(([key, value]) => [key, value.total])) as Counts,
+    byType: Object.fromEntries(Object.entries(categoryCounts).map(([key, value]) => [key, {
+      ...value, monthlyTrend: months(),
+    }])) as Record<string, typeof categoryCounts[string] & { monthlyTrend: Counts }>,
     statusBreakdown: { Menunggu: 0, Lengkap: 0, Ditolak: 0 } as Counts,
     monthlyTrend: months(),
   };
   for (const application of applications.results) {
-    const workflow = application.status_workflow;
-    const state = application.status;
-    if (workflow === 'Lengkap' || state === 'Approved') applicationStats.statusBreakdown.Lengkap++;
-    else if (workflow === 'Ditolak' || state === 'Rejected') applicationStats.statusBreakdown.Ditolak++;
+    const status = applicationStatus(application);
+    if (status === 'approved') applicationStats.statusBreakdown.Lengkap++;
+    else if (status === 'rejected') applicationStats.statusBreakdown.Ditolak++;
     else applicationStats.statusBreakdown.Menunggu++;
-    const type = String(application.jenis_borang ?? '').toLowerCase();
-    if (type in applicationStats.types) applicationStats.types[type]++;
+    const type = String(application.application_category ?? 'lain_lain');
+    monthCount(applicationStats.byType[type].monthlyTrend, application.tarikh_hantar);
     monthCount(applicationStats.monthlyTrend, application.tarikh_hantar);
   }
   applicationStats.approved = applicationStats.statusBreakdown.Lengkap;

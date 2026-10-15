@@ -58,7 +58,7 @@ try {
   assert.equal((await read(await call({jadual_id:future,pengadil_id:ra.id,jawatan:'Pengadil'}))).body.message,
     'Penilai Pengadil tidak boleh ditempatkan dalam slot KUP.');
   assert.equal((await read(await call({jadual_id:future,pengadil_id:kup[0].id,jawatan:'Penilai Pengadil'}))).body.message,
-    'Slot RA hanya boleh diberikan kepada pegawai berjenis Penilai Pengadil.');
+    'Slot Penilai Pengadil hanya boleh diberikan kepada pegawai berjenis Penilai Pengadil.');
 
   // New pre-kickoff appointment: MySQL defaults, audit and match status.
   const created=await read(await call({jadual_id:future,pengadil_id:String(kup[0].id),jawatan:'Pengadil'}));
@@ -193,7 +193,7 @@ try {
   emails.length=0;telegrams.length=0;
   const raResult=await read(await call({jadual_id:past,pengadil_id:ra.id,jawatan:'Penilai Pengadil'}));
   assert.equal(raResult.body.message,
-    'Lantikan rekod lama disahkan terus dan sejarah pengadil dikemaskini. Pautan borang penilaian RA telah dihantar.');
+    'Lantikan rekod lama disahkan terus dan sejarah pengadil dikemaskini. Pautan borang Penilai Pengadil telah dihantar.');
   const raRow=one("SELECT * FROM lantikan_pengadil WHERE jadual_id=? AND jawatan='Penilai Pengadil'",past);
   assert.match(raRow.penilaian_token,/^[a-f0-9]{64}$/);
   assert.equal(emails[0].type,'admin');

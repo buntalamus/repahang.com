@@ -23,7 +23,7 @@ export class AdminApplicationsComponent implements OnInit {
   statusFilter = 'all';
   districtFilter = 'all';
   searchQuery = '';
-  yearFilter = Math.max(new Date().getFullYear(), 2027).toString();
+  yearFilter = new Date().getFullYear().toString();
   years = Array.from({ length: Math.max(new Date().getFullYear(), 2027) - 2023 }, (_, i) => 2024 + i);
   currentPage = 1;
   pageSize = 10;
@@ -57,7 +57,7 @@ export class AdminApplicationsComponent implements OnInit {
 
   allTabs = [
     { key: 'berdaftar', label: 'Pengadil Berdaftar', group: 'pengadil' },
-    { key: 'penilai', label: 'RA Berdaftar', group: 'penilai' },
+    { key: 'penilai', label: 'Penilai Pengadil Berdaftar', group: 'penilai' },
     { key: 'kelas3', label: 'Kelas III FAM', group: 'pengadil' },
     { key: 'kelas1', label: 'Ujian Kelas I FAM', group: 'pengadil' },
   ];
@@ -75,7 +75,11 @@ export class AdminApplicationsComponent implements OnInit {
   ngOnInit(): void {
     this.group = this.route.snapshot.data['group'] || 'pengadil';
     this.tabs = this.allTabs.filter(t => t.group === this.group);
-    this.activeTab = this.tabs[0]?.key || 'berdaftar';
+    const requestedType = this.route.snapshot.queryParamMap.get('type');
+    this.activeTab = this.tabs.some(tab => tab.key === requestedType)
+      ? requestedType! : this.tabs[0]?.key || 'berdaftar';
+    const requestedYear = this.route.snapshot.queryParamMap.get('year');
+    if (requestedYear && this.years.includes(Number(requestedYear))) this.yearFilter = requestedYear;
     this.loadApplications();
     this.api.get<any>('admin-users.php').subscribe({
       next: (res) => { this.persatuanList = res.persatuan || []; },
@@ -86,7 +90,7 @@ export class AdminApplicationsComponent implements OnInit {
     this.loading = true;
     this.api.get<any>('admin-applications.php', {
       type: this.activeTab,
-      status: this.statusFilter,
+      status: 'all',
       year: this.yearFilter,
     }).subscribe({
       next: (res) => {
