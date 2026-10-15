@@ -11,6 +11,7 @@ import { appointmentEmailLink } from './appointment-email-link';
 import { appointmentAudit } from './appointment-audit';
 import { assessmentToken } from './assessment-token';
 import { assessmentReports } from './assessment-reports';
+import { assessmentDraft } from './assessment-draft';
 import { districtAssessments, refereeAssessments } from './assessments';
 import { districtApplications } from './district-applications';
 import { districtReferees } from './district-referees';
@@ -197,8 +198,10 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/lantikan-jawab.php') return appointmentReply(request, env);
   if (pathname === '/api/lantikan-jawab-token.php') return appointmentEmailLink(request, env);
   if (pathname === '/api/lantikan-audit.php') return appointmentAudit(request, env);
-  if (pathname === '/api/penilaian-token.php') return assessmentToken(request, env);
-  if (pathname === '/api/laporan-penilaian.php') return assessmentReports(request, env);
+  if (pathname === '/api/penilaian-token.php') return request.method === 'POST'
+    ? assessmentDraft(request,env,'token') : assessmentToken(request, env);
+  if (pathname === '/api/laporan-penilaian.php') return request.method === 'POST'
+    ? assessmentDraft(request,env,'session') : assessmentReports(request, env);
   if (pathname === '/api/statistics.php') return statistics(request, env);
   if (pathname === '/api/download-referees-excel.php') return adminRefereeExport(request, env);
   if (pathname === '/api/pp-export-referees.php') return districtRefereeExport(request, env);

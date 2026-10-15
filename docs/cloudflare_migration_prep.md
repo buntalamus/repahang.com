@@ -251,14 +251,28 @@ token, menghantar laporan RA yang menunggu dan merekodkan notifikasi.
 Pautan `/penilaian-borang.html` kini disertakan dalam aset Angular staging.
 `penilaian-token.php` menyediakan GET bertoken bagi RA yang telah menerima
 lantikan: butiran perlawanan, KUP diterima, draf sedia ada dan kriteria asal.
-Endpoint ini memerlukan suis `STAGING_AUTH_ENABLED=1`; POST simpan/hantar masih
-503 sehingga transaksi laporan dan penghantaran kepada Pengerusi lengkap.
+Endpoint ini memerlukan suis `STAGING_AUTH_ENABLED=1`. POST draf telah
+dipindahkan tetapi hanya boleh digunakan apabila kedua-dua suis auth dan
+tulis staging diaktifkan. Pilihan `hantar` kekal 503 sebelum sebarang data
+ditulis kerana penghantaran kepada Pengerusi belum lengkap.
 `laporan-penilaian.php` menyediakan semua mod GET bagi RA berlog masuk dan Admin:
 senarai sendiri, butiran, laporan per perlawanan, KUP diterima dan kriteria.
 Laporan pengguna lain ditapis di SQL; token Pengerusi tidak dipulangkan dan
 `approval_url` sengaja kosong sehingga halaman semakan, PDF dan tindakan sahkan
-siap. POST draf dan PUT hantar/override masih 503. Ujian sintetik dan bacaan
+siap. POST draf berkongsi teras transaksi dengan borang bertoken; PUT
+hantar/override masih 503. Ujian sintetik dan bacaan
 salinan D1 mengesahkan skema, skop RA, pemisahan peranan dan lampiran pengesahan.
+Migrasi `0003_assessment_drafts.sql` menambah indeks unik lantikan laporan dan
+`worker_revision` untuk menolak simpanan serentak yang menggunakan versi lama.
+Teras draf mengunci identiti RA dan snapshot KUP diterima pada masa batch D1,
+dan menulis ibu laporan serta tiga atau empat anak dalam satu transaksi.
+Ujian draf pada salinan SQLite import yang berasingan berjaya menyimpan satu
+laporan RA sebenar; salinan sumber tidak diubah. Sebelum pemasangan `0003` pada
+D1 staging, eksport jauh disimpan secara private di
+`output/cloudflare/refpahang_staging_before_0003_20261015.sql` (diabaikan Git).
+Migrasi jauh memproses dua arahan; semakan selepas itu menunjukkan 370 pengguna,
+91 laporan asal, 51 perlawanan Hanafi 2026, serta satu lajur revisi dan satu
+indeks unik baharu. Kesemua suis staging masih `0`.
 Kriteria JSON Worker dijana daripada `config/kriteria-penilaian.php` dan perlu
 dikemas kini bersama fail PHP asal jika pilihan penilaian berubah.
 Empat pertanyaan GET diuji terhadap skema D1 setempat; ujian sintetik mengesahkan
@@ -641,7 +655,7 @@ Cloudflare (`x-turbo-charged-by: LiteSpeed`). Endpoint Worker
 `/api/__migration-health` memulangkan 404 pada domain production tetapi 200
 pada URL staging. Pemindahan nameserver **tidak** memasang route atau custom
 domain Worker pada laman production. Jangan route trafik production ke Worker
-staging yang masih mempunyai 6 endpoint frontend tanpa route dan beberapa
+staging yang masih mempunyai 5 endpoint frontend tanpa route dan beberapa
 route separa yang belum selesai.
 
 Deployment staging 14 Oktober daripada commit `edbc69a`, versi Worker
