@@ -41,6 +41,8 @@ KNOWN_PARTIAL_ROUTES = {
     "download-jadual-lantikan.php": "HTML boleh dicetak; belum PDF binari",
     "lantikan-audit.php": "GET dan empat tindakan POST tersedia; override Admin memerlukan suis penghantaran aktif",
     "lantikan.php": "GET Admin dan POST lantikan baharu sebelum sepak mula tersedia; penggantian, notifikasi, pembatalan, PUT dan DELETE masih 503",
+    "admin-telegram-blast.php": "GET kiraan Admin tersedia; POST penghantaran emel masih 503",
+    "pengadil-luar-telegram-blast.php": "GET pratonton pool, penerima dan batch tersedia; POST penghantaran emel masih 503",
     "penilaian-token.php": "GET dan POST draf tersedia; hantar serta notifikasi Pengerusi masih 503",
     "laporan-penilaian.php": "GET dan POST draf tersedia; PUT hantar/override serta notifikasi Pengerusi masih 503",
     "kejohanan-pengesah-laporan.php": "GET tersedia; tetapan POST masih 503",

@@ -584,6 +584,36 @@ memulangkan 200 dengan `api_complete:false`. Semakan D1 jauh menunjukkan
 370 pengguna, 91 laporan RA dan 51 perlawanan Hanafi 2026. Empat suis staging
 kekal `0`; domain production masih melalui LiteSpeed.
 
+Commit `84ddb58` menambah POST `assign` untuk slot kosong sebelum sepak mula.
+Ujian sintetik meliputi peranan, pool, jenis RA/KUP, pertindihan masa, laporan
+sedia ada, audit, status jadual dan sisipan slot serentak. Migrasi `0004` lulus
+pada salinan SQLite import (997 lantikan, `integrity_check=ok`), kemudian
+dipasang pada D1 staging selepas eksport sandaran peribadi
+`output/cloudflare/refpahang_staging_before_0004_20261015.sql`. Deploy daripada
+worktree bersih menghasilkan versi `f4d7b862-861e-4410-ad26-31686ae97e51`.
+Health jauh 200 dengan `api_complete:false`; POST tanpa sesi 401. Semakan
+selepas deploy: 997 lantikan, 4183 audit, sifar lantikan Worker baharu,
+370 pengguna dan 51 perlawanan Hanafi 2026. Empat suis staging kekal `0`;
+domain production masih PHP LiteSpeed. Lantikan tulis jauh belum diuji kerana
+suis auth/tulis staging sengaja tertutup.
+
+Semakan tambahan pada salinan skema import menemui `tg_notif_hantar NOT NULL`
+yang tiada dalam fixture sintetik asal. Commit pembetulan `72411a9` menetapkan
+nilai awal `0` dan mengukuhkan fixture. Sisipan lantikan, audit dan status
+jadual kini lulus pada salinan D1 import sebenar yang diasingkan. Versi staging
+terkini `42ce0249-240c-4617-9e47-a7aad46422b4` memulangkan health 200,
+POST tanpa sesi 401; D1 jauh masih 997 lantikan, sifar lantikan Worker dan
+51 perlawanan Hanafi 2026. Empat suis staging masih `0`.
+
+GET `admin-telegram-blast.php` kini memulangkan jumlah akaun aktif yang ada
+emel serta bilangan Telegram terpaut. GET `pengadil-luar-telegram-blast.php`
+memulangkan kejohanan, pengadil luar dalam pool, status onboarding, kiraan
+layak dihantar dan sepuluh batch terbaru. Kedua-duanya khusus Admin, tidak
+mengubah lantikan atau menghantar emel. Ujian pada salinan D1 import menyemak
+peranan, kiraan sebenar, bentuk respons dan POST yang masih 503. Inventori
+laluan frontend kini 65/67 berroute; kedua-dua laluan blast masih separa
+sehingga penghantaran, cuba semula dan log berjaya dipindahkan.
+
 ## Semua tetapan emel semasa
 
 `config/email.php` menggunakan SMTP TLS tersirat dengan `SMTP_HOST` dan
