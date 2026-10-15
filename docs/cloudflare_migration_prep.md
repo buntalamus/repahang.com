@@ -613,6 +613,11 @@ mengubah lantikan atau menghantar emel. Ujian pada salinan D1 import menyemak
 peranan, kiraan sebenar, bentuk respons dan POST yang masih 503. Inventori
 laluan frontend kini 65/67 berroute; kedua-dua laluan blast masih separa
 sehingga penghantaran, cuba semula dan log berjaya dipindahkan.
+Commit `286f141` telah dipush dan dideploy ke staging versi
+`31852497-d7f0-44bd-9ee4-baab8efcf242` daripada worktree bersih.
+GET kedua-dua laluan tanpa sesi memulangkan 401, health 200 dengan
+`api_complete:false`. D1 jauh kekal 997 lantikan, sifar lantikan Worker dan
+51 perlawanan Hanafi 2026. Empat suis staging masih `0`.
 
 ## Semua tetapan emel semasa
 
