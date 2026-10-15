@@ -799,6 +799,43 @@ menerima emel yang PHP tidak hantar; borang RA dihantar dari `lantikan@` dan
 bukan `admin@`; templat emel aliran tersebut bukan templat PHP; dan
 notifikasi portal disimpan tanpa `is_read=0`.
 
+### Pariti PHP untuk aliran laporan RA dan Telegram (15 Oktober)
+
+PHP tidak mempunyai giliran atau cron bagi pemakluman Pengerusi dan KUP: setiap
+saluran dicuba dalam permintaan, kegagalan direkod pada baris
+`laporan_pengesahan_pengerusi`/audit, dan Admin mencuba semula secara manual.
+Giliran Worker terdahulu (`worker_chair_deliveries`/`worker_chair_jobs`,
+`worker_report_*`, `worker_appointment_*`) dan cronnya telah dibuang;
+jadual itu kekal dalam D1 tetapi tidak lagi digunakan. `cloudflare/src/php/
+laporan-pengesahan.ts` ialah port terus `config/laporan-pengesahan.php`:
+`ensureLaporanPengesahanState`, salinan Admin, `dispatchLaporanForPengerusi`
+(templat emel/Telegram PHP), pengesahan Pengerusi, override Admin (termasuk
+menyediakan rekod kelulusan yang belum wujud) dan `notifyConfirmedReportOfficials`
+dengan templat `sendPenilaianEmail` serta pautan `view_token` HMAC yang sama.
+
+- PUT `laporan-penilaian.php` (`hantar`, `log_pengerusi_link_copy`,
+  `retry_pengerusi_notification`, `sahkan`) mengikut semakan, mesej dan kod
+  status PHP; tindakan Admin oleh bukan Admin memulangkan
+  `Action tidak sah.` (400) seperti PHP.
+- Borang token `penilaian-token.php` menyimpan dan menghantar dalam satu batch;
+  draf token memulangkan `Draf disimpan.` seperti PHP, dan POST sesi
+  mengabaikan medan `hantar`.
+- `laporan-pengesahan-token.php` dan POST `kejohanan-pengesah-laporan.php`
+  ialah port terus halaman dan aliran PHP.
+- Satu pengecualian keselamatan yang disengajakan: medan `pengesahan` dalam
+  respons hantar tidak memulangkan `approval_token`. PHP memulangkannya kepada
+  RA, yang membolehkan RA mengesahkan laporannya sendiri; frontend tidak
+  menggunakan medan itu.
+- `telegram-webhook.php` kini dipindahkan: `/start` (pemautan akaun dengan audit
+  pegawai luar dan log onboarding) serta butang Terima/Tolak, dengan mesej,
+  amaran callback dan suntingan mesej yang sama seperti PHP.
+- Jawapan lantikan melalui portal, pautan emel, Telegram dan override Admin
+  `lantikan-audit.php` kini berkongsi transaksi PHP dan menghantar borang RA,
+  krew KUP, notifikasi portal, Admin (portal + Telegram sahaja) dan PP
+  sebelum respons.
+- Ujian: `laporan-flow.mjs`, `appointment-response.mjs`, `telegram-webhook.mjs`
+  dan `lantikan-write.mjs` (bundel esbuild pada salinan D1 sebenar).
+
 ## Semua tetapan emel semasa
 
 `config/email.php` menggunakan SMTP TLS tersirat dengan `SMTP_HOST` dan

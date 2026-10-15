@@ -6,9 +6,11 @@ const source = readFileSync(new URL('../src/chair-config.ts', import.meta.url), 
   .replace("import { currentUser, json } from './auth';", `
     const currentUser = async () => globalThis.chairUser;
     const json = (value, status=200) => Response.json(value, {status});`)
-  .replace("import { chairDispatchIntegrity, chairDispatchStatements, sendChairJobsNow } from './chair-dispatch';",
-    'const chairDispatchIntegrity = () => { throw new Error(\'Unexpected write\'); };'
-    + 'const chairDispatchStatements = chairDispatchIntegrity;')
+  .replace("import { phpInt } from './lantikan-write';", 'const phpInt = Number;')
+  .replace("import { auditMetaFrom } from './php/lantikan-audit';", 'const auditMetaFrom = () => ({});')
+  .replace("import { dispatchLaporanForPengerusi, getKejohananPengesahLaporan } from './php/laporan-pengesahan';",
+    'const dispatchLaporanForPengerusi = () => { throw new Error(\'Unexpected write\'); };'
+    + 'const getKejohananPengesahLaporan = dispatchLaporanForPengerusi;')
   .replace("import { boundedJson } from './request';",
     'const boundedJson = async () => { throw new Error(\'Unexpected body read\'); };');
 const compiled = ts.transpileModule(source, {

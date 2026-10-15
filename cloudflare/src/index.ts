@@ -5,9 +5,6 @@ import { changePassword } from './change-password';
 import { adminDashboardStats, adminDashboardTasks, adminProfile } from './admin-dashboard';
 import { appointments } from './appointments';
 import { adminAppointments } from './admin-appointments';
-import { processAppointmentDeliveries } from './appointment-delivery';
-import { processReportDeliveries } from './report-delivery';
-import { processExpiredAppointments } from './appointment-expiry';
 import { appointmentReply } from './appointment-reply';
 import { appointmentEmailLink } from './appointment-email-link';
 import { appointmentAudit } from './appointment-audit';
@@ -15,7 +12,6 @@ import { assessmentToken } from './assessment-token';
 import { assessmentReports } from './assessment-reports';
 import { assessmentDraft } from './assessment-draft';
 import { submitAssessmentRequest } from './report-submission';
-import { processChairDeliveries } from './chair-delivery';
 import { telegramWebhook } from './telegram-webhook';
 import { appointmentWritesEnabled } from './lantikan-write';
 import { processQueuedKupCrewNotifications } from './php/lantikan-helper';
@@ -310,10 +306,6 @@ export default {
     }
   },
   async scheduled(_event: ScheduledController, env: Env): Promise<void> {
-    await processExpiredAppointments(env);
-    await processAppointmentDeliveries(env);
-    await processReportDeliveries(env);
-    await processChairDeliveries(env);
     // api/kup-crew-notification-retry.php ran from the system cron in PHP.
     if (appointmentWritesEnabled(env)) await processQueuedKupCrewNotifications(env);
   },

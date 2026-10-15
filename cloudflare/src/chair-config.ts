@@ -1,5 +1,7 @@
 import { currentUser, json } from './auth';
-import { chairDispatchIntegrity, chairDispatchStatements, sendChairJobsNow } from './chair-dispatch';
+import { phpInt } from './lantikan-write';
+import { auditMetaFrom } from './php/lantikan-audit';
+import { dispatchLaporanForPengerusi, getKejohananPengesahLaporan } from './php/laporan-pengesahan';
 import { boundedJson } from './request';
 import type { Env } from './types';
 
@@ -75,7 +77,7 @@ async function currentChair(env: Env, kejohananId: number) {
   return { ...rest, telegram_linked: Boolean(telegram_chat_id) };
 }
 
-/** Assign the tournament chair and refresh every pending report in one D1 batch. */
+/** POST of api/kejohanan-pengesah-laporan.php. */
 async function assignChair(request: Request, env: Env, adminId: number): Promise<Response> {
   if (env.STAGING_AUTH_ENABLED !== '1' || env.STAGING_WRITES_ENABLED !== '1' ||
       env.REPORT_DELIVERY_ENABLED !== '1') {
@@ -85,133 +87,86 @@ async function assignChair(request: Request, env: Env, adminId: number): Promise
   if (input instanceof Response) return input;
   const body = input && typeof input === 'object' && !Array.isArray(input)
     ? input as Record<string, unknown> : {};
-  const kejohananId = idOf(body.kejohanan_id);
-  const officialId = idOf(body.official_id);
-  const source = typeof body.source === 'string' ? body.source.trim() : '';
-  if (!kejohananId || !officialId || (source !== 'Berdaftar' && source !== 'Luar')) {
+  const kejohananId = phpInt(body.kejohanan_id);
+  const source = String(body.source ?? '').trim();
+  const officialId = phpInt(body.official_id);
+  let jawatan = String(body.jawatan ?? 'Pengerusi Pengadil').trim();
+  if (kejohananId < 1 || officialId < 1 || (source !== 'Berdaftar' && source !== 'Luar')) {
     return json({ error: true, message: 'Pilihan Pengerusi Pengadil tidak sah.' }, 400);
   }
-  const jawatan = Array.from((typeof body.jawatan === 'string' ? body.jawatan.trim() : '') ||
-    'Pengerusi Pengadil').slice(0, 150).join('');
-
-  const tournament = await env.DB.prepare(`
-    SELECT id,nama,peringkat_kejohanan FROM kejohanan WHERE id=? LIMIT 1
-  `).bind(kejohananId).first<{ id: number; peringkat_kejohanan: string | null }>();
-  if (!tournament) return json({ error: true, message: 'Kejohanan tidak dijumpai.' }, 404);
-
-  const eligible = source === 'Berdaftar'
-    ? `EXISTS(SELECT 1 FROM users WHERE id=? AND aktif=1
-        AND (role='Penilai' OR jenis_pengadil='Penilai Pengadil'))`
-    : `EXISTS(SELECT 1 FROM pengadil_luar WHERE id=? AND jenis_pengadil='Penilai Pengadil')`;
-  const official = await env.DB.prepare(source === 'Berdaftar' ? `
-    SELECT id,nama_penuh AS nama,email,telegram_chat_id FROM users
-    WHERE id=? AND aktif=1 AND (role='Penilai' OR jenis_pengadil='Penilai Pengadil') LIMIT 1
-  ` : `
-    SELECT id,nama,emel AS email,telegram_chat_id FROM pengadil_luar
-    WHERE id=? AND jenis_pengadil='Penilai Pengadil' LIMIT 1
-  `).bind(officialId).first<Official>();
-  if (!official) return json({ error: true, message: 'Pegawai mesti berstatus Penilai Pengadil.' }, 422);
-  const telegramLinked = Boolean(official.telegram_chat_id) && String(official.telegram_chat_id) !== '0';
-  if (!(official.email ?? '').trim() && !telegramLinked) {
-    return json({
-      error: true,
-      message: 'Pengerusi mesti mempunyai sekurang-kurangnya emel atau Telegram yang telah dipautkan.',
-    }, 422);
-  }
-
-  const existing = await env.DB.prepare(`
-    SELECT kp.id,kp.pengesah_user_id,kp.pengesah_luar_id,kp.nama_snapshot,kp.jawatan_snapshot,
-           kp.peringkat_snapshot,kp.aktif,kp.updated_at,COALESCE(u.email,pl.emel) AS email,
-           COALESCE(u.telegram_chat_id,pl.telegram_chat_id) AS telegram_chat_id
-    FROM kejohanan_pengesah_laporan kp
-    LEFT JOIN users u ON u.id=kp.pengesah_user_id
-    LEFT JOIN pengadil_luar pl ON pl.id=kp.pengesah_luar_id
-    WHERE kp.kejohanan_id=? LIMIT 1
-  `).bind(kejohananId).first<Mapping>();
-  // PHP stores the whole active mapping row as the old identity.
-  const old = existing?.aktif === 1
-    ? await env.DB.prepare(currentChairSql).bind(kejohananId).first<Chair>()
-    : null;
-  const newIdentity = JSON.stringify({
-    source, official_id: officialId, nama: official.nama, jawatan,
-    peringkat: tournament.peringkat_kejohanan, email: official.email ?? null,
-    telegram_linked: telegramLinked,
-  });
-  const userId = source === 'Berdaftar' ? officialId : null;
-  const luarId = source === 'Luar' ? officialId : null;
-  // The marker fails the batch when the mapping changed since it was read.
-  const unchanged = existing
-    ? `EXISTS(SELECT 1 FROM kejohanan_pengesah_laporan WHERE kejohanan_id=? AND id=?
-        AND pengesah_user_id IS ? AND pengesah_luar_id IS ? AND aktif=? AND updated_at=?)`
-    : 'NOT EXISTS(SELECT 1 FROM kejohanan_pengesah_laporan WHERE kejohanan_id=?)';
-  const unchangedBinds = existing
-    ? [kejohananId, existing.id, existing.pengesah_user_id, existing.pengesah_luar_id,
-      existing.aktif, existing.updated_at]
-    : [kejohananId];
-  const nonce = crypto.randomUUID();
-  const marker = 'EXISTS(SELECT 1 FROM worker_chair_assignments WHERE nonce=? AND integrity_checked=0)';
-  const now = "datetime('now','+8 hours')";
-  const integrity = chairDispatchIntegrity(nonce);
-  const statements = [
-    env.DB.prepare(`INSERT INTO worker_chair_assignments
-      (nonce,kejohanan_id,origin,actor_user_id,integrity_checked)
-      VALUES(?,?,'chair_assigned',?,CASE WHEN ${unchanged} AND ${eligible} THEN 0 ELSE -1 END)`)
-      .bind(nonce, kejohananId, adminId, ...unchangedBinds, officialId),
-    env.DB.prepare(`INSERT INTO kejohanan_pengesah_laporan
-      (kejohanan_id,pengesah_user_id,pengesah_luar_id,nama_snapshot,jawatan_snapshot,
-       peringkat_snapshot,aktif,created_by,created_at,updated_at)
-      SELECT ?,?,?,?,?,?,1,?,${now},${now} WHERE ${marker}
-      ON CONFLICT(kejohanan_id) DO UPDATE SET
-        pengesah_user_id=excluded.pengesah_user_id,pengesah_luar_id=excluded.pengesah_luar_id,
-        nama_snapshot=excluded.nama_snapshot,jawatan_snapshot=excluded.jawatan_snapshot,
-        peringkat_snapshot=excluded.peringkat_snapshot,aktif=1,
-        created_by=excluded.created_by,updated_at=excluded.updated_at`)
-      .bind(kejohananId, userId, luarId, official.nama, jawatan,
-        tournament.peringkat_kejohanan, adminId, nonce),
-    env.DB.prepare(`INSERT INTO kejohanan_pengesah_laporan_audit
-      (kejohanan_id,kejohanan_pengesah_id,event_type,old_identity_json,new_identity_json,
-       actor_user_id,ip_address,user_agent,created_at)
-      SELECT kejohanan_id,id,?,?,?,?,?,?,${now} FROM kejohanan_pengesah_laporan
-      WHERE kejohanan_id=? AND ${marker}`)
-      .bind(old ? 'chair_changed' : 'chair_assigned', old ? JSON.stringify(old) : null,
-        newIdentity, adminId, request.headers.get('CF-Connecting-IP')?.slice(0, 45) ?? null,
-        request.headers.get('User-Agent')?.slice(0, 255) ?? null, kejohananId, nonce),
-    ...chairDispatchStatements(env, nonce, 'chair_assigned', { kind: 'tournament', id: kejohananId }),
-    env.DB.prepare(`UPDATE worker_chair_assignments SET integrity_checked=CASE WHEN
-      EXISTS(SELECT 1 FROM kejohanan_pengesah_laporan WHERE kejohanan_id=? AND aktif=1
-        AND pengesah_user_id IS ? AND pengesah_luar_id IS ? AND created_by=?)
-      AND EXISTS(SELECT 1 FROM kejohanan_pengesah_laporan_audit WHERE kejohanan_id=?
-        AND actor_user_id=? AND new_identity_json=?)
-      AND ${integrity.sql} THEN 1 ELSE -1 END WHERE nonce=?`)
-      .bind(kejohananId, userId, luarId, adminId, kejohananId, adminId, newIdentity,
-        ...integrity.binds, nonce),
-  ];
-  let result: D1Result[];
+  if (jawatan === '') jawatan = 'Pengerusi Pengadil';
+  const meta = auditMetaFrom(request);
   try {
-    result = await env.DB.batch(statements);
-  } catch (error) {
-    if (String(error).includes('constraint')) {
-      return json({ error: true, message: 'Tetapan Pengerusi atau laporan telah berubah. Muat semula dan cuba lagi.' }, 409);
+    const tournament = await env.DB.prepare(`
+      SELECT id,nama,peringkat_kejohanan FROM kejohanan WHERE id=? LIMIT 1
+    `).bind(kejohananId).first<{ id: number; peringkat_kejohanan: string | null }>();
+    if (!tournament) return json({ error: true, message: 'Kejohanan tidak dijumpai.' }, 404);
+    const official = await env.DB.prepare(source === 'Berdaftar' ? `
+      SELECT id,nama_penuh AS nama,negeri,email,no_telefon,telegram_chat_id FROM users
+      WHERE id=? AND aktif=1 AND (role='Penilai' OR jenis_pengadil='Penilai Pengadil') LIMIT 1
+    ` : `
+      SELECT id,nama,negeri,emel AS email,no_tel AS no_telefon,telegram_chat_id FROM pengadil_luar
+      WHERE id=? AND jenis_pengadil='Penilai Pengadil' LIMIT 1
+    `).bind(officialId).first<Official>();
+    if (!official) return json({ error: true, message: 'Pegawai mesti berstatus Penilai Pengadil.' }, 422);
+    if (String(official.email ?? '').trim() === '' && !official.telegram_chat_id) {
+      return json({ error: true,
+        message: 'Pengerusi mesti mempunyai sekurang-kurangnya emel atau Telegram yang telah dipautkan.' }, 422);
     }
-    throw error;
+    const old = await getKejohananPengesahLaporan(env, kejohananId);
+    const newIdentity = {
+      source, official_id: officialId, nama: official.nama, jawatan,
+      peringkat: tournament.peringkat_kejohanan, email: official.email ?? null,
+      telegram_linked: !!official.telegram_chat_id,
+    };
+    const now = "datetime('now','+8 hours')";
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO kejohanan_pengesah_laporan
+        (kejohanan_id,pengesah_user_id,pengesah_luar_id,nama_snapshot,jawatan_snapshot,
+         peringkat_snapshot,aktif,created_by,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,1,?,${now},${now})
+        ON CONFLICT(kejohanan_id) DO UPDATE SET
+          pengesah_user_id=excluded.pengesah_user_id,pengesah_luar_id=excluded.pengesah_luar_id,
+          nama_snapshot=excluded.nama_snapshot,jawatan_snapshot=excluded.jawatan_snapshot,
+          peringkat_snapshot=excluded.peringkat_snapshot,aktif=1,created_by=excluded.created_by`)
+        .bind(kejohananId, source === 'Berdaftar' ? officialId : null, source === 'Luar' ? officialId : null,
+          official.nama, Array.from(jawatan).slice(0, 150).join(''), tournament.peringkat_kejohanan, adminId),
+      env.DB.prepare(`INSERT INTO kejohanan_pengesah_laporan_audit
+        (kejohanan_id,kejohanan_pengesah_id,event_type,old_identity_json,new_identity_json,
+         actor_user_id,ip_address,user_agent,created_at)
+        SELECT kejohanan_id,id,?,?,?,?,?,?,${now} FROM kejohanan_pengesah_laporan
+        WHERE kejohanan_id=? AND aktif=1`)
+        .bind(old ? 'chair_changed' : 'chair_assigned', old ? JSON.stringify(old) : null,
+          JSON.stringify(newIdentity), adminId, meta.ip, meta.userAgent, kejohananId),
+    ]);
+    const pending = await env.DB.prepare(`SELECT laporan.id FROM laporan_penilaian laporan
+      JOIN jadual_perlawanan jp ON jp.id=laporan.jadual_id
+      WHERE jp.kejohanan_id=? AND laporan.status='Dihantar'`).bind(kejohananId).all<{ id: number }>();
+    let dispatched = 0;
+    let failed = 0;
+    for (const { id } of pending.results) {
+      try {
+        await dispatchLaporanForPengerusi(env, Number(id), meta);
+        dispatched++;
+      } catch (error) {
+        failed++;
+        console.error('[kejohanan-pengesah-laporan.php] Pending dispatch error',
+          error instanceof Error ? error.message : error);
+      }
+    }
+    return json({
+      error: false,
+      message: 'Pengerusi Pengadil berjaya ditetapkan untuk kejohanan ini.',
+      data: {
+        current: await getKejohananPengesahLaporan(env, kejohananId),
+        pending_dispatched: dispatched,
+        pending_failed: failed,
+      },
+    });
+  } catch (error) {
+    console.error('[kejohanan-pengesah-laporan.php]', error instanceof Error ? error.message : error);
+    return json({ error: true, message: 'Ralat pelayan.' }, 500);
   }
-  if (result[0]?.meta?.changes !== 1 || result[1]?.meta?.changes !== 1 ||
-      result[2]?.meta?.changes !== 1 || result[result.length - 1]?.meta?.changes !== 1) {
-    throw new Error('Incomplete chair assignment transaction');
-  }
-  // PHP dispatches every pending report of the tournament before responding.
-  await sendChairJobsNow(env, nonce);
-  const pending = await env.DB.prepare(`SELECT count(*) AS n
-    FROM worker_chair_assignment_items WHERE nonce=?`).bind(nonce).first<{ n: number }>();
-  return json({
-    error: false,
-    message: 'Pengerusi Pengadil berjaya ditetapkan untuk kejohanan ini.',
-    data: {
-      current: await currentChair(env, kejohananId),
-      pending_dispatched: Number(pending?.n ?? 0),
-      pending_failed: 0,
-    },
-  });
 }
 
 /** Admin chair lookup and assignment for one tournament. */

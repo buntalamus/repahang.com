@@ -6,7 +6,7 @@
 import { sendRefpahangEmail } from '../../mail';
 import type { MailAttachment, MailType } from '../../mail';
 import type { Env } from '../types';
-import { h, masaFmt, noMatchFmt, phpDate, plainTextFromHtml, tarikhFmt } from './format';
+import { h, klTimestamp, masaFmt, noMatchFmt, phpDate, plainTextFromHtml, tarikhFmt } from './format';
 
 export interface InlineImage { cid: string; mime: string; data: ArrayBuffer }
 
@@ -589,4 +589,79 @@ export async function sendBatalEmail(env: Env, to: string, nama: string, jawatan
     + `${noFmt !== '-' ? ` (No: ${noFmt})` : ''} — ${pasukanHome} vs ${pasukanAway} — ${tarikhFmt(tarikh)}`;
   const html = buildEmailTemplate(title, accent, '', body);
   return sendEmail(env, to, subject, html, nama, 'lantikan', inlineImages);
+}
+
+/** number_format($value, 1) */
+function numberFormat1(value: number): string {
+  const rounded = Math.round(Math.abs(value) * 10 + Number.EPSILON) / 10;
+  return `${value < 0 ? '-' : ''}${rounded.toFixed(1)}`;
+}
+
+/** sendPenilaianEmail(): confirmed RA report to one official. */
+export function sendPenilaianEmail(env: Env, to: string, nama: string, jawatan: string, kejohanan: string,
+  tarikh: string, pasukan: string, penilai: string, markah: number | null = null,
+  prestasi: string | null = null, kekuatan: string[] = [], kelemahan: string[] = [], nasihat = '',
+  ulasan = '', catatanAdmin = '', reportUrl = '', catatanLabel = 'Catatan Admin'): Promise<boolean> {
+  let tarikhText = '-';
+  if (tarikh) {
+    const bulan = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
+    const ms = klTimestamp(tarikh);
+    if (ms) {
+      const local = new Date(ms + 8 * 3600_000);
+      tarikhText = `${String(local.getUTCDate()).padStart(2, '0')} ${bulan[local.getUTCMonth()]} ${local.getUTCFullYear()}`;
+    }
+  }
+  let markahColor = '#6B7280';
+  if (markah !== null) {
+    if (markah >= 8.3) markahColor = '#059669';
+    else if (markah >= 8.0) markahColor = '#2563EB';
+    else if (markah >= 7.5) markahColor = '#D97706';
+    else markahColor = '#DC2626';
+  }
+  let body = emailGreeting(nama)
+    + emailPara('Laporan penilaian anda untuk perlawanan berikut telah disahkan.')
+    + emailInfoTable([
+      ['Kejohanan', h(kejohanan)], ['Perlawanan', h(pasukan)], ['Tarikh', tarikhText],
+      ['Jawatan', h(jawatan)], ['Penilai', h(penilai)],
+    ]);
+  body += `<div style="text-align:center;margin:24px 0;">
+                <div style="display:inline-block;background:#F9FAFB;border:2px solid #E5E7EB;padding:16px 32px;">
+                  <div style="font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Markah Anda</div>
+                  <div style="font-size:36px;font-weight:800;color:${markahColor};">${markah !== null ? numberFormat1(markah) : '-'}</div>
+                  <div style="font-size:10px;color:#9CA3AF;">/10</div>`
+    + (prestasi ? `<div style="font-size:12px;font-weight:600;color:#374151;margin-top:4px;">${h(prestasi)}</div>` : '')
+    + '</div></div>';
+  if (kekuatan.length > 0) {
+    body += `<div style="margin:16px 0;">
+                    <div style="font-size:10px;font-weight:700;color:#059669;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Kekuatan</div>`;
+    for (const item of kekuatan) {
+      body += `<span style="display:inline-block;background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46;padding:3px 10px;font-size:12px;margin:2px 4px 2px 0;">${h(item)}</span>`;
+    }
+    body += '</div>';
+  }
+  if (kelemahan.length > 0) {
+    body += `<div style="margin:16px 0;">
+                    <div style="font-size:10px;font-weight:700;color:#DC2626;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Perlu Diperbaiki</div>`;
+    for (const item of kelemahan) {
+      body += `<span style="display:inline-block;background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;padding:3px 10px;font-size:12px;margin:2px 4px 2px 0;">${h(item)}</span>`;
+    }
+    body += '</div>';
+  }
+  if (nasihat) body += emailAlert('#2563EB', '#EFF6FF', 'Nasihat & Cadangan', h(nasihat));
+  if (ulasan) body += emailAlert('#6B7280', '#F9FAFB', 'Ulasan Keseluruhan', h(ulasan));
+  if (catatanAdmin) body += emailAlert('#FADA00', '#FFFBEB', h(catatanLabel), h(catatanAdmin));
+  if (reportUrl) {
+    body += `<div style="text-align:center;margin:24px 0;">
+                    <a href="${h(reportUrl)}" target="_blank"
+                       style="display:inline-block;background:#0066cc;color:#fff;padding:12px 32px;
+                              font-weight:700;font-size:14px;text-decoration:none;border-radius:4px;">
+                      📋 Lihat Laporan Penuh (RA Report)
+                    </a>
+                    <div style="font-size:11px;color:#9CA3AF;margin-top:8px;">Klik untuk melihat dan muat turun laporan penilaian penuh dalam format PDF</div>
+                  </div>`;
+  }
+  body += emailPara('Sila jadikan maklum balas ini sebagai panduan untuk meningkatkan prestasi pada masa hadapan. Terima kasih atas dedikasi anda.');
+  const subject = `Laporan Penilaian — ${pasukan} — ${tarikhText}`;
+  const html = buildEmailTemplate('Laporan Penilaian Pengadil', '#2563EB', '', body);
+  return sendEmail(env, to, subject, html, nama, 'lantikan');
 }

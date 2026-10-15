@@ -1,132 +1,133 @@
+/**
+ * api/laporan-pengesahan-token.php: read-only GET review page and explicit
+ * POST confirmation for the tournament chair. No portal account is needed.
+ */
 import type {Env} from './types';
-import {confirmChairReport} from './chair-confirm-core';
+import {reportWritesEnabled} from './report-submission';
+import {h,klTimestamp,phpDate} from './php/format';
+import {auditMetaFrom} from './php/lantikan-audit';
+import {PhpDomainError,PhpInvalidArgument,buildPengerusiReportPreviewUrl,
+  confirmLaporanByPengerusi} from './php/laporan-pengesahan';
 
-type State=Record<string,unknown> & {
-  laporan_id:number;status:string;laporan_status:string;
-};
-
-function esc(value:unknown):string {
-  return String(value ?? '').replace(/[&<>"']/g,(character)=>({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;',
-  })[character] ?? character);
-}
-function page(title:string,content:string,status=200,form=false):Response {
-  return new Response(`<!doctype html><html lang="ms"><head><meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title>
-    <style>*{box-sizing:border-box}body{margin:0;background:#e8eaed;color:#111827;font-family:Arial,sans-serif;padding:24px}
-    .card{max-width:620px;margin:20px auto;background:#fff;box-shadow:0 2px 12px #0f172a24}
+function approvalPage(title:string,content:string,status=200,allow=false):Response {
+  const year=phpDate('Y',Date.now());
+  const html=`<!doctype html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${h(title)}</title>
+  <style>
+    *{box-sizing:border-box} body{margin:0;background:#e8eaed;color:#111827;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;padding:24px}
+    .card{max-width:620px;margin:20px auto;background:#fff;box-shadow:0 2px 12px rgba(15,23,42,.14)}
     .bar{height:7px;background:#f59e0b}.head{background:#111827;color:#fff;text-align:center;padding:27px 24px}
-    .head strong{display:block;font-size:15px}.head span{display:block;margin-top:5px;color:#9ca3af;font-size:11px;letter-spacing:2px}
-    .body{padding:30px}.body h1{font-size:22px;margin:0 0 8px}.muted{color:#6b7280;font-size:13px;line-height:1.6}
-    .info{width:100%;border-collapse:collapse;margin:22px 0;font-size:13px}.info td{padding:9px;border-bottom:1px solid #e5e7eb;vertical-align:top;overflow-wrap:anywhere}
-    .info td:first-child{width:34%;color:#64748b;font-weight:600}.button{display:inline-block;border-radius:5px;background:#e2e8f0;color:#0f172a;padding:12px 18px;font-weight:700;text-decoration:none;font-size:13px}
-    .notice{border-left:4px solid #f59e0b;background:#fffbeb;padding:12px 14px;margin:18px 0;color:#854d0e;font-size:13px;line-height:1.55}
-    textarea{width:100%;min-height:110px;border:1px solid #cbd5e1;border-radius:5px;padding:10px;font:inherit;resize:vertical}
-    label{display:block;font-size:13px;font-weight:700;margin:18px 0 7px}
-    button{background:#059669;color:white;border:0;border-radius:5px;padding:12px 18px;font-weight:700;cursor:pointer;margin-top:16px}
-    .error{border-color:#ef4444;background:#fef2f2;color:#991b1b}.foot{background:#111827;color:#9ca3af;text-align:center;padding:16px;font-size:11px}
-    </style></head><body><main class="card"><div class="bar"></div>
-    <header class="head"><strong>PERSATUAN BOLA SEPAK NEGERI PAHANG</strong><span>SISTEM PENGURUSAN PENGADIL</span></header>
-    <section class="body">${content}</section><footer class="foot">Persatuan Bola Sepak Negeri Pahang</footer>
-    </main></body></html>`,{status,headers:{
-      'Content-Type':'text/html; charset=utf-8','Cache-Control':'private, no-store',
-      'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer',
-      'Content-Security-Policy':`default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action '${form?'self':'none'}'`,
-    }});
-}
-function date(raw:unknown):string {
-  const match=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(raw ?? ''));
-  return match ? `${match[3]}/${match[2]}/${match[1]}` : '-';
+    .head strong{display:block;font-size:15px;letter-spacing:.5px}.head span{display:block;margin-top:5px;color:#9ca3af;font-size:11px;letter-spacing:2px;text-transform:uppercase}
+    .body{padding:30px}.body h1{font-size:22px;margin:0 0 8px}.muted{color:#6b7280;font-size:13px;line-height:1.6}.info{width:100%;border-collapse:collapse;margin:22px 0;font-size:13px}.info td{padding:9px;border-bottom:1px solid #e5e7eb;vertical-align:top}.info td:first-child{width:34%;color:#64748b;font-weight:600}
+    textarea{width:100%;min-height:120px;border:1px solid #cbd5e1;border-radius:6px;padding:12px;font:inherit;resize:vertical}.label{display:block;font-size:13px;font-weight:700;margin:20px 0 7px}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.btn{display:inline-block;border:0;border-radius:5px;padding:12px 18px;font-weight:700;font-size:13px;text-decoration:none;cursor:pointer}.primary{background:#059669;color:#fff}.secondary{background:#e2e8f0;color:#0f172a}.notice{border-left:4px solid #f59e0b;background:#fffbeb;padding:12px 14px;margin:18px 0;color:#854d0e;font-size:13px;line-height:1.55}.success{border-color:#10b981;background:#ecfdf5;color:#065f46}.error{border-color:#ef4444;background:#fef2f2;color:#991b1b}
+    .foot{background:#111827;color:#9ca3af;text-align:center;padding:16px;font-size:11px}
+  </style>
+</head>
+<body><main class="card"><div class="bar"></div><header class="head"><strong>PERSATUAN BOLA SEPAK NEGERI PAHANG</strong><span>Sistem Pengurusan Pengadil</span></header><section class="body">${content}</section><footer class="foot">&copy; ${year} Persatuan Bola Sepak Negeri Pahang</footer></main></body>
+</html>`;
+  const headers=new Headers({'Content-Type':'text/html; charset=UTF-8','Cache-Control':'no-store'});
+  if (allow) headers.set('Allow','GET, POST');
+  return new Response(html,{status,headers});
 }
 
-async function formFields(request:Request):Promise<URLSearchParams|null> {
-  if (request.headers.get('Content-Type')?.split(';')[0]!=='application/x-www-form-urlencoded') return null;
-  const reader=request.body?.getReader();
-  if (!reader) return null;
-  const chunks:Uint8Array[]=[];
-  let length=0;
-  while (true) {
-    const part=await reader.read();
-    if (part.done) break;
-    length+=part.value.byteLength;
-    if (length>24*1024) {await reader.cancel();return null;}
-    chunks.push(part.value);
-  }
-  const bytes=new Uint8Array(length);let offset=0;
-  for (const chunk of chunks) {bytes.set(chunk,offset);offset+=chunk.byteLength;}
-  try {return new URLSearchParams(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}
-  catch {return null;}
+const INVALID='<h1>Pautan Tidak Sah</h1><div class="notice error">Pautan pengesahan ini tidak dapat dikenal pasti. Sila hubungi pentadbir.</div>';
+
+async function postedFields(request:Request):Promise<URLSearchParams> {
+  const type=request.headers.get('Content-Type') ?? '';
+  const fields=new URLSearchParams();
+  if (!type.startsWith('application/x-www-form-urlencoded') && !type.startsWith('multipart/form-data')) return fields;
+  try {
+    const form=await request.formData();
+    form.forEach((value,key)=>{if (typeof value==='string') fields.append(key,value);});
+  } catch {/* PHP leaves $_POST empty */}
+  return fields;
 }
 
-/** Purpose-bound chair review and explicit, guarded confirmation. */
 export async function chairApprovalLink(request:Request,env:Env):Promise<Response> {
-  if (request.method!=='GET' && request.method!=='POST') return page('Kaedah Tidak Sah',
-    '<h1>Kaedah Tidak Sah</h1><div class="notice error">Gunakan pautan asal.</div>',405);
-  if (env.STAGING_AUTH_ENABLED!=='1') return page('Belum Tersedia',
-    '<h1>Semakan belum tersedia</h1><div class="notice">Borang masih dalam proses migrasi.</div>',503);
-  const canConfirm=env.STAGING_WRITES_ENABLED==='1' && env.REPORT_DELIVERY_ENABLED==='1';
-  if (request.method==='POST' && !canConfirm) return page('Belum Tersedia',
-    '<h1>Pengesahan belum tersedia</h1><div class="notice">Pengesahan laporan belum tersedia di staging.</div>',503);
-  const params=request.method==='POST' ? await formFields(request) : new URL(request.url).searchParams;
-  if (!params) return page('Permintaan Tidak Sah',
-    '<h1>Permintaan Tidak Sah</h1><div class="notice error">Borang tidak sah atau terlalu besar.</div>',400);
-  const token=params.get('token') ?? '';
-  if (params.getAll('token').length!==1 || !/^[a-fA-F0-9]{64}$/.test(token)) {
-    return page('Pautan Tidak Sah',
-      '<h1>Pautan Tidak Sah</h1><div class="notice error">Pautan pengesahan ini tidak dapat dikenal pasti.</div>',404);
+  const method=request.method.toUpperCase();
+  if (method!=='GET' && method!=='POST') {
+    return approvalPage('Kaedah Tidak Sah','<h1>Kaedah Tidak Sah</h1><div class="notice error">Gunakan pautan asal daripada emel atau Telegram anda.</div>',405,true);
   }
-  const state=await env.DB.prepare(`SELECT a.laporan_id,a.status,a.pengesah_nama,
-    a.pengesah_jawatan,r.status AS laporan_status,jp.no_perlawanan,jp.tarikh,
-    jp.masa,jp.tempat,jp.pasukan_home,jp.pasukan_away,k.nama AS nama_kejohanan,
-    COALESCE(u.nama_penuh,pl.nama,'Penilai Pengadil') AS nama_penilai
-    FROM laporan_pengesahan_pengerusi a
-    JOIN laporan_penilaian r ON r.id=a.laporan_id
-    JOIN jadual_perlawanan jp ON jp.id=r.jadual_id
-    JOIN kejohanan k ON k.id=jp.kejohanan_id
-    JOIN lantikan_pengadil ra ON ra.id=r.lantikan_id
-    LEFT JOIN users u ON u.id=ra.pengadil_id
-    LEFT JOIN pengadil_luar pl ON pl.id=ra.pengadil_luar_id
-    WHERE a.approval_token=? LIMIT 1`).bind(token).first<State>();
-  if (!state) return page('Pautan Tidak Sah',
-    '<h1>Pautan Tidak Sah</h1><div class="notice error">Pautan pengesahan ini tidak dapat dikenal pasti.</div>',404);
-  if (request.method==='POST') {
-    if (params.getAll('catatan_pengerusi').length>1) return page('Komen Tidak Sah',
-      '<h1>Komen Tidak Sah</h1><div class="notice error">Hantar satu komen sahaja.</div>',400);
-    const comment=(params.get('catatan_pengerusi')??'').trim();
-    if (Array.from(comment).length>5000) return page('Komen Terlalu Panjang',
-      '<h1>Komen Terlalu Panjang</h1><div class="notice error">Komen mestilah tidak melebihi 5,000 aksara.</div>',422);
-    if (state.status!=='Menunggu' || state.laporan_status!=='Dihantar') return page(
-      'Laporan Telah Diproses','<h1>Laporan Telah Diproses</h1><div class="notice">Laporan ini telah diproses.</div>',409);
-    const result=await confirmChairReport(env,token,comment,request);
-    if (result!=='confirmed') return page('Laporan Telah Diproses',
-      '<h1>Laporan Telah Diproses</h1><div class="notice">Laporan ini telah diproses atau tidak lengkap.</div>',409);
-    return page('Laporan Disahkan',`<h1>Laporan Berjaya Disahkan</h1>
-      <div class="notice">Pengesahan anda direkodkan. Pemakluman kepada KUP telah dijadualkan.</div>
-      ${comment ? `<p class="muted"><strong>Komen direkodkan:</strong><br>${esc(comment).replaceAll('\n','<br>')}</p>` :
-        '<p class="muted">Tiada komen tambahan direkodkan.</p>'}`);
+  if (!reportWritesEnabled(env)) {
+    return new Response('Pautan Pengerusi belum tersedia di staging.',{status:503,
+      headers:{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'}});
   }
-  if (state.status!=='Menunggu' || state.laporan_status!=='Dihantar') {
-    const message=state.status==='Override Admin'
-      ? 'Laporan ini telah disahkan melalui override Admin.'
-      : 'Laporan ini telah disahkan sebelum ini.';
-    return page('Laporan Telah Diproses',`<h1>Laporan Telah Diproses</h1><div class="notice">${esc(message)}</div>`);
+  try {
+    const source=method==='POST' ? await postedFields(request) : new URL(request.url).searchParams;
+    const token=(source.get('token') ?? '').trim();
+    if (!/^[0-9a-fA-F]{64}$/.test(token)) return approvalPage('Pautan Tidak Sah',INVALID,404);
+    const state=await env.DB.prepare(`
+      SELECT approval.*,laporan.status AS laporan_status,
+        jp.no_perlawanan,jp.tarikh,jp.masa,jp.tempat,jp.pasukan_home,jp.pasukan_away,
+        k.nama AS nama_kejohanan,
+        COALESCE(u_ra.nama_penuh,pl_ra.nama,'Penilai Pengadil') AS nama_penilai
+      FROM laporan_pengesahan_pengerusi approval
+      JOIN laporan_penilaian laporan ON laporan.id=approval.laporan_id
+      JOIN jadual_perlawanan jp ON jp.id=laporan.jadual_id
+      JOIN kejohanan k ON k.id=jp.kejohanan_id
+      JOIN lantikan_pengadil ra ON ra.id=laporan.lantikan_id
+      LEFT JOIN users u_ra ON u_ra.id=ra.pengadil_id
+      LEFT JOIN pengadil_luar pl_ra ON pl_ra.id=ra.pengadil_luar_id
+      WHERE approval.approval_token=? LIMIT 1`).bind(token).first<Record<string,unknown>>();
+    if (!state) return approvalPage('Pautan Tidak Sah',INVALID,404);
+    const s=(value:unknown)=>String(value ?? '');
+    const match=`${h(state.pasukan_home)} lwn ${h(state.pasukan_away)}`;
+    const local=new Date((klTimestamp(s(state.tarikh)) ?? 0)+8*3600_000);
+    const date=`${String(local.getUTCDate()).padStart(2,'0')}/${String(local.getUTCMonth()+1).padStart(2,'0')}/${local.getUTCFullYear()}`;
+    const time=s(state.masa).slice(0,5);
+
+    if (method==='POST') {
+      const comment=(source.get('catatan_pengerusi') ?? '').trim();
+      if (Array.from(comment).length>5000) {
+        return approvalPage('Komen Terlalu Panjang','<h1>Komen Terlalu Panjang</h1><div class="notice error">Komen mestilah tidak melebihi 5,000 aksara.</div>',422);
+      }
+      try {
+        await confirmLaporanByPengerusi(env,token,comment,auditMetaFrom(request));
+      } catch (error) {
+        if (error instanceof PhpDomainError) {
+          return approvalPage('Laporan Telah Diproses',`<h1>Laporan Telah Diproses</h1><div class="notice">${h(error.message)}</div>`,409);
+        }
+        if (error instanceof PhpInvalidArgument) {
+          return approvalPage('Pautan Tidak Sah',`<h1>Pautan Tidak Sah</h1><div class="notice error">${h(error.message)}</div>`,404);
+        }
+        throw error;
+      }
+      const commentText=comment!==''
+        ? `<p class="muted"><strong>Komen direkodkan:</strong><br>${h(comment).replace(/(\r\n|\n\r|\n|\r)/g,'<br />$1')}</p>`
+        : '<p class="muted">Tiada komen tambahan direkodkan.</p>';
+      return approvalPage('Laporan Disahkan',
+        `<h1>Laporan Berjaya Disahkan</h1><div class="notice success">Pengesahan anda sebagai Pengerusi Pengadil telah direkodkan. Salinan laporan akan dihantar kepada pegawai perlawanan.</div>${commentText}`);
+    }
+
+    if (state.status!=='Menunggu' || state.laporan_status!=='Dihantar') {
+      const status=state.status==='Override Admin'
+        ? 'Laporan ini telah disahkan melalui override Admin.'
+        : 'Laporan ini telah disahkan sebelum ini.';
+      return approvalPage('Laporan Telah Diproses',`<h1>Laporan Telah Diproses</h1><div class="notice">${h(status)}</div>`);
+    }
+    const previewUrl=buildPengerusiReportPreviewUrl(env,Number(state.laporan_id),token);
+    const content='<h1>Semak & Sahkan Laporan RA</h1>'
+      +`<p class="muted">Tuan/Puan ditetapkan sebagai <strong>${h(state.pengesah_jawatan)}</strong> bagi kejohanan ini. Semak laporan penuh sebelum mengesahkan.</p>`
+      +`<table class="info"><tr><td>Pengerusi</td><td><strong>${h(state.pengesah_nama)}</strong></td></tr>`
+      +`<tr><td>Kejohanan</td><td>${h(state.nama_kejohanan)}</td></tr>`
+      +`<tr><td>Perlawanan</td><td><strong>${match}</strong></td></tr>`
+      +`<tr><td>Tarikh / Masa</td><td>${h(`${date} · ${time}`)}</td></tr>`
+      +`<tr><td>Tempat</td><td>${h(s(state.tempat) || '-')}</td></tr>`
+      +`<tr><td>Penilai</td><td>${h(state.nama_penilai)}</td></tr></table>`
+      +'<div class="notice">Klik “Lihat Laporan Penuh” dan semak semua markah serta ulasan. Membuka pautan ini sahaja tidak mengesahkan laporan.</div>'
+      +`<a class="btn secondary" href="${h(previewUrl)}" target="_blank" rel="noopener">Lihat Laporan Penuh</a>`
+      +`<form method="post"><input type="hidden" name="token" value="${h(token)}">`
+      +'<label class="label" for="catatan">Komen Pengerusi Pengadil (pilihan)</label>'
+      +'<textarea id="catatan" name="catatan_pengerusi" maxlength="5000" placeholder="Tulis komen atau arahan sebelum mengesahkan..."></textarea>'
+      +'<div class="actions"><button class="btn primary" type="submit">Sahkan Laporan</button></div></form>';
+    return approvalPage('Pengesahan Laporan RA',content);
+  } catch (error) {
+    console.error('[laporan-pengesahan-token.php]',error instanceof Error ? error.message : error);
+    return approvalPage('Ralat Pelayan','<h1>Ralat Pelayan</h1><div class="notice error">Pengesahan tidak dapat diproses sekarang. Sila cuba semula atau hubungi pentadbir.</div>',500);
   }
-  const preview=`/api/download-laporan-penilaian.php?id=${Number(state.laporan_id)}&amp;approval_token=${esc(token)}`;
-  const content=`<h1>Semak Laporan RA</h1>
-    <p class="muted">Tuan/Puan ditetapkan sebagai <strong>${esc(state.pengesah_jawatan)}</strong>
-    bagi kejohanan ini. Semak laporan penuh sebelum mengesahkan.</p>
-    <table class="info"><tr><td>Pengerusi</td><td><strong>${esc(state.pengesah_nama)}</strong></td></tr>
-    <tr><td>Kejohanan</td><td>${esc(state.nama_kejohanan)}</td></tr>
-    <tr><td>Perlawanan</td><td><strong>${esc(state.pasukan_home)} lwn ${esc(state.pasukan_away)}</strong></td></tr>
-    <tr><td>Tarikh / Masa</td><td>${esc(date(state.tarikh))} · ${esc(String(state.masa ?? '').slice(0,5))}</td></tr>
-    <tr><td>Tempat</td><td>${esc(state.tempat || '-')}</td></tr>
-    <tr><td>Penilai</td><td>${esc(state.nama_penilai)}</td></tr></table>
-    <div class="notice">Membuka pautan ini tidak mengesahkan laporan. Semak semua markah dan ulasan dahulu.</div>
-    <a class="button" href="${preview}" target="_blank" rel="noopener noreferrer">Lihat Laporan Penuh</a>
-    ${canConfirm ? `<form method="post"><input type="hidden" name="token" value="${esc(token)}">
-      <label for="catatan">Komen Pengerusi Pengadil (pilihan)</label>
-      <textarea id="catatan" name="catatan_pengerusi" maxlength="5000"></textarea>
-      <button type="submit">Sahkan Laporan</button></form>` :
-      '<div class="notice">Fungsi pengesahan masih ditutup di staging.</div>'}`;
-  return page('Pengesahan Laporan RA',content,200,canConfirm);
 }

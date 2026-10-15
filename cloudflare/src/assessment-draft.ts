@@ -1,6 +1,7 @@
 import {currentUser,json} from './auth';
 import {boundedJson} from './request';
-import {submitAssessment} from './report-submission';
+import {dispatchAfterSubmission,publicDispatch,submissionMessage} from './report-submission';
+import {auditMetaFrom} from './php/lantikan-audit';
 import type {Env} from './types';
 
 type Body = Record<string,unknown>;
@@ -138,7 +139,9 @@ export async function assessmentDraft(request: Request,env: Env,source:'session'
   if (input instanceof Response) return input;
   if (!input || typeof input!=='object' || Array.isArray(input)) return invalid('Data laporan tidak sah.');
   const body = input as Body;
-  if (body.hantar && (source!=='token' || env.REPORT_DELIVERY_ENABLED!=='1')) {
+  // Only the token form submits here; PHP's session POST ignores `hantar`.
+  const hantar=source==='token' && !!body.hantar && body.hantar!=='0';
+  if (hantar && env.REPORT_DELIVERY_ENABLED!=='1') {
     return json({error:true,message:'Penghantaran kepada Pengerusi belum tersedia di staging.'},503);
   }
   const token = source==='token' && typeof body.token==='string' ? body.token : '';
@@ -174,6 +177,9 @@ export async function assessmentDraft(request: Request,env: Env,source:'session'
   `).bind(assignment.jadual_id).all<Official>();
   const children = normalizeChildren(body.pegawai,officials.results);
   if (children instanceof Response) return children;
+  if (hantar && children.some((child) => !child.markah)) {
+    return invalid('Markah untuk semua pegawai perlu diisi.');
+  }
   const parent = normalizeParent(body);
   if (parent instanceof Response) return parent;
   const existing = await env.DB.prepare(`SELECT id,status,worker_revision FROM laporan_penilaian
@@ -197,19 +203,21 @@ export async function assessmentDraft(request: Request,env: Env,source:'session'
   let first: D1PreparedStatement;
   if (existing.results[0]) {
     first = env.DB.prepare(`UPDATE laporan_penilaian SET
-      ${parentColumns.map((column) => `${column}=?`).join(',')},
+      ${parentColumns.map((column) => `${column}=?`).join(',')},status=?,
+      ${hantar ? "tarikh_hantar=datetime('now','+8 hours')," : ''}
       worker_revision=?,updated_at=datetime('now','+8 hours')
       WHERE id=? AND status='Draf' AND COALESCE(worker_revision,'')=? AND ${active}`)
-      .bind(...values,revision,existing.results[0].id,
+      .bind(...values,hantar ? 'Dihantar' : 'Draf',revision,existing.results[0].id,
         existing.results[0].worker_revision ?? '',assignment.id,assignment.jadual_id,guardValue,
         assignment.jadual_id,crewFingerprint);
   } else {
     first = env.DB.prepare(`INSERT INTO laporan_penilaian
-      (jadual_id,lantikan_id,penilai_id,status,${parentColumns.join(',')},worker_revision,created_at,updated_at)
-      SELECT ?,?,?,'Draf',${parentColumns.map(() => '?').join(',')},?,
+      (jadual_id,lantikan_id,penilai_id,status,${parentColumns.join(',')},${hantar ? 'tarikh_hantar,' : ''}
+        worker_revision,created_at,updated_at)
+      SELECT ?,?,?,?,${parentColumns.map(() => '?').join(',')},${hantar ? "datetime('now','+8 hours')," : ''}?,
         datetime('now','+8 hours'),datetime('now','+8 hours')
       WHERE ${active} AND NOT EXISTS (SELECT 1 FROM laporan_penilaian WHERE lantikan_id=?)`)
-      .bind(assignment.jadual_id,assignment.id,assignment.pengadil_id,
+      .bind(assignment.jadual_id,assignment.id,assignment.pengadil_id,hantar ? 'Dihantar' : 'Draf',
         ...values,revision,assignment.id,assignment.jadual_id,guardValue,
         assignment.jadual_id,crewFingerprint,assignment.id);
   }
@@ -221,7 +229,7 @@ export async function assessmentDraft(request: Request,env: Env,source:'session'
     statements.push(env.DB.prepare(`INSERT INTO laporan_penilaian_pegawai
       (laporan_id,${childColumns.join(',')})
       SELECT id,${childColumns.map(() => '?').join(',')} FROM laporan_penilaian
-      WHERE lantikan_id=? AND worker_revision=? AND status='Draf'`)
+      WHERE lantikan_id=? AND worker_revision=?`)
       .bind(...childColumns.map((column) => child[column] as string|number|null),assignment.id,revision));
   }
   let results: D1Result[];
@@ -239,6 +247,8 @@ export async function assessmentDraft(request: Request,env: Env,source:'session'
   const saved = await env.DB.prepare(`SELECT id FROM laporan_penilaian
     WHERE lantikan_id=? AND worker_revision=? LIMIT 1`).bind(assignment.id,revision).first<{id:number}>();
   if (!saved) throw new Error('Assessment draft not visible after D1 batch');
-  if (body.hantar && source==='token') return submitAssessment(env,saved.id,null,token);
-  return json({error:false,message:'Draf laporan disimpan.',id:saved.id});
+  if (source==='session') return json({error:false,message:'Draf laporan disimpan.',id:saved.id});
+  if (!hantar) return json({error:false,message:'Draf disimpan.',id:saved.id,pengesahan:null});
+  const delivery=await dispatchAfterSubmission(env,saved.id,auditMetaFrom(request),'penilaian-token.php');
+  return json({error:false,message:submissionMessage(delivery),id:saved.id,pengesahan:publicDispatch(delivery)});
 }

@@ -8,8 +8,10 @@ const source=readFileSync(new URL('../src/assessment-draft.ts',import.meta.url),
     const currentUser=async()=>globalThis.assessmentUser;
     const json=(body,status=200)=>Response.json(body,{status});`)
   .replace("import {boundedJson} from './request';",`const boundedJson=async(request)=>request.json();`);
-const linkedSource=source.replace("import {submitAssessment} from './report-submission';",
-  `const submitAssessment=async()=>Response.json({error:false,message:'Submitted'});`);
+const linkedSource=source.replace("import {dispatchAfterSubmission,publicDispatch,submissionMessage} from './report-submission';",
+  `const dispatchAfterSubmission=async()=>null;const publicDispatch=(value)=>value;
+   const submissionMessage=()=>'Submitted';`)
+  .replace("import {auditMetaFrom} from './php/lantikan-audit';",'const auditMetaFrom=()=>({});');
 const compiled=ts.transpileModule(linkedSource,{
   compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext},
 }).outputText;
@@ -77,7 +79,6 @@ assert.equal((await assessmentDraft(req(payload),env,'session')).status,403);
 globalThis.assessmentUser={id:9,role:'Penilai'};
 assert.equal((await assessmentDraft(req(payload),env,'session')).status,403);
 globalThis.assessmentUser={id:1,role:'Penilai'};
-assert.equal((await assessmentDraft(req({...payload,hantar:true}),env,'session')).status,503);
 assert.equal((await assessmentDraft(req({...payload,pegawai:payload.pegawai.slice(0,2)}),env,'session')).status,400);
 assert.equal((await assessmentDraft(req({...payload,pegawai:payload.pegawai.map((p)=>({...p,markah:11}))}),env,'session')).status,400);
 const first=await assessmentDraft(req(payload),env,'session');
