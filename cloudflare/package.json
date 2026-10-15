@@ -16,6 +16,8 @@
     "test:admin-appointments": "node --no-warnings tests/admin-appointments.mjs",
     "test:admin-appointment-create": "node --no-warnings tests/admin-appointment-create.mjs",
     "test:telegram-blast-preview": "node --no-warnings tests/telegram-blast-preview.mjs",
+    "test:print-assessment": "node --no-warnings tests/print-assessment.mjs",
+    "test:chair-approval-link": "node --no-warnings tests/chair-approval-link.mjs",
     "test:futsal-form": "node --no-warnings tests/futsal-form.mjs",
     "test:chair-config": "node --no-warnings tests/chair-config.mjs",
     "build:frontend": "npm --prefix ../frontend run build:prod",

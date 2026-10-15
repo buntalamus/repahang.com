@@ -28,6 +28,8 @@ import { printSchedule } from './print-schedule';
 import { fitnessForm } from './fitness-form';
 import { futsalForm } from './futsal-form';
 import { chairConfig } from './chair-config';
+import { printAssessment } from './print-assessment';
+import { chairApprovalLink } from './chair-approval-link';
 import { adminTelegramBlastPreview, externalTelegramBlastPreview } from './telegram-blast-preview';
 import { registeredReferees, deactivateReferee } from './registered-referees';
 import { adminMatches } from './admin-matches';
@@ -225,6 +227,8 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/download-borang-ujian-kecergasan.php') return fitnessForm(request, env);
   if (pathname === '/api/download-borang-futsal.php') return futsalForm(request, env);
   if (pathname === '/api/kejohanan-pengesah-laporan.php') return chairConfig(request, env);
+  if (pathname === '/api/download-laporan-penilaian.php') return printAssessment(request, env);
+  if (pathname === '/api/laporan-pengesahan-token.php') return chairApprovalLink(request, env);
   if (pathname === '/api/admin-telegram-blast.php') return adminTelegramBlastPreview(request, env);
   if (pathname === '/api/pengadil-luar-telegram-blast.php') return externalTelegramBlastPreview(request, env);
   if (pathname === '/api/referees.php') return registeredReferees(request, env);

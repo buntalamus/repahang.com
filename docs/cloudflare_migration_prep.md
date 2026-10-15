@@ -619,6 +619,22 @@ GET kedua-dua laluan tanpa sesi memulangkan 401, health 200 dengan
 `api_complete:false`. D1 jauh kekal 997 lantikan, sifar lantikan Worker dan
 51 perlawanan Hanafi 2026. Empat suis staging masih `0`.
 
+`download-laporan-penilaian.php` kini menyediakan HTML A4 bercetak dengan
+markah, butiran pegawai dan ulasan melalui tiga mod asal: sesi berperanan,
+token bacaan KUP dan token semakan Pengerusi. Semakan pemilik RA, ahli KUP
+perlawanan yang sama serta skop PP Daerah diuji pada salinan D1 import.
+Token bacaan HMAC diuji terhadap format PHP. Contoh sintetik dengan nama dan
+ulasan panjang dirender melalui Chrome kepada lima halaman A4 tanpa halaman
+kosong; logo dan susun atur rasmi masih perlu dibandingkan secara visual
+dengan hasil PHP. Laluan frontend kini 66/67 berroute, tetapi laluan ini masih
+dikira separa sehingga semakan itu selesai.
+`laporan-pengesahan-token.php` kini mempunyai GET baca sahaja bagi Pengerusi,
+termasuk pautan semakan laporan penuh. POST pengesahan kekal 503 dan tiada
+butang sahkan sehingga transaksi pengesahan, audit serta notifikasi kepada
+pegawai dipindahkan. Ujian token sah/salah, status menunggu/sudah diproses
+dan POST tanpa mutasi lulus pada salinan D1 import. Laluan awam kini 5/6
+berroute; endpoint Pengerusi ini masih separa.
+
 ## Semua tetapan emel semasa
 
 `config/email.php` menggunakan SMTP TLS tersirat dengan `SMTP_HOST` dan
