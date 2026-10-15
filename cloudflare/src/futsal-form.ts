@@ -50,8 +50,8 @@ function signature(label: string): string {
   return `<div class="signature"><div class="signature-box"></div><p>${escapeHtml(label)}</p><p>Tarikh: ________________</p></div>`;
 }
 
-/** The PHP R3 route returned HTML under a PDF header; this has the correct MIME. */
-export function renderFutsalForm(row: FutsalApplication): string {
+/** The PHP R3 route returned HTML under a PDF header. Render the form as a real PDF. */
+export function renderFutsalForm(row: FutsalApplication, forPdf = false): string {
   const year = Number(row.tahun_permohonan) || new Date().getFullYear();
   const work = row.status_kerja !== 'Tidak Bekerja' && row.status_kerja !== 'Pelajar'
     ? field('Jawatan:',row.jawatan)+field('Nama Majikan:',row.nama_majikan) : '';
@@ -64,8 +64,8 @@ export function renderFutsalForm(row: FutsalApplication): string {
   .signatures{display:flex;gap:28px}.signature{flex:1}.signature-box{border:1px solid #111;min-height:92px;margin-top:20px}.declaration{font-size:12px}.declaration li{margin:7px 0}
   button{position:fixed;right:20px;top:20px;border:0;border-radius:6px;background:#1d4ed8;color:#fff;padding:12px 18px;cursor:pointer}
   @media print{@page{size:A4;margin:15mm}body{margin:0;padding:0}button{display:none}section{break-inside:avoid}}</style>
-  <script>window.addEventListener('load',()=>setTimeout(()=>window.print(),500))</script></head><body>
-  <button type="button" onclick="window.print()">Cetak / Simpan PDF</button>
+  ${forPdf ? '' : "<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),500))</script>"}</head><body>
+  ${forPdf ? '' : '<button type="button" onclick="window.print()">Cetak / Simpan PDF</button>'}
   <header><h1>PERSATUAN BOLASEPAK NEGERI PAHANG</h1><h2>BORANG PENDAFTARAN PENGADIL FUTSAL (R3)</h2><p>Tahun: ${escapeHtml(year)}</p></header>
   <section><h3>Maklumat Peribadi</h3>
     ${field('Nama Penuh:',row.nama_penuh)}${field('No. Kad Pengenalan:',row.no_ic)}
@@ -104,5 +104,24 @@ export async function futsalForm(request: Request,env: Env): Promise<Response> {
     ORDER BY p.tarikh_hantar DESC,p.id DESC LIMIT 1
   `).bind(user.id).first<FutsalApplication>();
   if (!application) return error('Permohonan pengadil futsal belum diluluskan atau tidak wujud',403);
-  return html(renderFutsalForm(application));
+  let rendered: Response;
+  try {
+    rendered = await env.BROWSER.quickAction('pdf',{
+      html: renderFutsalForm(application,true),cacheTTL:0,
+      pdfOptions:{format:'a4',printBackground:true,preferCSSPageSize:true},
+    });
+  } catch {
+    return error('PDF belum dapat dijana. Sila cuba semula.',503);
+  }
+  if (!rendered.ok || !rendered.headers.get('Content-Type')?.includes('application/pdf')) {
+    return error('PDF belum dapat dijana. Sila cuba semula.',503);
+  }
+  const date = new Intl.DateTimeFormat('en-CA',{
+    timeZone:'Asia/Kuala_Lumpur',year:'numeric',month:'2-digit',day:'2-digit',
+  }).format(new Date());
+  return new Response(rendered.body,{status:200,headers:{
+    'Content-Type':'application/pdf',
+    'Content-Disposition':`attachment; filename="Borang_Pendaftaran_Pengadil_Futsal_R3_${date}.pdf"`,
+    'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff',
+  }});
 }

@@ -11,7 +11,15 @@ const { futsalForm, renderFutsalForm } = await import(`data:text/javascript,${en
 
 let boundId = null;
 let dbReads = 0;
+let renderedHtml = '';
+const pdf = new TextEncoder().encode('%PDF-1.7\n% test');
 const env = {
+  BROWSER: { quickAction: async (action, options) => {
+    assert.equal(action, 'pdf');
+    assert.equal(options.cacheTTL, 0);
+    renderedHtml = options.html;
+    return new Response(pdf, { headers: { 'Content-Type': 'application/pdf' } });
+  } },
   DB: { prepare: (sql) => {
     assert.match(sql, /p\.user_id=\?/);
     assert.match(sql, /lower\(p\.status\)='approved'/);
@@ -46,15 +54,18 @@ globalThis.futsalApplication = {
 };
 const response = await futsalForm(new Request(url), env);
 assert.equal(response.status, 200);
-assert.match(response.headers.get('Content-Type'), /^text\/html/);
+assert.equal(response.headers.get('Content-Type'), 'application/pdf');
+assert.match(response.headers.get('Content-Disposition'), /Borang_Pendaftaran_Pengadil_Futsal_R3_/);
 assert.match(response.headers.get('Cache-Control'), /no-store/);
-const body = await response.text();
+assert.deepEqual(new Uint8Array(await response.arrayBuffer()), pdf);
+const body = renderedHtml;
 assert.match(body, /BORANG PENDAFTARAN PENGADIL FUTSAL \(R3\)/);
 assert.match(body, /Tahun: 2027/);
 assert.match(body, /Pengadil &lt;script&gt;alert\(1\)&lt;\/script&gt;/);
 assert.doesNotMatch(body, /Pengadil <script>alert/);
 assert.match(body, /Alamat panjang Alamat panjang/);
 assert.doesNotMatch(body, /Nama Majikan:/, 'Student employment fields remain hidden');
-assert.match(body, /Cetak \/ Simpan PDF/);
-assert.equal(renderFutsalForm(globalThis.futsalApplication), body);
-console.log('futsal R3: authorization, owner query, rendering, escaping and MIME passed');
+assert.doesNotMatch(body, /Cetak \/ Simpan PDF/);
+assert.doesNotMatch(body, /window\.print/);
+assert.equal(renderFutsalForm(globalThis.futsalApplication, true), body);
+console.log('futsal R3: authorization, owner query, rendering, escaping and PDF MIME passed');

@@ -992,6 +992,12 @@ kegagalan transaksi. Ini **bukan** bukti emel benar sampai atau borang dalam
 akaun production boleh dimuat turun; kedua-duanya masih memerlukan ujian
 staging yang terkawal selepas suis dibuka.
 
+Laluan R3 Futsal kini menjana PDF binari melalui Browser Run; PHP asal
+menghantar HTML sambil melabelnya `application/pdf`. Laluan ujian kecergasan
+dan jadual lantikan memang HTML boleh cetak dalam PHP asal, jadi inventori
+tidak lagi mengiranya sebagai jurang PDF. R3 masih memerlukan semakan visual
+dan muat turun melalui sesi staging sebelum cutover.
+
 Sebelum memasang indeks unik pada D1 staging, semakan jauh mendapati 0
 kumpulan permohonan berganda. Eksport sandaran peribadi disimpan di
 `output/cloudflare/refpahang_staging_before_0011_20261015.sql`; fail ini
