@@ -527,6 +527,17 @@ notifikasi dan rollback. Deployment staging versi
 Hanafi 2026 dan sifar tugas penghantaran Worker. Empat suis staging kekal `0`,
 dan domain production masih PHP LiteSpeed.
 
+Commit `bd00cc3` menambah aset borang RA, GET bertoken dan GET laporan RA
+berlog masuk. Ujian sintetik serta bacaan salinan D1 lulus; kriteria Worker
+sepadan dengan PHP. Deployment staging versi
+`5758e609-00e2-4d35-95cd-ef16b05d81de` dibina daripada worktree bersih.
+Pautan `/penilaian-borang.html` mengalihkan ke URL kanonik tanpa `.html` dan
+memulangkan HTML borang (200); kesihatan API 200 dengan `api_complete:false`.
+GET laporan tanpa sesi 401, GET token RA 503 kerana suis auth `0`. D1 jauh
+kekal 370 pengguna, 51 perlawanan Hanafi 2026 dan sifar tugas penghantaran
+Worker. Domain production masih PHP LiteSpeed. Kesemua empat suis staging
+kekal `0`; emel dan tulis laporan tidak diuji pada persekitaran jauh.
+
 ## Semua tetapan emel semasa
 
 `config/email.php` menggunakan SMTP TLS tersirat dengan `SMTP_HOST` dan
