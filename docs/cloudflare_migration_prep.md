@@ -506,6 +506,13 @@ daripada dimulakan dua kali. Deployment staging versi
 `986767a4-19b4-4284-9719-f01ae9e5cd9e` lulus binaan Angular; GET/POST audit
 tanpa sesi menjawab 401 dan health masih `api_complete:false`. D1 jauh kekal
 370 pengguna dan 51 perlawanan Hanafi 2026. Empat suis staging masih `0`.
+Commit `26d1163` menambah override penerimaan lantikan oleh Admin. Ujian SQLite
+meliputi penolakan manual KUP, penolakan automatik, RA, audit, sejarah,
+notifikasi dan rollback. Deployment staging versi
+`abb12017-c417-49bb-b87c-d97768cc5d58` lulus binaan Angular. Health jauh
+200, POST override tanpa sesi 401; D1 jauh masih 370 pengguna, 51 perlawanan
+Hanafi 2026 dan sifar tugas penghantaran Worker. Empat suis staging kekal `0`,
+dan domain production masih PHP LiteSpeed.
 
 ## Semua tetapan emel semasa
 
