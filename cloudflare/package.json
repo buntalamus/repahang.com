@@ -10,6 +10,8 @@
     "test:appointment-email-link": "node --no-warnings tests/appointment-email-link.mjs",
     "test:appointment-expiry": "node --no-warnings tests/appointment-expiry.mjs",
     "test:appointment-audit": "node --no-warnings tests/appointment-audit.mjs",
+    "test:assessment-token": "node --no-warnings tests/assessment-token.mjs",
+    "test:assessment-reports": "node --no-warnings tests/assessment-reports.mjs",
     "test:futsal-form": "node --no-warnings tests/futsal-form.mjs",
     "test:chair-config": "node --no-warnings tests/chair-config.mjs",
     "build:frontend": "npm --prefix ../frontend run build:prod",

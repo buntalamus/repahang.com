@@ -213,9 +213,9 @@ Ujian setempat tambahan mengesahkan 51 perlawanan Hanafi untuk 2026, pagination
 100 rekod maksimum, had peranan Pengadil, penolakan akses notifikasi silang
 pengguna, tugasan mengikut pemilik, serta akses Admin yang juga RA kepada
 permohonan dan tugasan sendiri. Rekod ujian notifikasi dan sesi telah dibuang.
-Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 61 daripada
+Inventori `python3 cloudflare/endpoint_coverage.py` kini mendapati 62 daripada
 67 endpoint PHP sebenar yang disebut oleh frontend sudah mempunyai laluan Worker;
-6 masih tiada. Kiraan ini menunjukkan route wujud, bukan kesetaraan fungsi.
+5 masih tiada. Kiraan ini menunjukkan route wujud, bukan kesetaraan fungsi.
 Laluan jawapan portal masih dikunci oleh tiga suis staging.
 Daripada enam endpoint PHP awam tambahan yang tidak dipanggil terus oleh
 frontend, tiga kini mempunyai route Worker. `download-borang-futsal.php`
@@ -248,6 +248,19 @@ transaksi tersebut.
 kejohanan, calon RA, pengerusi semasa dan audit tanpa mendedahkan ID Telegram.
 POST menetapkan pengerusi masih 503 kerana aliran itu juga perlu menyediakan
 token, menghantar laporan RA yang menunggu dan merekodkan notifikasi.
+Pautan `/penilaian-borang.html` kini disertakan dalam aset Angular staging.
+`penilaian-token.php` menyediakan GET bertoken bagi RA yang telah menerima
+lantikan: butiran perlawanan, KUP diterima, draf sedia ada dan kriteria asal.
+Endpoint ini memerlukan suis `STAGING_AUTH_ENABLED=1`; POST simpan/hantar masih
+503 sehingga transaksi laporan dan penghantaran kepada Pengerusi lengkap.
+`laporan-penilaian.php` menyediakan semua mod GET bagi RA berlog masuk dan Admin:
+senarai sendiri, butiran, laporan per perlawanan, KUP diterima dan kriteria.
+Laporan pengguna lain ditapis di SQL; token Pengerusi tidak dipulangkan dan
+`approval_url` sengaja kosong sehingga halaman semakan, PDF dan tindakan sahkan
+siap. POST draf dan PUT hantar/override masih 503. Ujian sintetik dan bacaan
+salinan D1 mengesahkan skema, skop RA, pemisahan peranan dan lampiran pengesahan.
+Kriteria JSON Worker dijana daripada `config/kriteria-penilaian.php` dan perlu
+dikemas kini bersama fail PHP asal jika pilihan penilaian berubah.
 Empat pertanyaan GET diuji terhadap skema D1 setempat; ujian sintetik mengesahkan
 sekatan peranan, skop kejohanan dan penolakan POST. Inventori turut menandakan
 `admin-applications.php` sebagai separa kerana tindakan blast emel Kelas 3
