@@ -2,6 +2,9 @@
 
 ## Peti emel baharu di Cloudflare — 15 Oktober 2026
 
+Worker ujian menggunakan alamat mudah `https://ujian.refpahang.com`; ini hanya
+subdomain ujian dan tidak mengalihkan laman atau MX `refpahang.com`.
+
 Pengguna kini memilih **pindah sepenuhnya daripada pelayan emel lama dan mula
 peti masuk baharu**, tanpa import sejarah emel lama. Keputusan ini menggantikan
 cadangan terdahulu untuk mengekalkan peti masuk lama. Selagi MX akar masih

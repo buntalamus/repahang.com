@@ -3,6 +3,7 @@
   "name": "refpahang-staging-20261013",
   "main": "./src/index.ts",
   "compatibility_date": "2026-10-13",
+  "routes": [{ "pattern": "ujian.refpahang.com", "custom_domain": true }],
   "assets": {
     "directory": "../frontend/dist/frontend/browser",
     "binding": "ASSETS",
@@ -36,7 +37,7 @@
     }
   ],
   "vars": {
-    "BASE_URL": "https://refpahang-staging-20261013.buntalamus2.workers.dev",
+    "BASE_URL": "https://ujian.refpahang.com",
     "STAGING_AUTH_ENABLED": "0",
     "STAGING_WRITES_ENABLED": "0",
     "APPOINTMENT_DELIVERY_ENABLED": "0",
