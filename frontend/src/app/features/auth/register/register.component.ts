@@ -63,8 +63,6 @@ export class RegisterComponent {
     'Pengadil Baharu',
     'Pengadil Kebangsaan',
     'Pengadil Negeri',
-    'Penilai Pengadil',
-    'Pegawai Pembangunan',
   ];
   get isReferee(): boolean {
     return this.form.jenis_pengadil !== 'Penilai Pengadil' &&

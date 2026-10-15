@@ -90,7 +90,7 @@ try {
   const assessor = form('Penilai Pengadil');
   assessor.set('no_ic', '990101061235'); assessor.set('email', 'penilai.ujian@example.invalid');
   assessor.delete('saiz_baju'); assessor.delete('tahun_mula_aktif');
-  assert.equal((await post(assessor)).status, 200);
-  assert.equal(db.prepare("SELECT role FROM users WHERE email='penilai.ujian@example.invalid'").get().role, 'Penilai');
-  console.log('profile registration: incomplete, employer and picture gates; complete referee and assessor accounts; duplicate guarded');
+  assert.equal((await post(assessor)).status, 400);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM users WHERE email='penilai.ujian@example.invalid'").get().n, 0);
+  console.log('profile registration: profile gates, complete referee account, privileged role rejection and duplicate guard');
 } finally { close(); }

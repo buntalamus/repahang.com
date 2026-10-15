@@ -9,7 +9,6 @@ import { missingRefereeProfile, profileLabels } from './referee-profile';
 
 const allowedTypes = new Set([
   'Pengadil Baharu', 'Pengadil Kebangsaan', 'Pengadil Negeri',
-  'Penilai Pengadil', 'Pegawai Pembangunan',
 ]);
 
 function randomPassword(): string {
@@ -110,8 +109,7 @@ export async function register(request: Request, env: Env): Promise<Response> {
   }
   const year = Number(body.tahun_mula_aktif);
   const currentYear = Number(new Intl.DateTimeFormat('en-CA', { year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' }).format(new Date()));
-  if (refereeType !== 'Penilai Pengadil' && refereeType !== 'Pegawai Pembangunan' &&
-      (!Number.isInteger(year) || year < 1950 || year > currentYear)) {
+  if (!Number.isInteger(year) || year < 1950 || year > currentYear) {
     return json({ error: true, message: 'Tahun mula aktif tidak sah.' }, 400);
   }
   if (!/^\d{5}$/.test(String(body.poskod || '')) ||
@@ -138,8 +136,7 @@ export async function register(request: Request, env: Env): Promise<Response> {
 
   const password = randomPassword();
   const token = tokenHex();
-  const role = refereeType === 'Pegawai Pembangunan' ? 'PP Daerah'
-    : refereeType === 'Penilai Pengadil' ? 'Penilai' : 'Pengadil';
+  const role = 'Pengadil';
   const passwordHash = await hash(password, 12);
   const pictureKey = `profiles/registration_${crypto.randomUUID()}.${info.ext}`;
   const picturePath = `/uploads/${pictureKey}`;
