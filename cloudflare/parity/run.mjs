@@ -11,7 +11,8 @@ import {spawnSync} from 'node:child_process';
 import {mkdirSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {bundle,openDatabase,sessionCookie} from '../tests/_harness.mjs';
-import {cases} from './cases.mjs';
+// PARITY_CASES=write runs the mutating cases on throwaway database copies.
+const {cases}=await import(process.env.PARITY_CASES==='write' ? './write-cases.mjs' : './cases.mjs');
 
 const phpRoot=process.env.PARITY_PHP_ROOT;
 const socket=process.env.PARITY_MYSQL_SOCKET;

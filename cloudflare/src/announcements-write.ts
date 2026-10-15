@@ -36,7 +36,8 @@ export async function announcementsWrite(request: Request, env: Env): Promise<Re
     if (fields instanceof Response) return fields;
     const result = await env.DB.prepare('INSERT INTO announcements (title, content, created_by) VALUES (?, ?, ?)')
       .bind(fields.title, fields.content, user.id).run();
-    return json({ error: false, message: 'Pengumuman berjaya dibuat', id: result.meta.last_row_id });
+    // PDO::lastInsertId() returns a string here; PHP did not cast it.
+    return json({ error: false, message: 'Pengumuman berjaya dibuat', id: String(result.meta.last_row_id) });
   }
   const id = announcementId(request);
   if (!id) return json({ error: true, message: 'ID pengumuman diperlukan' }, 400);
