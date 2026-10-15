@@ -73,6 +73,56 @@ D1 staging mempunyai sifar `kup_crew_notifications` tertunggak, jadi cron
 tidak menghantar notifikasi lama apabila suis lantikan dibuka. Semua suis
 tulis dan emel staging masih `0`.
 
+## Langkah cutover production (disediakan 15 Oktober)
+
+Keputusan pemilik: MX, SPF dan domain ditukar **serentak semasa cutover**,
+bukan lebih awal, supaya emel masuk terus ke Peti Emel Worker production dan
+emel keluar PHP tidak gagal SPF sebelum itu. Konfigurasi production:
+`cloudflare/wrangler.production.jsonc` (Worker `refpahang`, D1
+`refpahan_pahang_production`, R2 `refpahang-production-media`, laluan
+`refpahang.com` + `www`, lima `addresses` Email Routing). `--dry-run` lulus.
+Log masuk hash PHP `$2y$` disahkan berfungsi dengan `bcryptjs`. Webhook Telegram
+kekal pada laluan sama (`/api/telegram-webhook.php`, tanpa secret pada kedua-dua
+sisi), jadi bot berpindah bersama domain.
+
+Keadaan DNS sebelum cutover: MX `0 mail.refpahang.com`; SPF
+`v=spf1 +a +mx +ip4:101.99.77.130 +ip4:101.99.77.160 include:spf.mailsentinel.net ~all`;
+Email Routing zon `unconfigured`. Cloudflare memerlukan MX
+`route1/2/3.mx.cloudflare.net` dan DKIM `cf2024-1._domainkey`.
+
+1. **Bekukan tulis PHP** (pemilik, cPanel): aktifkan `storage/maintenance.flag`.
+   Eksport dump phpMyAdmin dan arkib `public_html/uploads` terkini.
+2. **Data**: import dump ke MySQL tempatan terasing, kemudian jalankan rantai
+   `mysql_to_d1_snapshot.py` → `reconcile_latest_seed.py` (51 perlawanan
+   Hanafi) → `sqlite_to_d1_sql.py` seperti bahagian salinan 15 Oktober. Semak
+   sama ada permohonan #535 kini ada dalam dump.
+3. **Sumber**: `wrangler d1 create refpahan_pahang_production`, isi
+   `database_id` dalam `wrangler.production.jsonc`; `wrangler r2 bucket create
+   refpahang-production-media`. Import SQL dengan `d1 execute --remote --file`,
+   kemudian pasang migrasi `0001`–`0013`. Bandingkan kiraan setiap jadual.
+4. **Media**: `extract_uploads_archive.py` dan `sync_media.py --bucket
+   refpahang-production-media`; semak semua laluan `/uploads/` yang dirujuk.
+5. **Secret**: `prepare_email.py --sync-worker refpahang --activate --base-url
+   https://refpahang.com` dan `wrangler secret put TELEGRAM_BOT_TOKEN
+   -c wrangler.production.jsonc`. Jangan pasang `STAGING_QA_WRITE_TOKEN`
+   atau `STAGING_EMAIL_REDIRECT` pada Worker production.
+6. **DNS**: buang rekod A/CNAME `refpahang.com` dan `www` yang menuju pelayan
+   lama (custom domain Worker gagal jika rekod lama wujud). Kekalkan
+   `mail.refpahang.com` sementara.
+7. **Deploy**: bina frontend daripada worktree bersih, `wrangler deploy -c
+   wrangler.production.jsonc`. Semak log masuk Admin sebenar, senarai
+   permohonan, PDF, dan `/uploads/`.
+8. **Emel**: buang MX lama, aktifkan Email Routing (MX Cloudflare dan DKIM),
+   gabungkan SPF menjadi satu rekod:
+   `v=spf1 include:_spf.mx.cloudflare.net +ip4:101.99.77.130 +ip4:101.99.77.160 include:spf.mailsentinel.net ~all`
+   (IP lama dikekalkan sehingga pelayan lama ditutup). Hantar emel ujian dari
+   luar ke kelima-lima alamat dan balas satu daripada Peti Emel Admin.
+9. **Selepas stabil**: buang IP lama daripada SPF, tutup servis emel dan
+   pelayan PHP lama. Sejarah emel lama tidak dipindahkan (keputusan pemilik).
+
+Laluan balik: sebelum langkah 8, pulihkan rekod A lama dan buang custom domain
+Worker; PHP masih utuh kerana hanya flag penyelenggaraan yang berubah.
+
 ## Ujian tulis dan emel live di staging, 15 Oktober
 
 Secret `STAGING_EMAIL_REDIRECT` (commit `64c1e10`) mengalihkan **setiap** emel

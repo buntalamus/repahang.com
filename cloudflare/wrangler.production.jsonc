@@ -1,0 +1,70 @@
+// Production Worker for refpahang.com. Deploy only during cutover, after the
+// final dump is imported: see "Langkah cutover" in docs/cloudflare_migration_prep.md.
+// Secrets (never in this file): MAIL_*_USER/NAME via prepare_email.py, and
+// TELEGRAM_BOT_TOKEN. Do NOT set STAGING_QA_WRITE_TOKEN or STAGING_EMAIL_REDIRECT here.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "refpahang",
+  "main": "./src/index.ts",
+  "compatibility_date": "2026-10-13",
+  "routes": [
+    { "pattern": "refpahang.com", "custom_domain": true },
+    { "pattern": "www.refpahang.com", "custom_domain": true }
+  ],
+  "assets": {
+    "directory": "../frontend/dist/frontend/browser",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/uploads/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "refpahan_pahang_production",
+      // Filled in by `wrangler d1 create refpahan_pahang_production` at cutover.
+      "database_id": "REPLACE_AT_CUTOVER"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "refpahang-production-media"
+    }
+  ],
+  "browser": { "binding": "BROWSER" },
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "allowed_sender_addresses": [
+        "admin@refpahang.com",
+        "daftar@refpahang.com",
+        "lantikan@refpahang.com",
+        "support@refpahang.com",
+        "pengesahan@refpahang.com"
+      ]
+    }
+  ],
+  // Each address becomes an Email Routing rule to this Worker on deploy.
+  "addresses": [
+    "admin@refpahang.com",
+    "daftar@refpahang.com",
+    "lantikan@refpahang.com",
+    "support@refpahang.com",
+    "pengesahan@refpahang.com"
+  ],
+  // The STAGING_* names are historical: they gate every write path, so all are
+  // on in production. STAGING_LOGIN_EMAILS is left unset so every user can log in.
+  "vars": {
+    "BASE_URL": "https://refpahang.com",
+    "TELEGRAM_BOT_USERNAME": "refpahang_bot",
+    "STAGING_AUTH_ENABLED": "1",
+    "STAGING_WRITES_ENABLED": "1",
+    "APPOINTMENT_DELIVERY_ENABLED": "1",
+    "REPORT_DELIVERY_ENABLED": "1",
+    "BULK_EMAIL_ENABLED": "1",
+    "MAILBOX_SEND_ENABLED": "1"
+  },
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  }
+}
