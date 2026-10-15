@@ -273,6 +273,11 @@ D1 staging, eksport jauh disimpan secara private di
 Migrasi jauh memproses dua arahan; semakan selepas itu menunjukkan 370 pengguna,
 91 laporan asal, 51 perlawanan Hanafi 2026, serta satu lajur revisi dan satu
 indeks unik baharu. Kesemua suis staging masih `0`.
+Skema `0001`, `0002` dan `0003` dipasang melalui `wrangler d1 execute`, bukan
+ledger `wrangler d1 migrations apply`. Oleh itu, `migrations list` masih
+menyenaraikannya sebagai belum dilaksana walaupun skemanya wujud. Jangan
+jalankan `migrations apply` secara terus pada D1 staging ini tanpa menyelaraskan
+ledger atau membuat pangkalan baharu; `ALTER TABLE` berulang akan gagal.
 Kriteria JSON Worker dijana daripada `config/kriteria-penilaian.php` dan perlu
 dikemas kini bersama fail PHP asal jika pilihan penilaian berubah.
 Empat pertanyaan GET diuji terhadap skema D1 setempat; ujian sintetik mengesahkan
