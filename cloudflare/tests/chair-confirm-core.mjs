@@ -87,6 +87,8 @@ try {
   assert.equal(delivered.failed,0);
   assert.equal(delivered.sent+delivered.skipped,crew*2);
   assert.equal(recipients.length,delivered.sent);
+  assert.equal(db.prepare('SELECT count(*) n FROM laporan_pengesahan_audit').get().n,
+    beforeAudit+1+crew*2);
   const secret=db.prepare(`SELECT la.penilaian_token FROM laporan_penilaian r
     JOIN lantikan_pengadil la ON la.id=r.lantikan_id WHERE r.id=?`).get(candidate.laporan_id)
     .penilaian_token;
