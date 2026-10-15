@@ -5,6 +5,7 @@ const worker=await bundle(`
   export {lantikanWrite} from '../src/lantikan-write';
   export {appointmentReply} from '../src/appointment-reply';
   export {appointmentEmailLink} from '../src/appointment-email-link';
+  export {appointmentAudit} from '../src/appointment-audit';
   export {setEmailSenderForTests} from '../src/php/email';
   export {setTelegramSenderForTests} from '../src/php/telegram';
 `);
@@ -127,5 +128,21 @@ try {
   assert.match((await link('GET',{token:'e1e1',action:'accept'})).html,/Tempoh menjawab telah tamat pada/);
   assert.match((await link('POST',{token:'e1e1',action:'accept'})).html,/DITOLAK secara automatik/);
   assert.equal(one('SELECT status FROM lantikan_pengadil WHERE jadual_id=?',late).status,'Ditolak');
+
+  // Admin override of the timeout rejection (lantikan-audit.php).
+  const adminCookie=await sessionCookie(db,admin.id);
+  const lateRow=one('SELECT id FROM lantikan_pengadil WHERE jadual_id=?',late);
+  const override=await worker.appointmentAudit(new Request('https://refpahang.com/api/lantikan-audit.php',{
+    method:'POST',headers:{'Content-Type':'application/json',Cookie:adminCookie},
+    body:JSON.stringify({action:'admin_override_acceptance',lantikan_id:lateRow.id})}),env);
+  const overrideBody=await override.json();
+  const lateName=one('SELECT nama_penuh FROM users WHERE id=?',kup[3].id).nama_penuh;
+  assert.equal(overrideBody.message,`Penerimaan ${lateName} sebagai Pengadil berjaya disahkan oleh Admin.`);
+  assert.equal(overrideBody.data.lantikan.status,'Diterima');
+  const overridden=one('SELECT * FROM lantikan_pengadil WHERE id=?',lateRow.id);
+  assert.deepEqual([overridden.status,overridden.komen],['Diterima','Diterima melalui override Admin selepas tempoh tamat']);
+  assert.equal(one("SELECT subject FROM notifications WHERE user_id=? ORDER BY id DESC",kup[3].id).subject,
+    'Penerimaan lantikan A lwn B disahkan Admin');
+  assert.equal(count(`SELECT count(*) FROM perlawanan WHERE lantikan_id=?`,lateRow.id),1);
   console.log('appointment responses: portal and email link follow PHP, including notifications and expiry');
 } finally {close();}

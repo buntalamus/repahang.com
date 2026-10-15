@@ -9,8 +9,11 @@ const source = readFileSync(new URL('../src/appointment-audit.ts',import.meta.ur
      const json = (value,status=200) => Response.json(value,{status});`)
   .replace("import { boundedJson } from './request';",
     'const boundedJson = async (request) => request.json();')
-  .replace("import { recordAdminOverride } from './appointment-response-core';",
-    "const recordAdminOverride = async () => 'ineligible';");
+  .replace("import { guardStatement, runGuarded } from './php/guard';",'')
+  .replace("import { auditMetaFrom, getLantikanAuditSnapshot, lantikanAuditStatement } from './php/lantikan-audit';",'')
+  .replace(`import { createPortalNotification, generatePenilaianToken, historySyncStatements,
+  isAcceptedKupCrewComplete, isKupPosition, markMatchDispatchedIfComplete,
+  notifyCompleteKupCrew } from './php/lantikan-helper';`,'');
 const compiled = ts.transpileModule(source,{
   compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext},
 }).outputText;

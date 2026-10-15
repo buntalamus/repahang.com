@@ -1,7 +1,11 @@
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
-import { recordAdminOverride } from './appointment-response-core';
 import type { Env } from './types';
+import { guardStatement, runGuarded } from './php/guard';
+import { auditMetaFrom, getLantikanAuditSnapshot, lantikanAuditStatement } from './php/lantikan-audit';
+import { createPortalNotification, generatePenilaianToken, historySyncStatements,
+  isAcceptedKupCrewComplete, isKupPosition, markMatchDispatchedIfComplete,
+  notifyCompleteKupCrew } from './php/lantikan-helper';
 
 interface Snapshot {
   lantikan_id: number;
@@ -41,12 +45,13 @@ interface AuditEvent {
 const KUP_ROLES = new Set(['Pengadil','Penolong Pengadil 1','Penolong Pengadil 2','Pegawai ke4']);
 const AUTO_REJECT_COMMENT = 'Ditolak automatik - tiada jawapan dalam tempoh';
 
+/** is_array(json_decode(...)) ? ... : [] */
 function details(raw: string | null): Record<string,unknown> | unknown[] {
-  if (!raw) return {};
+  if (!raw) return [];
   try {
     const value: unknown = JSON.parse(raw);
-    return value !== null && typeof value === 'object' ? value as Record<string,unknown> : {};
-  } catch { return {}; }
+    return value !== null && typeof value === 'object' ? value as Record<string,unknown> : [];
+  } catch { return []; }
 }
 
 function positiveId(raw: unknown): number | null {
@@ -288,17 +293,75 @@ async function auditPost(request: Request, env: Env, actorId: number): Promise<R
     if (env.APPOINTMENT_DELIVERY_ENABLED !== '1') {
       return json({error:true,message:'Override lantikan belum tersedia di staging.'},503);
     }
-    const result = await recordAdminOverride(env,id,actorId,
-      request.headers.get('CF-Connecting-IP'),request.headers.get('User-Agent')?.slice(0,255) ?? null);
-    if (result === 'not_found') return json({error:true,message:'Lantikan tidak dijumpai.'},404);
-    if (result === 'ineligible') return json({error:true,
-      message:'Override hanya dibenarkan untuk penolakan automatik atau penolakan KUP yang disahkan tersilap.'},409);
-    const after = await loadSnapshot(env,id);
-    if (!after) return json({error:true,message:'Lantikan berubah semasa override Admin.'},409);
-    return json({error:false,message:'Penerimaan lantikan disahkan oleh Admin.',
-      data:await auditData(env,id,after)});
+    return adminOverrideAcceptance(request,env,actorId,id);
   }
   return prepareLinks(request,env,actorId,id);
+}
+
+/** admin_override_acceptance as in api/lantikan-audit.php. */
+async function adminOverrideAcceptance(request: Request, env: Env, actorId: number,
+  id: number): Promise<Response> {
+  const meta = auditMetaFrom(request);
+  const snapshot = await getLantikanAuditSnapshot(env,id);
+  if (!snapshot) return json({error:true,message:'Lantikan tidak dijumpai.'},404);
+  const jadualId = Number(snapshot.jadual_id);
+  if (['Dibatalkan','Ditangguhkan'].includes(String(snapshot.jadual_status ?? ''))) {
+    return json({error:true,
+      message:'Penerimaan tidak boleh dioverride untuk perlawanan yang dibatalkan atau ditangguhkan.'},409);
+  }
+  const isAutoRejected = snapshot.status === 'Ditolak' && (snapshot.komen ?? '') === AUTO_REJECT_COMMENT;
+  const isManualKupRejected = snapshot.status === 'Ditolak' && !isAutoRejected && isKupPosition(snapshot.jawatan);
+  if (!isAutoRejected && !isManualKupRejected) {
+    return json({error:true,
+      message:'Override hanya dibenarkan untuk penolakan automatik atau penolakan KUP yang disahkan tersilap.'},409);
+  }
+  const reason = isAutoRejected ? 'Diterima melalui override Admin selepas tempoh tamat'
+    : 'Diterima melalui override Admin selepas penolakan tersilap';
+  const done = await runGuarded(env,[
+    guardStatement(env,'lantikan_override',`EXISTS(SELECT 1 FROM lantikan_pengadil lp
+      JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id WHERE lp.id=? AND lp.status='Ditolak'
+        AND lp.komen IS ? AND jp.status NOT IN ('Dibatalkan','Ditangguhkan'))`,[id,snapshot.komen]),
+    env.DB.prepare(`UPDATE lantikan_pengadil SET status='Diterima',komen=?,sebab_status=?,
+        tarikh_jawab=datetime('now','+8 hours'),status_dikemaskini_at=datetime('now','+8 hours'),
+        tg_token=NULL,email_token=NULL WHERE id=? AND status='Ditolak'`).bind(reason,reason,id),
+    ...historySyncStatements(env,jadualId),
+    lantikanAuditStatement(env,id,'appointment_admin_acceptance_override','admin','success',{
+      previous_status:snapshot.status,previous_comment:snapshot.komen,
+      previous_reason:snapshot.sebab_status,new_status:'Diterima',reason,
+      override_source:isAutoRejected ? 'automatic_timeout_rejection' : 'official_rejection_mistake',
+      official_confirmation_received_outside_portal:true,
+    },null,'admin',actorId,snapshot,meta),
+  ]);
+  // PHP raised a RuntimeException here, surfacing as a generic server error.
+  if (!done) return json({error:true,message:'Ralat pelayan.'},500);
+  await markMatchDispatchedIfComplete(env,jadualId);
+  const jawatan = String(snapshot.jawatan ?? '');
+  const shouldNotifyCompleteKup = isKupPosition(jawatan) && await isAcceptedKupCrewComplete(env,jadualId);
+  const matchLabel = `${snapshot.pasukan_home ?? ''} lwn ${snapshot.pasukan_away ?? ''}`.trim();
+  if (snapshot.pengadil_id) {
+    try {
+      await createPortalNotification(env,Number(snapshot.pengadil_id),'Lantikan Diterima',
+        `Penerimaan lantikan ${matchLabel} disahkan Admin`,
+        `Pentadbir telah merekodkan penerimaan anda sebagai ${jawatan} selepas pengesahan diterima di luar portal.`);
+    } catch (error) {
+      console.error('[lantikan-audit.php] override portal notification error',error instanceof Error ? error.message : error);
+    }
+  }
+  if (jawatan === 'Penilai Pengadil') {
+    try { await generatePenilaianToken(env,id,meta); } catch (error) {
+      console.error('[lantikan-audit.php] override RA notification error',error instanceof Error ? error.message : error);
+    }
+  }
+  if (shouldNotifyCompleteKup) {
+    try { await notifyCompleteKupCrew(env,jadualId); } catch (error) {
+      console.error('[lantikan-audit.php] override KUP crew notification error',error instanceof Error ? error.message : error);
+    }
+  }
+  const after = await loadSnapshot(env,id);
+  if (!after) return json({error:true,message:'Lantikan tidak dijumpai.'},404);
+  return json({error:false,
+    message:`Penerimaan ${snapshot.nama_pegawai} sebagai ${jawatan} berjaya disahkan oleh Admin.`,
+    data:await auditData(env,id,after)});
 }
 
 async function auditData(env: Env,id: number,snapshot: Snapshot): Promise<Record<string,unknown>> {
