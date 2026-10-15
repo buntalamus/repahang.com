@@ -1,4 +1,7 @@
 import { currentUser, json } from './auth';
+import { appointmentWritesEnabled } from './lantikan-write';
+import { auditMetaFrom } from './php/lantikan-audit';
+import { autoTolakLantikanTertunggak } from './php/lantikan-helper';
 import { boundedJson } from './request';
 import type { Env } from './types';
 import { wroteRow } from './d1-changes';
@@ -41,6 +44,10 @@ export async function scheduleReport(request: Request, env: Env): Promise<Respon
   if (request.method === 'GET') {
     const tournamentId = positiveId(new URL(request.url).searchParams.get('kejohanan_id'));
     if (!tournamentId) return json({ error: true, message: 'kejohanan_id diperlukan.' }, 400);
+    // Like PHP, viewing the report expires overdue answers first.
+    if (appointmentWritesEnabled(env)) {
+      await autoTolakLantikanTertunggak(env, { kejohanan_id: tournamentId }, auditMetaFrom(request));
+    }
     const tournament = await env.DB.prepare(`SELECT id,nama,tarikh_mula,tarikh_akhir,tempat,anjuran,
       logo_kiri,logo_kanan,status,COALESCE(peringkat_kejohanan,'Daerah') AS peringkat_kejohanan
       FROM kejohanan WHERE id=?`).bind(tournamentId).first<Record<string, unknown>>();

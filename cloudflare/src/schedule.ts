@@ -1,4 +1,7 @@
 import { currentUser, json } from './auth';
+import { appointmentWritesEnabled } from './lantikan-write';
+import { auditMetaFrom } from './php/lantikan-audit';
+import { autoTolakLantikanTertunggak } from './php/lantikan-helper';
 import { boundedJson } from './request';
 import type { Env } from './types';
 import { wroteRow } from './d1-changes';
@@ -169,6 +172,14 @@ export async function schedule(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
 
   if (request.method === 'GET') {
+    // Like PHP, viewing a match or a tournament schedule expires overdue answers.
+    if (appointmentWritesEnabled(env)) {
+      const scopeId = idOf(url.searchParams.get(url.searchParams.has('id') ? 'id' : 'kejohanan_id'));
+      if (scopeId) {
+        await autoTolakLantikanTertunggak(env,
+          url.searchParams.has('id') ? { jadual_id: scopeId } : { kejohanan_id: scopeId }, auditMetaFrom(request));
+      }
+    }
     if (url.searchParams.has('id')) {
       const id = idOf(url.searchParams.get('id'));
       if (!id) return json({ error: true, message: 'ID diperlukan.' }, 400);

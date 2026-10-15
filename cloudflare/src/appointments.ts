@@ -1,4 +1,7 @@
 import { currentUser, json } from './auth';
+import { appointmentWritesEnabled } from './lantikan-write';
+import { auditMetaFrom } from './php/lantikan-audit';
+import { autoTolakLantikanTertunggak } from './php/lantikan-helper';
 import type { Env } from './types';
 
 interface Appointment {
@@ -19,13 +22,17 @@ interface CrewMember {
   wilayah_label: string;
 }
 
-/** Read-only assignment view. Expiry and notification retries need a scheduled Worker. */
+/** Assignment view (api/tugasan.php). */
 export async function appointments(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
   if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   const allowed = ['Pengadil', 'Penilai', 'PP Daerah'].includes(user.role)
     || (user.role === 'Admin' && user.jenis_pengadil === 'Penilai Pengadil');
   if (!allowed) return json({ error: true, message: 'Akses ditolak.' }, 403);
+  // Like PHP, viewing the list expires the caller's overdue answers.
+  if (appointmentWritesEnabled(env)) {
+    await autoTolakLantikanTertunggak(env, { pengadil_id: user.id }, auditMetaFrom(request));
+  }
 
   const [assigned, crew] = await Promise.all([
     env.DB.prepare(`
