@@ -63,6 +63,14 @@ function isSameOrigin(request: Request): boolean {
   return request.headers.get('Sec-Fetch-Site') !== 'cross-site';
 }
 
+export function qaWriteAllowed(request: Request, env: Env): boolean {
+  if (!env.STAGING_QA_WRITE_TOKEN || ['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return true;
+  const pathname = new URL(request.url).pathname;
+  // A test user must still be able to obtain a session through the normal UI.
+  if (pathname === '/api/login.php' || pathname === '/api/logout.php') return true;
+  return request.headers.get('X-Refpahang-QA-Write-Token') === env.STAGING_QA_WRITE_TOKEN;
+}
+
 function dateForDisplay(raw: string): string {
   const parts = raw.slice(0, 10).split('-');
   return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : raw;
@@ -306,6 +314,9 @@ export default {
   },
   async fetch(request: Request, env: Env): Promise<Response> {
     const pathname = new URL(request.url).pathname;
+    if (!qaWriteAllowed(request, env)) {
+      return json({ error: true, message: 'Tindakan ujian memerlukan kunci QA.' }, 403);
+    }
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) && !isSameOrigin(request)) {
       return json({ error: true, message: 'Asal permintaan tidak dibenarkan.' }, 403);
     }

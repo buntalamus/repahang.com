@@ -8,6 +8,7 @@ export interface Env extends EmailEnv {
   BASE_URL: string;
   STAGING_AUTH_ENABLED: string;
   STAGING_LOGIN_EMAILS?: string;
+  STAGING_QA_WRITE_TOKEN?: string;
   STAGING_WRITES_ENABLED: string;
   APPOINTMENT_DELIVERY_ENABLED: string;
   REPORT_DELIVERY_ENABLED: string;
