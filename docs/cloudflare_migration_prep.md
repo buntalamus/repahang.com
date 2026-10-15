@@ -285,7 +285,7 @@ D1 staging, eksport jauh disimpan secara private di
 Migrasi jauh memproses dua arahan; semakan selepas itu menunjukkan 370 pengguna,
 91 laporan asal, 51 perlawanan Hanafi 2026, serta satu lajur revisi dan satu
 indeks unik baharu. Kesemua suis staging masih `0`.
-Skema `0001`, `0002` dan `0003` dipasang melalui `wrangler d1 execute`, bukan
+Skema `0001` hingga `0005` dipasang melalui `wrangler d1 execute`, bukan
 ledger `wrangler d1 migrations apply`. Oleh itu, `migrations list` masih
 menyenaraikannya sebagai belum dilaksana walaupun skemanya wujud. Jangan
 jalankan `migrations apply` secara terus pada D1 staging ini tanpa menyelaraskan
@@ -641,6 +641,28 @@ pautan Pengerusi memulangkan 503 kerana suis auth staging masih `0`.
 Semakan D1 jauh mengekalkan 91 laporan RA, 997 lantikan dan 51 perlawanan
 Hanafi 2026. Domain production masih PHP LiteSpeed. Tiada pengesahan laporan
 atau penghantaran emel dilakukan.
+
+Aliran POST Pengerusi seterusnya dibina di Worker bersama migrasi
+`0005_report_confirmation_outbox.sql`. Token perlu sepadan dengan laporan
+`Dihantar`; KUP yang dinilai mesti 3 atau 4, berbeza jawatan, diterima dan
+berada pada perlawanan yang sama. Batch D1 mengubah status pengesahan,
+laporan dan perlawanan, mencatat audit, memastikan token paparan RA wujud,
+dan memasukkan satu tugasan emel serta Telegram bagi setiap KUP. Semakan
+integriti terakhir menggunakan kekangan `CHECK` untuk menggugurkan seluruh
+batch jika salah satu komponen gagal. Giliran Worker memproses tugasan dengan
+claim, cubaan semula, templat emel seragam, pautan HMAC baca sahaja dan audit
+penghantaran. Ujian salinan D1 import meliputi pengesahan sekali sahaja,
+rekod KUP tidak lengkap, semua tugasan penghantaran, token HMAC dan kegagalan
+penyedia emel. Suis baharu `REPORT_DELIVERY_ENABLED` kekal `0` di staging;
+POST dan giliran hanya boleh berjalan jika suis ini, auth dan writes semuanya
+`1`. Penghantaran RA kepada Pengerusi dan override Admin masih belum dipindah,
+jadi ini belum melengkapkan aliran laporan hujung ke hujung.
+Sebelum migrasi skema `0005` pada D1 staging, eksport jauh disimpan secara
+private di `output/cloudflare/refpahang_staging_before_0005_20261015.sql`.
+Migrasi jauh selesai dengan tiga arahan; semakan selepasnya menunjukkan
+370 pengguna, 997 lantikan, 91 laporan RA, sifar pengesahan/penghantaran
+Worker baharu dan **51** rekod `perlawanan` Hanafi bagi 2026. Dump sandaran
+dan data peribadi tidak dimasukkan ke Git.
 
 ## Semua tetapan emel semasa
 

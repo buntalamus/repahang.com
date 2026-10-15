@@ -18,6 +18,7 @@
     "test:telegram-blast-preview": "node --no-warnings tests/telegram-blast-preview.mjs",
     "test:print-assessment": "node --no-warnings tests/print-assessment.mjs",
     "test:chair-approval-link": "node --no-warnings tests/chair-approval-link.mjs",
+    "test:chair-confirm-core": "node --no-warnings tests/chair-confirm-core.mjs",
     "test:futsal-form": "node --no-warnings tests/futsal-form.mjs",
     "test:chair-config": "node --no-warnings tests/chair-config.mjs",
     "build:frontend": "npm --prefix ../frontend run build:prod",

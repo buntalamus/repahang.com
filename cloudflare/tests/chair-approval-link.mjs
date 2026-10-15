@@ -5,7 +5,9 @@ import {join} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import ts from 'typescript';
 
-const source=readFileSync(new URL('../src/chair-approval-link.ts',import.meta.url),'utf8');
+const source=readFileSync(new URL('../src/chair-approval-link.ts',import.meta.url),'utf8')
+  .replace("import {confirmChairReport} from './chair-confirm-core';",
+    "const confirmChairReport=async(...args)=>globalThis.confirmChairReportTest(...args);");
 const compiled=ts.transpileModule(source,{compilerOptions:{
   target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,
 }}).outputText;
@@ -45,5 +47,23 @@ try{
   assert.equal((await chairApprovalLink(new Request(url,{method:'POST'}),env)).status,503);
   assert.equal(db.prepare('SELECT status FROM laporan_pengesahan_pengerusi WHERE id=?').get(row.id).status,
     'Menunggu','A closed POST must not modify approval state');
+  env.STAGING_WRITES_ENABLED='1';env.REPORT_DELIVERY_ENABLED='1';
+  const ready=await chairApprovalLink(new Request(url),env);
+  assert.match(await ready.text(),/Sahkan Laporan/);
+  assert.match(ready.headers.get('Content-Security-Policy'),/form-action 'self'/);
+  globalThis.confirmChairReportTest=async(_env,token,comment)=>{
+    assert.equal(token,row.approval_token);
+    assert.equal(comment,'<script>alert(1)</script>');
+    return 'confirmed';
+  };
+  const post=(body)=>new Request('https://staging.example.test/api/laporan-pengesahan-token.php',{
+    method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body,
+  });
+  const result=await chairApprovalLink(post(new URLSearchParams({token:row.approval_token,
+    catatan_pengerusi:'<script>alert(1)</script>'})),env);
+  assert.equal(result.status,200);
+  assert.match(await result.text(),/&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.equal((await chairApprovalLink(post(new URLSearchParams({token:row.approval_token,
+    catatan_pengerusi:'x'.repeat(5001)})),env)).status,422);
   console.log('Chair approval link: imported D1 token, processed/pending views, escape and closed POST passed');
 }finally{db.close();rmSync(dir,{recursive:true,force:true});}

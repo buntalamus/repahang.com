@@ -6,6 +6,7 @@ import { adminDashboardStats, adminDashboardTasks, adminProfile } from './admin-
 import { appointments } from './appointments';
 import { adminAppointments } from './admin-appointments';
 import { processAppointmentDeliveries } from './appointment-delivery';
+import { processReportDeliveries } from './report-delivery';
 import { processExpiredAppointments } from './appointment-expiry';
 import { appointmentReply } from './appointment-reply';
 import { appointmentEmailLink } from './appointment-email-link';
@@ -304,5 +305,6 @@ export default {
   async scheduled(_event: ScheduledController, env: Env): Promise<void> {
     await processExpiredAppointments(env);
     await processAppointmentDeliveries(env);
+    await processReportDeliveries(env);
   },
 } satisfies ExportedHandler<Env>;
