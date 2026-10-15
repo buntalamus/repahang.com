@@ -113,6 +113,11 @@ export const routes: Routes = [
           import('./features/admin/announcements/announcements.component').then((m) => m.AdminAnnouncementsComponent),
       },
       {
+        path: 'emel',
+        loadComponent: () =>
+          import('./features/admin/mailbox/mailbox.component').then((m) => m.AdminMailboxComponent),
+      },
+      {
         path: 'tetapan',
         loadComponent: () =>
           import('./features/admin/settings/settings.component').then((m) => m.AdminSettingsComponent),

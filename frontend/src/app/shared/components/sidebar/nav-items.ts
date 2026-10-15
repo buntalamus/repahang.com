@@ -18,6 +18,7 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Pengadil Luar', icon: 'person_add', route: '/admin/pengadil-luar' },
   { label: 'Statistik', icon: 'bar_chart', route: '/admin/statistik' },
   { label: 'Pengumuman', icon: 'campaign', route: '/admin/pengumuman' },
+  { label: 'Peti Emel', icon: 'mail', route: '/admin/emel' },
   { label: 'Tetapan', icon: 'settings', route: '/admin/tetapan' },
   { label: 'Profil Saya', icon: 'person', route: '/admin/profil' },
 ];

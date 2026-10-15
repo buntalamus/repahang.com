@@ -41,7 +41,8 @@
     "STAGING_WRITES_ENABLED": "0",
     "APPOINTMENT_DELIVERY_ENABLED": "0",
     "REPORT_DELIVERY_ENABLED": "0",
-    "BULK_EMAIL_ENABLED": "0"
+    "BULK_EMAIL_ENABLED": "0",
+    "MAILBOX_SEND_ENABLED": "0"
   },
   "triggers": {
     "crons": ["*/5 * * * *"]

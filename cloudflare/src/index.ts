@@ -54,6 +54,7 @@ import { updateProfile, uploadProfileImage } from './profile-write';
 import { forgotPassword, resetPassword } from './password-reset';
 import { assessorDashboard, districtAnnouncements, districtOverview } from './role-dashboards';
 import { tournaments } from './tournaments';
+import { adminMailbox, receiveMailboxEmail } from './mailbox';
 import type { Env } from './types';
 
 function isSameOrigin(request: Request): boolean {
@@ -203,6 +204,7 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
     if (denied) return denied;
   }
   if (pathname === '/api/login.php') return login(request, env);
+  if (pathname === '/api/admin-mailbox.php') return adminMailbox(request, env);
   if (pathname === '/api/register.php') return register(request, env);
   if (pathname === '/api/admin-approve.php') return adminApprove(request, env);
   if (pathname === '/api/telegram-link-self.php') return telegramLinkSelf(request, env);
@@ -298,6 +300,9 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
 }
 
 export default {
+  async email(message: ForwardableEmailMessage, env: Env): Promise<void> {
+    await receiveMailboxEmail(message, env);
+  },
   async fetch(request: Request, env: Env): Promise<Response> {
     const pathname = new URL(request.url).pathname;
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) && !isSameOrigin(request)) {

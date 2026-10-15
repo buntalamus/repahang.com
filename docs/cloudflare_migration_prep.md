@@ -1,5 +1,56 @@
 # Persediaan migrasi RefPahang ke Cloudflare
 
+## Peti emel baharu di Cloudflare — 15 Oktober 2026
+
+Pengguna kini memilih **pindah sepenuhnya daripada pelayan emel lama dan mula
+peti masuk baharu**, tanpa import sejarah emel lama. Keputusan ini menggantikan
+cadangan terdahulu untuk mengekalkan peti masuk lama. Selagi MX akar masih
+`mail.refpahang.com`, emel masuk masih sampai ke pelayan lama. Jangan tutup
+pelayan itu sebelum MX ditukar dan penerimaan emel baharu dibuktikan.
+
+Worker kini mempunyai handler Email Routing bagi `admin@`, `daftar@`,
+`lantikan@`, `support@` dan `pengesahan@refpahang.com`. Ia menyimpan MIME asal
+(termasuk lampiran) di R2 dan metadata dalam D1 (migrasi `0013_mailbox.sql`).
+Menu **Admin → Peti Emel** membolehkan Admin membaca teks, memuat turun EML,
+menulis dan membalas. HTML masuk tidak dirender untuk mengelakkan skrip emel
+berjalan dalam portal. Emel keluar menggunakan Cloudflare Email Sending; suis
+berasingan `MAILBOX_SEND_ENABLED=0` menghalang penghantaran dari staging.
+
+**Keadaan semasa:** Kod dan skema peti emel disediakan; tiada aturan inbound
+`addresses` atau pertukaran MX production dipasang lagi. Ujian unit menutup
+penerimaan R2/D1, akses Admin sahaja, muat turun EML, dan penghantaran palsu
+yang idempoten. Sebelum cutover:
+
+1. Pasang `0013_mailbox.sql` pada D1 sasaran; deploy Worker dan binaan Angular.
+2. Aktifkan autentikasi Admin pada domain Worker sasaran dan sahkan menu peti
+   emel boleh diakses serta folder kosong. Jangan uji dengan akaun pemohon.
+3. Dalam konfigurasi Wrangler untuk Worker production, tambah lima alamat
+   tepat pada `addresses` aras atas, kemudian deploy. Cloudflare akan
+   menyediakan peraturan Email Routing; semak peraturan dan MX yang dijangka
+   pada dashboard sebelum menerima emel sebenar.
+4. Tukar MX akar daripada `mail.refpahang.com` kepada MX Email Routing
+   Cloudflare melalui onboarding. **Jangan campur kedua-dua penyedia MX**.
+   Hantar satu emel ujian dari domain lain kepada setiap lima alamat dan
+   pastikan semuanya muncul dalam peti masuk Cloudflare. Uji balasan ke
+   alamat yang dikawal sebelum hidupkan `MAILBOX_SEND_ENABLED=1`.
+5. Semak rekod SPF akar yang hanya satu, DKIM, DMARC serta log bounces.
+   Hanya selepas ujian masuk dan keluar berjaya serta laman production
+   berfungsi, hentikan servis emel dan pelayan lama.
+
+Contoh `addresses` untuk konfigurasi production (jangan tambah ke konfigurasi
+staging yang sedang dideploy sebelum cutover):
+
+```json
+"addresses": [
+  "admin@refpahang.com", "daftar@refpahang.com",
+  "lantikan@refpahang.com", "support@refpahang.com",
+  "pengesahan@refpahang.com"
+]
+```
+
+Emel lama tidak akan muncul dalam peti masuk baharu. Jika keputusan tentang
+sejarah emel berubah sebelum pelayan ditutup, eksport MBOX/EML dahulu.
+
 ## Penutupan 12 laluan separa, 15 Oktober
 
 Dua tindakan POST yang sebelum ini belum wujud di Worker kini dipindahkan:
