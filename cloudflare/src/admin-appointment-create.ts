@@ -97,8 +97,8 @@ export async function adminAppointmentCreate(request:Request,env:Env):Promise<Re
       env.DB.prepare(`
         INSERT INTO lantikan_pengadil
           (jadual_id,pengadil_id,pengadil_luar_id,jawatan,status,created_by,
-            worker_assignment_key,created_at,updated_at)
-        SELECT jp.id,?,?,?,'Belum Jawab',?,?,datetime('now','+8 hours'),datetime('now','+8 hours')
+            tg_notif_hantar,worker_assignment_key,created_at,updated_at)
+        SELECT jp.id,?,?,?,'Belum Jawab',?,0,?,datetime('now','+8 hours'),datetime('now','+8 hours')
         FROM jadual_perlawanan jp WHERE jp.id=?
           AND jp.status NOT IN ('Dibatalkan','Ditangguhkan')
           AND datetime(jp.tarikh||' '||jp.masa)>datetime('now','+8 hours')

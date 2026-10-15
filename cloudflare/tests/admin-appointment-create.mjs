@@ -24,7 +24,7 @@ db.exec(`
     pengadil_id INTEGER,pengadil_luar_id INTEGER);
   CREATE TABLE lantikan_pengadil(id INTEGER PRIMARY KEY,jadual_id INTEGER,pengadil_id INTEGER,
     pengadil_luar_id INTEGER,jawatan TEXT,status TEXT,created_by INTEGER,
-    created_at TEXT,updated_at TEXT);
+    tg_notif_hantar INTEGER NOT NULL,created_at TEXT,updated_at TEXT);
   CREATE UNIQUE INDEX unique_match_role ON lantikan_pengadil(jadual_id,jawatan);
   CREATE TABLE laporan_penilaian(id INTEGER PRIMARY KEY,jadual_id INTEGER);
   CREATE TABLE penilaian_pengadil(id INTEGER PRIMARY KEY,perlawanan_id INTEGER);
@@ -104,7 +104,8 @@ db.prepare("INSERT INTO pool_pengadil VALUES(4,8,4,NULL)").run();
 assert.equal((await adminAppointmentCreate(post({jadual_id:13,pengadil_id:4,
   jawatan:'Pengadil'}),env)).status,409,'Existing RA report blocks a new slot');
 beforeBatch=()=>db.prepare(`INSERT INTO lantikan_pengadil
-  (jadual_id,pengadil_id,jawatan,status) VALUES(14,2,'Pengadil','Diterima')`).run();
+  (jadual_id,pengadil_id,jawatan,status,tg_notif_hantar)
+  VALUES(14,2,'Pengadil','Diterima',0)`).run();
 assert.equal((await adminAppointmentCreate(post({jadual_id:14,pengadil_id:4,
   jawatan:'Pengadil'}),env)).status,409,'Concurrent slot insertion must block stale write');
 assert.equal(db.prepare('SELECT COUNT(*) AS n FROM lantikan_audit_log').get().n,2);
