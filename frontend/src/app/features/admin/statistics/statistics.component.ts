@@ -638,7 +638,7 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
       { label: 'Lantikan', value: s.lantikan?.total || 0, icon: 'assignment_ind', color: '#10b981', tab: 'lantikan', route: '/admin/lantikan' },
       { label: 'Perlawanan', value: s.matches?.uniqueMatches || 0, icon: 'sports_soccer', color: '#f97316', sub: (s.matches?.total || 0) + ' rekod', tab: 'perlawanan' },
       { label: 'Penilaian', value: s.ratings?.total || 0, icon: 'assessment', color: '#3b82f6', sub: s.ratings?.average ? 'Purata: ' + s.ratings.average : undefined, tab: 'penilaian' },
-      { label: 'Telegram', value: `${s.telegram?.linked || 0}/${s.telegram?.total || 0}`, icon: 'send', color: '#0088cc', sub: `${tgPct}% aktif` },
+      { label: 'Telegram · semua tahun', value: `${s.telegram?.linked || 0}/${s.telegram?.total || 0}`, icon: 'send', color: '#0088cc', sub: `${tgPct}% akaun aktif terhubung` },
     ];
 
     const emp = s.employmentBreakdown || {};

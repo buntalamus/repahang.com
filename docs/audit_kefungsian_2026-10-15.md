@@ -22,10 +22,10 @@ Pada 2026, terdapat 370 akaun, 488 permohonan dan 11,608 rekod perlawanan dalam 
 | Nyahaktif pengadil | Endpoint Worker menyahaktif akaun dan membatalkan sesi, tidak memadam sejarah. | Semakan kod laluan `deactivateReferee`. |
 | Senarai pengguna | Penapis tahun, pengadil berdaftar/baharu/tidak aktif, Kelas III/I, RA dan PP; akaun dinyahaktifkan boleh ditunjukkan. | `test:referee-audit` menyemak kelas gagal, pemohon tahun lepas dan PP dengan kelayakan berbeza. |
 | Profil pengadil | Rekod perlawanan merentas tahun dikekalkan; penapis tahun dan bilangan rekod ditambah dalam modal serta butiran pengadil berdaftar. | Build Angular dan semakan sumber API yang memulangkan rekod penuh. |
-| Statistik | Bilangan pengadil tahunan mengecualikan RA/pegawai; rekod perlawanan lantikan turut dikira; “Jumlah Lantikan” kini benar-benar mengira baris lantikan dengan status Diterima, Ditolak, Belum Jawab dan Dibatalkan. | `test:referee-audit` membandingkan hasil API dengan SQL pada salinan D1. |
+| Statistik | Bilangan pengadil tahunan mengecualikan RA/pegawai; rekod perlawanan lantikan turut dikira; “Jumlah Lantikan” kini benar-benar mengira baris lantikan dengan status Diterima, Ditolak, Belum Jawab dan Dibatalkan. Metrik Telegram dilabel sebagai semua tahun kerana ia merangkumi semua akaun aktif. | `test:referee-audit` membandingkan hasil API dengan SQL pada salinan D1. |
 | Akses PP/RA/pengadil | Keupayaan pengadil dan RA dihantar pada sesi. PP yang layak boleh membuka panel yang relevan; RA sahaja tidak boleh dipilih sebagai KUP perlawanan. | Ujian sesi PP pengadil, PP RA dan PP pegawai pembangunan. |
 | Dashboard daerah | Pengadil berdaftar dan permohonan diluluskan dikira mengikut tahun semasa; rekod PP yang bertindak sebagai pengadil termasuk dalam skop daerah. | Typecheck Worker dan ujian peranan. |
-| UI | Navigasi berkongsi tema hitam/kuning Pahang; warna hijau/merah/amber masih digunakan untuk menyampaikan status. Responsif Angular dibina untuk produksi. | `npm run build:prod`; semakan paparan admin langsung diperlukan selepas pelepasan. |
+| UI | Navigasi berkongsi tema hitam/kuning Pahang; warna hijau/merah/amber masih digunakan untuk menyampaikan status. Responsif Angular dibina untuk produksi. | `npm run build:prod`; paparan admin pengguna dan statistik disemak terus pada domain produksi. |
 
 ## Gerbang semakan
 
@@ -33,6 +33,7 @@ Pada 2026, terdapat 370 akaun, 488 permohonan dan 11,608 rekod perlawanan dalam 
 - `npm run typecheck` lulus.
 - `npm run build:prod` lulus. Amaran saiz awal: kira-kira 514 kB, 14 kB melebihi had konfigurasi 500 kB; build tidak gagal.
 - `endpoint_coverage.py` melaporkan 67/67 laluan frontend dan 6/6 laluan awam bukan frontend dipetakan; tiga laluan e-mel pukal hanya diuji dengan penghantaran palsu.
+- Paparan pengguna produksi menunjukkan 370 akaun, 333 pengguna pengadil, 16 PP dan 28 RA. Statistik 2026 menunjukkan 221 pengadil berdaftar, 403 permohonan, 997 lantikan dan 5,842 rekod perlawanan.
 - Semakan langsung bagi akaun PP, RA dan pengadil sebenar belum boleh dibuktikan tanpa sesi peranan tersebut. Ujian peranan dibuat pada salinan D1, bukan dengan mengubah data produksi.
 
 ## Integrasi pelepasan
