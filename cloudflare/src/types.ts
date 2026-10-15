@@ -7,6 +7,7 @@ export interface Env extends EmailEnv {
   BROWSER: BrowserRun;
   BASE_URL: string;
   STAGING_AUTH_ENABLED: string;
+  STAGING_LOGIN_EMAILS?: string;
   STAGING_WRITES_ENABLED: string;
   APPOINTMENT_DELIVERY_ENABLED: string;
   REPORT_DELIVERY_ENABLED: string;

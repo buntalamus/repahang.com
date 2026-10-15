@@ -66,11 +66,17 @@ function randomToken(): string {
   return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
 }
 
+function loginAllowed(email: string, env: Env): boolean {
+  const allowlist = env.STAGING_LOGIN_EMAILS;
+  if (allowlist === undefined) return true;
+  return allowlist.split(',').some((entry) => entry.trim().toLowerCase() === email.toLowerCase());
+}
+
 export async function currentUser(request: Request, env: Env): Promise<SessionUser | null> {
   if (env.STAGING_AUTH_ENABLED !== '1') return null;
   const token = cookieValue(request);
   if (!token) return null;
-  return await env.DB.prepare(`
+  const user = await env.DB.prepare(`
     SELECT u.id, u.email, u.role, u.jenis_pengadil, u.nama_penuh,
            COALESCE(NULLIF(u.persatuan_id,0),u.district_id) AS persatuan_id,
            u.district_id, p.nama_persatuan AS persatuan_nama,
@@ -81,6 +87,7 @@ export async function currentUser(request: Request, env: Env): Promise<SessionUs
     WHERE s.token_hash = ? AND s.expires_at > ? AND u.aktif = 1
     LIMIT 1
   `).bind(await sha256(token), Math.floor(Date.now() / 1000)).first<SessionUser>();
+  return user && loginAllowed(user.email, env) ? user : null;
 }
 
 export async function login(request: Request, env: Env): Promise<Response> {
@@ -98,6 +105,9 @@ export async function login(request: Request, env: Env): Promise<Response> {
   const password = typeof body.password === 'string' ? body.password : '';
   if (!email || !password || email.length > 254 || password.length > 1024) {
     return json({ error: true, message: 'Emel dan kata laluan diperlukan.' }, 422);
+  }
+  if (!loginAllowed(email, env)) {
+    return json({ error: true, message: 'Emel atau kata laluan tidak sah.' }, 401);
   }
 
   const now = Math.floor(Date.now() / 1000);

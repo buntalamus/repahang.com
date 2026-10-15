@@ -38,7 +38,8 @@
   ],
   "vars": {
     "BASE_URL": "https://ujian.refpahang.com",
-    "STAGING_AUTH_ENABLED": "0",
+    "STAGING_AUTH_ENABLED": "1",
+    "STAGING_LOGIN_EMAILS": "staging-admin@example.invalid",
     "STAGING_WRITES_ENABLED": "0",
     "APPOINTMENT_DELIVERY_ENABLED": "0",
     "REPORT_DELIVERY_ENABLED": "0",

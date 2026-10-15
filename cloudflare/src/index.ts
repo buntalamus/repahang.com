@@ -85,7 +85,8 @@ async function registrationStatus(env: Env): Promise<Response> {
     .first<{ setting_value: string }>();
   return json({
     error: false,
-    registration_open: env.STAGING_AUTH_ENABLED === '1' && (record ? record.setting_value === '1' : true),
+    registration_open: env.STAGING_AUTH_ENABLED === '1' && env.STAGING_WRITES_ENABLED === '1'
+      && (record ? record.setting_value === '1' : true),
   });
 }
 
