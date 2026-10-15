@@ -13,6 +13,12 @@
 
       <h2 class="text-xl font-semibold text-gray-900 mb-6">Log masuk dashboard Pengadil</h2>
 
+      @if (maintenanceMode) {
+        <p class="mb-5 rounded-lg bg-amber-50 p-3 text-sm text-amber-900" role="status">
+          Sistem sedang diselenggara. Pentadbir boleh log masuk untuk mematikan mod penyelenggaraan.
+        </p>
+      }
+
       <form (ngSubmit)="onSubmit()" class="space-y-4">
         <div>
           <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Emel</label>
@@ -81,6 +87,7 @@
       </div>
 
       <div class="mt-6 shrink-0">
+        @if (!maintenanceMode) {
         <a routerLink="/daftar"
           class="inline-flex items-center justify-center px-5 py-2.5 bg-pahang-yellow text-pahang-black text-sm font-semibold rounded-full shadow-lg hover:bg-white transition duration-200"
         >
@@ -89,6 +96,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
           </svg>
         </a>
+        }
         <p class="text-xs text-white/60 mt-3 line-clamp-2">
           Pastikan maklumat peribadi yang diberikan adalah tepat, lengkap, dan terkini.
         </p>

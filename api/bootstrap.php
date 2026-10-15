@@ -218,6 +218,15 @@ if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS
     exit;
 }
 
+// Keep Admin login and logout available during maintenance. Other API traffic
+// is blocked server-side, including sessions created before the flag was set.
+if (is_file(__DIR__ . '/../storage/maintenance.flag')
+    && ($_SESSION['user_role'] ?? null) !== 'Admin'
+    && !isset($_SESSION['admin_id'])
+    && !in_array(basename($_SERVER['SCRIPT_FILENAME'] ?? ''), ['login.php', 'logout.php', 'session.php'], true)) {
+    jsonResponse(['error' => true, 'message' => 'Sistem sedang dalam penyelenggaraan.'], 503);
+}
+
 // ============================================================
 // Helper functions
 // ============================================================

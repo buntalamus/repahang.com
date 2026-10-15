@@ -26,6 +26,9 @@ export function openDatabase(migrations) {
   for (const file of migrations) {
     db.exec(readFileSync(new URL(`../migrations/${file}.sql`,import.meta.url),'utf8'));
   }
+  // Imported flag value can predate the file-based PHP maintenance state.
+  // Route tests exercise normal operation; staging-auth explicitly tests maintenance.
+  db.prepare("UPDATE application_settings SET setting_value='0' WHERE setting_key='maintenance_mode'").run();
   const hooks={beforeBatch:null};
   class Statement {
     constructor(sql,values=[]){this.sql=sql;this.values=values;}

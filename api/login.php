@@ -124,6 +124,10 @@ try {
 
 
 
+    if (is_file(__DIR__ . '/../storage/maintenance.flag') && $user['role'] !== 'Admin') {
+        jsonResponse(['error' => true, 'message' => 'Sistem sedang dalam penyelenggaraan.'], 503);
+    }
+
     // Update last login
 
     $updateStmt = $pdo->prepare('UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = :id');

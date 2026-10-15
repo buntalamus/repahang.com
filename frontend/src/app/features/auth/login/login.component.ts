@@ -17,6 +17,7 @@ export class LoginComponent implements OnDestroy {
   password = '';
   errorMessage = '';
   loading = false;
+  maintenanceMode = false;
   announcements: any[] = [];
   currentAnnIndex = 0;
   private autoFlipInterval: ReturnType<typeof setInterval> | null = null;
@@ -36,11 +37,9 @@ export class LoginComponent implements OnDestroy {
   }
 
   private checkMaintenance(): void {
-    this.api.get<{ maintenance_mode: boolean; is_admin: boolean }>('check-maintenance.php').subscribe({
+    this.api.get<{ maintenance_mode: boolean }>('check-maintenance.php').subscribe({
       next: (res) => {
-        if (res.maintenance_mode && !res.is_admin) {
-          this.router.navigate(['/maintenance']);
-        }
+        this.maintenanceMode = !!res.maintenance_mode;
       },
     });
   }

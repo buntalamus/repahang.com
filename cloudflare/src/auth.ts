@@ -72,6 +72,13 @@ function loginAllowed(email: string, env: Env): boolean {
   return allowlist.split(',').some((entry) => entry.trim().toLowerCase() === email.toLowerCase());
 }
 
+async function maintenanceActive(env: Env): Promise<boolean> {
+  const row = await env.DB.prepare(
+    "SELECT setting_value FROM application_settings WHERE setting_key='maintenance_mode'",
+  ).first<{ setting_value: string }>();
+  return row?.setting_value === '1';
+}
+
 export async function currentUser(request: Request, env: Env): Promise<SessionUser | null> {
   if (env.STAGING_AUTH_ENABLED !== '1') return null;
   const token = cookieValue(request);
@@ -87,7 +94,9 @@ export async function currentUser(request: Request, env: Env): Promise<SessionUs
     WHERE s.token_hash = ? AND s.expires_at > ? AND u.aktif = 1
     LIMIT 1
   `).bind(await sha256(token), Math.floor(Date.now() / 1000)).first<SessionUser>();
-  return user && loginAllowed(user.email, env) ? user : null;
+  if (!user || !loginAllowed(user.email, env)) return null;
+  if (user.role !== 'Admin' && await maintenanceActive(env)) return null;
+  return user;
 }
 
 export async function login(request: Request, env: Env): Promise<Response> {
@@ -140,6 +149,9 @@ export async function login(request: Request, env: Env): Promise<Response> {
   }
   if (Number(user.aktif) !== 1) {
     return json({ error: true, message: 'Akaun anda tidak aktif. Sila hubungi pentadbir.' }, 403);
+  }
+  if (user.role !== 'Admin' && await maintenanceActive(env)) {
+    return json({ error: true, message: 'Sistem sedang dalam penyelenggaraan.' }, 503);
   }
 
   const token = randomToken();

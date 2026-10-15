@@ -28,6 +28,12 @@ if (!isset($_SESSION['user_id']) && !isset($_SESSION['admin_id'])) {
 
 
 
+if (is_file(__DIR__ . '/../storage/maintenance.flag')
+    && ($_SESSION['user_role'] ?? '') !== 'Admin'
+    && !isset($_SESSION['admin_id'])) {
+    jsonResponse(['authenticated' => false]);
+}
+
 // Return multi-role user data
 
 if (isset($_SESSION['user_id'])) {

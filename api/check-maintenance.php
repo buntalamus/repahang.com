@@ -9,7 +9,7 @@ session_start();
 header('Content-Type: application/json');
 
 // Check if user is admin
-$isAdmin = isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'Admin';
+$isAdmin = ($_SESSION['user_role'] ?? null) === 'Admin' || isset($_SESSION['admin_id']);
 
 // Check maintenance flag file
 $maintenanceFlag = __DIR__ . '/../storage/maintenance.flag';
