@@ -86,6 +86,12 @@ emel palsu meliputi peranan, penjanaan serta guna semula token, kegagalan
 seorang penerima dan penolakan semasa suis ditutup. Tiada emel sebenar
 dihantar oleh ujian ini. POST jemputan `pengadil-luar-telegram-blast.php`
 masih separa dan memerlukan giliran serta log onboarding.
+Commit `12dfbc0` dipush dan dideploy ke staging sebagai Worker versi
+`a907e82b-20b2-4d5e-84dc-67b06b499a8e`. Semua lima suis staging kekal
+`0`, termasuk `BULK_EMAIL_ENABLED`. Semakan selepas deploy: health 200 dengan
+`api_complete:false`, kedua-dua POST blast menolak pengguna tanpa sesi 401,
+dan D1 jauh masih 370 pengguna, 11,608 perlawanan serta 51 perlawanan Hanafi
+2026. Tiada emel blast sebenar dihantar.
 
 ## Sejarah sumber data 13 Oktober
 
