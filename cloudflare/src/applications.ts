@@ -80,7 +80,11 @@ export async function applicationHistory(request: Request, env: Env): Promise<Re
   const applicationCategory = APPLICATION_TYPES[type] ?? null;
   const result = await env.DB.prepare(`
     SELECT p.id, p.jenis_borang, p.tahun_permohonan, p.status,
-           p.status_workflow, p.status_ujian, p.payment_amount, p.url_resit,
+           p.status_workflow, p.status_ujian, p.status_seminar, p.payment_amount, p.url_resit,
+           CASE WHEN p.jenis_borang='pengadil_berdaftar' THEN COALESCE(p.status_ujian,
+             (SELECT f.status_ujian FROM permohonan f WHERE f.user_id=p.user_id
+               AND f.tahun_permohonan=p.tahun_permohonan AND f.jenis_borang='ujian_kecergasan'
+               ORDER BY f.id DESC LIMIT 1)) END AS fitness_status,
            p.pp_notes, p.admin_notes, p.mohon_ujian_kecergasan,
            CASE WHEN p.tarikh_hantar IS NULL THEN NULL ELSE
              strftime('%d/%m/%Y %H:%M', p.tarikh_hantar) END AS tarikh_hantar,
@@ -129,6 +133,7 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
              ELSE p.status_workflow END AS status,
            p.status_ujian, p.tarikh_hantar, p.emel, p.no_telefon,
            p.jenis_pengadil, p.tahun_permohonan,
+           p.status_seminar,
            COALESCE(NULLIF(p.url_gambar_profil,''),u.url_gambar_profil) AS url_gambar_profil,
            p.no_kp, p.saiz_baju, p.alamat1, p.alamat2, p.poskod, p.daerah,
            p.negeri, p.status_kerja, p.jawatan, p.nama_majikan,
@@ -202,6 +207,7 @@ export async function deleteApplication(request: Request, env: Env): Promise<Res
   const body = input as Record<string, unknown>;
   if (body.action === 'blast_kelas3_welcome') return blastKelas3Welcome(env, user.id);
   if (body.action === 'update_status_ujian') return updateFitnessResult(body, env);
+  if (body.action === 'update_status_seminar') return updateSeminarAttendance(body, env);
   if (body.action !== 'delete_application') {
     return json({ error: true, message: 'Tindakan belum tersedia di staging.' }, 503);
   }
@@ -225,6 +231,27 @@ export async function deleteApplication(request: Request, env: Env): Promise<Res
     affected_rows: results[1].meta.changes,
     unlinked_matches: results[0].meta.changes,
   });
+}
+
+async function updateSeminarAttendance(body: Record<string, unknown>, env: Env): Promise<Response> {
+  const id = positiveId(String(body.id ?? ''));
+  const status = body.status_seminar;
+  if (!id || !(status === null || status === 'Hadir' || status === 'Tidak Hadir')) {
+    return json({ error: true, message: 'Parameter rekod seminar tidak sah.' }, 400);
+  }
+  const result = await env.DB.prepare(`UPDATE permohonan
+    SET status_seminar=?,status_kemaskini=datetime('now','+8 hours')
+    WHERE id=? AND jenis_borang='pengadil_berdaftar'
+      AND tahun_permohonan IS NOT NULL
+      AND UPPER(TRIM(COALESCE(jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')`)
+    .bind(status, id).run();
+  if (!wroteRow(result)) {
+    return json({ error: true, message: 'Permohonan tahunan pengadil tidak dijumpai.' }, 404);
+  }
+  return json({ error: false,
+    message: status === null ? 'Rekod kehadiran seminar dikosongkan.'
+      : `Kehadiran seminar dikemaskini: ${status}.`,
+    status_seminar: status });
 }
 
 async function updateFitnessResult(body: Record<string, unknown>, env: Env): Promise<Response> {

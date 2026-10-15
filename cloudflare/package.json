@@ -28,6 +28,7 @@
     "test:profile-registration": "node --no-warnings tests/profile-registration.mjs",
     "test:new-referee-telegram": "node --no-warnings tests/new-referee-telegram.mjs",
     "test:referee-audit": "node --no-warnings tests/referee-audit.mjs",
+    "test:annual-licensing": "node --no-warnings tests/annual-licensing.mjs",
     "test:chair-config": "node --no-warnings tests/chair-config.mjs",
     "build:frontend": "npm --prefix ../frontend run build:prod",
     "dev": "wrangler dev",

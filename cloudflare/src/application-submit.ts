@@ -295,7 +295,7 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
         'Status: Menunggu Kelulusan Admin. Semak status di dashboard anda.',
         ...(type === 'pengadil_berdaftar' ? [
           'Salinan R1, R2 dan R4 dilampirkan. Cetak dan tandatangani perakuan kesihatan R4 sebelum ujian kecergasan.',
-          ...(year >= 2027 ? ['Pendaftaran akhir bergantung pada keputusan lulus ujian kecergasan.'] : []),
+          'Kehadiran seminar dan keputusan ujian kecergasan direkod secara berasingan. Kelulusan permohonan menjadikan anda Pengadil Berdaftar; ujian kecergasan sahaja menentukan kelayakan patch dan lesen Pengadil Negeri.',
         ] : type === 'penilai_berdaftar' ? [
           'Salinan R1 Pendaftaran Tahunan Penilai Pengadil dilampirkan untuk simpanan dan tandatangan anda.',
         ] : type === 'kelas3_fam' ? [

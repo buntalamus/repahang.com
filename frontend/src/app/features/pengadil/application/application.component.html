@@ -83,11 +83,14 @@
             </span>
           </div>
         </div>
-        @if (currentApp.jenis_borang === 'pengadil_berdaftar' && +applicationYear >= 2027 && currentApp.status_workflow === 'Admin Diluluskan') {
-          <p class="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">Dokumen telah disahkan. Pendaftaran akhir menunggu keputusan ujian kecergasan.</p>
+        @if (currentApp.jenis_borang === 'pengadil_berdaftar') {
+          <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <p class="text-slate-700"><span class="text-slate-500">Kehadiran seminar:</span> {{ currentApp.status_seminar || 'Belum direkodkan' }}</p>
+            <p class="text-slate-700"><span class="text-slate-500">Ujian kecergasan:</span> {{ currentApp.fitness_status || currentApp.status_ujian || 'Belum direkodkan' }}</p>
+          </div>
         }
-        @if (currentApp.jenis_borang === 'pengadil_berdaftar' && +applicationYear >= 2027 && currentApp.status_ujian) {
-          <p class="mt-4 text-sm font-medium text-slate-700">Keputusan ujian kecergasan: {{ currentApp.status_ujian }}</p>
+        @if (currentApp.jenis_borang === 'pengadil_berdaftar' && (currentApp.status === 'Approved' || currentApp.status_workflow === 'Admin Diluluskan' || currentApp.status_workflow === 'Lengkap')) {
+          <p class="mt-4 text-sm text-emerald-900 bg-emerald-50 border border-emerald-200 rounded-lg p-3">Permohonan anda telah diluluskan dan anda dikira sebagai Pengadil Berdaftar. Kehadiran seminar direkod berasingan. Ujian kecergasan sahaja menentukan kelayakan patch dan lesen Pengadil Negeri.</p>
         }
         @if (currentApp.pp_notes || currentApp.admin_notes) {
           <div class="mt-4 p-3 bg-slate-50 rounded-lg text-sm text-slate-600 space-y-1 border border-slate-200">

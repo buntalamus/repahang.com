@@ -176,8 +176,7 @@ export class AdminApplicationsComponent implements OnInit {
 
   getDisplayStatus(app: any): string {
     const s = app.status || '';
-    if (s === 'Menunggu Admin' || s === 'Menunggu PP Daerah' || s === 'Pembayaran' || s === 'Draf' ||
-        (s === 'Admin Diluluskan' && this.isAnnualFitnessApp(app))) {
+    if (s === 'Menunggu Admin' || s === 'Menunggu PP Daerah' || s === 'Pembayaran' || s === 'Draf') {
       return 'Menunggu';
     }
     if (s === 'Lengkap' || s === 'Admin Diluluskan' || s === 'Approved') {
@@ -268,7 +267,11 @@ export class AdminApplicationsComponent implements OnInit {
   }
 
   isAnnualFitnessApp(app: any): boolean {
-    return app.jenis_borang === 'pengadil_berdaftar' && +app.tahun_permohonan >= 2027 &&
+    return this.isAnnualRefereeApp(app) && +app.tahun_permohonan >= 2027;
+  }
+
+  isAnnualRefereeApp(app: any): boolean {
+    return app.jenis_borang === 'pengadil_berdaftar' &&
       !['Penilai Pengadil', 'Pegawai Pembangunan'].includes(app.jenis_pengadil);
   }
 
@@ -312,6 +315,39 @@ export class AdminApplicationsComponent implements OnInit {
         }
       },
       error: (err: any) => this.toast.error(err?.error?.message || 'Gagal mengemaskini status ujian.'),
+    });
+  }
+
+  showStatusSeminarModal = false;
+  statusSeminarAppId = 0;
+
+  openStatusSeminar(appId: number): void {
+    this.statusSeminarAppId = appId;
+    this.showStatusSeminarModal = true;
+  }
+
+  closeStatusSeminar(): void {
+    this.showStatusSeminarModal = false;
+    this.statusSeminarAppId = 0;
+  }
+
+  selectStatusSeminar(status: 'Hadir' | 'Tidak Hadir' | null): void {
+    const appId = this.statusSeminarAppId;
+    this.closeStatusSeminar();
+    this.api.post<any>('admin-applications.php', {
+      action: 'update_status_seminar',
+      id: appId,
+      status_seminar: status,
+    }).subscribe({
+      next: (res) => {
+        if (!res.error) {
+          this.toast.success(res.message || 'Kehadiran seminar dikemaskini.');
+          this.loadApplications();
+        } else {
+          this.toast.error(res.message);
+        }
+      },
+      error: (err: any) => this.toast.error(err?.error?.message || 'Gagal mengemaskini kehadiran seminar.'),
     });
   }
 

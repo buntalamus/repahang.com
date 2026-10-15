@@ -157,7 +157,7 @@ function generateFitnessTestFormHTML($data) {
 
     <div class="declaration">
         <h3>DEKLARASI KESIHATAN DAN PELEPASAN TANGGUNGAN (INDEMNITI) PENGADIL</h3>
-        <p>Saya seperti nama di atas, dengan ini secara sukarela bersetuju untuk mengambil bahagian dalam Ujian Kecergasan Fizikal anjuran Persatuan Bolasepak Negeri Pahang (PBNP) bagi melayakkan saya berdaftar dan bergiat aktif sebagai Pengadil Bolasepak untuk musim [Tahun/Musim].</p>
+        <p>Saya seperti nama di atas, dengan ini secara sukarela bersetuju untuk mengambil bahagian dalam Ujian Kecergasan Fizikal anjuran Persatuan Bolasepak Negeri Pahang (PBNP). Keputusan lulus ujian ini menentukan kelayakan saya untuk menerima patch dan lesen Pengadil Negeri bagi musim [Tahun/Musim].</p>
 
         <div class="declaration-item">
             <div class="checkbox"></div>

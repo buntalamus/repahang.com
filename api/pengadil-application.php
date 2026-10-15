@@ -555,8 +555,8 @@ function sendApplicationSuccessEmail($to, $nama, $applicationId, $jenisPengadil,
         'Tunggu pengesahan daripada pentadbir sistem.',
         'Semak status permohonan secara berkala di dashboard anda.',
         'Pastikan semua maklumat yang dihantar adalah tepat dan lengkap.',
-        $applicationYear >= 2027 && $jenisBorang === 'pengadil_berdaftar'
-            ? 'Bagi sesi 2027 dan seterusnya, pendaftaran akhir bergantung pada keputusan lulus ujian kecergasan.'
+        $jenisBorang === 'pengadil_berdaftar'
+            ? 'Kehadiran seminar direkod secara berasingan. Kelulusan permohonan menjadikan anda Pengadil Berdaftar; ujian kecergasan sahaja menentukan kelayakan patch dan lesen Pengadil Negeri.'
             : 'Semak keputusan akhir pendaftaran di dashboard.',
     ]);
     $dashboardPath = $jenisBorang === 'penilai_berdaftar' ? match ($userRole) {

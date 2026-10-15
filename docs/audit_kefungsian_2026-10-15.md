@@ -7,7 +7,7 @@ Semakan menggunakan salinan D1 produksi pada 15 Oktober 2026, kod Worker/Angular
 - **Pegawai Pembangunan Daerah** ialah peranan pentadbiran daerah yang masih disimpan sebagai kod `PP Daerah`. Akaunnya boleh juga layak sebagai pengadil atau Penilai Pengadil secara berasingan.
 - **Penilai Pengadil (Referee Assessor)** ialah peranan penilaian, bukan automatik pengadil. Kod `RA` dalam data lama merujuk kepadanya.
 - **Pengerusi Pengadil** ialah pelantikan berasingan untuk mengesahkan laporan penilaian kejohanan. Gelaran ini tidak disamakan dengan Pegawai Pembangunan Daerah.
-- **Pengadil Berdaftar** bagi tahun pilihan ialah pemohon tahunan yang diluluskan sebagai pengadil. Bagi 2027 dan seterusnya, status ujian kecergasan mesti `Lulus`.
+- **Pengadil Berdaftar** bagi tahun pilihan ialah pemohon tahunan yang permohonannya diluluskan. Kehadiran seminar dicatat berasingan. Bagi 2027 dan seterusnya, hanya keputusan ujian kecergasan `Lulus` melayakkan pengadil menerima patch dan lesen Pengadil Negeri.
 - **Pengadil Baharu** ialah pengguna pengadil yang belum pernah lulus pendaftaran tahunan dan belum lulus pada tahun pilihan.
 - **Pengadil Tidak Aktif** ialah pengguna yang pernah lulus pada tahun terdahulu tetapi belum lulus pendaftaran tahunan pada tahun pilihan. Ini termasuk yang tidak memohon, masih menunggu, atau gagal pada tahun pilihan; status permohonan semasa dipaparkan berasingan.
 - **Kelas III FAM** dan **Kelas I FAM** hanya diberi selepas keputusan ujian `Lulus`; kelulusan permohonan peperiksaan sahaja tidak mencukupi.

@@ -6,7 +6,7 @@ const {adminUsers,registeredReferees,statistics,currentUser,refereeMatches,asses
   applicationHistory,adminRefereeExport,districtRefereeExport,deleteApplication}=await bundle(
   "export {adminUsers} from '../src/admin-users'; export {registeredReferees} from '../src/registered-referees'; export {statistics} from '../src/statistics'; export {currentUser} from '../src/auth'; export {refereeMatches} from '../src/referee'; export {assessorDashboard,districtOverview} from '../src/role-dashboards'; export {districtApplications} from '../src/district-applications'; export {adminDashboardStats} from '../src/admin-dashboard'; export {adminApplications,applicationHistory,deleteApplication} from '../src/applications'; export {adminRefereeExport,districtRefereeExport} from '../src/referee-exports';"
 );
-const {db,DB,close}=openDatabase(['0001_worker_sessions']);
+const {db,DB,close}=openDatabase(['0001_worker_sessions','0019_annual_seminar_attendance']);
 const admin=db.prepare("SELECT id FROM users WHERE role='Admin' AND aktif=1 LIMIT 1").get();
 const cookie=await sessionCookie(db,admin.id);
 const env={DB,STAGING_AUTH_ENABLED:'1',STAGING_WRITES_ENABLED:'1'};

@@ -52,6 +52,7 @@ export async function registeredReferees(request: Request, env: Env): Promise<Re
           AND f.jenis_borang='ujian_kecergasan' AND f.status_ujian='Lulus'))
       THEN 1 ELSE 0 END`} AS patch_eligible,
     a.url_resit,a.status_kemaskini,a.tarikh_hantar,
+    a.status_seminar,
     u.tahun_mohon_kelas3,u.tahun_lulus_kelas3,
     u.pengadil_kebangsaan,u.pengadil_negeri,u.pengadil_daerah,
     p.nama_persatuan AS persatuan,
@@ -80,7 +81,7 @@ export async function registeredReferees(request: Request, env: Env): Promise<Re
     const chunk = ids.slice(offset, offset + 100);
     const placeholders = chunk.map(() => '?').join(',');
     const applications = await env.DB.prepare(`SELECT id,user_id,jenis_borang,jenis_permohonan,
-      jenis_pengadil,status,status_ujian,url_resit,admin_notes,tahun_permohonan,
+      jenis_pengadil,status,status_ujian,status_seminar,url_resit,admin_notes,tahun_permohonan,
       status_kemaskini,tarikh_hantar FROM permohonan
       WHERE user_id IN (${placeholders}) ORDER BY tarikh_hantar DESC`).bind(...chunk).all<Record<string, unknown>>();
     for (const application of applications.results) {

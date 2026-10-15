@@ -84,6 +84,7 @@ export async function adminRefereeExport(request: Request, env: Env): Promise<Re
       COALESCE(a.nama_waris,u.nama_waris) AS nama_waris,
       COALESCE(a.hubungan_waris,u.hubungan_waris) AS hubungan_waris,
       COALESCE(a.telefon_waris,u.telefon_waris) AS telefon_waris,
+      ${ra ? 'NULL' : 'a.status_seminar'} AS status_seminar,
       ${ra ? 'NULL' : `CASE WHEN a.tahun_permohonan>=2027 THEN a.status_ujian
         ELSE (SELECT f.status_ujian FROM permohonan f WHERE f.user_id=a.user_id
           AND f.tahun_permohonan=a.tahun_permohonan AND f.jenis_borang='ujian_kecergasan'
@@ -107,14 +108,15 @@ export async function adminRefereeExport(request: Request, env: Env): Promise<Re
   const headers = ['Bil','Nama Penuh','No. K/P','Jantina','Umur','Jenis Pengadil',
     'Persatuan Bola Sepak Daerah','Emel','No. Telefon','Alamat 1','Alamat 2','Poskod',
     'Daerah','Negeri','Saiz Baju','Status Kerja','Jawatan','Nama Majikan',
-    'Nama Waris','Hubungan Waris','Telefon Waris','Keputusan Ujian Kecergasan','Kelayakan Patch/Lesen Negeri'];
+    'Nama Waris','Hubungan Waris','Telefon Waris',...(ra ? [] : ['Kehadiran Seminar']),
+    'Keputusan Ujian Kecergasan','Kelayakan Patch/Lesen Negeri'];
   const rows = result.results.map((r, i) => [i + 1, r.nama_penuh, r.no_kp,
     String(r.jantina ?? '').toUpperCase() === 'LELAKI' ? 'Lelaki'
       : String(r.jantina ?? '').toUpperCase() === 'PEREMPUAN' ? 'Perempuan' : r.jantina,
     ageFromIc(r.no_kp, today), r.jenis_pengadil, r.persatuan, r.emel, r.no_telefon,
     r.alamat1, r.alamat2, r.poskod, r.daerah, r.negeri, r.saiz_baju,
     r.status_kerja, r.jawatan, r.nama_majikan, r.nama_waris, r.hubungan_waris,
-    r.telefon_waris, r.fitness_status, r.license_status]);
+    r.telefon_waris, ...(ra ? [] : [r.status_seminar]), r.fitness_status, r.license_status]);
   return csv(headers, rows, `senarai-${ra ? 'penilai-pengadil' : 'pengadil'}-${year}.csv`);
 }
 
