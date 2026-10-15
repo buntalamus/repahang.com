@@ -80,14 +80,16 @@ export async function registeredReferees(request: Request, env: Env): Promise<Re
       WHERE user_id IN (${placeholders}) ORDER BY tarikh_hantar DESC`).bind(...chunk).all<Record<string, unknown>>();
     for (const application of applications.results) {
       for (const row of byUser.get(Number(application.user_id)) ?? []) {
-        (row.approved_applications as Record<string, unknown>[]).push(application);
+        const {user_id:_userId,...publicApplication} = application;
+        (row.approved_applications as Record<string, unknown>[]).push(publicApplication);
       }
     }
     const matches = await env.DB.prepare(`SELECT id,user_id,tarikh,jenis,tempat,jawatan,home_team,away_team
       FROM perlawanan WHERE user_id IN (${placeholders}) ORDER BY tarikh DESC`).bind(...chunk).all<Record<string, unknown>>();
     for (const match of matches.results) {
       for (const row of byUser.get(Number(match.user_id)) ?? []) {
-        (row.perlawanan as Record<string, unknown>[]).push(match);
+        const {user_id:_userId,...publicMatch} = match;
+        (row.perlawanan as Record<string, unknown>[]).push(publicMatch);
       }
     }
   }

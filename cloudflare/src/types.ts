@@ -4,6 +4,7 @@ export interface Env extends EmailEnv {
   DB: D1Database;
   MEDIA: R2Bucket;
   ASSETS: Fetcher;
+  BROWSER: BrowserRun;
   BASE_URL: string;
   STAGING_AUTH_ENABLED: string;
   STAGING_WRITES_ENABLED: string;

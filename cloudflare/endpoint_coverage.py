@@ -36,6 +36,8 @@ BACKGROUND_JOBS: dict[str, str] = {
 # A routed GET must not be mistaken for complete PHP GET/POST parity.
 KNOWN_PARTIAL_ROUTES = {
     "admin-applications.php": "blast_kelas3_welcome belum dipindahkan",
+    "download-borang-pendaftaran.php": "PDF R1/R2/R4 tahunan dan R1 RA tersedia; R11 lama masih perlu pariti visual dan lampiran emel permohonan belum dipindahkan",
+    "pengadil-application.php": "GET tersedia; POST permohonan dan lampiran emel belum dipindahkan",
     "download-borang-futsal.php": "HTML boleh dicetak; belum PDF binari",
     "download-borang-ujian-kecergasan.php": "HTML boleh dicetak; belum PDF binari",
     "download-jadual-lantikan.php": "HTML boleh dicetak; belum PDF binari",

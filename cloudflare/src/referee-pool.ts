@@ -1,4 +1,5 @@
 import { currentUser, json } from './auth';
+import { mysqlTextOrder } from './php/mysql-order';
 import { boundedJson } from './request';
 import type { Env } from './types';
 
@@ -62,7 +63,8 @@ export async function refereePool(request: Request, env: Env): Promise<Response>
       LEFT JOIN pengadil_luar pl ON pl.id=pp.pengadil_luar_id
       WHERE pp.kejohanan_id=? ORDER BY nama COLLATE NOCASE ASC
     `).bind(tournamentId).all();
-    return json({ error: false, data: rows.results.map((item) => ({
+    return json({ error: false, data: rows.results.sort((a, b) =>
+      mysqlTextOrder(a.nama, b.nama)).map((item) => ({
       ...item,
       wilayah: item.peringkat_kejohanan === 'Negeri' ? (item.daerah || '-') : (item.negeri || '-'),
       telegram_linked: Boolean(item.telegram_linked),

@@ -153,7 +153,7 @@ export async function assessmentReports(request: Request, env: Env): Promise<Res
         k.nama AS nama_kejohanan
       FROM laporan_penilaian lp JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id
       JOIN kejohanan k ON k.id=jp.kejohanan_id WHERE lp.penilai_id=?
-      ORDER BY jp.tarikh DESC,lp.id DESC
+      ORDER BY jp.tarikh DESC
     `).bind(user.id).all<Row>();
     return json({error:false,data:await attachDetails(env,result.results,admin)});
   }
@@ -172,7 +172,10 @@ export async function assessmentReports(request: Request, env: Env): Promise<Res
       WHERE lp.id=? AND (?=1 OR lp.penilai_id=?) LIMIT 1
     `).bind(id,admin ? 1 : 0,user.id).first<Row>();
     if (!row) return json({error:true,message:'Laporan tidak dijumpai.'},404);
-    return json({error:false,laporan:(await attachDetails(env,[row],admin))[0]});
+    const report = (await attachDetails(env,[row],admin))[0];
+    // worker_revision is an internal concurrency marker, absent from PHP JSON.
+    const {worker_revision:_revision,...publicReport} = report;
+    return json({error:false,laporan:publicReport});
   }
   if (params.has('jadual_id')) {
     const jadualId = positiveId(params.get('jadual_id'));
@@ -201,7 +204,7 @@ export async function assessmentReports(request: Request, env: Env): Promise<Res
     LEFT JOIN users u_pen ON u_pen.id=lp.penilai_id
     LEFT JOIN lantikan_pengadil la ON la.id=lp.lantikan_id
     LEFT JOIN pengadil_luar pl_pen ON pl_pen.id=la.pengadil_luar_id
-    WHERE (?='' OR lp.status=?) ORDER BY jp.tarikh DESC,lp.id DESC
+    WHERE (?='' OR lp.status=?) ORDER BY jp.tarikh DESC
   `).bind(status,status).all<Row>();
   return json({error:false,data:await attachDetails(env,result.results,true)});
 }

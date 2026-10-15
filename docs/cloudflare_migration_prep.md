@@ -939,8 +939,37 @@ Cloudflare (`x-turbo-charged-by: LiteSpeed`). Endpoint Worker
 `/api/__migration-health` memulangkan 404 pada domain production tetapi 200
 pada URL staging. Pemindahan nameserver **tidak** memasang route atau custom
 domain Worker pada laman production. Jangan route trafik production ke Worker
-staging yang masih mempunyai 5 endpoint frontend tanpa route dan beberapa
+staging yang masih mempunyai laluan dan tindakan separa, termasuk POST
+permohonan tahunan, lampiran emel dan pengesahan penghantaran sebenar, serta beberapa
 route separa yang belum selesai.
+
+### Sambungan pariti dan PDF (15 Oktober)
+
+Chat Claude yang terakhir telah memindahkan aliran Pengerusi, jawapan lantikan,
+Telegram dan laporan RA; pelan `.claude/plans/saya-nak-sambung-kerja-abundant-frost.md`
+merujuk tugas yang **sudah** siap dalam commit terdahulu. Semakan setempat pada
+salinan MySQL/D1 yang sama kini mencatat **402/413** respons baca serupa tepat,
+**11** berbeza pada susunan baris yang mempunyai nilai sama, dan **0** perbezaan
+status/badan yang lain. Matriks PDF membandingkan kebenaran akses, status dan
+jenis media; ia **tidak** membandingkan bait atau rupa PDF.
+
+`download-borang-pendaftaran.php` kini mempunyai laluan Worker: pemohon atau
+PP Daerah yang layak boleh memuat turun PDF tahunan Pengadil R1/R2/R4 dan
+RA R1. R2 mengira lebar jawatan serta membalut nama perlawanan; R4 mengukur
+alamat melalui aliran teks, bukan garisan awal tetap. Browser Run Quick Action
+menjana fail binari, dengan cache PDF peribadi dimatikan. Ujian tempatan
+meliputi pemilikan, RA, 51 baris R2 dan susun atur alamat. Pratonton contoh
+51 baris ialah `output/pdf/registration_worker_preview.pdf` (data rekaan,
+7 halaman A4); binding Cloudflare jauh juga memulangkan PDF A4 tujuh halaman
+dengan jumlah 51 perlawanan dan perakuan kesihatan. Ini ujian sintetik, bukan
+pengesahan muat turun melalui akaun production.
+
+**Baki PDF/aliran permohonan:** reka letak R11 lama masih perlu semakan visual;
+`permohonan_ujian_bertulis` dalam dump tiada lajur `jenis_permohonan` bagi
+`ujian_kelas1`, maka borang itu belum boleh dijana daripada data sedia ada.
+POST `pengadil-application.php` masih 503 di Worker, maka salinan borang
+belum dilampirkan melalui emel semasa permohonan baharu. Ini perlu dipindahkan
+sebelum `api_complete` ditukar kepada `true` atau trafik production dialihkan.
 
 Deployment staging 14 Oktober daripada commit `edbc69a`, versi Worker
 `437e71ab-2360-420c-80cf-58069c2bd9b1`, disahkan pada URL staging:

@@ -3,7 +3,13 @@ import {readFileSync} from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
 import ts from 'typescript';
 
+const orderingSource=readFileSync(new URL('../src/php/mysql-order.ts',import.meta.url),'utf8');
+const orderingCompiled=ts.transpileModule(orderingSource,{compilerOptions:{
+  target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,
+}}).outputText;
 const source=readFileSync(new URL('../src/telegram-blast-preview.ts',import.meta.url),'utf8')
+  .replace("import {mysqlTextOrder} from './php/mysql-order';",
+    orderingCompiled.replace('export function mysqlTextOrder','function mysqlTextOrder'))
   .replace("import {currentUser,json} from './auth';",`
     const currentUser=async()=>globalThis.actor;
     const json=(body,status=200)=>Response.json(body,{status});`);

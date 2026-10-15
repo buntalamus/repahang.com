@@ -86,7 +86,7 @@ export async function refereeMatches(request: Request, env: Env): Promise<Respon
       total,
       current_year: Number(yearStats?.current_year ?? 0),
       verified_year: verified,
-      year,
+      year: String(year),
       minimum_required: 20,
       eligible: verified >= 20,
     },

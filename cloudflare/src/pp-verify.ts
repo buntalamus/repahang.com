@@ -22,7 +22,7 @@ export async function ppVerify(request: Request, env: Env): Promise<Response> {
   const input = await boundedJson(request, 8192);
   if (input instanceof Response) return input;
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    return json({ error: true, message: 'Parameter tidak sah.' }, 422);
+    return json({ error: true, message: 'Invalid request parameters.' }, 422);
   }
   const body = input as Record<string, unknown>;
   const id = Number(body.permohonan_id);
@@ -30,7 +30,7 @@ export async function ppVerify(request: Request, env: Env): Promise<Response> {
   const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
   if (!Number.isSafeInteger(id) || id < 1 || !['approve', 'reject'].includes(String(action)) ||
       (body.notes != null && typeof body.notes !== 'string') || notes.length > 2000) {
-    return json({ error: true, message: 'Parameter tidak sah.' }, 422);
+    return json({ error: true, message: 'Invalid request parameters.' }, 422);
   }
   if (action === 'reject' && !notes) return json({ error: true, message: 'Sebab penolakan diperlukan.' }, 422);
   const application = await env.DB.prepare(`

@@ -1,4 +1,5 @@
 import { currentUser, json } from './auth';
+import { mysqlTextOrder } from './php/mysql-order';
 import { boundedJson } from './request';
 import type { Env } from './types';
 
@@ -88,7 +89,8 @@ export async function externalReferees(request: Request, env: Env): Promise<Resp
     if (state) { where.push('negeri=?'); params.push(state); }
     const result = await env.DB.prepare(`SELECT * FROM pengadil_luar ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
       ORDER BY nama COLLATE NOCASE`).bind(...params).all();
-    return json({ error: false, data: result.results });
+    return json({ error: false, data: result.results.sort((a, b) =>
+      mysqlTextOrder(a.nama, b.nama)) });
   }
   if (env.STAGING_WRITES_ENABLED !== '1') {
     return json({ error: true, message: 'Tindakan tulis belum tersedia di staging.' }, 503);

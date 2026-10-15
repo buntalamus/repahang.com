@@ -30,6 +30,7 @@ import { scheduleReport } from './schedule-report';
 import { printSchedule } from './print-schedule';
 import { fitnessForm } from './fitness-form';
 import { futsalForm } from './futsal-form';
+import { registrationPdf } from './registration-pdf';
 import { chairConfig } from './chair-config';
 import { printAssessment } from './print-assessment';
 import { chairApprovalLink } from './chair-approval-link';
@@ -114,8 +115,7 @@ async function userProfile(request: Request, env: Env): Promise<Response> {
            u.url_gambar_profil, u.umur, u.jenis_pengadil, u.tahun_mula_aktif,
            u.saiz_baju, u.telegram_chat_id, u.password_changed,
            pbd.nama_persatuan AS persatuan_bolasepak_daerah,
-           (SELECT p.jenis_pengadil FROM permohonan p WHERE p.user_id=u.id
-            ORDER BY p.tahun_permohonan DESC, p.id DESC LIMIT 1) AS permohonan_jenis_pengadil,
+           p.jenis_pengadil AS permohonan_jenis_pengadil,
            (SELECT p.tahun_permohonan FROM permohonan p
             WHERE p.user_id=u.id AND p.jenis_borang='ujian_bertulis'
               AND p.status_workflow IN ('Lengkap','Admin Diluluskan','Bayaran Diterima')
@@ -123,6 +123,7 @@ async function userProfile(request: Request, env: Env): Promise<Response> {
     FROM users u
     LEFT JOIN persatuan_bolasepak_daerah pbd
       ON pbd.id=COALESCE(u.persatuan_id,u.district_id)
+    LEFT JOIN permohonan p ON p.user_id=u.id
     WHERE u.id=? LIMIT 1
   `).bind(user.id).first();
   if (!profile) return json({ error: true, message: 'Profil tidak dijumpai.' }, 404);
@@ -236,6 +237,7 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/download-jadual-lantikan.php') return printSchedule(request, env);
   if (pathname === '/api/download-borang-ujian-kecergasan.php') return fitnessForm(request, env);
   if (pathname === '/api/download-borang-futsal.php') return futsalForm(request, env);
+  if (pathname === '/api/download-borang-pendaftaran.php') return registrationPdf(request, env);
   if (pathname === '/api/kejohanan-pengesah-laporan.php') return chairConfig(request, env);
   if (pathname === '/api/download-laporan-penilaian.php') return printAssessment(request, env);
   if (pathname === '/api/laporan-pengesahan-token.php') return chairApprovalLink(request, env);

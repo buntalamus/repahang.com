@@ -1,4 +1,5 @@
 import {currentUser,json} from './auth';
+import {mysqlTextOrder} from './php/mysql-order';
 import type {Env} from './types';
 
 type External = Record<string,unknown> & {
@@ -58,7 +59,9 @@ export async function externalTelegramBlastPreview(request:Request,env:Env):Prom
   const counts={total_external:pool.results.length,linked:0,no_email:0,invalid_email:0,
     ready:0,failed:0,emailed_waiting:0,initial_sendable:0,resendable:0};
   const bot=(env.TELEGRAM_BOT_USERNAME || 'refpahang_bot').replace(/^@+/,'');
-  const recipients=pool.results.map((row)=>{
+  const recipients=pool.results.sort((a,b)=>
+    mysqlTextOrder(a.negeri,b.negeri) || mysqlTextOrder(a.nama,b.nama) || a.id-b.id
+  ).map((row)=>{
     const {telegram_chat_id,tg_link_token,...rest}=row;
     const emel=String(row.emel ?? '').trim();
     const linked=String(telegram_chat_id ?? '').trim()!=='';

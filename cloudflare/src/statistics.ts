@@ -5,7 +5,8 @@ type Row = Record<string, unknown>;
 type Counts = Record<string, number>;
 
 function count(map: Counts, key: unknown): void {
-  const name = typeof key === 'string' && key !== '' ? key : 'Tidak Dinyatakan';
+  // PHP's ?? substitutes only NULL; an empty string is a distinct key.
+  const name = typeof key === 'string' ? key : 'Tidak Dinyatakan';
   map[name] = (map[name] ?? 0) + 1;
 }
 
@@ -79,7 +80,7 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
     env.DB.prepare(`SELECT p.user_id,p.jawatan,p.tarikh,p.tempat,p.jenis,u.nama_penuh
       FROM perlawanan p JOIN users u ON u.id=p.user_id
       WHERE substr(p.tarikh,1,4)=? AND p.lantikan_id IS NULL
-        AND lower(u.role)='pengadil'`).bind(yearText).all<Row>(),
+        AND lower(u.role)='pengadil' ORDER BY p.id`).bind(yearText).all<Row>(),
     env.DB.prepare(`SELECT p.jenis_borang,p.jenis_permohonan,p.status_ujian,p.workflow_status,
       p.tarikh_hantar,p.daerah,pb.nama_persatuan
       FROM permohonan p LEFT JOIN persatuan_bolasepak_daerah pb ON pb.id=p.persatuan_id
@@ -177,7 +178,10 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
   const uniqueMatches = new Set<string>();
   const leadMatchCount = new Map<number, { name: string; count: number }>();
   for (const match of matches.results) {
-    uniqueMatches.add(`${match.tarikh ?? ''}\u0000${match.tempat ?? ''}\u0000${match.jenis ?? ''}`);
+    // MySQL COUNT(DISTINCT CONCAT(...)) ignores NULL and uses a case-insensitive collation.
+    if (match.tarikh != null && match.tempat != null && match.jenis != null) {
+      uniqueMatches.add(`${match.tarikh}${match.tempat}${match.jenis}`.toLowerCase());
+    }
     const id = number(match.user_id);
     const name = String(match.nama_penuh ?? 'Tidak Dinyatakan');
     if (match.jawatan === 'Pengadil') {
@@ -215,7 +219,10 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
     monthCount(stats.monthly as Counts, exam.tarikh_hantar);
     count(stats.by_district as Counts, exam.daerah ?? exam.nama_persatuan);
   }
-  for (const stats of Object.values(examStats)) stats.by_district = sorted(stats.by_district as Counts);
+  for (const stats of Object.values(examStats)) {
+    const districts = stats.by_district as Counts;
+    stats.by_district = Object.keys(districts).length ? sorted(districts) : [];
+  }
 
   const perReferee = new Map<string, { nama: string; total: number; count: number; best: number }>();
   const distribution: Counts = { '1-3': 0, '4-5': 0, '6-7': 0, '8-9': 0, '10': 0 };

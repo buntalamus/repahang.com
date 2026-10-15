@@ -39,14 +39,13 @@ export async function adminTestApplications(request: Request, env: Env): Promise
       return json({ error: true, message: 'Jenis atau status tidak sah.' }, 400);
     }
     const limit = Math.min(500, Math.max(1, Number(search.get('limit')) || 100));
-    const rows = await env.DB.prepare(`SELECT p.id,p.user_id,p.nama_penuh,p.no_kp,p.emel,
-      p.jenis_permohonan,p.jenis_borang,p.workflow_status,p.tarikh_hantar,
-      p.admin_notes,u.email AS user_email,u.no_telefon AS user_phone,
+    const rows = await env.DB.prepare(`SELECT p.*,
+      u.email AS user_email,u.no_telefon AS user_phone,
       u.url_gambar_profil,pb.nama_persatuan AS district_nama
       FROM permohonan p LEFT JOIN users u ON u.id=p.user_id
       LEFT JOIN persatuan_bolasepak_daerah pb ON pb.id=p.persatuan_id
       WHERE p.jenis_permohonan=? AND (?='all' OR p.workflow_status=?)
-      ORDER BY p.tarikh_hantar DESC,p.id DESC LIMIT ?`)
+      ORDER BY p.tarikh_hantar DESC LIMIT ?`)
       .bind(kind, status, statusNames[status] ?? '', limit).all<Record<string, unknown>>();
     const statistics = await env.DB.prepare(`SELECT
       SUM(CASE WHEN workflow_status='Pending' AND jenis_permohonan='ujian_kecergasan' THEN 1 ELSE 0 END) AS pending_fitness,
@@ -61,11 +60,9 @@ export async function adminTestApplications(request: Request, env: Env): Promise
       SUM(CASE WHEN jenis_permohonan='ujian_bertulis' THEN 1 ELSE 0 END) AS total_written
       FROM permohonan WHERE jenis_permohonan IN ('ujian_kecergasan','ujian_bertulis','ujian_kelas1_fam')`)
       .first();
-    const data = rows.results.map((row) => ({ ...row,
-      status: String(row.workflow_status ?? 'Pending').toLowerCase(),
-      created_at: row.tarikh_hantar,
-    }));
-    return json({ error: false, data, applications: data, statistics });
+    const phpStatistics = Object.fromEntries(Object.entries(statistics ?? {}).map(([key, value]) =>
+      [key, value === null ? null : String(value)]));
+    return json({ error: false, applications: rows.results, statistics: phpStatistics });
   }
   if (env.STAGING_WRITES_ENABLED !== '1') {
     return json({ error: true, message: 'Tindakan tulis belum tersedia di staging.' }, 503);

@@ -36,6 +36,10 @@ const env={DB,BASE_URL:'https://refpahang.com',TELEGRAM_BOT_USERNAME:'refpahang_
   MAIL_PENGESAHAN_USER:'pengesahan@refpahang.com',MAIL_PENGESAHAN_NAME:'Pengesahan Perlawanan Pahang',
   EMAIL:{send:async(message)=>{sent.push(message);return {messageId:'parity'};}},
   MEDIA:{get:async()=>null,head:async()=>null},
+  // Binary PDF bytes are checked by the dedicated form test and visual QA.
+  // The parity matrix compares authorization, status and MIME type only.
+  BROWSER:{quickAction:async()=>new Response(new TextEncoder().encode('%PDF-1.7\n'),
+    {headers:{'Content-Type':'application/pdf'}})},
   ASSETS:{fetch:async()=>new Response('asset',{status:200})}};
 
 /** PHP 'php' session serialisation of the keys login.php sets. */
@@ -119,6 +123,19 @@ function diff(php,wk,path='$',out=[]) {
   return out;
 }
 
+// Classify ordering-only differences without treating them as parity passes.
+// MySQL and D1 can return tied rows in a different order when PHP has no
+// secondary ORDER BY. Keeping the strict result separately exposes that risk.
+function canonical(value) {
+  if (Array.isArray(value)) {
+    return value.map(canonical).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  }
+  if (value && typeof value==='object') {
+    return Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])]));
+  }
+  return value;
+}
+
 const report=[];
 try {
   for (const test of cases) {
@@ -138,11 +155,14 @@ try {
     } else if (php.type.split(';')[0]!==wk.type.split(';')[0]) {
       problems.push(`content-type php=${php.type} worker=${wk.type}`);
     }
-    report.push({name:test.name,ok:problems.length===0,problems});
-    console.log(`${problems.length===0?'OK  ':'DIFF'} ${test.name}`);
+    const orderOnly=problems.length>0 && pj!==null && wj!==null &&
+      diff(canonical(pj),canonical(wj)).length===0;
+    report.push({name:test.name,ok:problems.length===0,orderOnly,problems});
+    console.log(`${problems.length===0?'OK  ':orderOnly?'ORDER':'DIFF'} ${test.name}`);
     for (const problem of problems.slice(0,12)) console.log(`       ${problem}`);
   }
 } finally {close();}
 const failed=report.filter((entry)=>!entry.ok).length;
-console.log(`\n${report.length-failed}/${report.length} identical`);
+const orderOnly=report.filter((entry)=>entry.orderOnly).length;
+console.log(`\n${report.length-failed}/${report.length} identical; ${orderOnly} ordering-only; ${failed-orderOnly} other differences`);
 writeFileSync(join(phpRoot,'..','parity-report.json'),JSON.stringify(report,null,2));

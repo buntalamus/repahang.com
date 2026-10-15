@@ -172,7 +172,8 @@ export async function session(request: Request, env: Env): Promise<Response> {
     user_id: user.id,
     user_email: user.email,
     user_role: user.role,
-    user_jenis_pengadil: user.jenis_pengadil,
+    // session.php refreshes Admin classification with fetchColumn() ?: null.
+    user_jenis_pengadil: user.role === 'Admin' ? (user.jenis_pengadil || null) : user.jenis_pengadil,
     user_persatuan_id: user.persatuan_id ?? user.district_id,
     user_persatuan_name: user.persatuan_nama,
     nama_penuh: user.nama_penuh,

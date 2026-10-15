@@ -99,10 +99,7 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
   const url = new URL(request.url);
   const status = url.searchParams.get('status') ?? 'all';
   const jenisBorang = ADMIN_TYPES[url.searchParams.get('type') ?? ''] ?? null;
-  const limitRaw = url.searchParams.get('limit');
-  const limit = limitRaw && positiveId(limitRaw) ? Math.min(Number(limitRaw), 500) : 500;
-  const yearRaw = url.searchParams.get('year');
-  const year = yearRaw && /^20[0-9]{2}$/.test(yearRaw) ? Number(yearRaw) : null;
+  const limit = Number.parseInt(url.searchParams.get('limit') ?? '0', 10) || 0;
 
   const rows = await env.DB.prepare(`
     SELECT p.id, p.nama_penuh, p.jenis_permohonan AS jenis_permohonan_slug,
@@ -143,12 +140,11 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
           ELSE p.workflow_status END
       ELSE p.status_workflow END=?)
       AND (? IS NULL OR p.jenis_borang=?)
-      AND (? IS NULL OR p.tahun_permohonan=?)
-    ORDER BY p.tarikh_hantar DESC, p.id DESC LIMIT ?
-  `).bind(status, status, jenisBorang, jenisBorang, year, year, limit).all();
+    ORDER BY p.tarikh_hantar DESC
+  `).bind(status, status, jenisBorang, jenisBorang).all();
 
   const month = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit',
+    timeZone: 'Asia/Kuala_Lumpur', month: '2-digit',
   }).format(new Date());
   const stats = await env.DB.prepare(`
     SELECT
@@ -157,7 +153,7 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
         THEN 1 ELSE 0 END) AS pending,
       SUM(CASE WHEN (p.status_workflow='Lengkap'
         OR (p.jenis_borang='ujian_kelas1_fam' AND p.workflow_status='Approved'))
-        AND substr(p.tarikh_hantar,1,7)=? THEN 1 ELSE 0 END) AS approved_this_month,
+        AND substr(p.tarikh_hantar,6,2)=? THEN 1 ELSE 0 END) AS approved_this_month,
       SUM(CASE WHEN p.status_workflow='Lengkap'
         OR (p.jenis_borang='ujian_kelas1_fam' AND p.workflow_status='Approved')
         THEN 1 ELSE 0 END) AS total_approved,
@@ -166,7 +162,12 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
         THEN 1 ELSE 0 END) AS total_rejected
     FROM permohonan p
   `).bind(month).first();
-  return json({ error: false, applications: rows.results, statistics: stats });
+  // PDO returns aggregate values as strings in the original PHP response.
+  const statistics = Object.fromEntries(Object.entries(stats ?? {}).map(([key, value]) =>
+    [key, value === null ? null : String(value)]));
+  return json({ error: false,
+    applications: limit > 0 ? rows.results.slice(0, limit) : rows.results,
+    statistics });
 }
 
 /** Retain match history when an Admin removes an annual application. */

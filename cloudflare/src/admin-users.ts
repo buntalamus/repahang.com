@@ -48,7 +48,7 @@ export async function adminUsers(request: Request, env: Env): Promise<Response> 
              p.nama_persatuan AS persatuan_nama, p.kod_persatuan
       FROM users u
       LEFT JOIN persatuan_bolasepak_daerah p ON p.id=u.persatuan_id
-      ORDER BY u.created_at DESC, u.id DESC
+      ORDER BY u.created_at DESC
     `).all(),
     env.DB.prepare(`
       SELECT id, nama_persatuan FROM persatuan_bolasepak_daerah
