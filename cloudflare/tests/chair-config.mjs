@@ -5,7 +5,12 @@ import ts from 'typescript';
 const source = readFileSync(new URL('../src/chair-config.ts', import.meta.url), 'utf8')
   .replace("import { currentUser, json } from './auth';", `
     const currentUser = async () => globalThis.chairUser;
-    const json = (value, status=200) => Response.json(value, {status});`);
+    const json = (value, status=200) => Response.json(value, {status});`)
+  .replace("import { chairDispatchIntegrity, chairDispatchStatements } from './chair-dispatch';",
+    'const chairDispatchIntegrity = () => { throw new Error(\'Unexpected write\'); };'
+    + 'const chairDispatchStatements = chairDispatchIntegrity;')
+  .replace("import { boundedJson } from './request';",
+    'const boundedJson = async () => { throw new Error(\'Unexpected body read\'); };');
 const compiled = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText;

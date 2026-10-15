@@ -18,6 +18,8 @@ const {submitAssessment,submitAssessmentRequest}=await load('../src/report-submi
   ["import {boundedJson} from './request';",'const boundedJson=async(request)=>request.json();'],
   ["import {overrideAdminReport} from './report-admin-override';",
     "const overrideAdminReport=async()=> 'already_processed';"],
+  ["import {retryChairNotification} from './chair-dispatch';",
+    'const retryChairNotification=(...args)=>globalThis.retryChairNotification(...args);'],
 ]);
 const {processChairDeliveries}=await load('../src/chair-delivery.ts',[
   ["import {buildRefpahangEmail,sendRefpahangEmail} from '../mail';",
@@ -58,6 +60,7 @@ try {
   db.exec(readFileSync(new URL('../migrations/0005_report_confirmation_outbox.sql',import.meta.url),'utf8'));
   db.exec(readFileSync(new URL('../migrations/0007_report_admin_override.sql',import.meta.url),'utf8'));
   db.exec(readFileSync(new URL('../migrations/0006_report_submission_outbox.sql',import.meta.url),'utf8'));
+  db.exec(readFileSync(new URL('../migrations/0008_chair_assignment_queue.sql',import.meta.url),'utf8'));
   const candidates=db.prepare(`SELECT ra.id,ra.jadual_id,ra.pengadil_id
     FROM lantikan_pengadil ra JOIN jadual_perlawanan jp ON jp.id=ra.jadual_id
     JOIN kejohanan_pengesah_laporan kp ON kp.kejohanan_id=jp.kejohanan_id AND kp.aktif=1
@@ -128,7 +131,7 @@ try {
   const admins=db.prepare("SELECT count(*) n FROM users WHERE role='Admin' AND aktif=1").get().n;
   assert.equal(db.prepare('SELECT count(*) n FROM notifications').get().n-before.notifications,admins);
   assert.equal(db.prepare('SELECT count(*) n FROM laporan_pengesahan_audit').get().n-before.audit,2);
-  assert.equal(db.prepare('SELECT count(*) n FROM worker_chair_deliveries WHERE report_id=?')
+  assert.equal(db.prepare('SELECT count(*) n FROM worker_chair_jobs WHERE report_id=?')
     .get(first.reportId).n,2);
   const adminId=db.prepare("SELECT id FROM users WHERE role='Admin' AND aktif=1 LIMIT 1").get().id;
   globalThis.testUser={id:adminId,role:'Admin'};
@@ -139,7 +142,7 @@ try {
     .get(first.reportId,adminId).n,1);
   globalThis.testUser={id:candidates[0].pengadil_id,role:'Penilai'};
   assert.equal((await submitAssessmentRequest(request(payload),env)).status,409);
-  assert.equal(db.prepare('SELECT count(*) n FROM worker_chair_deliveries WHERE report_id=?')
+  assert.equal(db.prepare('SELECT count(*) n FROM worker_chair_jobs WHERE report_id=?')
     .get(first.reportId).n,2);
   env.REPORT_DELIVERY_ENABLED='0';
   assert.equal((await processChairDeliveries(env)).processed,0);
@@ -185,7 +188,7 @@ try {
   const retry=await processChairDeliveries(env,1,{...senders,
     email:async()=>{throw new Error('Synthetic provider failure');}});
   assert.equal(retry.failed,1);
-  assert.equal(db.prepare(`SELECT count(*) n FROM worker_chair_deliveries
+  assert.equal(db.prepare(`SELECT count(*) n FROM worker_chair_jobs
     WHERE report_id=? AND channel='email' AND status='pending' AND attempts=1`)
     .get(tokenResult.id).n,1);
   const withoutChair=db.prepare(`SELECT ra.id,ra.jadual_id,ra.pengadil_id
@@ -211,7 +214,7 @@ try {
   assert.equal((await noChair.json()).pengesahan.configured,0);
   assert.equal(db.prepare('SELECT approval_token FROM laporan_pengesahan_pengerusi WHERE laporan_id=?')
     .get(noChairDraft.reportId).approval_token,null);
-  assert.equal(db.prepare('SELECT count(*) n FROM worker_chair_deliveries WHERE report_id=?')
+  assert.equal(db.prepare('SELECT count(*) n FROM worker_chair_jobs WHERE report_id=?')
     .get(noChairDraft.reportId).n,0);
   console.log('RA submission: imported D1 atomicity, chair queue, Admin copy, delivery and guards passed');
 } finally {db.close();rmSync(directory,{recursive:true,force:true});}

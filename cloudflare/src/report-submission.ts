@@ -1,6 +1,7 @@
 import {currentUser,json} from './auth';
 import {boundedJson} from './request';
 import {overrideAdminReport} from './report-admin-override';
+import {retryChairNotification} from './chair-dispatch';
 import type {Env} from './types';
 
 type Report={id:number;status:string;penilai_id:number|null;jadual_id:number;
@@ -134,13 +135,15 @@ export async function submitAssessment(env:Env,reportId:number,userId:number|nul
         json_object('admin_count',(SELECT count(*) FROM users WHERE role='Admin' AND aktif=1)),${now}
       FROM laporan_pengesahan_pengerusi a WHERE a.laporan_id=? AND ${active}`)
       .bind(reportId,reportId,nonce),
-    env.DB.prepare(`INSERT INTO worker_chair_deliveries(delivery_key,report_id,channel)
-      SELECT 'chair:'||a.laporan_id||':'||channels.channel,a.laporan_id,channels.channel
+    env.DB.prepare(`INSERT INTO worker_chair_jobs
+      (delivery_key,approval_id,report_id,token_tag,channel,origin)
+      SELECT 'chair:'||a.laporan_id||':'||channels.channel||':'||?,a.id,a.laporan_id,
+        substr(a.approval_token,1,16),channels.channel,'submission'
       FROM laporan_pengesahan_pengerusi a
       CROSS JOIN (SELECT 'email' AS channel UNION ALL SELECT 'telegram') channels
       WHERE a.laporan_id=? AND a.kejohanan_pengesah_id IS NOT NULL
-        AND a.status='Menunggu' AND ${active}`)
-      .bind(reportId,reportId,nonce),
+        AND length(a.approval_token)=64 AND a.status='Menunggu' AND ${active}`)
+      .bind(nonce,reportId,reportId,nonce),
     env.DB.prepare(`UPDATE worker_report_submissions SET integrity_checked=CASE WHEN
       (SELECT status FROM laporan_penilaian WHERE id=?)='Dihantar'
       AND (SELECT status FROM laporan_pengesahan_pengerusi WHERE laporan_id=?)='Menunggu'
@@ -150,7 +153,7 @@ export async function submitAssessment(env:Env,reportId:number,userId:number|nul
       AND (SELECT count(*) FROM users WHERE role='Admin' AND aktif=1)>0
       AND (SELECT count(*) FROM laporan_pengesahan_audit
         WHERE laporan_id=? AND event_type IN ('approval_prepared','admin_copy_created'))>=2
-      AND (SELECT count(*) FROM worker_chair_deliveries WHERE report_id=?)
+      AND (SELECT count(*) FROM worker_chair_jobs WHERE report_id=?)
         =CASE WHEN (SELECT kejohanan_pengesah_id FROM laporan_pengesahan_pengerusi
           WHERE laporan_id=?) IS NULL THEN 0 ELSE 2 END
       THEN 1 ELSE -1 END WHERE report_id=? AND nonce=?`)
@@ -236,6 +239,11 @@ export async function submitAssessmentRequest(request:Request,env:Env):Promise<R
     return result==='confirmed'
       ? json({error:false,message:'Override Admin direkodkan dan laporan disahkan.'})
       : json({error:true,message:'Laporan ini telah disahkan atau di-override sebelum ini.'},409);
+  }
+  if (body.action==='retry_pengerusi_notification') {
+    if (user.role!=='Admin') return json({error:true,message:'Akses ditolak.'},403);
+    const retry=await retryChairNotification(env,id,user.id);
+    return json(retry.body,retry.status);
   }
   if (body.action!=='hantar') return json({error:true,message:'Tindakan belum tersedia di staging.'},503);
   return submitAssessment(env,id,user.id);

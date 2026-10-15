@@ -23,6 +23,7 @@
     "test:report-admin-override": "node --no-warnings tests/report-admin-override.mjs",
     "test:futsal-form": "node --no-warnings tests/futsal-form.mjs",
     "test:chair-config": "node --no-warnings tests/chair-config.mjs",
+    "test:chair-assignment": "node --no-warnings tests/chair-assignment.mjs",
     "build:frontend": "npm --prefix ../frontend run build:prod",
     "dev": "wrangler dev",
     "deploy:staging": "npm run typecheck && npm run build:frontend && wrangler deploy"

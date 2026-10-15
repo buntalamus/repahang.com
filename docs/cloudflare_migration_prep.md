@@ -275,8 +275,8 @@ Laporan pengguna lain ditapis di SQL; token Pengerusi tidak dipulangkan dan
 `approval_url` kini dipulangkan hanya kepada Admin untuk rekod `Menunggu`
 yang bertoken; token mentah tidak dipulangkan dalam medan lain atau kepada RA.
 POST draf berkongsi teras transaksi dengan borang bertoken. PUT
-`action=hantar`, `action=sahkan` dan `action=log_pengerusi_link_copy`
-tersedia di sebalik tiga suis staging; pemakluman semula masih 503.
+`action=hantar`, `action=sahkan`, `action=log_pengerusi_link_copy` dan
+`action=retry_pengerusi_notification` tersedia di sebalik tiga suis staging.
 Ujian sintetik dan bacaan
 salinan D1 mengesahkan skema, skop RA, pemisahan peranan dan lampiran pengesahan.
 Migrasi `0003_assessment_drafts.sql` menambah indeks unik lantikan laporan dan
@@ -290,7 +290,7 @@ D1 staging, eksport jauh disimpan secara private di
 Migrasi jauh memproses dua arahan; semakan selepas itu menunjukkan 370 pengguna,
 91 laporan asal, 51 perlawanan Hanafi 2026, serta satu lajur revisi dan satu
 indeks unik baharu. Kesemua suis staging masih `0`.
-Skema `0001` hingga `0007` dipasang melalui `wrangler d1 execute`, bukan
+Skema `0001` hingga `0008` dipasang melalui `wrangler d1 execute`, bukan
 ledger `wrangler d1 migrations apply`. Oleh itu, `migrations list` masih
 menyenaraikannya sebagai belum dilaksana walaupun skemanya wujud. Jangan
 jalankan `migrations apply` secara terus pada D1 staging ini tanpa menyelaraskan
@@ -724,6 +724,35 @@ lantikan, 91 laporan, **51** perlawanan Hanafi 2026, sifar penghantaran RA,
 sifar pengesahan Worker dan sifar tugas Pengerusi. Domain `refpahang.com`
 masih tidak menyediakan `/api/__migration-health` Worker (404), maka ujian
 ini tidak menandakan cutover production.
+
+Tetapan Pengerusi melalui POST `kejohanan-pengesah-laporan.php` dan tindakan
+Admin `retry_pengerusi_notification` kini menggunakan
+`0008_chair_assignment_queue.sql`. Giliran Pengerusi dipindahkan ke
+`worker_chair_jobs`, yang terikat pada generasi token kelulusan dan tidak lagi
+memerlukan rekod `worker_report_submissions`. Oleh itu laporan `Dihantar` yang
+dihantar melalui PHP sebelum cutover turut dimaklumkan, seperti
+`dispatchLaporanForPengerusi` dalam PHP. Satu batch D1 menyimpan Pengerusi,
+mencatat audit `chair_assigned`/`chair_changed` tanpa chat id mentah, dan bagi
+setiap laporan menunggu dalam kejohanan: menyediakan rekod kelulusan yang
+belum wujud, memutar token jika Pengerusi bertukar, menyegarkan kenalan jika
+Pengerusi sama, membuat salinan Admin yang belum ada, merekod saluran tanpa
+alamat sekali sahaja, dan menjadualkan emel/Telegram yang belum dihantar.
+Penanda `worker_chair_assignments` menggugurkan seluruh batch jika tetapan
+berubah sejak dibaca (409) atau semakan integriti gagal. Job bagi token yang
+telah diputar ditanda `skipped`, jadi pautan lama tidak dihantar lagi.
+
+Satu perbezaan sengaja daripada PHP: PHP mengekalkan ID pemetaan yang sama
+apabila Pengerusi ditukar, jadi laporan yang telah dimaklumkan kekal dengan
+token dan nama Pengerusi lama. Worker membandingkan identiti pegawai, bukan
+hanya ID pemetaan; Pengerusi baharu menerima token baharu dan pemakluman.
+Cuba semula Admin menyegarkan rekod yang sama, menjadualkan hanya saluran yang
+belum berjaya, memprosesnya serta-merta dan memulangkan `email_sent`/
+`telegram_sent` tanpa token. Tetapan POST tidak menghantar dalam permintaan;
+cron lima minit memproses giliran. Ujian salinan D1 (`chair-assignment.mjs`)
+meliputi laporan PHP yang telah dan belum dimaklumkan, putaran token, job
+token lama, simpan semula Pengerusi sama, perubahan serentak, cuba semula
+satu saluran, kegagalan penyedia serta penjaga 400/403/404/409/422/503.
+Kesemua 20 ujian Worker dan `tsc --noEmit` lulus.
 
 ## Semua tetapan emel semasa
 

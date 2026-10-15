@@ -19,6 +19,8 @@ const {submitAssessmentRequest}=await load('../src/report-submission.ts',[
   ["import {boundedJson} from './request';",'const boundedJson=async(request)=>request.json();'],
   ["import {overrideAdminReport} from './report-admin-override';",
     'const overrideAdminReport=(...args)=>globalThis.realOverride(...args);'],
+  ["import {retryChairNotification} from './chair-dispatch';",
+    'const retryChairNotification=(...args)=>globalThis.retryChairNotification(...args);'],
 ]);
 globalThis.realOverride=overrideAdminReport;
 const {processReportDeliveries}=await load('../src/report-delivery.ts',[
