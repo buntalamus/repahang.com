@@ -1,0 +1,592 @@
+/**
+ * Port of config/email.php. Markup and copy are kept byte-for-byte where the
+ * PHP source is deterministic so recipients see the same messages after the
+ * move to the Worker.
+ */
+import { sendRefpahangEmail } from '../../mail';
+import type { MailAttachment, MailType } from '../../mail';
+import type { Env } from '../types';
+import { h, masaFmt, noMatchFmt, phpDate, plainTextFromHtml, tarikhFmt } from './format';
+
+export interface InlineImage { cid: string; mime: string; data: ArrayBuffer }
+
+export interface KupOfficial {
+  jawatan?: string | null;
+  nama?: string | null;
+  no_telefon?: string | null;
+  wilayah?: string | null;
+}
+
+/** Test seam with the same meaning as PHP's optional sender callbacks. */
+export type EmailSender = (to: string, subject: string, html: string, toName: string,
+  type: MailType, inlineImages: InlineImage[]) => Promise<boolean>;
+
+let emailSenderOverride: EmailSender | null = null;
+export function setEmailSenderForTests(sender: EmailSender | null): void {
+  emailSenderOverride = sender;
+}
+
+export function baseUrl(env: Env): string {
+  return env.BASE_URL || 'https://refpahang.com';
+}
+
+export function buildEmailTemplate(title: string, accent: string, _icon: string, body: string): string {
+  const year = phpDate('Y', Date.now());
+  return `<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#E8EAED;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#E8EAED;">
+    <tr><td align="center" style="padding:40px 16px 48px;">
+      <table width="600" cellpadding="0" cellspacing="0" border="0"
+             style="max-width:600px;width:100%;background:#ffffff;
+                    box-shadow:0 1px 4px rgba(0,0,0,0.10);">
+
+        <!-- TOP ACCENT LINE -->
+        <tr>
+          <td style="background:${accent};height:4px;font-size:0;line-height:0;">&nbsp;</td>
+        </tr>
+
+        <!-- HEADER -->
+        <tr>
+          <td style="background:#111827;padding:28px 36px 24px;text-align:center;">
+            <img src="https://upload.wikimedia.org/wikipedia/en/b/b3/Pahang_FA_logo.png"
+                 alt="PBNP" width="60" height="60"
+                 style="width:60px;height:60px;border-radius:50%;
+                        display:block;margin:0 auto 14px;">
+            <div style="color:#F9FAFB;font-size:14px;font-weight:700;
+                        letter-spacing:0.8px;margin-bottom:4px;">
+              PERSATUAN BOLA SEPAK NEGERI PAHANG
+            </div>
+            <div style="color:#6B7280;font-size:10px;font-weight:600;
+                        letter-spacing:2.5px;text-transform:uppercase;">
+              Sistem Pengurusan Pengadil
+            </div>
+          </td>
+        </tr>
+
+        <!-- TITLE -->
+        <tr>
+          <td style="background:#F9FAFB;padding:22px 36px;
+                     border-bottom:1px solid #E5E7EB;">
+            <div style="border-left:3px solid ${accent};padding-left:14px;">
+              <div style="color:#9CA3AF;font-size:10px;font-weight:700;
+                          text-transform:uppercase;letter-spacing:2px;
+                          margin-bottom:5px;">Pemberitahuan Rasmi</div>
+              <div style="color:#111827;font-size:20px;font-weight:700;
+                          line-height:1.3;">${title}</div>
+            </div>
+          </td>
+        </tr>
+
+        <!-- BODY -->
+        <tr>
+          <td style="padding:32px 36px 36px;">
+            ${body}
+          </td>
+        </tr>
+
+        <!-- FOOTER -->
+        <tr>
+          <td style="background:#111827;padding:24px 36px;text-align:center;">
+            <div style="color:#F9FAFB;font-size:12px;font-weight:600;
+                        margin-bottom:10px;letter-spacing:0.3px;">
+              Unit Pengadil &mdash; Persatuan Bola Sepak Negeri Pahang
+            </div>
+            <div style="color:#9CA3AF;font-size:12px;margin-bottom:14px;">
+              <a href="mailto:admin@refpahang.com"
+                 style="color:#FADA00;text-decoration:none;">admin@refpahang.com</a>
+              &nbsp;&nbsp;&bull;&nbsp;&nbsp;
+              <a href="mailto:support@refpahang.com"
+                 style="color:#FADA00;text-decoration:none;">support@refpahang.com</a>
+            </div>
+            <div style="color:#4B5563;font-size:10px;
+                        border-top:1px solid #374151;padding-top:14px;">
+              &copy; ${year} Persatuan Bola Sepak Negeri Pahang. Hak Cipta Terpelihara.
+            </div>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function emailGreeting(nama: string): string {
+  return `<p style="color:#6B7280;font-size:14px;line-height:1.7;margin:0 0 4px 0;">
+              Assalamualaikum w.b.t. dan Salam Sejahtera,
+            </p>
+            <p style="color:#111827;font-size:15px;font-weight:600;margin:0 0 22px 0;
+                       border-bottom:1px solid #F3F4F6;padding-bottom:18px;">
+              ${h(nama)},
+            </p>`;
+}
+
+export function emailPara(text: string): string {
+  return `<p style="color:#374151;font-size:14px;line-height:1.8;margin:0 0 16px 0;">${text}</p>`;
+}
+
+export function emailAlert(borderColor: string, bgColor: string, label: string, text: string): string {
+  return `<div style="background:${bgColor};border-left:3px solid ${borderColor};
+                         padding:14px 18px;margin:20px 0;">
+              <div style="font-weight:700;color:#111827;margin-bottom:5px;font-size:12px;
+                          text-transform:uppercase;letter-spacing:0.8px;">
+                ${label}
+              </div>
+              <div style="color:#374151;font-size:14px;line-height:1.6;">${text}</div>
+            </div>`;
+}
+
+/** Key–value table; values are inserted as HTML exactly like PHP. */
+export function emailInfoTable(rows: Array<[string, string]>): string {
+  let html = `<table width="100%" cellpadding="0" cellspacing="0" border="0"
+                    style="margin:20px 0;border:1px solid #E5E7EB;border-collapse:collapse;">`;
+  const last = rows.length - 1;
+  rows.forEach(([label, value], i) => {
+    const border = i < last ? 'border-bottom:1px solid #E5E7EB;' : '';
+    const bg = i % 2 === 0 ? '#F9FAFB' : '#ffffff';
+    html += `<tr>
+                    <td style="padding:10px 16px;font-weight:600;color:#6B7280;
+                                font-size:11px;text-transform:uppercase;letter-spacing:0.8px;
+                                width:36%;background:${bg};${border}">${h(label)}</td>
+                    <td style="padding:10px 16px;color:#111827;font-size:14px;
+                                background:${bg};${border}">${value}</td>
+                  </tr>`;
+  });
+  html += '</table>';
+  return html;
+}
+
+export function emailCredBox(label: string, value: string): string {
+  return `<div style="margin:10px 0;">
+              <div style="font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase;
+                           letter-spacing:1px;margin-bottom:5px;">${label}</div>
+              <div style="background:#F3F4F6;border:1px solid #D1D5DB;
+                           padding:10px 14px;font-family:'Courier New',monospace;
+                           font-size:15px;color:#111827;word-break:break-all;">${value}</div>
+            </div>`;
+}
+
+export function emailButton(url: string, label: string): string {
+  return `<div style="text-align:center;margin:28px 0 8px;">
+              <a href="${url}"
+                 style="display:inline-block;background:#111827;color:#FADA00;
+                         padding:12px 32px;text-decoration:none;
+                         font-weight:700;font-size:13px;letter-spacing:1px;
+                         text-transform:uppercase;">${label}</a>
+            </div>`;
+}
+
+export function emailOrderedList(items: string[]): string {
+  let html = '<ol style="color:#374151;font-size:14px;line-height:1.8;margin:0 0 16px 0;padding-left:20px;">';
+  for (const item of items) html += `<li style="margin-bottom:6px;">${item}</li>`;
+  return `${html}</ol>`;
+}
+
+export function emailStatusBadge(text: string, bg: string, color = '#ffffff'): string {
+  return `<div style="text-align:center;margin:20px 0;">
+              <span style="display:inline-block;background:${bg};color:${color};
+                            padding:6px 20px;font-weight:700;font-size:11px;
+                            letter-spacing:1.5px;text-transform:uppercase;">${text}</span>
+            </div>`;
+}
+
+/** sendEmail(): false on any delivery failure, like _smtpSend(). */
+export async function sendEmail(env: Env, to: string, subject: string, html: string,
+  toName: string | null = null, type: MailType = 'admin', inlineImages: InlineImage[] = [],
+  attachments: MailAttachment[] = []): Promise<boolean> {
+  const name = toName ?? to;
+  if (emailSenderOverride) return emailSenderOverride(to, subject, html, name, type, inlineImages);
+  try {
+    await sendRefpahangEmail(env, type, to, name || to, subject, html, plainTextFromHtml(html), [
+      ...inlineImages.map((image): MailAttachment => ({
+        filename: image.cid, type: image.mime, content: image.data,
+        disposition: 'inline', contentId: image.cid,
+      })),
+      ...attachments,
+    ]);
+    return true;
+  } catch (error) {
+    console.error('Email delivery failed', type, error instanceof Error ? error.name : 'UnknownError');
+    return false;
+  }
+}
+
+export function buildKupOfficialsEmailSection(allOfficials: KupOfficial[], jawatan: string,
+  regionLabel: string): string {
+  if (allOfficials.length === 0) return '';
+  let offRows = '';
+  allOfficials.forEach((off, i) => {
+    const officialJawatan = String(off.jawatan ?? '');
+    const officialNama = String(off.nama ?? '-');
+    const officialPhone = String(off.no_telefon ?? '-');
+    const officialRegion = String(off.wilayah ?? '-');
+    const isMe = officialJawatan.trim().toLowerCase() === jawatan.trim().toLowerCase();
+    const bg = isMe ? '#FEFCE8' : (i % 2 === 0 ? '#F9FAFB' : '#ffffff');
+    const namStyle = isMe
+      ? 'font-size:13px;color:#92400E;font-weight:700;'
+      : 'font-size:13px;color:#111827;';
+    const jwStyle = isMe
+      ? 'font-size:11px;color:#92400E;font-weight:700;text-transform:uppercase;letter-spacing:.8px;'
+      : 'font-size:11px;color:#6B7280;font-weight:600;text-transform:uppercase;letter-spacing:.8px;';
+    const badge = isMe
+      ? `<span style="display:inline-block;background:#FADA00;color:#111827;
+                            font-size:9px;font-weight:700;letter-spacing:1px;
+                            text-transform:uppercase;padding:2px 7px;margin-left:6px;
+                            vertical-align:middle;">Anda</span>`
+      : '';
+    const border = 'border-bottom:1px solid #E5E7EB;';
+    offRows += `<tr>
+            <td style="padding:10px 16px;${jwStyle}background:${bg};${border}">${h(officialJawatan)}</td>
+            <td style="padding:10px 16px;${namStyle}background:${bg};${border}">
+              <div>${h(officialNama)}${badge}</div>
+              <div style="font-size:11px;color:#6B7280;font-weight:400;margin-top:4px;line-height:1.6;">
+                <strong>No. Tel:</strong> ${h(officialPhone)}<br>
+                <strong>${h(regionLabel)}:</strong> ${h(officialRegion)}
+              </div>
+            </td>
+          </tr>`;
+  });
+  return `
+    <div style="margin:20px 0 0;">
+      <div style="background:#FADA00;padding:9px 16px;">
+        <span style="font-size:10px;font-weight:700;color:#111827;letter-spacing:2px;
+                      text-transform:uppercase;">Krew KUP Perlawanan</span>
+      </div>
+      <table width="100%" cellpadding="0" cellspacing="0"
+             style="border-collapse:collapse;border:1px solid #E5E7EB;border-top:none;">
+        ${offRows}
+      </table>
+    </div>`;
+}
+
+export function buildKupCrewCompleteEmailHtml(nama: string, jawatan: string, kejohanan: string,
+  tarikh: string, masa: string, tempat: string, pasukanHome: string, pasukanAway: string,
+  noMatch: string, kupOfficials: KupOfficial[], regionLabel: string): string {
+  const body = emailGreeting(nama)
+    + emailPara('Semua KUP yang dilantik telah menerima lantikan. Gunakan nombor telefon yang '
+      + 'disenaraikan untuk berhubung dan menyelaras tugasan perlawanan.')
+    + emailInfoTable([
+      ['Kejohanan', h(kejohanan)],
+      ['No. Perlawanan', h(noMatchFmt(noMatch))],
+      ['Perlawanan', h(`${pasukanHome} lwn ${pasukanAway}`)],
+      ['Tarikh', tarikhFmt(tarikh)],
+      ['Masa', `${masaFmt(masa)} MYT`],
+      ['Tempat', h(tempat)],
+    ])
+    + buildKupOfficialsEmailSection(kupOfficials, jawatan, regionLabel);
+  return buildEmailTemplate('Krew KUP Lengkap', '#16A34A', '', body);
+}
+
+export function sendKupCrewCompleteEmail(env: Env, to: string, nama: string, jawatan: string,
+  kejohanan: string, tarikh: string, masa: string, tempat: string, pasukanHome: string,
+  pasukanAway: string, noMatch: string, kupOfficials: KupOfficial[], regionLabel: string): Promise<boolean> {
+  const html = buildKupCrewCompleteEmailHtml(nama, jawatan, kejohanan, tarikh, masa, tempat,
+    pasukanHome, pasukanAway, noMatch, kupOfficials, regionLabel);
+  const subject = `Krew KUP Lengkap: ${pasukanHome} vs ${pasukanAway} — ${tarikhFmt(tarikh)}`;
+  return sendEmail(env, to, subject, html, nama, 'lantikan');
+}
+
+function logoMime(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase() ?? '';
+  return ({ jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
+    webp: 'image/webp' } as Record<string, string>)[ext] ?? 'image/png';
+}
+
+/** file_exists($projectRoot . $logoPath): uploads live in the MEDIA bucket. */
+async function readUpload(env: Env, logoPath: string): Promise<ArrayBuffer | null> {
+  if (!logoPath.startsWith('/uploads/') || logoPath.includes('..')) return null;
+  const object = await env.MEDIA.get(logoPath.slice('/uploads/'.length));
+  return object ? object.arrayBuffer() : null;
+}
+
+async function makeLogo(env: Env, logoPath: string, namaTeam: string, cidName: string,
+  inlineImages: InlineImage[], cancelled: boolean): Promise<string> {
+  const faded = cancelled ? `
+                                    opacity:0.5;filter:grayscale(100%)` : '';
+  if (logoPath) {
+    const data = await readUpload(env, logoPath);
+    if (data) {
+      inlineImages.push({ cid: cidName, mime: logoMime(logoPath), data });
+      return `<img src="cid:${cidName}" alt="${h(namaTeam)}"
+                            width="72" height="72"
+                            style="width:72px;height:72px;object-fit:contain;display:block;margin:0 auto;${faded}">`;
+    }
+    const url = logoPath.indexOf('http') === 0 ? logoPath : baseUrl(env) + logoPath;
+    return `<img src="${h(url)}" alt="${h(namaTeam)}"
+                        width="72" height="72"
+                        style="width:72px;height:72px;object-fit:contain;display:block;margin:0 auto;${faded}">`;
+  }
+  const initial = Array.from(namaTeam.trim())[0]?.toUpperCase() ?? '';
+  return cancelled
+    ? `<div style="width:72px;height:72px;border-radius:50%;background:#E5E7EB;
+                             font-size:28px;font-weight:700;color:#9CA3AF;margin:0 auto;
+                             line-height:72px;text-align:center;">${initial}</div>`
+    : `<div style="width:72px;height:72px;border-radius:50%;background:#E5E7EB;
+                             display:flex;align-items:center;justify-content:center;
+                             font-size:28px;font-weight:700;color:#6B7280;margin:0 auto;
+                             line-height:72px;text-align:center;">${initial}</div>`;
+}
+
+export function getDeadlineHours(jenisKejohanan: string): number {
+  return jenisKejohanan.toLowerCase() === 'liga' ? 48 : 3;
+}
+
+export function getDeadlineRuleText(jenisKejohanan: string): string {
+  const hours = getDeadlineHours(jenisKejohanan);
+  return `Anda perlu menjawab lantikan ini dalam masa ${hours} jam selepas notifikasi dihantar. `
+    + 'Jika tidak dijawab dalam tempoh tersebut, lantikan akan DITOLAK secara automatik.';
+}
+
+export function calcDeadlineFromNotif(jenisKejohanan: string, notifMs = Date.now()): string {
+  return phpDate('d M Y, H:i', notifMs + getDeadlineHours(jenisKejohanan) * 3600_000);
+}
+
+export async function sendLantikanEmail(env: Env, to: string, nama: string, jawatan: string,
+  kejohanan: string, tarikh: string, masa: string, tempat: string, pasukanHome: string,
+  pasukanAway: string, emailToken: string, tgLinkUrl: string | null = null, isDashboard = false,
+  noMatch = '', logoHome = '', logoAway = '', allOfficials: KupOfficial[] = [],
+  jenisKejohanan = 'Persahabatan', regionLabel = 'Negeri'): Promise<boolean> {
+  const base = baseUrl(env);
+  const acceptUrl = `${base}/api/lantikan-jawab-token.php?token=${encodeURIComponent(emailToken)}&action=accept`;
+  const rejectUrl = `${base}/api/lantikan-jawab-token.php?token=${encodeURIComponent(emailToken)}&action=reject`;
+  const noFmt = noMatchFmt(noMatch);
+  const inlineImages: InlineImage[] = [];
+  const infoRows: Array<[string, string]> = [
+    ['Kejohanan', h(kejohanan)],
+    ['No. Perlawanan', h(noFmt)],
+    ['Tarikh', tarikhFmt(tarikh)],
+    ['Masa', `${masaFmt(masa)} MYT`],
+    ['Tempat', h(tempat)],
+  ];
+  let infoHtml = '';
+  infoRows.forEach(([lbl, val], i) => {
+    const bg = i % 2 === 0 ? '#1F2937' : '#111827';
+    infoHtml += `<tr>
+            <td style="padding:10px 16px;font-size:11px;font-weight:600;color:#9CA3AF;
+                        text-transform:uppercase;letter-spacing:.8px;width:38%;background:${bg};
+                        border-bottom:1px solid #374151;">${lbl}</td>
+            <td style="padding:10px 16px;font-size:13px;color:#F9FAFB;background:${bg};
+                        border-bottom:1px solid #374151;">${val}</td>
+          </tr>`;
+  });
+  const sectionInfo = `
+    <div style="margin:28px 0 0;">
+      <div style="background:#FADA00;padding:9px 16px;">
+        <span style="font-size:10px;font-weight:700;color:#111827;letter-spacing:2px;
+                      text-transform:uppercase;">Maklumat Perlawanan</span>
+      </div>
+      <table width="100%" cellpadding="0" cellspacing="0"
+             style="border-collapse:collapse;border:1px solid #374151;">
+        ${infoHtml}
+      </table>
+    </div>`;
+  const logoHomeHtml = await makeLogo(env, logoHome, pasukanHome, 'logo_home', inlineImages, false);
+  const logoAwayHtml = await makeLogo(env, logoAway, pasukanAway, 'logo_away', inlineImages, false);
+  const sectionPasukan = `
+    <div style="margin:20px 0 0;">
+      <div style="background:#FADA00;padding:9px 16px;">
+        <span style="font-size:10px;font-weight:700;color:#111827;letter-spacing:2px;
+                      text-transform:uppercase;">Pasukan</span>
+      </div>
+      <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-top:none;padding:24px 16px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td width="44%" style="text-align:center;vertical-align:middle;">
+              ${logoHomeHtml}
+              <div style="font-weight:700;font-size:12px;color:#111827;margin-top:10px;
+                          text-transform:uppercase;line-height:1.4;">${h(pasukanHome)}
+              </div>
+              <div style="font-size:10px;color:#9CA3AF;margin-top:3px;">Tuan Rumah</div>
+            </td>
+            <td width="12%" style="text-align:center;vertical-align:middle;">
+              <div style="font-size:13px;font-weight:700;color:#374151;letter-spacing:1px;">VS</div>
+            </td>
+            <td width="44%" style="text-align:center;vertical-align:middle;">
+              ${logoAwayHtml}
+              <div style="font-weight:700;font-size:12px;color:#111827;margin-top:10px;
+                          text-transform:uppercase;line-height:1.4;">${h(pasukanAway)}
+              </div>
+              <div style="font-size:10px;color:#9CA3AF;margin-top:3px;">Pasukan Tamu</div>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>`;
+  const officialsHtml = buildKupOfficialsEmailSection(allOfficials, jawatan, regionLabel);
+  const deadlineHours = getDeadlineHours(jenisKejohanan);
+  const deadlineDt = calcDeadlineFromNotif(jenisKejohanan);
+  const ruleText = getDeadlineRuleText(jenisKejohanan);
+  const buttonsHtml = `
+    <div style="margin:28px 0 0;">
+      <p style="color:#374151;font-size:13px;line-height:1.8;margin:0 0 10px 0;">
+        Sila maklumkan penerimaan atau penolakan tugasan ini <strong>sebelum ${deadlineDt}</strong> (${deadlineHours} jam selepas notifikasi ini dihantar).
+      </p>
+      <div style="background:#FEF3C7;border:1px solid #F59E0B;border-left:3px solid #F59E0B;
+                   padding:12px 16px;margin-bottom:16px;">
+        <span style="font-size:12px;font-weight:700;color:#92400E;">⚠ Peraturan Auto-Tolak:</span>
+        <p style="font-size:12px;color:#78350F;line-height:1.6;margin:4px 0 0;">${ruleText}</p>
+      </div>
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="padding:0 6px 0 0;">
+            <a href="${h(acceptUrl)}"
+               style="display:block;text-align:center;background:#059669;color:#ffffff;
+                       padding:14px 0;text-decoration:none;font-weight:700;font-size:12px;
+                       letter-spacing:1px;text-transform:uppercase;">
+              ✓ &nbsp;Terima Tugasan
+            </a>
+          </td>
+          <td style="padding:0 0 0 6px;">
+            <a href="${h(rejectUrl)}"
+               style="display:block;text-align:center;background:#DC2626;color:#ffffff;
+                       padding:14px 0;text-decoration:none;font-weight:700;font-size:12px;
+                       letter-spacing:1px;text-transform:uppercase;">
+              ✗ &nbsp;Tolak Tugasan
+            </a>
+          </td>
+        </tr>
+      </table>
+    </div>`;
+  const tgSection = tgLinkUrl === null ? '' : `
+        <div style="margin:24px 0 0;padding:16px 20px;background:#EFF6FF;
+                     border:1px solid #BFDBFE;border-left:3px solid #3B82F6;">
+          <div style="font-weight:700;font-size:11px;color:#1E40AF;
+                       text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;">
+            Hubungkan Akaun Telegram
+          </div>
+          <p style="color:#374151;font-size:13px;line-height:1.7;margin:0 0 14px 0;">
+            Dapatkan notifikasi perlawanan terus melalui Telegram dan jawab tugasan dengan
+            lebih pantas menggunakan butang <em>Terima / Tolak</em> dalam Telegram.
+          </p>
+          <a href="${h(tgLinkUrl)}"
+             style="display:inline-block;background:#2563EB;color:#ffffff;
+                     padding:9px 20px;text-decoration:none;font-weight:700;
+                     font-size:11px;letter-spacing:.8px;text-transform:uppercase;">
+            Daftar Telegram Sekarang
+          </a>
+        </div>`;
+  const dashSection = !isDashboard ? '' : `
+        <div style="border-top:1px solid #F3F4F6;margin-top:24px;padding-top:20px;text-align:center;">
+          <p style="color:#6B7280;font-size:12px;margin:0 0 12px 0;">
+            Lihat semua tugasan anda dalam dashboard:
+          </p>${emailButton(`${base}/pengadil-dashboard.html`, 'Dashboard Pengadil')}
+        </div>`;
+  const body = emailGreeting(nama)
+    + emailPara(`Anda telah dilantik sebagai <strong>${h(jawatan)}</strong> untuk perlawanan berikut:`)
+    + sectionInfo + sectionPasukan + officialsHtml + buttonsHtml + tgSection + dashSection
+    + `<p style="color:#9CA3AF;font-size:11px;margin:24px 0 0;line-height:1.6;">
+           Pautan Terima/Tolak di atas hanya boleh digunakan sekali sahaja. Jika anda telah
+           menjawab melalui Telegram atau dashboard, pautan ini tidak akan berfungsi lagi.
+           Pautan ini juga akan terbatal selepas tempoh menjawab tamat.
+         </p>`;
+  const subject = `Lantikan Perlawanan: ${kejohanan}${noFmt !== '-' ? ` (No: ${noFmt})` : ''}`
+    + ` — ${pasukanHome} vs ${pasukanAway} — ${tarikhFmt(tarikh)}`;
+  const html = buildEmailTemplate('Lantikan Pengadil', '#FADA00', '', body);
+  return sendEmail(env, to, subject, html, nama, 'lantikan', inlineImages);
+}
+
+export async function sendBatalEmail(env: Env, to: string, nama: string, jawatan: string,
+  kejohanan: string, tarikh: string, masa: string, tempat: string, pasukanHome: string,
+  pasukanAway: string, noMatch = '', logoHome = '', logoAway = '', isDashboard = false,
+  status = 'Dibatalkan', sebab = ''): Promise<boolean> {
+  const base = baseUrl(env);
+  const noFmt = noMatchFmt(noMatch);
+  const inlineImages: InlineImage[] = [];
+  const isPostponed = status === 'Ditangguhkan';
+  const title = isPostponed ? 'Perlawanan Ditangguhkan' : 'Perlawanan Dibatalkan';
+  const statusText = isPostponed ? 'ditangguhkan' : 'dibatalkan';
+  const accent = isPostponed ? '#D97706' : '#DC2626';
+  const noticeBanner = `
+    <div style="background:#FEF2F2;border:1px solid #FECACA;border-left:4px solid ${accent};
+                 padding:16px 20px;margin:0 0 4px;">
+      <div style="font-weight:700;font-size:12px;color:#991B1B;text-transform:uppercase;
+                   letter-spacing:.8px;margin-bottom:6px;">⊗ &nbsp;${title}</div>
+      <p style="color:#7F1D1D;font-size:13px;line-height:1.7;margin:0;">
+        Lantikan anda sebagai <strong>${h(jawatan)}</strong>
+        telah ${statusText} oleh pengurus kejohanan.${sebab !== ''
+          ? `<br><strong>Sebab:</strong> ${h(sebab).replace(/(\r\n|\n\r|\n|\r)/g, '<br />$1')}` : ''}
+      </p>
+    </div>`;
+  const infoRows: Array<[string, string]> = [
+    ['Kejohanan', h(kejohanan)],
+    ['No. Perlawanan', h(noFmt)],
+    ['Tarikh', tarikhFmt(tarikh)],
+    ['Masa', `${masaFmt(masa)} MYT`],
+    ['Tempat', h(tempat)],
+  ];
+  let infoHtml = '';
+  infoRows.forEach(([lbl, val], i) => {
+    const bg = i % 2 === 0 ? '#1F2937' : '#111827';
+    infoHtml += `<tr>
+            <td style="padding:10px 16px;font-size:11px;font-weight:600;color:#9CA3AF;
+                        text-transform:uppercase;letter-spacing:.8px;width:38%;background:${bg};
+                        border-bottom:1px solid #374151;">${lbl}</td>
+            <td style="padding:10px 16px;font-size:13px;color:#9CA3AF;background:${bg};
+                        border-bottom:1px solid #374151;text-decoration:line-through;">${val}</td>
+          </tr>`;
+  });
+  const sectionInfo = `
+    <div style="margin:20px 0 0;">
+      <div style="background:#6B7280;padding:9px 16px;">
+        <span style="font-size:10px;font-weight:700;color:#F9FAFB;letter-spacing:2px;
+                      text-transform:uppercase;">Maklumat Perlawanan</span>
+      </div>
+      <table width="100%" cellpadding="0" cellspacing="0"
+             style="border-collapse:collapse;border:1px solid #374151;">
+        ${infoHtml}
+      </table>
+    </div>`;
+  const logoHomeHtml = await makeLogo(env, logoHome, pasukanHome, 'logo_home', inlineImages, true);
+  const logoAwayHtml = await makeLogo(env, logoAway, pasukanAway, 'logo_away', inlineImages, true);
+  const sectionPasukan = `
+    <div style="margin:20px 0 0;">
+      <div style="background:#6B7280;padding:9px 16px;">
+        <span style="font-size:10px;font-weight:700;color:#F9FAFB;letter-spacing:2px;
+                      text-transform:uppercase;">Pasukan</span>
+      </div>
+      <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-top:none;padding:24px 16px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td width="44%" style="text-align:center;vertical-align:middle;">
+              ${logoHomeHtml}
+              <div style="font-weight:700;font-size:12px;color:#9CA3AF;margin-top:10px;
+                          text-transform:uppercase;line-height:1.4;text-decoration:line-through;">${h(pasukanHome)}
+              </div>
+              <div style="font-size:10px;color:#D1D5DB;margin-top:3px;">Tuan Rumah</div>
+            </td>
+            <td width="12%" style="text-align:center;vertical-align:middle;">
+              <div style="font-size:13px;font-weight:700;color:#D1D5DB;letter-spacing:1px;">VS</div>
+            </td>
+            <td width="44%" style="text-align:center;vertical-align:middle;">
+              ${logoAwayHtml}
+              <div style="font-weight:700;font-size:12px;color:#9CA3AF;margin-top:10px;
+                          text-transform:uppercase;line-height:1.4;text-decoration:line-through;">${h(pasukanAway)}
+              </div>
+              <div style="font-size:10px;color:#D1D5DB;margin-top:3px;">Pasukan Tamu</div>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>`;
+  const dashSection = !isDashboard ? '' : `
+        <div style="border-top:1px solid #F3F4F6;margin-top:24px;padding-top:20px;text-align:center;">
+          <p style="color:#6B7280;font-size:12px;margin:0 0 12px 0;">
+            Semak status tugasan anda yang lain dalam dashboard:
+          </p>${emailButton(`${base}/pengadil-dashboard.html`, 'Dashboard Pengadil')}
+        </div>`;
+  const body = emailGreeting(nama) + noticeBanner + sectionInfo + sectionPasukan + dashSection
+    + `<p style="color:#9CA3AF;font-size:11px;margin:24px 0 0;line-height:1.6;">
+           Ini adalah notifikasi automatik. Sila hubungi pengurus kejohanan jika anda mempunyai
+           sebarang pertanyaan berkenaan pembatalan ini.
+         </p>`;
+  const subject = `${isPostponed ? 'Penangguhan Perlawanan: ' : 'Pembatalan Perlawanan: '}${kejohanan}`
+    + `${noFmt !== '-' ? ` (No: ${noFmt})` : ''} — ${pasukanHome} vs ${pasukanAway} — ${tarikhFmt(tarikh)}`;
+  const html = buildEmailTemplate(title, accent, '', body);
+  return sendEmail(env, to, subject, html, nama, 'lantikan', inlineImages);
+}

@@ -29,8 +29,8 @@ EXTERNAL_HTTP_ENDPOINTS = {
 
 # These are PHP CLI jobs, not HTTP routes. Their Worker replacement needs a
 # Cron Trigger, Queue or another scheduled mechanism, plus a full behavior test.
-BACKGROUND_JOBS = {
-    "kup-crew-notification-retry.php": "cuba semula notifikasi kru KUP",
+BACKGROUND_JOBS: dict[str, str] = {
+    # kup-crew-notification-retry.php kini dijalankan oleh cron Worker.
 }
 
 # A routed GET must not be mistaken for complete PHP GET/POST parity.
@@ -42,7 +42,7 @@ KNOWN_PARTIAL_ROUTES = {
     "download-laporan-penilaian.php": "HTML A4 boleh dicetak; susun atur dan logo asal masih perlu semakan visual",
     "laporan-pengesahan-token.php": "GET dan POST berpenjaga tersedia; penghantaran KUP perlu pengesahan staging sebenar sebelum dibuka",
     "lantikan-audit.php": "GET dan empat tindakan POST tersedia; override Admin memerlukan suis penghantaran aktif",
-    "lantikan.php": "GET Admin dan POST lantikan baharu sebelum sepak mula tersedia; penggantian, notifikasi, pembatalan, PUT dan DELETE masih 503",
+    "lantikan.php": "GET dan semua tindakan PHP (assign/ganti, notify, notify_all, batal, DELETE) tersedia di belakang suis lantikan; penghantaran sebenar perlu ujian staging",
     "admin-telegram-blast.php": "GET kiraan Admin tersedia; POST penghantaran emel masih 503",
     "pengadil-luar-telegram-blast.php": "GET pratonton pool, penerima dan batch tersedia; POST penghantaran emel masih 503",
     "penilaian-token.php": "GET, POST draf dan hantar tersedia di belakang suis penghantaran; penghantaran sebenar perlu ujian staging",

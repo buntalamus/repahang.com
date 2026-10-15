@@ -756,6 +756,49 @@ penghantaran serta-merta, simpan semula Pengerusi sama, perubahan serentak,
 cuba semula satu saluran, kegagalan penyedia serta penjaga
 400/403/404/409/422/503. Kesemua 20 ujian Worker dan `tsc --noEmit` lulus.
 
+### Pariti PHP untuk `lantikan.php` (15 Oktober)
+
+Matlamat migrasi ialah tingkah laku yang sama seperti PHP, tanpa penambahbaikan.
+Semakan semula kerja terdahulu menemui beberapa perbezaan yang kelihatan kepada
+pengguna; pembetulannya dicatat di sini.
+
+- `0009_mysql_on_update_triggers.sql` memulihkan `ON UPDATE CURRENT_TIMESTAMP`
+  MySQL bagi 23 jadual (dijana daripada `refpahan_refpahang-3.sql`). Trigger
+  hanya mengemas kini `updated_at` apabila lajur lain benar-benar berubah dan
+  kenyataan itu tidak menetapkannya sendiri, sama seperti MySQL.
+- Import D1 kehilangan nilai `DEFAULT` MySQL. Kod port baharu mengisi nilai
+  lalai secara jelas, contohnya `notifications.is_read=0` dan `email_sent=0`,
+  serta `lantikan_pengadil.notif_hantar=0`.
+- `cloudflare/src/php/` ialah port terus `config/email.php`,
+  `config/telegram.php`, `config/lantikan-audit.php` dan
+  `config/lantikan-helper.php`: templat HTML emel, teks Telegram, jenis
+  penghantar (contohnya borang RA dari `admin@`, lantikan dari `lantikan@`),
+  logo pasukan inline daripada R2, audit `lantikan_audit_log` serta
+  `kup_crew_notifications` PHP asal.
+- `lantikan.php` kini lengkap: assign (baharu, ganti, selepas sepak mula),
+  `notify`, `notify_all`, `batal_jadual`, `batal_bulk` dan DELETE, dengan
+  mesej respons, kod status, audit dan pemakluman yang sama. Pemakluman
+  dihantar sebelum respons dipulangkan, seperti PHP. Setiap bahagian atomik
+  ialah satu batch D1 yang dimulakan oleh baris pengawal
+  `0010_worker_write_guards.sql`; jika keadaan berubah sejak dibaca, batch
+  digugurkan dan Admin menerima 409.
+- GET `lantikan.php` menjalankan auto-tolak dan cuba semula notifikasi krew
+  sebelum membaca, seperti PHP. PHP tidak mempunyai cron auto-tolak; oleh itu
+  `APPOINTMENT_AUTO_REJECT_ENABLED` mesti kekal `0` supaya status hanya
+  berubah pada titik yang sama seperti PHP.
+- `kup-crew-notification-retry.php` kini dijalankan oleh cron Worker lima
+  minit menggunakan jadual `kup_crew_notifications` yang sama.
+- Ujian `lantikan-write.mjs` (bundel esbuild pada salinan D1) meliputi semua
+  tindakan di atas, termasuk subjek emel, butang Telegram, logo inline, audit,
+  notifikasi portal, sejarah `perlawanan` dan trigger `updated_at`.
+
+Perbezaan lain yang ditemui dalam aliran sedia ada dan masih perlu dibetulkan:
+jawapan lantikan (portal/emel/Telegram) menghantar pemakluman Admin/PP, borang
+RA dan krew KUP melalui giliran cron, bukan serta-merta; Admin dan PP turut
+menerima emel yang PHP tidak hantar; borang RA dihantar dari `lantikan@` dan
+bukan `admin@`; templat emel aliran tersebut bukan templat PHP; dan
+notifikasi portal disimpan tanpa `is_read=0`.
+
 ## Semua tetapan emel semasa
 
 `config/email.php` menggunakan SMTP TLS tersirat dengan `SMTP_HOST` dan

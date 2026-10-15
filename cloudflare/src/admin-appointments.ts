@@ -1,23 +1,29 @@
 import {currentUser,json} from './auth';
-import {adminAppointmentCreate} from './admin-appointment-create';
+import {appointmentWritesEnabled,lantikanWrite} from './lantikan-write';
+import {autoTolakLantikanTertunggak,retryPendingKupCrewNotifications} from './php/lantikan-helper';
+import {auditMetaFrom} from './php/lantikan-audit';
 import type {Env} from './types';
 
 type Tournament = {kejohanan_id:number;peringkat_kejohanan:string};
 type PoolOfficial = Record<string,unknown> & {daerah:string|null;negeri:string|null};
 
-/** Admin match assignment view. Expiry and retries run in the scheduled Worker. */
+/** Admin match assignment view and the write actions of api/lantikan.php. */
 export async function adminAppointments(request:Request,env:Env):Promise<Response> {
-  if (request.method==='POST') return adminAppointmentCreate(request,env);
   const user=await currentUser(request,env);
   if (!user) return json({error:true,message:'Sila log masuk.'},401);
   if (user.role!=='Admin') return json({error:true,message:'Akses ditolak.'},403);
-  if (request.method!=='GET') {
-    return json({error:true,message:'Pengurusan lantikan belum tersedia di staging.'},503);
-  }
+  if (request.method!=='GET') return lantikanWrite(request,env,user);
   const raw=new URL(request.url).searchParams.get('jadual_id');
   const jadualId=Number(raw);
   if (!raw || !/^[1-9]\d*$/.test(raw) || !Number.isSafeInteger(jadualId)) {
     return json({error:true,message:'jadual_id diperlukan.'},400);
+  }
+  // PHP expires overdue answers and retries a queued crew notice on every view.
+  if (appointmentWritesEnabled(env)) {
+    await autoTolakLantikanTertunggak(env,{jadual_id:jadualId},auditMetaFrom(request));
+    try {await retryPendingKupCrewNotifications(env,jadualId);}
+    catch (error) {console.error('[lantikan.php GET] KUP crew retry error',
+      error instanceof Error ? error.message : error);}
   }
   const tournament=await env.DB.prepare(`
     SELECT jp.kejohanan_id,COALESCE(k.peringkat_kejohanan,'Daerah') AS peringkat_kejohanan

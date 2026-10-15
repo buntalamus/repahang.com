@@ -16,6 +16,8 @@ import { assessmentReports } from './assessment-reports';
 import { assessmentDraft } from './assessment-draft';
 import { submitAssessmentRequest } from './report-submission';
 import { processChairDeliveries } from './chair-delivery';
+import { appointmentWritesEnabled } from './lantikan-write';
+import { processQueuedKupCrewNotifications } from './php/lantikan-helper';
 import { districtAssessments, refereeAssessments } from './assessments';
 import { districtApplications } from './district-applications';
 import { districtReferees } from './district-referees';
@@ -310,5 +312,7 @@ export default {
     await processAppointmentDeliveries(env);
     await processReportDeliveries(env);
     await processChairDeliveries(env);
+    // api/kup-crew-notification-retry.php ran from the system cron in PHP.
+    if (appointmentWritesEnabled(env)) await processQueuedKupCrewNotifications(env);
   },
 } satisfies ExportedHandler<Env>;

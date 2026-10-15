@@ -7,8 +7,13 @@ const source=readFileSync(new URL('../src/admin-appointments.ts',import.meta.url
   .replace("import {currentUser,json} from './auth';",`
     const currentUser=async()=>globalThis.appointmentUser;
     const json=(body,status=200)=>Response.json(body,{status});`)
-  .replace("import {adminAppointmentCreate} from './admin-appointment-create';",
-    'const adminAppointmentCreate=async()=>Response.json({error:true},{status:503});');
+  .replace("import {appointmentWritesEnabled,lantikanWrite} from './lantikan-write';",
+    `const appointmentWritesEnabled=()=>false;
+     const lantikanWrite=async()=>Response.json({error:true},{status:503});`)
+  .replace("import {autoTolakLantikanTertunggak,retryPendingKupCrewNotifications} from './php/lantikan-helper';",
+    'const autoTolakLantikanTertunggak=async()=>{throw new Error("Unexpected write");};'
+    + 'const retryPendingKupCrewNotifications=autoTolakLantikanTertunggak;')
+  .replace("import {auditMetaFrom} from './php/lantikan-audit';",'const auditMetaFrom=()=>({});');
 const compiled=ts.transpileModule(source,{
   compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext},
 }).outputText;
