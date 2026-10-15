@@ -20,6 +20,7 @@ export class AdminUsersComponent implements OnInit {
   paged: any[] = [];
   searchQuery = '';
   roleFilter = 'all';
+  showInactive = false;
   currentPage = 1;
   pageSize = 10;
   showEditModal = false;
@@ -64,7 +65,7 @@ export class AdminUsersComponent implements OnInit {
   }
 
   applyFilter(): void {
-    let data = [...this.users];
+    let data = this.showInactive ? [...this.users] : this.users.filter((u) => this.isActive(u));
     if (this.roleFilter !== 'all') {
       data = data.filter((u) => (u.user_role || u.role) === this.roleFilter);
     }
@@ -96,11 +97,38 @@ export class AdminUsersComponent implements OnInit {
     this.updatePaged();
   }
 
+  isActive(user: any): boolean {
+    return Number(user.is_active ?? user.aktif ?? 1) === 1;
+  }
+
+  get inactiveCount(): number {
+    return this.users.filter((u) => !this.isActive(u)).length;
+  }
+
   updateStats(): void {
-    this.stats.total = this.users.length;
-    this.stats.pengadil = this.users.filter(u => (u.user_role || u.role) === 'Pengadil').length;
-    this.stats.pp = this.users.filter(u => (u.user_role || u.role) === 'PP Daerah').length;
-    this.stats.staff = this.users.filter(u => ['Admin', 'Penilai'].includes(u.user_role || u.role)).length;
+    const active = this.users.filter((u) => this.isActive(u));
+    this.stats.total = active.length;
+    this.stats.pengadil = active.filter(u => (u.user_role || u.role) === 'Pengadil').length;
+    this.stats.pp = active.filter(u => (u.user_role || u.role) === 'PP Daerah').length;
+    this.stats.staff = active.filter(u => ['Admin', 'Penilai'].includes(u.user_role || u.role)).length;
+  }
+
+  reactivate(user: any): void {
+    this.confirmTitle = 'Aktifkan Semula Akaun';
+    this.confirmMessage = `Aktifkan semula akaun ${user.nama_penuh}? Pengguna boleh log masuk semula.`;
+    this.confirmAction = () => {
+      this.api.put<any>('profil-pengadil.php', { id: user.id, aktif: 1 }).subscribe({
+        next: (res) => {
+          if (!res.error) {
+            this.toast.success('Akaun diaktifkan semula.');
+            this.loadUsers();
+          } else {
+            this.toast.error(res.message);
+          }
+        },
+      });
+    };
+    this.showConfirmModal = true;
   }
 
   getRoleClass(role: string): string {
@@ -167,7 +195,7 @@ export class AdminUsersComponent implements OnInit {
     this.api.delete<any>(`admin-users.php?id=${id}`).subscribe({
       next: (res) => {
         if (!res.error) {
-          this.toast.success('Pengguna dipadam.');
+          this.toast.success(res.message || 'Akaun pengguna dinyahaktifkan.');
           this.loadUsers();
         } else {
           this.toast.error(res.message);
