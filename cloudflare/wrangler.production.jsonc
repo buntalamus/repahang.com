@@ -22,7 +22,7 @@
       "binding": "DB",
       "database_name": "refpahan_pahang_production",
       // Filled in by `wrangler d1 create refpahan_pahang_production` at cutover.
-      "database_id": "REPLACE_AT_CUTOVER"
+      "database_id": "ffad00eb-6437-4c03-87ba-570a5f311eb7"
     }
   ],
   "r2_buckets": [

@@ -1,5 +1,32 @@
 # Persediaan migrasi RefPahang ke Cloudflare
 
+## Cutover production — 15 Oktober 2026 (malam)
+
+`refpahang.com` dan `www` kini dilayan oleh Worker `refpahang` (custom domain),
+bukan PHP cPanel. Pemilik memilih dump `refpahan_refpahang-4.sql` (14:24) sebagai
+**data final**; tulisan PHP selepas 14:24 tidak dibawa. `maintenance.flag` tidak
+diaktifkan. Rekod DNS yang dibuang: A `refpahang.com` → `101.99.77.148` dan
+CNAME `www`. Rekod `mail`, `cpanel`, MX, SPF dan DKIM dikekalkan.
+
+- D1 `refpahan_pahang_production` (`ffad00eb-6437-4c03-87ba-570a5f311eb7`, APAC):
+  import `refpahang_2026-10-15_hanafi51_d1.sql`, kemudian migrasi `0001`–`0013`
+  melalui `d1 migrations apply`, jadi ledger lengkap (berbeza daripada staging).
+  Kesemua 40 jadual sepadan dengan salinan SQLite: 58,796 baris, 51 perlawanan
+  Hanafi 2026; 13 jadual Worker kosong.
+- R2 `refpahang-production-media`: 964/964 fail, sifar ralat. Tiga objek yang
+  dimuat turun semula sepadan SHA-256; kesemua 584 laluan `/uploads/` yang
+  dirujuk wujud. Manifest: `output/cloudflare/r2-media-upload-production-20261015.json`.
+- Worker dideploy daripada worktree bersih `c90b210` (versi `97eeb029`), kemudian
+  favicon logo PBNP (versi `5fdfe9f6`). Secret: `TELEGRAM_BOT_TOKEN` dan 10
+  `MAIL_*_USER/NAME`. `BASE_URL` ialah var dalam konfigurasi, jadi
+  `prepare_email.py --sync-worker` gagal dengan ralat 10053 (nama bertindih);
+  secret `MAIL_*` dihantar terus melalui `wrangler secret bulk`.
+- **Emel belum dipindahkan.** Blok `addresses` dibuang daripada salinan konfigurasi
+  yang dideploy supaya Email Routing tidak dipasang; MX kekal `mail.refpahang.com`.
+  Deploy semula dengan `addresses` hanya semasa langkah emel (langkah 8 di bawah).
+- Semakan selepas deploy: `/`, `www`, `/api/__migration-health` 200; `/uploads/`
+  tanpa sesi 401; Admin log masuk dan menu berfungsi selepas muat semula keras.
+
 ## Peti emel baharu di Cloudflare — 15 Oktober 2026
 
 Worker ujian menggunakan alamat mudah `https://ujian.refpahang.com`; ini hanya
