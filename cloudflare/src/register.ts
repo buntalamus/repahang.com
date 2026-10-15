@@ -87,14 +87,14 @@ export async function register(request: Request, env: Env): Promise<Response> {
     return json({ error: true, message: 'Maklumat pendaftaran tidak lengkap atau tidak sah.' }, 400);
   }
   const picture = input.get('gambar_profil');
-  if (!(picture instanceof File) || picture.size < 1 || picture.size > 5 * 1024 * 1024) {
-    return json({ error: true, message: 'Gambar profil JPG atau PNG diperlukan (maksimum 5MB).' }, 400);
+  if (!(picture instanceof File) || picture.size < 1 || picture.size > 200 * 1024) {
+    return json({ error: true, message: 'Gambar profil JPG atau PNG diperlukan (maksimum 200KB selepas dikecilkan).' }, 400);
   }
   const image = new Uint8Array(await picture.arrayBuffer());
   const info = dimensions(image);
   if (!info || !['image/jpeg', 'image/png'].includes(info.mime) ||
-      info.width < 150 || info.height < 150 || info.width > 4000 || info.height > 4000) {
-    return json({ error: true, message: 'Gambar profil mesti JPG/PNG sah berukuran 150 hingga 4000 piksel.' }, 400);
+      info.width < 150 || info.height < 150 || info.width > 400 || info.height > 400) {
+    return json({ error: true, message: 'Gambar profil mesti JPG/PNG sah berukuran 150 hingga 400 piksel.' }, 400);
   }
   const profileFields = [
     'alamat1', 'alamat2', 'poskod', 'daerah', 'negeri', 'status_kerja',

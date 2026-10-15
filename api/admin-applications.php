@@ -12,6 +12,7 @@
 
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/../includes/penilai_permohonan_helper.php';
+require_once __DIR__ . '/../config/pendaftaran-workflow.php';
 
 
 
@@ -118,6 +119,65 @@ try {
                 echo json_encode(['error' => true, 'message' => 'Parameter tidak sah.']);
                 exit;
             }
+
+            // Pendaftaran tahunan 2027+: keputusan ujian menentukan kelulusan akhir.
+            $annualStmt = $pdo->prepare("SELECT p.*, u.email AS user_email FROM permohonan p LEFT JOIN users u ON u.id = p.user_id WHERE p.id = ? LIMIT 1");
+            $annualStmt->execute([$applicationId]);
+            $annualApp = $annualStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$annualApp) {
+                http_response_code(404);
+                echo json_encode(['error' => true, 'message' => 'Permohonan tidak dijumpai.']);
+                exit;
+            }
+            if (requiresAnnualFitnessResult($annualApp)) {
+                try {
+                    $pdo->beginTransaction();
+                    $lock = $pdo->prepare('SELECT status_workflow, status_ujian FROM permohonan WHERE id = ? FOR UPDATE');
+                    $lock->execute([$applicationId]);
+                    $current = $lock->fetch(PDO::FETCH_ASSOC);
+                    if (!in_array($current['status_workflow'] ?? '', ['Admin Diluluskan', 'Lengkap'], true)) {
+                        $pdo->rollBack();
+                        http_response_code(409);
+                        echo json_encode(['error' => true, 'message' => 'Sahkan dokumen permohonan dahulu sebelum merekod keputusan ujian.']);
+                        exit;
+                    }
+                    if (($current['status_ujian'] ?? '') === $statusUjian) {
+                        $pdo->rollBack();
+                        echo json_encode(['error' => false, 'message' => 'Keputusan ujian tidak berubah.', 'email_sent' => true]);
+                        exit;
+                    }
+                    $passed = $statusUjian === 'Lulus';
+                    $pdo->prepare("UPDATE permohonan SET status_ujian = ?, status = 'Approved', status_workflow = 'Lengkap', final_approved_at = "
+                        . ($passed ? 'NOW()' : 'NULL') . ", status_kemaskini = NOW() WHERE id = ?")
+                        ->execute([$statusUjian, $applicationId]);
+                    $pdo->prepare('INSERT INTO notifications (user_id, type, subject, message, created_at) VALUES (?, ?, ?, ?, NOW())')
+                        ->execute([
+                            $annualApp['user_id'], 'Keputusan Ujian Kecergasan',
+                            'Keputusan Ujian Kecergasan: ' . $statusUjian,
+                            $passed ? 'Anda kekal Pengadil Berdaftar dan layak menerima patch serta lesen Pengadil Negeri bagi sesi ini.' : 'Anda kekal Pengadil Berdaftar bagi sesi ini, tetapi tidak layak menerima patch atau lesen Pengadil Negeri kerana keputusan ujian kecergasan: ' . $statusUjian . '.',
+                        ]);
+                    $pdo->commit();
+                    $stage = $passed ? 'fitness_pass' : ($statusUjian === 'Tidak Hadir' ? 'fitness_absent' : 'fitness_fail');
+                    $emailSent = false;
+                    try {
+                        $emailSent = sendAnnualRegistrationStageEmail($annualApp, $stage);
+                        if ($passed) {
+                            $registrationEmailSent = sendAnnualRegistrationStageEmail($annualApp, 'registered');
+                            $emailSent = $emailSent && $registrationEmailSent;
+                        }
+                    } catch (Throwable $emailError) {
+                        error_log('[admin-applications] Fitness email failed: ' . $emailError->getMessage());
+                    }
+                    echo json_encode(['error' => false, 'message' => 'Keputusan ujian berjaya dikemaskini.', 'email_sent' => $emailSent]);
+                    exit;
+                } catch (Throwable $e) {
+                    if ($pdo->inTransaction()) $pdo->rollBack();
+                    error_log('[admin-applications] Annual fitness update failed: ' . $e->getMessage());
+                    http_response_code(500);
+                    echo json_encode(['error' => true, 'message' => 'Gagal mengemaskini keputusan ujian.']);
+                    exit;
+                }
+            }
             
             // Update status_ujian in permohonan table (column must exist)
             try {
@@ -189,22 +249,36 @@ try {
 
             try {
                 $pdo->beginTransaction();
-                // Delete related match records first
-                $delMatches = $pdo->prepare("DELETE FROM perlawanan WHERE permohonan_id = :id");
-                $delMatches->execute(['id' => $applicationId]);
-                // Delete the application
-                $delApp = $pdo->prepare("DELETE FROM permohonan WHERE id = :id");
+                $checkApp = $pdo->prepare('SELECT id FROM permohonan WHERE id = :id FOR UPDATE');
+                $checkApp->execute(['id' => $applicationId]);
+                if (!$checkApp->fetchColumn()) {
+                    $pdo->rollBack();
+                    http_response_code(404);
+                    echo json_encode(['error' => true, 'message' => 'Permohonan tidak dijumpai.']);
+                    exit;
+                }
+
+                // Rekod perlawanan ialah sejarah pengadil, bukan milik permohonan.
+                // Lepaskan pautan sebelum memadam permohonan tahunan.
+                $unlinkMatches = $pdo->prepare('UPDATE perlawanan SET permohonan_id = NULL WHERE permohonan_id = :id');
+                $unlinkMatches->execute(['id' => $applicationId]);
+                $unlinkedMatches = $unlinkMatches->rowCount();
+
+                $delApp = $pdo->prepare('DELETE FROM permohonan WHERE id = :id');
                 $delApp->execute(['id' => $applicationId]);
                 $pdo->commit();
 
                 echo json_encode([
                     'error' => false,
-                    'message' => 'Permohonan berjaya dipadam.',
-                    'affected_rows' => $delApp->rowCount()
+                    'message' => 'Permohonan berjaya dipadam; rekod perlawanan dikekalkan.',
+                    'affected_rows' => $delApp->rowCount(),
+                    'unlinked_matches' => $unlinkedMatches
                 ]);
                 exit;
-            } catch (PDOException $e) {
-                $pdo->rollBack();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
                 error_log('[admin-applications] Delete error: ' . $e->getMessage());
                 http_response_code(500);
                 echo json_encode([

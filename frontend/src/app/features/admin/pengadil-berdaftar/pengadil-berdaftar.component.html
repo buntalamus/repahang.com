@@ -151,6 +151,12 @@
                         <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-slate-500 text-white leading-none">DAERAH</span>
                       }
                     </div>
+                    @if (listType === 'pengadil_berdaftar' && +yearFilter >= 2026) {
+                      <p class="text-[10px] mt-1" [class.text-emerald-700]="+ref.patch_eligible === 1"
+                        [class.text-rose-700]="+ref.patch_eligible !== 1">
+                        Ujian: {{ ref.fitness_status || 'Tiada rekod ujian' }} · {{ +ref.patch_eligible === 1 ? 'Layak patch/lesen negeri' : 'Tiada patch/lesen negeri' }}
+                      </p>
+                    }
                   </div>
                 </div>
               </td>
@@ -229,6 +235,12 @@
                   <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-slate-500 text-white leading-none">DAERAH</span>
                 }
               </div>
+              @if (listType === 'pengadil_berdaftar' && +yearFilter >= 2026) {
+                <p class="text-[10px] mt-1" [class.text-emerald-700]="+ref.patch_eligible === 1"
+                  [class.text-rose-700]="+ref.patch_eligible !== 1">
+                  Ujian {{ ref.fitness_status || 'Tiada rekod ujian' }} · {{ +ref.patch_eligible === 1 ? 'Layak patch' : 'Tiada patch/lesen negeri' }}
+                </p>
+              }
             </div>
           </div>
           <span class="text-xs text-slate-400 shrink-0">#{{ getGlobalIndex(i) }}</span>

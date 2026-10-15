@@ -123,8 +123,9 @@ export class AdminUsersComponent implements OnInit {
     switch (type) {
       case 'pengguna_pengadil': return referee;
       case 'berdaftar': return referee && Number(user.current_approved) === 1;
-      case 'baharu': return referee && Number(user.current_approved) !== 1 && Number(user.prior_approved) !== 1;
-      case 'tidak_aktif': return referee && Number(user.prior_approved) === 1 && Number(user.current_approved) !== 1;
+      case 'baharu': return referee && Number(user.current_applied) !== 1 && Number(user.prior_approved) !== 1;
+      case 'tidak_aktif': return referee && Number(user.prior_approved) === 1 && Number(user.current_applied) !== 1;
+      case 'menunggu': return referee && Number(user.current_applied) === 1 && Number(user.current_approved) !== 1;
       case 'kelas3': return referee && Number(user.class3_passed) === 1;
       case 'kelas1': return referee && Number(user.class1_passed) === 1;
       case 'ra': return Number(user.is_ra) === 1;
@@ -133,15 +134,23 @@ export class AdminUsersComponent implements OnInit {
     }
   }
 
-  hasFlag(user: any, flag: 'current_applied' | 'current_approved' | 'class3_passed' | 'class1_passed'): boolean {
+  hasFlag(user: any, flag: 'current_applied' | 'current_approved' | 'current_license' | 'class3_passed' | 'class1_passed'): boolean {
     return Number(user[flag]) === 1;
   }
 
   registrationLabel(user: any): string {
     if (!this.matchesType(user, 'pengguna_pengadil')) return '-';
     if (Number(user.current_approved) === 1) return 'Pengadil Berdaftar';
+    if (Number(user.current_applied) === 1) return 'Permohonan Belum Diluluskan';
     if (Number(user.prior_approved) === 1) return 'Pengadil Tidak Aktif';
     return 'Pengadil Baharu';
+  }
+
+  licenseLabel(user: any): string {
+    if (Number(user.current_approved) !== 1) return '';
+    if (Number(user.current_license) === 1) return `Layak patch / lesen negeri ${this.yearFilter}`;
+    if (!user.current_fitness_status) return `Menunggu keputusan ujian kecergasan ${this.yearFilter}`;
+    return `Tidak layak patch / lesen negeri ${this.yearFilter}`;
   }
 
   reactivate(user: any): void {

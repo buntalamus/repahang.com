@@ -315,7 +315,9 @@
                     <label class="block text-sm font-medium text-slate-700 mb-1">Gambar Profil Terbaru <span class="text-red-500">*</span></label>
                     <input type="file" (change)="onGambarSelected($event)" accept=".jpg,.jpeg,.png"
                       class="w-full text-sm file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-pahang-yellow file:text-black file:font-semibold file:cursor-pointer" />
-                    <p class="text-xs text-slate-400 mt-1">JPG / PNG &mdash; maks 5MB. Akan dikemaskini ke profil.</p>
+                    <p class="text-xs text-slate-400 mt-1">JPG / PNG &mdash; maks 5MB. Gambar dikecilkan automatik dan digunakan pada profil.</p>
+                    @if (compressingGambar) { <p class="text-xs text-amber-700 mt-1">Sedang mengecilkan gambar…</p> }
+                    @if (gambarSizeKb) { <p class="text-xs text-emerald-700 mt-1">Saiz selepas dikecilkan: {{ gambarSizeKb }} KB</p> }
                   </div>
                 </div>
               </div>
@@ -410,7 +412,7 @@
               }
             </div>
             <div class="flex justify-end pt-6 mt-4 border-t border-slate-100">
-              <button (click)="submit()" [disabled]="submitting"
+              <button (click)="submit()" [disabled]="submitting || compressingGambar"
                 class="bg-pahang-yellow text-black font-semibold px-8 py-2.5 rounded-lg hover:bg-yellow-500 disabled:opacity-50 flex items-center gap-2 text-sm">
                 @if (submitting) {
                   <span class="material-icons animate-spin text-sm">refresh</span>

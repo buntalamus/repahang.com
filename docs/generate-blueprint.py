@@ -151,7 +151,7 @@ def build_pdf():
         ('4', 'Flow Permohonan: Pengadil Berdaftar (R1+R2)', '6'),
         ('5', 'Flow Permohonan: Ujian Kelas III FAM (R11)', '8'),
         ('6', 'Flow Permohonan: Ujian Kelas I FAM (R11)', '9'),
-        ('7', 'Flow Permohonan: Penilai Berdaftar (R4)', '10'),
+        ('7', 'Flow Permohonan: Penilai Berdaftar (R1)', '10'),
         ('8', 'Flow Permohonan: PP Daerah (Sama Seperti Pengadil)', '11'),
         ('9', 'Aliran Status Workflow', '12'),
         ('10', 'Tetapan Sistem (Application Settings)', '13'),
@@ -216,7 +216,7 @@ def build_pdf():
          'Hantar permohonan: Pendaftaran Tahunan (R1+R2), Ujian Kelas III FAM (R11), Ujian Kelas I FAM (R11)\n'
          'Lihat sejarah permohonan, perlawanan, penilaian, tugasan'),
         ('Penilai', 'Penilai Pengadil Negeri',
-         'Hantar permohonan: Pendaftaran Tahunan Penilai (R4)\n'
+         'Hantar permohonan: Pendaftaran Tahunan Penilai (R1)\n'
          'Menilai pengadil, lihat tugasan penilaian'),
         ('PP Daerah', 'Penyelaras Pengadilan Daerah',
          'Hantar permohonan: Pendaftaran Tahunan (R1+R2), Ujian Kelas III (R11), Ujian Kelas I (R11)\n'
@@ -245,7 +245,7 @@ def build_pdf():
          'bertulis_open', 'RM50\n(FAM)'),
         ('ujian_kelas1_fam', 'Ujian Kelas I\nFAM', 'R11', 'Pengadil\nPP Daerah',
          'kelas1_open', 'RM300\n(FAM)'),
-        ('penilai_berdaftar', 'Pendaftaran Tahunan\nPenilai', 'R4', 'Penilai',
+        ('penilai_berdaftar', 'Pendaftaran Tahunan\nPenilai', 'R1', 'Penilai',
          'penilai_open', 'RM80\n(PBNP)'),
     ]
 
@@ -388,11 +388,11 @@ def build_pdf():
 
     # ==================== SECTION 7: PENILAI BERDAFTAR ====================
     pdf.add_page()
-    pdf.section_title('7. FLOW: PENILAI BERDAFTAR (R4)')
+    pdf.section_title('7. FLOW: PENILAI BERDAFTAR (R1)')
 
     pdf.sub_title('7.1 Maklumat Asas')
     pdf.body_text('Jenis Borang: penilai_berdaftar')
-    pdf.body_text('Template PDF: R4')
+    pdf.body_text('Template PDF: R1')
     pdf.body_text('Peranan: Penilai')
     pdf.body_text('Bayaran: RM80.00 ke akaun PBNP')
 
@@ -407,7 +407,7 @@ def build_pdf():
         ('Auto dari profil', 'Nama penuh, No IC, Email, No telefon, Jantina, Alamat, Majikan'),
         ('Diisi pengguna', 'Nama waris, Hubungan waris, Telefon waris, Saiz baju'),
         ('Muat naik', 'Resit bayaran (wajib), Gambar profil (wajib)'),
-        ('Deklarasi', '5 deklarasi kesihatan + 3 deklarasi umum (semua wajib)'),
+        ('Deklarasi', '3 deklarasi umum (semua wajib); tiada ujian kecergasan RA'),
     ]
     pdf.table_header(['Kategori', 'Butiran'], widths2)
     for i, (cat, detail) in enumerate(info_items):
@@ -417,9 +417,9 @@ def build_pdf():
     steps = [
         '1. Penilai log masuk dan navigasi ke Permohonan > Pendaftaran Tahunan',
         '2. Sistem semak: penilai_open=1, belum mohon tahun ini',
-        '3. Borang R4 dipaparkan dengan maklumat profil',
+        '3. Borang R1 dipaparkan dengan maklumat profil',
         '4. Penilai isi waris, saiz baju, muat naik resit + gambar',
-        '5. Tandakan 8 deklarasi (5 kesihatan + 3 umum)',
+        '5. Tandakan 3 deklarasi umum',
         '6. Hantar (status=Pending, workflow=Menunggu PP Daerah)',
         '7. PP Daerah sahkan > Menunggu Admin > Admin lulus > Lengkap',
     ]
@@ -626,7 +626,7 @@ def build_pdf():
     templates = [
         ('R1', 'Borang Pendaftaran\nPengadil/PP', 'pengadil_berdaftar\npp_berdaftar', 'download-borang-\npendaftaran.php'),
         ('R2', 'Borang Kecergasan\n& Perubatan', 'pengadil_berdaftar\n(bundled dengan R1)', 'download-borang-\npendaftaran.php'),
-        ('R4', 'Borang Penilai\nPengadil Negeri', 'penilai_berdaftar', 'download-borang-\npendaftaran.php'),
+        ('R1', 'Borang Penilai\nPengadil Negeri', 'penilai_berdaftar', 'download-borang-\npendaftaran.php'),
         ('R11', 'Borang Peperiksaan\nFAM', 'ujian_bertulis\nujian_kelas1_fam', 'download-borang-\npendaftaran.php'),
     ]
     for i, row in enumerate(templates):
@@ -654,13 +654,13 @@ def build_pdf():
     pdf.set_font('Helvetica', '', 7)
 
     comparison = [
-        ('Borang', 'R1+R2', 'R11', 'R11', 'R4'),
+        ('Borang', 'R1+R2', 'R11', 'R11', 'R1'),
         ('Peranan', 'Pengadil\nPP Daerah', 'Pengadil\nPP Daerah', 'Pengadil\nPP Daerah', 'Penilai'),
         ('Bayaran', 'RM80 PBNP', 'RM50 FAM', 'RM300 FAM', 'RM80 PBNP'),
         ('Resit', 'Ya', 'Ya', 'Ya', 'Ya'),
         ('Gambar', 'Ya', 'Tidak', 'Tidak', 'Ya'),
         ('Saiz Baju', 'Ya', 'Tidak', 'Tidak', 'Ya'),
-        ('Deklarasi', '8 (5+3)', '2', '2', '8 (5+3)'),
+        ('Deklarasi', '8 (5+3)', '2', '2', '3 umum'),
         ('Syarat Umur', 'Tiada', '15-40', '<= 32', 'Tiada'),
         ('Min Perlawanan', '20 (Pengadil)\nTiada (PP)', 'Tiada', 'Tiada', 'Tiada'),
         ('Prasyarat', 'Tiada', 'Tiada', 'Lulus Kelas III\n>= 2 tahun', 'Tiada'),

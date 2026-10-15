@@ -47,7 +47,8 @@ try {
                 pp_notes,
                 admin_approved_at,
                 admin_notes as catatan,
-                YEAR(tarikh_hantar) as tahun_permohonan
+                tahun_permohonan,
+                status_ujian
             FROM permohonan
             WHERE user_id = :user_id
         ";
@@ -105,7 +106,13 @@ try {
             'Penilai'   => ['penilai_berdaftar'],
             'PP Daerah' => ['penilai_berdaftar', 'kelas3_fam', 'ujian_kelas1_fam'],
         ];
-        if (!in_array($jenisBorang, $allowedForRole[$userRole] ?? [], true)) {
+        $adminRa = $userRole === 'Admin' && $jenisBorang === 'penilai_berdaftar';
+        if ($adminRa) {
+            $raStmt = $pdo->prepare('SELECT jenis_pengadil FROM users WHERE id = ?');
+            $raStmt->execute([$userId]);
+            $adminRa = $raStmt->fetchColumn() === 'Penilai Pengadil';
+        }
+        if (!$adminRa && !in_array($jenisBorang, $allowedForRole[$userRole] ?? [], true)) {
             http_response_code(403);
             echo json_encode(['error' => true, 'message' => 'Jenis borang tidak dibenarkan untuk peranan anda.']);
             exit;
@@ -399,7 +406,7 @@ try {
             'url_gambar_profil'      => $gambarUrl,
             'saiz_baju'              => $data['saiz_baju'] ?: null,
             'payment_amount'         => $paymentAmountSetting,
-            'mohon_r1'               => $jenisBorang === 'pengadil_berdaftar' ? 1 : 0,
+            'mohon_r1'               => in_array($jenisBorang, ['pengadil_berdaftar', 'penilai_berdaftar'], true) ? 1 : 0,
             'mohon_ujian_kecergasan' => $jenisBorang === 'pengadil_berdaftar' ? 1 : 0,
         ]);
         
@@ -449,20 +456,55 @@ try {
             'jenis_pengadil' => $data['jenis_pengadil']
         ]);
         
+        // Lampirkan borang yang sepadan dengan jenis pendaftaran tahunan.
+        $attachments = [];
+        if (in_array($jenisBorang, ['pengadil_berdaftar', 'penilai_berdaftar'], true)) {
+            try {
+                require_once __DIR__ . '/../config/pendaftaran-pdf.php';
+                $attachments[] = [
+                    'filename' => $jenisBorang === 'penilai_berdaftar'
+                        ? 'Borang_Pendaftaran_RA_R1_' . $applicationId . '.pdf'
+                        : 'Borang_Pendaftaran_R1_R2_R4_' . $applicationId . '.pdf',
+                    'mime' => 'application/pdf',
+                    'data' => buildPendaftaranTahunanPdf($pdo, (int) $applicationId),
+                ];
+            } catch (Throwable $pdfError) {
+                error_log('[pengadil-application] PDF lampiran gagal dijana untuk permohonan ' . $applicationId . ': ' . $pdfError->getMessage());
+            }
+        } elseif ($jenisBorang === 'kelas3_fam') {
+            try {
+                require_once __DIR__ . '/../config/pendaftaran-pdf.php';
+                $attachments[] = [
+                    'filename' => 'Borang_Perakuan_Kesihatan_R4_' . $applicationId . '.pdf',
+                    'mime' => 'application/pdf',
+                    'data' => buildBorangKecergasanKelas3Pdf($pdo, (int) $applicationId),
+                ];
+            } catch (Throwable $pdfError) {
+                error_log('[pengadil-application] R4 lampiran gagal dijana untuk permohonan ' . $applicationId . ': ' . $pdfError->getMessage());
+            }
+        }
+
         // Send success email to user
-        $emailSent = sendApplicationSuccessEmail(
+        $emailSent = (!in_array($jenisBorang, ['pengadil_berdaftar', 'penilai_berdaftar', 'kelas3_fam'], true) || $attachments)
+            ? sendApplicationSuccessEmail(
             $data['emel'],
             $data['nama_penuh'],
             $applicationId,
-            $data['jenis_pengadil']
-        );
+            $data['jenis_pengadil'],
+            $attachments,
+            $applicationYear,
+            $jenisBorang,
+            $paymentAmountSetting,
+            $userRole
+        ) : false;
         
         echo json_encode([
             'error' => false,
             'message' => 'Permohonan berjaya dihantar!',
             'application_id' => $applicationId,
             'linked_matches' => $linkedMatches,
-            'email_sent' => $emailSent
+            'email_sent' => $emailSent,
+            'email_message' => $emailSent ? 'Salinan dihantar melalui emel.' : 'Emel salinan belum berjaya dihantar; borang boleh dimuat turun dari dashboard.'
         ]);
         exit;
     }
@@ -482,29 +524,48 @@ try {
 /**
  * Send application success email to user
  */
-function sendApplicationSuccessEmail($to, $nama, $applicationId, $jenisPengadil) {
-    $subject = "Permohonan Pendaftaran Pengadil Berjaya Dihantar - PBNP";
+function sendApplicationSuccessEmail($to, $nama, $applicationId, $jenisPengadil, array $attachments = [], int $applicationYear = 0, string $jenisBorang = '', float $paymentAmount = 0, string $userRole = '') {
+    $subject = match ($jenisBorang) {
+        'kelas3_fam' => 'Permohonan Kelas III FAM Berjaya Dihantar - PBNP',
+        'penilai_berdaftar' => 'Permohonan Pendaftaran Tahunan Penilai Pengadil Berjaya Dihantar - PBNP',
+        default => 'Permohonan Pendaftaran Pengadil Berjaya Dihantar - PBNP',
+    };
     $refNo   = 'REF-' . str_pad((string)$applicationId, 6, '0', STR_PAD_LEFT);
 
     $body  = emailGreeting($nama);
-    $body .= emailPara("Terima kasih! Permohonan pendaftaran anda sebagai <strong>" . htmlspecialchars($jenisPengadil) . "</strong> telah berjaya dihantar kepada <strong>Sistem Pengurusan Pengadil PBNP</strong>.");
+    $purpose = $jenisBorang === 'kelas3_fam' ? 'permohonan Kelas III FAM' : 'permohonan pendaftaran tahunan anda';
+    $body .= emailPara("Terima kasih! {$purpose} sebagai <strong>" . htmlspecialchars($jenisPengadil) . "</strong> telah berjaya dihantar kepada <strong>Sistem Pengurusan Pengadil PBNP</strong>.");
     $body .= emailInfoTable([
         ['No. Rujukan',     "<strong style=\"color:#2563EB;\">{$refNo}</strong>"],
         ['Tarikh Dihantar', date('d M Y, H:i')],
         ['Jenis Pengadil',  htmlspecialchars($jenisPengadil)],
-        ['Yuran Pendaftaran', '<strong>RM 80.00</strong>'],
+        ['Yuran Permohonan', '<strong>RM ' . number_format($paymentAmount, 2) . '</strong>'],
     ]);
     $body .= emailStatusBadge('Menunggu Kelulusan Admin', '#DBEAFE', '#1E40AF');
     $body .= emailAlert('#2563EB', '#EFF6FF', 'Maklumat Pemprosesan', 'Permohonan anda sedang disemak oleh pentadbir. Proses kelulusan biasanya mengambil masa <strong>1–3 hari bekerja</strong>. Anda akan menerima notifikasi apabila ada kemaskini.');
+    if ($attachments && $jenisBorang === 'pengadil_berdaftar') {
+        $body .= emailPara('Salinan borang R1, R2 dan R4 dilampirkan. Sila cetak dan tandatangani perakuan kesihatan dalam R4 sebelum ujian kecergasan.');
+    } elseif ($attachments && $jenisBorang === 'penilai_berdaftar') {
+        $body .= emailPara('Salinan borang R1 Pendaftaran Tahunan Penilai Pengadil dilampirkan untuk simpanan dan tandatangan anda.');
+    } elseif ($attachments && $jenisBorang === 'kelas3_fam') {
+        $body .= emailPara('Borang R4 perakuan kesihatan dilampirkan. Sila cetak dan tandatangan sebelum ujian kecergasan.');
+    }
     $body .= emailPara('<strong>Langkah Seterusnya:</strong>');
     $body .= emailOrderedList([
         'Tunggu pengesahan daripada pentadbir sistem.',
         'Semak status permohonan secara berkala di dashboard anda.',
         'Pastikan semua maklumat yang dihantar adalah tepat dan lengkap.',
-        'Setelah diluluskan, sijil pengadil rasmi akan dikeluarkan.',
+        $applicationYear >= 2027 && $jenisBorang === 'pengadil_berdaftar'
+            ? 'Bagi sesi 2027 dan seterusnya, pendaftaran akhir bergantung pada keputusan lulus ujian kecergasan.'
+            : 'Semak keputusan akhir pendaftaran di dashboard.',
     ]);
-    $body .= emailButton(env('BASE_URL') . '/pengadil', 'Semak Status Permohonan');
+    $dashboardPath = $jenisBorang === 'penilai_berdaftar' ? match ($userRole) {
+        'Admin' => '/admin/daftar/ra',
+        'PP Daerah' => '/pp-daerah/daftar/tahunan',
+        default => '/penilai/permohonan/tahunan',
+    } : '/pengadil';
+    $body .= emailButton(env('BASE_URL') . $dashboardPath, 'Semak Status Permohonan');
 
     $htmlBody = buildEmailTemplate('Permohonan Berjaya Dihantar', '#2563EB', '', $body);
-    return sendEmail($to, $subject, $htmlBody, $nama, 'daftar');
+    return sendEmail($to, $subject, $htmlBody, $nama, 'daftar', [], $attachments);
 }

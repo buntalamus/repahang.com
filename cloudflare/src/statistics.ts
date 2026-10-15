@@ -77,7 +77,6 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
       WHERE a.jenis_borang='pengadil_berdaftar' AND a.status='Approved'
         AND a.tahun_permohonan=?
         AND UPPER(TRIM(COALESCE(a.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')
-        AND (a.tahun_permohonan<2027 OR a.status_ujian='Lulus')
         AND a.id=(SELECT MAX(p2.id) FROM permohonan p2
           WHERE p2.user_id=a.user_id AND p2.jenis_borang='pengadil_berdaftar'
             AND p2.tahun_permohonan=a.tahun_permohonan AND p2.status='Approved')`)

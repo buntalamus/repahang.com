@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 $user = requireAuth();
 
 // Allow Pengadil, Penilai, and PP Daerah
-$allowedRoles = ['Pengadil', 'Penilai', 'PP Daerah'];
+$allowedRoles = ['Pengadil', 'Penilai', 'PP Daerah', 'Admin'];
 if (!in_array($user['role'], $allowedRoles, true)) {
     jsonResponse(['error' => true, 'message' => 'Akses ditolak.'], 403);
 }
@@ -94,6 +94,7 @@ try {
                 p.tahun_permohonan,
                 p.status,
                 p.status_workflow,
+                p.status_ujian,
                 p.payment_amount,
                 p.url_resit,
                 p.pp_notes,

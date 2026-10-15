@@ -89,13 +89,17 @@ export async function districtOverview(request: Request, env: Env): Promise<Resp
 
   const [referees, applications, matches, topReferees, currentAssignments] = await Promise.all([
     env.DB.prepare(`
-      SELECT COUNT(*) AS total FROM users u WHERE u.aktif=1 AND u.persatuan_id=?
-        AND EXISTS (SELECT 1 FROM permohonan p WHERE p.user_id=u.id
-          AND p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan=?
-          AND p.status='Approved'
-          AND UPPER(TRIM(COALESCE(p.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')
-          AND (p.tahun_permohonan<2027 OR p.status_ujian='Lulus'))
-    `).bind(persatuanId,year).first<{ total: number }>(),
+      SELECT COUNT(DISTINCT u.id) AS total,
+        COUNT(DISTINCT CASE WHEN (p.tahun_permohonan>=2027 AND p.status_ujian='Lulus') OR
+          (p.tahun_permohonan<2027 AND EXISTS (SELECT 1 FROM permohonan f
+            WHERE f.user_id=p.user_id AND f.tahun_permohonan=p.tahun_permohonan
+              AND f.jenis_borang='ujian_kecergasan' AND f.status_ujian='Lulus'))
+          THEN u.id END) AS licensed
+      FROM users u JOIN permohonan p ON p.user_id=u.id
+      WHERE u.aktif=1 AND u.persatuan_id=? AND p.jenis_borang='pengadil_berdaftar'
+        AND p.tahun_permohonan=? AND p.status='Approved'
+        AND UPPER(TRIM(COALESCE(p.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')
+    `).bind(persatuanId,year).first<{ total: number; licensed: number }>(),
     env.DB.prepare(`
       SELECT ${APPLICATION_CATEGORY_SQL} AS application_category,
         p.status,p.status_workflow,p.workflow_status
@@ -146,6 +150,7 @@ export async function districtOverview(request: Request, env: Env): Promise<Resp
     error: false,
     overview: {
       total_referees: Number(referees?.total ?? 0),
+      licensed_referees: Number(referees?.licensed ?? 0),
       year,
       pending_applications: Object.values(applicationsByType).reduce((sum, item) => sum + item.pending, 0),
       approved_applications: Object.values(applicationsByType).reduce((sum, item) => sum + item.approved, 0),

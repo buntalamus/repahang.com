@@ -102,7 +102,7 @@ function handleDownload(): void
 
                 COUNT(p.id) as total_permohonan,
 
-                COUNT(CASE WHEN p.status = 'Approved' OR p.status_workflow = 'Lengkap' THEN 1 END) as permohonan_lulus,
+                COUNT(CASE WHEN (p.status = 'Approved' OR p.status_workflow = 'Lengkap') THEN 1 END) as permohonan_lulus,
 
                 COUNT(CASE WHEN p.status_workflow = 'Lengkap' THEN 1 END) as permohonan_lengkap,
 

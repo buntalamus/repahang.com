@@ -115,10 +115,7 @@ function handleDownload(): void
             LEFT JOIN permohonan a ON u.id = a.user_id
                 AND a.jenis_borang IN ('pengadil_berdaftar', 'penilai_berdaftar')
                 AND a.status = 'Approved'
-                AND (
-                    (a.status_kemaskini IS NOT NULL AND YEAR(a.status_kemaskini) = :year)
-                    OR (a.status_kemaskini IS NULL AND YEAR(a.tarikh_hantar) = :year)
-                )
+                AND a.tahun_permohonan = :year
             LEFT JOIN persatuan_bolasepak_daerah p ON p.id = COALESCE(a.persatuan_id, u.persatuan_id)
             WHERE 1 = 1
             {$roleCondition}

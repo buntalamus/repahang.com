@@ -38,6 +38,14 @@ if (is_file(__DIR__ . '/../storage/maintenance.flag')
 
 if (isset($_SESSION['user_id'])) {
 
+    // Admin yang turut menjadi RA boleh bertukar klasifikasi selepas sesi bermula.
+    // Segarkan profil untuk menu RA tanpa memaksa pengguna log masuk semula.
+    if (($_SESSION['user_role'] ?? '') === 'Admin' || !array_key_exists('user_jenis_pengadil', $_SESSION)) {
+        $profileStmt = $pdo->prepare('SELECT jenis_pengadil FROM users WHERE id = ?');
+        $profileStmt->execute([(int) $_SESSION['user_id']]);
+        $_SESSION['user_jenis_pengadil'] = $profileStmt->fetchColumn() ?: null;
+    }
+
     jsonResponse([
 
         'authenticated' => true,
@@ -47,6 +55,8 @@ if (isset($_SESSION['user_id'])) {
         'user_email' => $_SESSION['user_email'] ?? null,
 
         'user_role' => $_SESSION['user_role'] ?? null,
+
+        'user_jenis_pengadil' => $_SESSION['user_jenis_pengadil'] ?? null,
 
         'user_persatuan_id' => $_SESSION['persatuan_id'] ?? null,
 

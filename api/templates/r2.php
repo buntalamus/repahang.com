@@ -81,32 +81,56 @@ function generateR2Pdf($pdf, $data, $pdo) {
         $pdf->setFont('helvetica', '', 9);
         $pdf->Cell(0, 10, 'Tiada rekod perlawanan dijumpai.', 0, 1, 'L');
     } else {
-        $pdf->setFont('helvetica', 'B', 9);
-        $pdf->setFillColor(240, 240, 240);
-        $pdf->Cell(25, 8, 'Tarikh', 1, 0, 'C', true);
-        $pdf->Cell(40, 8, 'Jenis Perlawanan', 1, 0, 'C', true);
-        $pdf->Cell(65, 8, 'Tempat', 1, 0, 'C', true);
-        $pdf->Cell(50, 8, 'Jawatan', 1, 1, 'C', true);
+        // Lebar jawatan mengikut kandungan sebenar (dengan had); baki ruang
+        // diberikan kepada nama perlawanan. Tempat menggunakan kolum lebih kecil.
+        $pdf->setFont('helvetica', '', 8);
+        $jawatanWidth = 34.0;
+        foreach ($matches as $match) {
+            $jawatanWidth = max($jawatanWidth, $pdf->getStringWidth(strtoupper((string) ($match['jawatan'] ?: '-'))) + 5);
+        }
+        $jawatanWidth = min(50.0, ceil($jawatanWidth));
+        $dateWidth = 25.0;
+        $placeWidth = 50.0;
+        $matchWidth = 180.0 - $dateWidth - $placeWidth - $jawatanWidth;
+
+        $drawTableHeader = static function () use ($pdf, $dateWidth, $matchWidth, $placeWidth, $jawatanWidth): void {
+            $pdf->setFont('helvetica', 'B', 9);
+            $pdf->setFillColor(240, 240, 240);
+            $pdf->Cell($dateWidth, 8, 'Tarikh', 1, 0, 'C', true);
+            $pdf->Cell($matchWidth, 8, 'Jenis Perlawanan', 1, 0, 'C', true);
+            $pdf->Cell($placeWidth, 8, 'Tempat', 1, 0, 'C', true);
+            $pdf->Cell($jawatanWidth, 8, 'Jawatan', 1, 1, 'C', true);
+        };
+        $drawTableHeader();
 
         $pdf->setFont('helvetica', '', 8);
         $fill = false;
         foreach ($matches as $match) {
-            if ($pdf->GetY() > 255) {
+            $tarikh = !empty($match['tarikh']) ? date('d/m/Y', strtotime($match['tarikh'])) : '-';
+            $cells = [
+                [$dateWidth, $tarikh, 'C'],
+                [$matchWidth, strtoupper($match['jenis'] ?: '-'), 'L'],
+                [$placeWidth, strtoupper($match['tempat'] ?: '-'), 'L'],
+                [$jawatanWidth, strtoupper($match['jawatan'] ?: '-'), 'L'],
+            ];
+            $rowHeight = 7;
+            foreach ($cells as [$width, $value]) {
+                $rowHeight = max($rowHeight, $pdf->getStringHeight($width - 3, $value) + 2);
+            }
+            if ($pdf->GetY() + $rowHeight > $pdf->getPageHeight() - 20) {
                 $pdf->AddPage();
-                $pdf->setFont('helvetica', 'B', 9);
-                $pdf->setFillColor(240, 240, 240);
-                $pdf->Cell(25, 8, 'Tarikh', 1, 0, 'C', true);
-                $pdf->Cell(40, 8, 'Jenis Perlawanan', 1, 0, 'C', true);
-                $pdf->Cell(65, 8, 'Tempat', 1, 0, 'C', true);
-                $pdf->Cell(50, 8, 'Jawatan', 1, 1, 'C', true);
+                $drawTableHeader();
                 $pdf->setFont('helvetica', '', 8);
                 $fill = false;
             }
-            $tarikh = !empty($match['tarikh']) ? date('d/m/Y', strtotime($match['tarikh'])) : '-';
-            $pdf->Cell(25, 7, $tarikh, 1, 0, 'C', $fill);
-            $pdf->Cell(40, 7, strtoupper($match['jenis'] ?: '-'), 1, 0, 'L', $fill);
-            $pdf->Cell(65, 7, strtoupper($match['tempat'] ?: '-'), 1, 0, 'L', $fill);
-            $pdf->Cell(50, 7, strtoupper($match['jawatan'] ?: '-'), 1, 1, 'L', $fill);
+            $x = $pdf->GetX();
+            $y = $pdf->GetY();
+            foreach ($cells as [$width, $value, $align]) {
+                $pdf->MultiCell($width, $rowHeight, $value, 1, $align, $fill, 0,
+                    $x, $y, true, 0, false, true, $rowHeight, 'M', true);
+                $x += $width;
+            }
+            $pdf->SetXY(15, $y + $rowHeight);
             $fill = !$fill;
         }
 

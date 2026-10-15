@@ -173,15 +173,15 @@ export async function uploadProfileImage(request: Request, env: Env): Promise<Re
   }
   const file = data.get('image');
   if (!(file instanceof File)) return json({ error: true, message: 'Tiada fail dimuat naik.' }, 422);
-  if (file.size > 5 * 1024 * 1024) return json({ error: true, message: 'Saiz fail terlalu besar. Maksimum 5MB.' }, 422);
+  if (file.size > 200 * 1024) return json({ error: true, message: 'Saiz gambar selepas pemampatan melebihi 200KB. Pilih semula gambar profil.' }, 422);
   const image = new Uint8Array(await file.arrayBuffer());
   const info = dimensions(image);
   if (!info) return json({ error: true, message: 'Fail bukan imej yang sah.' }, 422);
   if (info.width < 150 || info.height < 150) {
     return json({ error: true, message: 'Resolusi imej terlalu kecil. Minimum 150x150 piksel.' }, 422);
   }
-  if (info.width > 4000 || info.height > 4000) {
-    return json({ error: true, message: 'Resolusi imej terlalu besar. Maksimum 4000x4000 piksel.' }, 422);
+  if (info.width > 400 || info.height > 400) {
+    return json({ error: true, message: 'Resolusi gambar profil terlalu besar. Maksimum 400x400 piksel.' }, 422);
   }
   const key = `profiles/user_${user.id}_${crypto.randomUUID()}.${info.ext}`;
   const path = `/uploads/${key}`;

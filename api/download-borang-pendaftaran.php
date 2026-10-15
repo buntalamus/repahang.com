@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
-require_once __DIR__ . '/../vendor/tcpdf.php';
+require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/templates/r1.php';
 require_once __DIR__ . '/templates/r2.php';
 require_once __DIR__ . '/templates/r11.php';
@@ -12,14 +12,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     jsonResponse(['error' => true, 'message' => 'Kaedah tidak dibenarkan.'], 405);
 }
 
-// Check if user is logged in and is PP Daerah
+// Pemohon boleh memuat turun permohonan sendiri yang diluluskan.
+// Akses kepada permohonan satu daerah hanya diberikan kepada PP Daerah.
 $user = requireAuth();
-
-if ($user['role'] !== 'PP Daerah') {
-    jsonResponse(['error' => true, 'message' => 'Akses ditolak - hanya PP Daerah sahaja'], 403);
-}
-
 $user_id = $user['id'];
+$district_scope_id = $user['role'] === 'PP Daerah' ? $user['persatuan_id'] : null;
 
 try {
     // Get the type and application_id parameters
@@ -32,6 +29,7 @@ try {
     $params = [];
 
     switch ($type) {
+        case 'penilai_berdaftar':
         case 'pengadil_berdaftar':
             if ($application_id) {
                 $query = "SELECT p.*, u.nama_penuh, u.no_ic, u.email, u.no_telefon,
@@ -42,8 +40,8 @@ try {
                                  u.jenis_pengadil, u.tahun_mula_aktif, u.saiz_baju, u.jantina, u.url_gambar_profil
                           FROM permohonan p
                           JOIN users u ON p.user_id = u.id
-                          WHERE p.id = ? AND (p.user_id = ? OR p.district_id = ?) AND p.jenis_borang = ? AND LOWER(p.status) = 'approved'";
-                $params = [$application_id, $user_id, $user['persatuan_id'], 'pengadil_berdaftar'];
+                          WHERE p.id = ? AND (p.user_id = ? OR (p.district_id = ? AND LOWER(p.status) = 'approved')) AND p.jenis_borang = ?";
+                $params = [$application_id, $user_id, $district_scope_id, $type];
             } else {
                 $query = "SELECT p.*, u.nama_penuh, u.no_ic, u.email, u.no_telefon,
                                  u.alamat1, u.alamat2, u.poskod, u.daerah, u.negeri,
@@ -53,10 +51,18 @@ try {
                                  u.jenis_pengadil, u.tahun_mula_aktif, u.saiz_baju, u.jantina, u.url_gambar_profil
                           FROM permohonan p
                           JOIN users u ON p.user_id = u.id
-                          WHERE (p.user_id = ? OR p.district_id = ?) AND p.jenis_borang = ? AND LOWER(p.status) = 'approved'
+                          WHERE (p.user_id = ? OR (p.district_id = ? AND LOWER(p.status) = 'approved')) AND p.jenis_borang = ?
                           ORDER BY p.tarikh_hantar DESC LIMIT 1";
-                $params = [$user_id, $user['persatuan_id'], 'pengadil_berdaftar'];
+                $params = [$user_id, $district_scope_id, $type];
             }
+            break;
+
+        case 'kelas3_fam':
+            if (!$application_id) {
+                jsonResponse(['error' => true, 'message' => 'ID permohonan diperlukan.'], 400);
+            }
+            $query = "SELECT id FROM permohonan WHERE id = ? AND user_id = ? AND jenis_borang = 'kelas3_fam'";
+            $params = [$application_id, $user_id];
             break;
 
         case 'pengadil_futsal':
@@ -70,7 +76,7 @@ try {
                           FROM permohonan p
                           JOIN users u ON p.user_id = u.id
                           WHERE p.id = ? AND (p.user_id = ? OR p.district_id = ?) AND p.jenis_borang = ? AND LOWER(p.status) = 'approved'";
-                $params = [$application_id, $user_id, $user['persatuan_id'], 'pengadil_futsal'];
+                $params = [$application_id, $user_id, $district_scope_id, 'pengadil_futsal'];
             } else {
                 $query = "SELECT p.*, u.nama_penuh, u.no_ic, u.email, u.no_telefon,
                                  u.alamat1, u.alamat2, u.poskod, u.daerah, u.negeri,
@@ -82,7 +88,7 @@ try {
                           JOIN users u ON p.user_id = u.id
                           WHERE (p.user_id = ? OR p.district_id = ?) AND p.jenis_borang = ? AND LOWER(p.status) = 'approved'
                           ORDER BY p.tarikh_hantar DESC LIMIT 1";
-                $params = [$user_id, $user['persatuan_id'], 'pengadil_futsal'];
+                $params = [$user_id, $district_scope_id, 'pengadil_futsal'];
             }
             break;
 
@@ -97,7 +103,7 @@ try {
                           FROM permohonan p
                           JOIN users u ON p.user_id = u.id
                           WHERE p.id = ? AND (p.user_id = ? OR p.district_id = ?) AND p.jenis_permohonan = ? AND p.workflow_status = 'Approved'";
-                $params = [$application_id, $user_id, $user['persatuan_id'], 'ujian_kecergasan'];
+                $params = [$application_id, $user_id, $district_scope_id, 'ujian_kecergasan'];
             } else {
                 $query = "SELECT p.*, u.nama_penuh, u.no_ic, u.email, u.no_telefon,
                                  u.alamat1, u.alamat2, u.poskod, u.daerah, u.negeri,
@@ -109,7 +115,7 @@ try {
                           JOIN users u ON p.user_id = u.id
                           WHERE (p.user_id = ? OR p.district_id = ?) AND p.jenis_permohonan = ? AND p.workflow_status = 'Approved'
                           ORDER BY p.tarikh_hantar DESC LIMIT 1";
-                $params = [$user_id, $user['persatuan_id'], 'ujian_kecergasan'];
+                $params = [$user_id, $district_scope_id, 'ujian_kecergasan'];
             }
             break;
 
@@ -125,7 +131,7 @@ try {
                           FROM permohonan_ujian_bertulis p
                           JOIN users u ON p.user_id = u.id
                           WHERE p.id = ? AND (p.user_id = ? OR p.persatuan_id = ?) AND p.status = 'Approved'";
-                $params = [$application_id, $user_id, $user['persatuan_id']];
+                $params = [$application_id, $user_id, $district_scope_id];
             } else {
                 $query = "SELECT p.*, u.nama_penuh, u.no_ic, u.email, u.no_telefon,
                                  u.alamat1, u.alamat2, u.poskod, u.daerah, u.negeri,
@@ -138,7 +144,7 @@ try {
                           JOIN users u ON p.user_id = u.id
                           WHERE (p.user_id = ? OR p.persatuan_id = ?) AND p.status = 'Approved'
                           ORDER BY p.id DESC LIMIT 1";
-                $params = [$user_id, $user['persatuan_id']];
+                $params = [$user_id, $district_scope_id];
             }
             break;
 
@@ -154,7 +160,7 @@ try {
                           FROM permohonan_ujian_bertulis p
                           JOIN users u ON p.user_id = u.id
                           WHERE p.id = ? AND (p.user_id = ? OR p.persatuan_id = ?) AND p.jenis_permohonan = 'kelas1' AND p.status = 'Approved'";
-                $params = [$application_id, $user_id, $user['persatuan_id']];
+                $params = [$application_id, $user_id, $district_scope_id];
             } else {
                 $query = "SELECT p.*, u.nama_penuh, u.no_ic, u.email, u.no_telefon,
                                  u.alamat1, u.alamat2, u.poskod, u.daerah, u.negeri,
@@ -167,7 +173,7 @@ try {
                           JOIN users u ON p.user_id = u.id
                           WHERE (p.user_id = ? OR p.persatuan_id = ?) AND p.jenis_permohonan = 'kelas1' AND p.status = 'Approved'
                           ORDER BY p.id DESC LIMIT 1";
-                $params = [$user_id, $user['persatuan_id']];
+                $params = [$user_id, $district_scope_id];
             }
             break;
 
@@ -181,6 +187,31 @@ try {
 
     if (!$application) {
         jsonResponse(['error' => true, 'message' => 'Permohonan belum diluluskan atau tidak wujud'], 403);
+    }
+
+    if ($type === 'pengadil_berdaftar' || $type === 'penilai_berdaftar') {
+        if ($type === 'penilai_berdaftar' && $form !== null && $form !== 'r1') {
+            jsonResponse(['error' => true, 'message' => 'Pendaftaran RA hanya mempunyai borang R1.'], 400);
+        }
+        require_once __DIR__ . '/../config/pendaftaran-pdf.php';
+        $pdfData = buildPendaftaranTahunanPdf($pdo, (int) $application['id'], $form);
+        header('Content-Type: application/pdf');
+        $filename = $type === 'penilai_berdaftar'
+            ? 'Borang_Pendaftaran_RA_R1_' . (int) $application['id'] . '.pdf'
+            : 'Borang_Pendaftaran_Pengadil_R1_R2_R4_' . (int) $application['id'] . '.pdf';
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Cache-Control: private, no-store');
+        echo $pdfData;
+        exit;
+    }
+    if ($type === 'kelas3_fam') {
+        require_once __DIR__ . '/../config/pendaftaran-pdf.php';
+        $pdfData = buildBorangKecergasanKelas3Pdf($pdo, (int) $application['id']);
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="Borang_Perakuan_Kesihatan_R4_' . (int) $application['id'] . '.pdf"');
+        header('Cache-Control: private, no-store');
+        echo $pdfData;
+        exit;
     }
 
     // Get district info

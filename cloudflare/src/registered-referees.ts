@@ -42,6 +42,15 @@ export async function registeredReferees(request: Request, env: Env): Promise<Re
     COALESCE(a.nama_waris,u.nama_waris) AS nama_waris,
     COALESCE(a.hubungan_waris,u.hubungan_waris) AS hubungan_waris,
     COALESCE(a.telefon_waris,u.telefon_waris) AS telefon_waris,
+    ${ra ? 'NULL' : `CASE WHEN a.tahun_permohonan>=2027 THEN a.status_ujian
+      ELSE (SELECT f.status_ujian FROM permohonan f WHERE f.user_id=a.user_id
+        AND f.tahun_permohonan=a.tahun_permohonan AND f.jenis_borang='ujian_kecergasan'
+        ORDER BY f.id DESC LIMIT 1) END`} AS fitness_status,
+    ${ra ? 'NULL' : `CASE WHEN (a.tahun_permohonan>=2027 AND a.status_ujian='Lulus') OR
+      (a.tahun_permohonan<2027 AND EXISTS (SELECT 1 FROM permohonan f
+        WHERE f.user_id=a.user_id AND f.tahun_permohonan=a.tahun_permohonan
+          AND f.jenis_borang='ujian_kecergasan' AND f.status_ujian='Lulus'))
+      THEN 1 ELSE 0 END`} AS patch_eligible,
     a.url_resit,a.status_kemaskini,a.tarikh_hantar,
     u.tahun_mohon_kelas3,u.tahun_lulus_kelas3,
     u.pengadil_kebangsaan,u.pengadil_negeri,u.pengadil_daerah,
@@ -53,7 +62,6 @@ export async function registeredReferees(request: Request, env: Env): Promise<Re
       AND ${ra ? "(a.jenis_borang='penilai_berdaftar' OR (a.jenis_borang='pengadil_berdaftar' AND UPPER(TRIM(COALESCE(a.jenis_pengadil,'')))='PENILAI PENGADIL'))"
         : "a.jenis_borang='pengadil_berdaftar' AND UPPER(TRIM(COALESCE(a.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')"}
       AND a.status='Approved'
-      AND ${ra ? '1=1' : "(a.tahun_permohonan<2027 OR a.status_ujian='Lulus')"}
       AND a.tahun_permohonan=?
     LEFT JOIN persatuan_bolasepak_daerah p ON p.id=COALESCE(a.persatuan_id,u.persatuan_id)
     WHERE u.aktif=1 AND ${roleCondition} ORDER BY u.nama_penuh`)

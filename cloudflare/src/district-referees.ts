@@ -1,14 +1,8 @@
 import { currentUser, json } from './auth';
 import type { Env } from './types';
 
-const APPROVED = `p.status='Approved' AND
-  (p.jenis_borang<>'pengadil_berdaftar' OR p.tahun_permohonan<2027
-   OR p.jenis_pengadil IN ('Penilai Pengadil','Pegawai Pembangunan')
-   OR p.status_ujian='Lulus')`;
-const COMPLETE = `p.status_workflow='Lengkap' AND
-  (p.jenis_borang<>'pengadil_berdaftar' OR p.tahun_permohonan<2027
-   OR p.jenis_pengadil IN ('Penilai Pengadil','Pegawai Pembangunan')
-   OR p.status_ujian='Lulus')`;
+const APPROVED = `p.status='Approved'`;
+const COMPLETE = `p.status_workflow='Lengkap'`;
 
 function roleFilter(role: string): string {
   return role === 'Penilai'
@@ -100,8 +94,10 @@ export async function districtReferees(request: Request, env: Env): Promise<Resp
        LEFT JOIN permohonan p ON p.user_id=u.id
        WHERE ${filter} AND u.persatuan_id=? AND u.aktif=1
          AND p.tahun_permohonan=? AND p.jenis_borang=? AND p.status='Approved'
-         AND (p.jenis_borang<>'pengadil_berdaftar' OR p.tahun_permohonan<2027
-           OR p.status_ujian='Lulus')) AS active,
+         AND ((p.tahun_permohonan>=2027 AND p.status_ujian='Lulus') OR
+           (p.tahun_permohonan<2027 AND EXISTS (SELECT 1 FROM permohonan f
+             WHERE f.user_id=p.user_id AND f.tahun_permohonan=p.tahun_permohonan
+               AND f.jenis_borang='ujian_kecergasan' AND f.status_ujian='Lulus')))) AS active,
       (SELECT COUNT(*) FROM permohonan WHERE persatuan_id=?
          AND substr(tarikh_hantar,1,7)=?) AS applications_this_month,
       (SELECT COUNT(*) FROM permohonan WHERE persatuan_id=?

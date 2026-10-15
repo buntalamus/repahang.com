@@ -50,6 +50,7 @@
         <option value="all">Semua jenis</option>
         <option value="pengguna_pengadil">Pengguna pengadil</option>
         <option value="berdaftar">Pengadil Berdaftar</option>
+        <option value="menunggu">Permohonan Belum Diluluskan</option>
         <option value="baharu">Pengadil Baharu</option>
         <option value="tidak_aktif">Pengadil Tidak Aktif</option>
         <option value="kelas3">Kelas III FAM</option>
@@ -132,6 +133,10 @@
                 @if (hasFlag(user, 'current_applied') && !hasFlag(user, 'current_approved')) {
                   <span class="block text-amber-700">Permohonan tahun ini belum lulus</span>
                 }
+                @if (hasFlag(user, 'current_approved') && matchesType(user, 'pengguna_pengadil')) {
+                  <span class="block text-xs" [class.text-emerald-700]="hasFlag(user, 'current_license')"
+                    [class.text-amber-700]="!hasFlag(user, 'current_license')">{{ licenseLabel(user) }}</span>
+                }
                 @if (hasFlag(user, 'class3_passed')) { <span class="block text-slate-500">Kelas III FAM</span> }
                 @if (hasFlag(user, 'class1_passed')) { <span class="block text-slate-500">Kelas I FAM</span> }
               </td>
@@ -210,6 +215,10 @@
           <div><span class="text-slate-500">Tel:</span> <span class="font-medium">{{ user.no_telefon || '-' }}</span></div>
           <div><span class="text-slate-500">Jenis:</span> <span class="font-medium">{{ titleCase(user.jenis_pengadil) }}</span></div>
           <div class="col-span-2"><span class="text-slate-500">Status {{ yearFilter }}:</span> <span class="font-medium">{{ registrationLabel(user) }}</span></div>
+          @if (hasFlag(user, 'current_approved') && matchesType(user, 'pengguna_pengadil')) {
+            <div class="col-span-2 text-xs" [class.text-emerald-700]="hasFlag(user, 'current_license')"
+              [class.text-amber-700]="!hasFlag(user, 'current_license')">{{ licenseLabel(user) }}</div>
+          }
           <div class="col-span-2"><span class="text-slate-500">Persatuan:</span> <span class="font-medium">{{ user.persatuan_nama || '-' }}</span></div>
         </div>
         <div class="flex border-t border-gray-100 divide-x divide-gray-100">

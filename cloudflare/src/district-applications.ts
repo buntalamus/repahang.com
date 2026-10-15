@@ -72,8 +72,7 @@ export async function districtApplications(request: Request, env: Env): Promise<
         AND EXISTS (SELECT 1 FROM permohonan p WHERE p.user_id=u.id
           AND p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan=?
           AND p.status='Approved'
-          AND COALESCE(p.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan')
-          AND (p.tahun_permohonan<2027 OR p.status_ujian='Lulus'))) AS total_referees
+          AND COALESCE(p.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan'))) AS total_referees
   `).bind(user.persatuan_id, `${month}-01`, user.persatuan_id,
     Number(month.slice(0, 4)))
     .first<{ approved_this_month: number; total_referees: number }>();

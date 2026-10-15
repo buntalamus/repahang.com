@@ -3,6 +3,7 @@ import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import { wroteRow } from './d1-changes';
 import type { Env } from './types';
+import { announceOnTelegram } from './announcement-telegram';
 
 function announcementId(request: Request): number | null {
   const raw = new URL(request.url).searchParams.get('id');
@@ -20,7 +21,7 @@ async function titleAndContent(request: Request): Promise<{ title: string; conte
   return { title, content };
 }
 
-export async function announcementsWrite(request: Request, env: Env): Promise<Response> {
+export async function announcementsWrite(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
   const user = await currentUser(request, env);
   if (!user) return json({ error: true, message: 'Sesi tidak sah' }, 401);
   const verb = ({ POST: 'membuat', PUT: 'mengedit', DELETE: 'memadam' } as Record<string, string>)[request.method];
@@ -37,7 +38,15 @@ export async function announcementsWrite(request: Request, env: Env): Promise<Re
     const result = await env.DB.prepare('INSERT INTO announcements (title, content, created_by) VALUES (?, ?, ?)')
       .bind(fields.title, fields.content, user.id).run();
     // PDO::lastInsertId() returns a string here; PHP did not cast it.
-    return json({ error: false, message: 'Pengumuman berjaya dibuat', id: String(result.meta.last_row_id) });
+    const id = Number(result.meta.last_row_id);
+    const delivery = announceOnTelegram(env, id, fields.title, fields.content)
+      .catch((error) => console.error('[Announcement Telegram] dispatch failed', { announcement_id: id, error: String(error) }));
+    if (ctx) {
+      ctx.waitUntil(delivery);
+      return json({ error: false, message: 'Pengumuman berjaya dibuat. Hebahan Telegram sedang dihantar.', id: String(id) });
+    }
+    await delivery;
+    return json({ error: false, message: 'Pengumuman berjaya dibuat dan hebahan Telegram telah diproses.', id: String(id) });
   }
   const id = announcementId(request);
   if (!id) return json({ error: true, message: 'ID pengumuman diperlukan' }, 400);

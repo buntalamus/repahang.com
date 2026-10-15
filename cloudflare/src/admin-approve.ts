@@ -54,14 +54,15 @@ export async function adminApprove(request: Request, env: Env): Promise<Response
   const fitness = action === 'approve' && application.jenis_borang === 'pengadil_berdaftar' &&
     Number(application.tahun_permohonan) >= 2027 &&
     !['PENILAI PENGADIL', 'PEGAWAI PEMBANGUNAN'].includes(refereeType);
-  const status = action === 'reject' ? 'Rejected' : fitness ? 'Pending' : 'Approved';
+  // Document approval creates annual registration. Fitness decides the year's patch/license.
+  const status = action === 'reject' ? 'Rejected' : 'Approved';
   const workflow = action === 'reject' ? 'Ditolak' : fitness ? 'Admin Diluluskan' : 'Lengkap';
   const classOne = application.jenis_borang === 'ujian_kelas1_fam';
   const subject = action === 'reject' ? 'Permohonan Pendaftaran Ditolak'
     : fitness ? 'Dokumen Diluluskan - Menunggu Ujian Kecergasan'
       : isRa ? 'Pendaftaran Penilai Pengadil Diluluskan' : 'Pendaftaran Pengadil Diluluskan';
   const message = action === 'reject' ? `Permohonan pendaftaran anda telah ditolak. Sebab: ${notes}`
-    : fitness ? 'Permohonan anda telah disahkan. Pendaftaran akhir menunggu keputusan ujian kecergasan.'
+    : fitness ? 'Anda telah didaftarkan untuk sesi ini. Kelayakan patch dan lesen Pengadil Negeri menunggu keputusan ujian kecergasan.'
       : isRa ? 'Pendaftaran tahunan Penilai Pengadil anda telah diluluskan.'
         : 'Permohonan pendaftaran pengadil anda telah diluluskan.';
   const update = env.DB.prepare(`

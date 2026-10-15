@@ -161,6 +161,14 @@ async function privateMedia(request: Request, env: Env, pathname: string): Promi
   if (!key || key.includes('\\') || key.split('/').some((part) => part === '..' || part === '.')) {
     return json({ error: true, message: 'Laluan fail tidak sah.' }, 400);
   }
+  // Authorization and the current DB reference are checked before every cache lookup.
+  const cacheableProfile = request.method === 'GET' &&
+    (key.startsWith('profiles/') || key.startsWith('profile_') || key.startsWith('applications/gambar_'));
+  const cache: Cache | null = typeof caches === 'undefined'
+    ? null : (caches as unknown as { default: Cache }).default;
+  const cacheKey = cacheableProfile
+    ? new Request(new URL(`/__private-profile-cache/${encodeURIComponent(key)}`, request.url), { method: 'GET' })
+    : null;
   if (user.role !== 'Admin') {
     const reference = `/uploads/${key}`;
     let allowed = await env.DB.prepare(`
@@ -201,15 +209,34 @@ async function privateMedia(request: Request, env: Env, pathname: string): Promi
     }
     if (!allowed) return json({ error: true, message: 'Akses ditolak.' }, 403);
   }
+  if (cache && cacheKey) {
+    let cached: Response | undefined;
+    try { cached = await cache.match(cacheKey); } catch { cached = undefined; }
+    if (cached) {
+      const headers = new Headers(cached.headers);
+      headers.set('Cache-Control', 'private, no-store');
+      return new Response(cached.body, { status: cached.status, headers });
+    }
+  }
   const object = request.method === 'HEAD' ? await env.MEDIA.head(key) : await env.MEDIA.get(key);
   if (!object) return json({ error: true, message: 'Fail tidak dijumpai.' }, 404);
   const headers = new Headers({ 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' });
   object.writeHttpMetadata(headers);
   headers.set('ETag', object.httpEtag);
-  return new Response(request.method === 'HEAD' ? null : (object as R2ObjectBody).body, { headers });
+  const response = new Response(request.method === 'HEAD' ? null : (object as R2ObjectBody).body, { headers });
+  if (cache && cacheKey && response.headers.get('Content-Type')?.startsWith('image/')) {
+    const cacheHeaders = new Headers(response.headers);
+    cacheHeaders.set('Cache-Control', 'public, max-age=86400');
+    try {
+      await cache.put(cacheKey, new Response(response.clone().body, {
+        status: response.status, statusText: response.statusText, headers: cacheHeaders,
+      }));
+    } catch { /* Cache is an optimization; the R2 response is still valid. */ }
+  }
+  return response;
 }
 
-async function api(request: Request, env: Env, pathname: string): Promise<Response> {
+async function api(request: Request, env: Env, pathname: string, ctx: ExecutionContext): Promise<Response> {
   if (pathname === '/api/__migration-health') {
     if (request.method !== 'GET') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
     await env.DB.prepare('SELECT 1').first();
@@ -280,7 +307,7 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
     return notifications(request, env);
   }
   if (pathname === '/api/admin-users.php' && request.method !== 'GET') return adminUsersWrite(request, env);
-  if (pathname === '/api/announcements.php' && request.method !== 'GET') return announcementsWrite(request, env);
+  if (pathname === '/api/announcements.php' && request.method !== 'GET') return announcementsWrite(request, env, ctx);
   if (pathname === '/api/profil-pengadil.php' && request.method !== 'GET') {
     return refereeProfileWrite(request, env);
   }
@@ -325,7 +352,7 @@ export default {
   async email(message: ForwardableEmailMessage, env: Env): Promise<void> {
     await receiveMailboxEmail(message, env);
   },
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const pathname = new URL(request.url).pathname;
     if (!qaWriteAllowed(request, env)) {
       return json({ error: true, message: 'Tindakan ujian memerlukan kunci QA.' }, 403);
@@ -334,7 +361,7 @@ export default {
       return json({ error: true, message: 'Asal permintaan tidak dibenarkan.' }, 403);
     }
     try {
-      if (pathname.startsWith('/api/')) return await api(request, env, pathname);
+      if (pathname.startsWith('/api/')) return await api(request, env, pathname, ctx);
       if (pathname.startsWith('/uploads/')) {
         if (request.method !== 'GET' && request.method !== 'HEAD') {
           return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);

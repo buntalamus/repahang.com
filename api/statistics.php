@@ -71,14 +71,7 @@ function handleStatistics(): void
             LEFT JOIN persatuan_bolasepak_daerah p ON a.persatuan_id = p.id
 
             WHERE a.status = 'Approved'
-
-            AND (
-
-                (a.status_kemaskini IS NOT NULL AND YEAR(a.status_kemaskini) = :year)
-
-                OR (a.status_kemaskini IS NULL AND YEAR(a.tarikh_hantar) = :year)
-
-            )
+            AND a.tahun_permohonan = :year
 
         SQL;
 

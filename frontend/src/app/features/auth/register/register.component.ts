@@ -4,6 +4,7 @@ import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { ApiResponse } from '../../../core/models/user.model';
+import { compressProfileImage, MAX_PROFILE_IMAGE_BYTES } from '../../../shared/utils/profile-image';
 
 @Component({
   selector: 'app-register',
@@ -30,6 +31,8 @@ export class RegisterComponent {
     saiz_baju: '', tahun_mula_aktif: '',
   };
   picture: File | null = null;
+  optimizingPicture = false;
+  pictureSizeKb = 0;
   addressFields = [
     { key: 'alamat1', label: 'Alamat Kediaman', required: true },
     { key: 'alamat2', label: 'Alamat 2', required: false },
@@ -73,8 +76,23 @@ export class RegisterComponent {
     return !!status && !['PELAJAR', 'TIDAK BEKERJA', 'PESARA'].includes(status);
   }
 
-  onPictureSelected(event: Event): void {
-    this.picture = (event.target as HTMLInputElement).files?.[0] ?? null;
+  async onPictureSelected(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+    this.picture = null;
+    this.pictureSizeKb = 0;
+    delete this.errors['gambar_profil'];
+    if (!file) return;
+    this.optimizingPicture = true;
+    try {
+      this.picture = await compressProfileImage(file);
+      this.pictureSizeKb = Math.ceil(this.picture.size / 1024);
+    } catch (error) {
+      this.errors['gambar_profil'] = error instanceof Error ? error.message : 'Gambar tidak dapat diproses.';
+    } finally {
+      this.optimizingPicture = false;
+    }
   }
 
   constructor(
@@ -145,9 +163,9 @@ export class RegisterComponent {
         this.errors['tahun_mula_aktif'] = 'Tahun mula aktif tidak sah.';
       }
     }
-    if (!this.picture || !['image/jpeg', 'image/png'].includes(this.picture.type) ||
-        this.picture.size < 1 || this.picture.size > 5 * 1024 * 1024) {
-      this.errors['gambar_profil'] = 'Gambar JPG/PNG diperlukan (maksimum 5MB).';
+    if (!this.picture || this.picture.type !== 'image/jpeg' ||
+        this.picture.size < 1 || this.picture.size > MAX_PROFILE_IMAGE_BYTES) {
+      this.errors['gambar_profil'] = 'Gambar JPG/PNG diperlukan dan perlu dikecilkan semula.';
     }
     if (Object.keys(this.errors).length) {
       this.errors['summary'] = 'Sila lengkapkan semua medan bertanda merah sebelum mendaftar.';
@@ -158,6 +176,7 @@ export class RegisterComponent {
   }
 
   onSubmit(): void {
+    if (this.optimizingPicture) return;
     if (!this.validate()) return;
     this.loading = true;
 

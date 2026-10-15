@@ -37,6 +37,7 @@ import { catchError, finalize } from 'rxjs/operators';
           </div>
           <p class="text-2xl font-bold text-slate-900">{{ overview.total_referees || 0 }}</p>
           <p class="text-xs text-slate-500 mt-1">Pengadil Berdaftar</p>
+          <p class="text-[11px] text-emerald-700 mt-1">{{ overview.licensed_referees || 0 }} layak patch / lesen negeri {{ overview.year }}</p>
         </a>
 
         @for (card of applicationCards; track card.key) {

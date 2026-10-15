@@ -49,7 +49,19 @@ cp -r "$PROJECT_ROOT/includes" "$BUILD_DIR/includes"
 if [ -d "$PROJECT_ROOT/vendor" ]; then
     cp -r "$PROJECT_ROOT/vendor" "$BUILD_DIR/vendor"
 else
-    echo "  ⚠ vendor/ not found — run 'composer install' first"
+    echo "ERROR: vendor/ not found — run 'composer install' first."
+    exit 1
+fi
+
+# The local vendor/tcpdf.php alias is an absolute symlink. ZIP follows it into
+# an orphan tcpdf.php at vendor root, where its relative includes cannot work.
+# Use Composer autoload so TCPDF loads from its package directory instead.
+rm -f "$BUILD_DIR/vendor/tcpdf.php"
+if [ ! -f "$BUILD_DIR/vendor/autoload.php" ] ||
+   [ ! -f "$BUILD_DIR/vendor/tecnickcom/tcpdf/tcpdf_autoconfig.php" ] ||
+   ! php -r 'require $argv[1]; exit(class_exists("TCPDF") ? 0 : 1);' "$BUILD_DIR/vendor/autoload.php"; then
+    echo "ERROR: TCPDF Composer package is incomplete in build staging."
+    exit 1
 fi
 
 # Ensure uploads directory structure exists for security policies

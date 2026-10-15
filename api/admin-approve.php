@@ -13,6 +13,7 @@
 require_once __DIR__ . '/bootstrap.php';
 
 require_once __DIR__ . '/../config/email.php';
+require_once __DIR__ . '/../config/pendaftaran-workflow.php';
 
 
 
@@ -82,7 +83,7 @@ try {
 
     $stmt = $pdo->prepare("
 
-        SELECT p.*, u.email as user_email, u.nama_penuh as user_nama
+        SELECT p.*, u.email as user_email, u.nama_penuh as user_nama, u.role as user_role
 
         FROM permohonan p
 
@@ -112,7 +113,22 @@ try {
 
     
 
+    if ($action === 'reject' && trim((string) $notes) === '') {
+        http_response_code(400);
+        echo json_encode(['error' => true, 'message' => 'Sebab penolakan diperlukan.']);
+        exit;
+    }
+
     $pdo->beginTransaction();
+    // Sahkan status di dalam transaksi untuk mengelakkan dua keputusan serentak.
+    $lockStmt = $pdo->prepare("SELECT status_workflow FROM permohonan WHERE id = ? FOR UPDATE");
+    $lockStmt->execute([$permohonanId]);
+    if ($lockStmt->fetchColumn() !== 'Menunggu Admin') {
+        $pdo->rollBack();
+        http_response_code(409);
+        echo json_encode(['error' => true, 'message' => 'Permohonan sudah diproses.']);
+        exit;
+    }
 
     
 
@@ -130,13 +146,15 @@ try {
 
         
 
+        $fitnessGate = requiresAnnualFitnessResult($application);
+        $isPenilai = ($application['jenis_borang'] ?? '') === 'penilai_berdaftar';
         $updateStmt = $pdo->prepare("
 
             UPDATE permohonan 
 
             SET status = 'Approved',
 
-                status_workflow = 'Lengkap'
+                status_workflow = '" . ($fitnessGate ? "Admin Diluluskan" : "Lengkap") . "'
 
                 {$workflowStatusUpdate},
 
@@ -146,7 +164,7 @@ try {
 
                 admin_notes = :notes,
 
-                final_approved_at = NOW(),
+                final_approved_at = " . ($fitnessGate ? "NULL" : "NOW()") . ",
 
                 status_kemaskini = NOW()
 
@@ -171,28 +189,31 @@ try {
         // Create notification for pengadil
 
         $notifStmt = $pdo->prepare("
-
             INSERT INTO notifications (user_id, type, subject, message, created_at)
-
-            VALUES (:user_id, 'Pendaftaran Lengkap', 'Pendaftaran Pengadil Diluluskan', 
-
-                    'Tahniah! Permohonan pendaftaran pengadil anda telah diluluskan. Sijil pendaftaran akan dihantar ke emel anda.', 
-
-                    NOW())
-
+            VALUES (:user_id, :type, :subject, :message, NOW())
         ");
 
-        $notifStmt->execute(['user_id' => $application['user_id']]);
-
-        
-
-        // Send email notification
-
-        sendApprovalEmail($application, $notes);
+        $notifStmt->execute([
+            'user_id' => $application['user_id'],
+            'type' => $fitnessGate ? 'Semakan Permohonan' : 'Pendaftaran Lengkap',
+            'subject' => $fitnessGate ? 'Dokumen Diluluskan - Menunggu Ujian Kecergasan'
+                : ($isPenilai ? 'Pendaftaran Penilai Pengadil Diluluskan' : 'Pendaftaran Pengadil Diluluskan'),
+            'message' => $fitnessGate
+                ? 'Anda telah didaftarkan untuk sesi ini. Kelayakan patch dan lesen Pengadil Negeri menunggu keputusan ujian kecergasan.'
+                : ($isPenilai ? 'Pendaftaran tahunan Penilai Pengadil anda telah diluluskan.' : 'Permohonan pendaftaran pengadil anda telah diluluskan.'),
+        ]);
 
         
 
         $pdo->commit();
+        $emailSent = false;
+        try {
+            $emailSent = $fitnessGate
+                ? sendAnnualRegistrationStageEmail($application, 'documents', (string) $notes)
+                : sendApprovalEmail($application, $notes);
+        } catch (Throwable $emailError) {
+            error_log('[admin-approve] Approval email failed: ' . $emailError->getMessage());
+        }
 
         
 
@@ -200,7 +221,10 @@ try {
 
             'error' => false,
 
-            'message' => 'Permohonan berjaya diluluskan. Email telah dihantar kepada pengadil.'
+            'message' => $fitnessGate
+                ? 'Dokumen diluluskan; menunggu keputusan ujian kecergasan.'
+                : 'Permohonan berjaya diluluskan.',
+            'email_sent' => $emailSent
 
         ]);
 
@@ -292,13 +316,13 @@ try {
 
         
 
-        // Send rejection email
-
-        sendRejectionEmail($application, $notes);
-
-        
-
         $pdo->commit();
+        $emailSent = false;
+        try {
+            $emailSent = sendRejectionEmail($application, $notes);
+        } catch (Throwable $emailError) {
+            error_log('[admin-approve] Rejection email failed: ' . $emailError->getMessage());
+        }
 
         
 
@@ -306,7 +330,8 @@ try {
 
             'error' => false,
 
-            'message' => 'Permohonan telah ditolak. Email telah dihantar kepada pengadil.'
+            'message' => 'Permohonan telah ditolak.',
+            'email_sent' => $emailSent
 
         ]);
 
@@ -348,8 +373,12 @@ try {
 
 function sendApprovalEmail($application, $notes) {
 
+    $isPenilai = ($application['jenis_borang'] ?? '') === 'penilai_berdaftar';
+    $title = $isPenilai ? 'Pendaftaran Tahunan Penilai Pengadil Diluluskan' : 'Pendaftaran Pengadil Diluluskan';
     $body  = emailGreeting($application['nama_penuh']);
-    $body .= emailPara('Tahniah! Kami dengan sukacitanya memaklumkan bahawa permohonan pendaftaran pengadil anda telah <strong>DILULUSKAN</strong>.');
+    $body .= emailPara($isPenilai
+        ? 'Tahniah! Permohonan pendaftaran tahunan Penilai Pengadil anda telah <strong>DILULUSKAN</strong>.'
+        : 'Tahniah! Kami dengan sukacitanya memaklumkan bahawa permohonan pendaftaran pengadil anda telah <strong>DILULUSKAN</strong>.');
     $body .= emailInfoTable([
         ['Nama',               htmlspecialchars($application['nama_penuh'])],
         ['No. Kad Pengenalan', htmlspecialchars($application['no_kp'])],
@@ -361,17 +390,22 @@ function sendApprovalEmail($application, $notes) {
     }
     $body .= emailPara('<strong>Langkah Seterusnya:</strong>');
     $body .= emailOrderedList([
-        'Sijil pendaftaran anda tersedia untuk dimuat turun dari dashboard.',
+        $isPenilai ? 'Salinan borang R1 anda boleh dimuat turun dari dashboard.' : 'Sijil pendaftaran anda tersedia untuk dimuat turun dari dashboard.',
         'Semak dashboard untuk maklumat dan tugasan terkini.',
         'Hubungi pejabat PBNP jika ada sebarang pertanyaan.',
     ]);
-    $body .= emailButton(env('BASE_URL') . '/pengadil', 'Pergi ke Dashboard');
+    $dashboardPath = $isPenilai ? match ($application['user_role'] ?? '') {
+        'Admin' => '/admin/daftar/ra',
+        'PP Daerah' => '/pp-daerah/daftar/tahunan',
+        default => '/penilai/permohonan/tahunan',
+    } : '/pengadil';
+    $body .= emailButton(env('BASE_URL') . $dashboardPath, 'Semak Pendaftaran');
 
-    $html = buildEmailTemplate('Pendaftaran Pengadil Diluluskan', '#16A34A', '', $body);
+    $html = buildEmailTemplate($title, '#16A34A', '', $body);
 
-    sendEmail(
+    return sendEmail(
         $application['user_email'] ?? $application['emel'],
-        'Pendaftaran Pengadil Diluluskan - PBNP',
+        $title . ' - PBNP',
         $html,
         $application['nama_penuh'],
         'daftar'
@@ -388,8 +422,11 @@ function sendApprovalEmail($application, $notes) {
 
 function sendRejectionEmail($application, $reason) {
 
+    $isPenilai = ($application['jenis_borang'] ?? '') === 'penilai_berdaftar';
     $body  = emailGreeting($application['nama_penuh']);
-    $body .= emailPara('Kami ingin memaklumkan bahawa permohonan pendaftaran pengadil anda telah <strong>DITOLAK</strong> selepas semakan dilakukan.');
+    $body .= emailPara($isPenilai
+        ? 'Permohonan pendaftaran tahunan Penilai Pengadil anda telah <strong>DITOLAK</strong> selepas semakan dilakukan.'
+        : 'Kami ingin memaklumkan bahawa permohonan pendaftaran pengadil anda telah <strong>DITOLAK</strong> selepas semakan dilakukan.');
     $body .= emailInfoTable([
         ['Nama',              htmlspecialchars($application['nama_penuh'])],
         ['No. Kad Pengenalan', htmlspecialchars($application['no_kp'])],
@@ -399,11 +436,12 @@ function sendRejectionEmail($application, $reason) {
     $body .= emailPara('Jika anda ingin membuat <strong>rayuan</strong> atau mempunyai sebarang pertanyaan, sila hubungi pejabat PBNP atau emel kepada <a href="mailto:support@refpahang.com" style="color:#2563EB;">support@refpahang.com</a>.');
     $body .= emailButton(env('BASE_URL') . '/login', 'Hubungi Kami');
 
-    $html = buildEmailTemplate('Status Permohonan Ditolak', '#DC2626', '', $body);
+    $title = $isPenilai ? 'Pendaftaran Penilai Pengadil Ditolak' : 'Status Permohonan Ditolak';
+    $html = buildEmailTemplate($title, '#DC2626', '', $body);
 
-    sendEmail(
+    return sendEmail(
         $application['user_email'] ?? $application['emel'],
-        'Permohonan Pendaftaran Ditolak - PBNP',
+        $title . ' - PBNP',
         $html,
         $application['nama_penuh'],
         'daftar'

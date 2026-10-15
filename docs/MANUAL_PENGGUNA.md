@@ -551,13 +551,13 @@ Setiap kad laporan memaparkan:
 |---|------|--------|
 | 1 | Dashboard | Ringkasan daerah |
 | 2 | **Permohonan Saya** | — |
-| 2a | → Pendaftaran Tahunan Penilai (R4) | Permohonan sendiri |
+| 2a | → Pendaftaran Tahunan Penilai (R1) | Permohonan sendiri |
 | 2b | → Ujian Kelas III FAM (R11) | Permohonan sendiri |
 | 2c | → Ujian Kelas I FAM (R11) | Permohonan sendiri |
 | 3 | Pengesahan Permohonan | Sahkan/tolak permohonan daerah |
 | 4 | Pengesahan Perlawanan | Sahkan/tolak perlawanan daerah |
 | 5 | **Permohonan** | — |
-| 5a | → Pendaftaran Tahunan Penilai (R4) | Senarai permohonan berdaftar daerah |
+| 5a | → Pendaftaran Tahunan Penilai (R1) | Senarai permohonan berdaftar daerah |
 | 5b | → Ujian Kelas III FAM (R11) | Senarai permohonan bertulis daerah |
 | 5c | → Ujian Kelas I FAM (R11) | Senarai permohonan kelas I daerah |
 | 6 | Pengadil Berdaftar | Senarai pengadil daerah |
@@ -772,7 +772,7 @@ Melihat laporan penilaian pengadil dalam daerah yang telah disahkan.
 ## 4.8 Permohonan Daerah
 
 PP Daerah boleh melihat semua permohonan dalam daerah mereka mengikut jenis:
-- **Pendaftaran Tahunan Penilai (R4)** — `/pp-daerah/permohonan/berdaftar`
+- **Pendaftaran Tahunan Penilai (R1)** — `/pp-daerah/permohonan/berdaftar`
 - **Ujian Kelas III FAM** — `/pp-daerah/permohonan/bertulis`
 - **Ujian Kelas I FAM** — `/pp-daerah/permohonan/kelas1`
 
@@ -798,7 +798,7 @@ Borang dan aliran adalah sama seperti pengadil, kecuali keperluan **minimum 20 p
 |---|------|--------|
 | 1 | Dashboard | Ringkasan tugasan dan statistik |
 | 2 | Penilaian Pengadil | Isi dan hantar laporan penilaian |
-| 3 | Pendaftaran Tahunan (R4) | Permohonan pendaftaran tahunan |
+| 3 | Pendaftaran Tahunan (R1) | Permohonan pendaftaran tahunan |
 | 4 | Tugasan | Senarai tugasan lantikan |
 | 5 | Statistik | Statistik penilaian |
 | 6 | Profil | Pengurusan profil sendiri |
@@ -1337,7 +1337,7 @@ Mengawal tetapan operasi sistem.
 | Permohonan Pendaftaran Tahunan (R1+R2+R4) | DIBUKA / DITUTUP + tarikh mula & akhir |
 | Ujian Kelas III FAM (R11 Bertulis) | DIBUKA / DITUTUP + tarikh mula & akhir |
 | Ujian Kelas I FAM (R11 Kelas I) | DIBUKA / DITUTUP + tarikh mula & akhir |
-| Pendaftaran Penilai (R4) | DIBUKA / DITUTUP + tarikh mula & akhir |
+| Pendaftaran Penilai (R1) | DIBUKA / DITUTUP + tarikh mula & akhir |
 
 Setiap jenis mempunyai:
 - Suis ON/OFF

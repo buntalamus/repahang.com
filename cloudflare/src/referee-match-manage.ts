@@ -54,6 +54,14 @@ function score(value: unknown): number | null | false {
   return Number.isInteger(parsed) && parsed >= 0 && parsed <= 999 ? parsed : false;
 }
 
+function matchFingerprint(date: string, time: string | null, home: string, away: string,
+  tournament: string | null, venue: string, kind: string, districtId: number): string {
+  const teams = [home.trim().toLowerCase(), away.trim().toLowerCase()].sort();
+  const normalizedTime = (time ?? '').trim().slice(0, 5);
+  return JSON.stringify([date, normalizedTime, teams[0], teams[1], (tournament ?? '').trim().toLowerCase(),
+    venue.trim().toLowerCase(), kind.trim().toLowerCase(), districtId]);
+}
+
 async function addMatch(input: Record<string, unknown>, env: Env,
   actorId: number, actorName: string): Promise<Response> {
   const date = input.tarikh;
@@ -95,6 +103,11 @@ async function addMatch(input: Record<string, unknown>, env: Env,
   if (time === false || tournament === false || weather === false || scores.includes(false)) {
     return json({ error: true, message: 'Butiran perlawanan tidak sah.' }, 400);
   }
+  const fingerprint = matchFingerprint(date, time, home, away, tournament, venue, kind, districtId);
+  const duplicate = await env.DB.prepare('SELECT 1 FROM perlawanan WHERE match_dedup_key=? LIMIT 1')
+    .bind(fingerprint).first();
+  if (duplicate) return json({ error: true,
+    message: 'Perlawanan ini telah direkodkan. Semak rekod perlawanan anda atau minta pegawai yang mendaftar berkongsi maklumatnya.' }, 409);
   const [district, users, districtApprovers] = await Promise.all([
     env.DB.prepare('SELECT id,nama FROM districts WHERE id=?').bind(districtId)
       .first<{ id: number; nama: string }>(),
@@ -122,13 +135,13 @@ async function addMatch(input: Record<string, unknown>, env: Env,
   const groupId = crypto.randomUUID();
   const formattedDate = date.split('-').reverse().join('/');
   const message = `${actorName} telah merekod perlawanan ${home} vs ${away} pada ${formattedDate} di ${venue} (${district.nama}). ${officials.length} pegawai perlawanan. Sila semak dan sahkan.`;
-  const statements: D1PreparedStatement[] = officials.map((item) => env.DB.prepare(`
-    INSERT INTO perlawanan(match_group_id,user_id,submitted_by,tarikh,masa,jenis,nama_kejohanan,
+  const statements: D1PreparedStatement[] = officials.map((item, index) => env.DB.prepare(`
+    INSERT INTO perlawanan(match_dedup_key,match_group_id,user_id,submitted_by,tarikh,masa,jenis,nama_kejohanan,
       tempat,jawatan,home_team,away_team,daerah_perlawanan_id,
       skor_ht_home,skor_ht_away,skor_ft_home,skor_ft_away,
       skor_et_home,skor_et_away,skor_ps_home,skor_ps_away,cuaca,created_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now','+8 hours'))`)
-    .bind(groupId, item.user_id, actorId, date, time, kind, tournament, venue, item.jawatan,
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now','+8 hours'))`)
+    .bind(index === 0 ? fingerprint : null, groupId, item.user_id, actorId, date, time, kind, tournament, venue, item.jawatan,
       home, away, districtId, ...scores, weather));
   for (const approver of districtApprovers.results) {
     statements.push(env.DB.prepare(`INSERT INTO notifications(user_id,type,subject,message,created_at)
@@ -142,7 +155,16 @@ async function addMatch(input: Record<string, unknown>, env: Env,
       .bind(official.user_id,
         `${actorName} telah merekodkan anda sebagai ${official.jawatan} dalam perlawanan ${home} vs ${away} pada ${formattedDate} di ${venue}.`));
   }
-  const results = await env.DB.batch(statements);
+  let results: D1Result[];
+  try {
+    results = await env.DB.batch(statements);
+  } catch (error) {
+    const duplicateAfterRace = await env.DB.prepare('SELECT 1 FROM perlawanan WHERE match_dedup_key=? LIMIT 1')
+      .bind(fingerprint).first();
+    if (duplicateAfterRace) return json({ error: true,
+      message: 'Perlawanan yang sama baru sahaja didaftarkan oleh pegawai lain. Rekod anda tidak ditambah.' }, 409);
+    throw error;
+  }
   const matchIds = results.slice(0, officials.length).map((result) => result.meta.last_row_id);
   let emailsSent = 0;
   for (const approver of districtApprovers.results) {

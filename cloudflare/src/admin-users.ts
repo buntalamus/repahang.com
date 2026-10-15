@@ -56,12 +56,24 @@ export async function adminUsers(request: Request, env: Env): Promise<Response> 
             THEN 1 ELSE 0 END) AS current_applied,
           MAX(CASE WHEN p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan=?
             AND p.status='Approved'
-            AND (p.tahun_permohonan<2027 OR p.status_ujian='Lulus')
             AND UPPER(TRIM(COALESCE(p.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')
             THEN 1 ELSE 0 END) AS current_approved,
+          MAX(CASE WHEN p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan=?
+            AND p.status='Approved'
+            AND UPPER(TRIM(COALESCE(p.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')
+            AND ((p.tahun_permohonan>=2027 AND p.status_ujian='Lulus') OR
+              (p.tahun_permohonan<2027 AND EXISTS (SELECT 1 FROM permohonan f
+                WHERE f.user_id=p.user_id AND f.tahun_permohonan=p.tahun_permohonan
+                  AND f.jenis_borang='ujian_kecergasan' AND f.status_ujian='Lulus')))
+            THEN 1 ELSE 0 END) AS current_license,
+          MAX(CASE WHEN p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan=?
+            AND p.status='Approved'
+            AND UPPER(TRIM(COALESCE(p.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')
+            THEN COALESCE(p.status_ujian,(SELECT f.status_ujian FROM permohonan f
+              WHERE f.user_id=p.user_id AND f.tahun_permohonan=p.tahun_permohonan
+                AND f.jenis_borang='ujian_kecergasan' ORDER BY f.id DESC LIMIT 1)) END) AS current_fitness_status,
           MAX(CASE WHEN p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan<?
             AND p.status='Approved'
-            AND (p.tahun_permohonan<2027 OR p.status_ujian='Lulus')
             AND UPPER(TRIM(COALESCE(p.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')
             THEN 1 ELSE 0 END) AS prior_approved,
           MAX(CASE WHEN (p.jenis_borang='penilai_berdaftar'
@@ -83,6 +95,8 @@ export async function adminUsers(request: Request, env: Env): Promise<Response> 
              u.aktif AS is_active, u.telegram_chat_id, u.created_at,
              COALESCE(a.current_applied,0) AS current_applied,
              COALESCE(a.current_approved,0) AS current_approved,
+             COALESCE(a.current_license,0) AS current_license,
+             a.current_fitness_status,
              COALESCE(a.prior_approved,0) AS prior_approved,
              CASE WHEN (u.role='Pengadil' AND UPPER(TRIM(COALESCE(u.jenis_pengadil,'')))
                NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN'))
@@ -99,7 +113,7 @@ export async function adminUsers(request: Request, env: Env): Promise<Response> 
       LEFT JOIN annual a ON a.user_id=u.id
       LEFT JOIN persatuan_bolasepak_daerah p ON p.id=u.persatuan_id
       ORDER BY u.created_at DESC
-    `).bind(year, year, year).all(),
+    `).bind(year, year, year, year, year).all(),
     env.DB.prepare(`
       SELECT id, nama_persatuan FROM persatuan_bolasepak_daerah
       ORDER BY nama_persatuan

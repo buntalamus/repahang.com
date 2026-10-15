@@ -84,13 +84,22 @@ export async function adminRefereeExport(request: Request, env: Env): Promise<Re
       COALESCE(a.nama_waris,u.nama_waris) AS nama_waris,
       COALESCE(a.hubungan_waris,u.hubungan_waris) AS hubungan_waris,
       COALESCE(a.telefon_waris,u.telefon_waris) AS telefon_waris,
+      ${ra ? 'NULL' : `CASE WHEN a.tahun_permohonan>=2027 THEN a.status_ujian
+        ELSE (SELECT f.status_ujian FROM permohonan f WHERE f.user_id=a.user_id
+          AND f.tahun_permohonan=a.tahun_permohonan AND f.jenis_borang='ujian_kecergasan'
+          ORDER BY f.id DESC LIMIT 1) END`} AS fitness_status,
+      ${ra ? 'NULL' : `CASE WHEN a.tahun_permohonan>=2027 THEN
+        CASE WHEN a.status_ujian='Lulus' THEN 'Layak patch' ELSE 'Tiada lesen negeri' END
+        WHEN EXISTS (SELECT 1 FROM permohonan f WHERE f.user_id=a.user_id
+          AND f.tahun_permohonan=a.tahun_permohonan AND f.jenis_borang='ujian_kecergasan'
+          AND f.status_ujian='Lulus') THEN 'Layak patch'
+        ELSE 'Tiada lesen negeri' END`} AS license_status,
       p.nama_persatuan AS persatuan
     FROM users u
     LEFT JOIN permohonan a ON a.user_id=u.id
       AND ${ra ? "(a.jenis_borang='penilai_berdaftar' OR (a.jenis_borang='pengadil_berdaftar' AND UPPER(TRIM(COALESCE(a.jenis_pengadil,'')))='PENILAI PENGADIL'))"
         : "a.jenis_borang='pengadil_berdaftar' AND UPPER(TRIM(COALESCE(a.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')"}
       AND a.status='Approved'
-      AND ${ra ? '1=1' : "(a.tahun_permohonan<2027 OR a.status_ujian='Lulus')"}
       AND a.tahun_permohonan=?
     LEFT JOIN persatuan_bolasepak_daerah p ON p.id=COALESCE(a.persatuan_id,u.persatuan_id)
     WHERE ${filter} ORDER BY u.nama_penuh ASC
@@ -98,14 +107,14 @@ export async function adminRefereeExport(request: Request, env: Env): Promise<Re
   const headers = ['Bil','Nama Penuh','No. K/P','Jantina','Umur','Jenis Pengadil',
     'Persatuan Bola Sepak Daerah','Emel','No. Telefon','Alamat 1','Alamat 2','Poskod',
     'Daerah','Negeri','Saiz Baju','Status Kerja','Jawatan','Nama Majikan',
-    'Nama Waris','Hubungan Waris','Telefon Waris'];
+    'Nama Waris','Hubungan Waris','Telefon Waris','Keputusan Ujian Kecergasan','Kelayakan Patch/Lesen Negeri'];
   const rows = result.results.map((r, i) => [i + 1, r.nama_penuh, r.no_kp,
     String(r.jantina ?? '').toUpperCase() === 'LELAKI' ? 'Lelaki'
       : String(r.jantina ?? '').toUpperCase() === 'PEREMPUAN' ? 'Perempuan' : r.jantina,
     ageFromIc(r.no_kp, today), r.jenis_pengadil, r.persatuan, r.emel, r.no_telefon,
     r.alamat1, r.alamat2, r.poskod, r.daerah, r.negeri, r.saiz_baju,
     r.status_kerja, r.jawatan, r.nama_majikan, r.nama_waris, r.hubungan_waris,
-    r.telefon_waris]);
+    r.telefon_waris, r.fitness_status, r.license_status]);
   return csv(headers, rows, `senarai-${ra ? 'penilai-pengadil' : 'pengadil'}-${year}.csv`);
 }
 
@@ -129,13 +138,8 @@ export async function districtRefereeExport(request: Request, env: Env): Promise
     SELECT u.id, u.email, u.nama_penuh, u.no_ic, u.no_telefon, u.jenis_pengadil,
       u.aktif, u.created_at, u.last_login, COUNT(p.id) AS total_permohonan,
       COUNT(CASE WHEN (p.status='Approved' OR p.status_workflow='Lengkap')
-        AND (p.jenis_borang<>'pengadil_berdaftar' OR p.tahun_permohonan<2027
-             OR p.jenis_pengadil IN ('Penilai Pengadil','Pegawai Pembangunan') OR p.status_ujian='Lulus')
         THEN 1 END) AS permohonan_lulus,
-      COUNT(CASE WHEN p.status_workflow='Lengkap'
-        AND (p.jenis_borang<>'pengadil_berdaftar' OR p.tahun_permohonan<2027
-             OR p.jenis_pengadil IN ('Penilai Pengadil','Pegawai Pembangunan') OR p.status_ujian='Lulus')
-        THEN 1 END) AS permohonan_lengkap
+      COUNT(CASE WHEN p.status_workflow='Lengkap' THEN 1 END) AS permohonan_lengkap
     FROM users u
     LEFT JOIN permohonan p ON p.user_id=u.id AND ${APPLICATION_CATEGORY_SQL}=?
     WHERE u.role='Pengadil' AND u.persatuan_id=?

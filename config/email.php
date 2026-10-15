@@ -61,7 +61,7 @@ function _getEmailAccount(string $type): array
 /**
  * Low-level SMTP sender using stream_socket_client (Implicit TLS, port 465).
  */
-function _smtpSend(array $account, string $to, string $toName, string $subject, string $htmlBody, array $inlineImages = []): bool
+function _smtpSend(array $account, string $to, string $toName, string $subject, string $htmlBody, array $inlineImages = [], array $attachments = []): bool
 {
     $host      = $account['host'];
     $port      = $account['port'];
@@ -206,6 +206,12 @@ function _smtpSend(array $account, string $to, string $toName, string $subject, 
     $message .= "Subject: {$encodedSubject}\r\n";
     $message .= "MIME-Version: 1.0\r\n";
 
+    if ($attachments) {
+        $mixedBoundary = bin2hex(random_bytes(16));
+        $message .= "Content-Type: multipart/mixed; boundary=\"{$mixedBoundary}\"\r\n\r\n";
+        $message .= "--{$mixedBoundary}\r\n";
+    }
+
     if (!empty($inlineImages)) {
         // multipart/related wrapping multipart/alternative + CID images
         $relBoundary = bin2hex(random_bytes(16));
@@ -230,6 +236,20 @@ function _smtpSend(array $account, string $to, string $toName, string $subject, 
         $message .= "Content-Type: multipart/alternative; boundary=\"{$altBoundary}\"\r\n";
         $message .= "\r\n";
         $message .= $altPart;
+    }
+
+    if ($attachments) {
+        foreach ($attachments as $attachment) {
+            $filename = preg_replace('/[^A-Za-z0-9._-]/', '_', (string) ($attachment['filename'] ?? 'lampiran.pdf'));
+            $mime = preg_replace('/[^A-Za-z0-9.+\/-]/', '', (string) ($attachment['mime'] ?? 'application/octet-stream'));
+            $data = (string) ($attachment['data'] ?? '');
+            $message .= "--{$mixedBoundary}\r\n";
+            $message .= "Content-Type: {$mime}; name=\"{$filename}\"\r\n";
+            $message .= "Content-Transfer-Encoding: base64\r\n";
+            $message .= "Content-Disposition: attachment; filename=\"{$filename}\"\r\n\r\n";
+            $message .= chunk_split(base64_encode($data)) . "\r\n";
+        }
+        $message .= "--{$mixedBoundary}--\r\n";
     }
 
     // RFC 5321 dot-stuffing: escape lines that start with a dot
@@ -470,10 +490,10 @@ function emailStatusBadge(string $text, string $bg, string $color = '#ffffff'): 
             </div>";
 }
 
-function sendEmail(string $to, string $subject, string $html, ?string $toName = null, string $type = 'admin', array $inlineImages = []): bool
+function sendEmail(string $to, string $subject, string $html, ?string $toName = null, string $type = 'admin', array $inlineImages = [], array $attachments = []): bool
 {
     $account = _getEmailAccount($type);
-    return _smtpSend($account, $to, $toName ?? $to, $subject, $html, $inlineImages);
+    return _smtpSend($account, $to, $toName ?? $to, $subject, $html, $inlineImages, $attachments);
 }
 
 /** Build the KUP roster section used in appointment emails. */

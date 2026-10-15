@@ -62,6 +62,8 @@ try {
 
             u.role,
 
+            u.jenis_pengadil,
+
             u.persatuan_id,
 
             u.district_id,
@@ -145,6 +147,8 @@ try {
 
     $_SESSION['user_role'] = $user['role'];
 
+    $_SESSION['user_jenis_pengadil'] = $user['jenis_pengadil'];
+
     $_SESSION['user_nama'] = $user['nama_penuh'];
 
     $_SESSION['persatuan_id'] = $user['persatuan_id'] ?: $user['district_id']; // Fallback to district_id if persatuan_id is null
@@ -196,6 +200,8 @@ try {
             'email' => $user['email'],
 
             'role' => $user['role'],
+
+            'jenis_pengadil' => $user['jenis_pengadil'],
 
             'nama_penuh' => $user['nama_penuh'],
 

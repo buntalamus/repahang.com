@@ -262,14 +262,14 @@ async function updateFitnessResult(body: Record<string, unknown>, env: Env): Pro
         status_kemaskini=datetime('now','+8 hours')
         WHERE id=? AND status_workflow IN ('Admin Diluluskan','Lengkap')
           AND COALESCE(status_ujian,'')<>?`)
-        .bind(decision, passed ? 'Approved' : 'Pending', passed ? 'Lengkap' : 'Admin Diluluskan',
+        .bind(decision, 'Approved', 'Lengkap',
           passed ? 1 : 0, id, decision),
       env.DB.prepare(`INSERT INTO notifications(user_id,type,subject,message,created_at)
         SELECT ?,'Keputusan Ujian Kecergasan',?,?,datetime('now','+8 hours')
         WHERE ? IS NOT NULL AND changes()=1`)
         .bind(application.user_id, `Keputusan Ujian Kecergasan: ${decision}`,
-          passed ? 'Anda lulus ujian kecergasan dan kini Pengadil Berdaftar.'
-            : `Keputusan ujian kecergasan anda: ${decision}. Pendaftaran belum diluluskan.`,
+          passed ? 'Anda kekal Pengadil Berdaftar dan layak menerima patch serta lesen Pengadil Negeri bagi sesi ini.'
+            : `Anda kekal Pengadil Berdaftar bagi sesi ini, tetapi keputusan ujian kecergasan (${decision}) tidak melayakkan anda menerima patch atau lesen Pengadil Negeri.`,
           application.user_id),
     ]);
     if (!wroteRow(results[0])) {
@@ -281,20 +281,20 @@ async function updateFitnessResult(body: Record<string, unknown>, env: Env): Pro
       try {
         const title = `Keputusan Ujian Kecergasan: ${decision}`;
         const paragraphs = [passed
-          ? `Anda telah lulus ujian kecergasan sesi ${application.tahun_permohonan} dan kini Pengadil Berdaftar.`
-          : `Keputusan ujian kecergasan sesi ${application.tahun_permohonan}: ${decision}. Pendaftaran Pengadil Berdaftar belum diluluskan.`,
+          ? `Anda kekal Pengadil Berdaftar dan layak menerima patch serta lesen Pengadil Negeri bagi sesi ${application.tahun_permohonan}.`
+          : `Anda kekal Pengadil Berdaftar bagi sesi ${application.tahun_permohonan}, tetapi keputusan ujian kecergasan (${decision}) tidak melayakkan anda menerima patch atau lesen Pengadil Negeri.`,
           `No. Permohonan: #${id}`];
         const { html, text } = buildRefpahangEmail(title, application.nama_penuh, paragraphs,
           { label: 'Semak Permohonan', url: new URL('/pengadil', env.BASE_URL).toString() });
         await sendRefpahangEmail(env, 'daftar', to, application.nama_penuh, `${title} - PBNP`, html, text);
         if (passed) {
-          const registered = buildRefpahangEmail('Pendaftaran Pengadil Berdaftar Diluluskan',
+          const registered = buildRefpahangEmail('Kelayakan Patch Pengadil Negeri',
             application.nama_penuh,
-            [`Pendaftaran Pengadil Berdaftar sesi ${application.tahun_permohonan} telah diluluskan.`,
+            [`Anda layak menerima patch dan lesen Pengadil Negeri sesi ${application.tahun_permohonan}.`,
               `No. Permohonan: #${id}`],
             { label: 'Semak Pendaftaran', url: new URL('/pengadil', env.BASE_URL).toString() });
           await sendRefpahangEmail(env, 'daftar', to, application.nama_penuh,
-            'Pendaftaran Pengadil Berdaftar Diluluskan - PBNP', registered.html, registered.text);
+            'Kelayakan Patch Pengadil Negeri - PBNP', registered.html, registered.text);
         }
         emailSent = true;
       } catch {

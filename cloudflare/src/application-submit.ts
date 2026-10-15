@@ -4,6 +4,7 @@ import { currentUser, json } from './auth';
 import { registrationPdf } from './registration-pdf';
 import type { Env } from './types';
 import { missingRefereeProfile, profileLabels } from './referee-profile';
+import { dimensions } from './profile-write';
 
 type FormType = 'pengadil_berdaftar' | 'penilai_berdaftar' | 'kelas3_fam' | 'ujian_kelas1_fam';
 type Profile = Record<string, string | number | null>;
@@ -84,6 +85,13 @@ async function fileInfo(file: File, kind: 'resit' | 'gambar'):
   if (!mime) return json({error: true, message: kind === 'resit'
     ? 'Format resit tidak dibenarkan. Gunakan JPG, PNG atau PDF.'
     : 'Format gambar tidak dibenarkan. Gunakan JPG atau PNG.'}, 400);
+  if (kind === 'gambar') {
+    const info = dimensions(bytes);
+    if (bytes.length > 200 * 1024 || !info || info.width < 150 || info.height < 150 ||
+        info.width > 400 || info.height > 400) {
+      return json({error: true, message: 'Gambar profil perlu dikecilkan kepada maksimum 400x400 piksel dan 200KB.'}, 400);
+    }
+  }
   return {bytes, mime, ext};
 }
 

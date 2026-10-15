@@ -6,6 +6,7 @@ import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
 import { environment } from '../../../../environments/environment';
+import { compressProfileImage } from '../../../shared/utils/profile-image';
 
 @Component({
   selector: 'app-pengadil-application',
@@ -35,6 +36,8 @@ export class PengadilApplicationComponent implements OnInit {
   declareHealth5 = false; // Kebenaran rawatan
   selectedResit: File | null = null;
   selectedGambar: File | null = null;
+  compressingGambar = false;
+  gambarSizeKb = 0;
 
   hubunganOptions = ['Ibu Bapa', 'Pasangan', 'Anak', 'Adik-beradik', 'Lain-lain'];
   saizBajuOptions = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
@@ -129,11 +132,26 @@ export class PengadilApplicationComponent implements OnInit {
   onResitSelected(e: Event): void {
     this.selectedResit = (e.target as HTMLInputElement).files?.[0] ?? null;
   }
-  onGambarSelected(e: Event): void {
-    this.selectedGambar = (e.target as HTMLInputElement).files?.[0] ?? null;
+  async onGambarSelected(e: Event): Promise<void> {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+    this.selectedGambar = null;
+    this.gambarSizeKb = 0;
+    if (!file) return;
+    this.compressingGambar = true;
+    try {
+      this.selectedGambar = await compressProfileImage(file);
+      this.gambarSizeKb = Math.ceil(this.selectedGambar.size / 1024);
+    } catch (error) {
+      this.toast.error(error instanceof Error ? error.message : 'Gambar tidak dapat diproses.');
+    } finally {
+      this.compressingGambar = false;
+    }
   }
 
   submit(): void {
+    if (this.compressingGambar) return;
     // Validate
     if (this.isBerdaftar && this.profileMissing.length) {
       this.toast.error('Lengkapkan profil sebelum memohon.'); return;
