@@ -182,7 +182,7 @@ export async function adminMailbox(request: Request, env: Env): Promise<Response
   } catch (error) {
     await env.DB.prepare("UPDATE mailbox_messages SET delivery_status='failed' WHERE id=?")
       .bind(id).run();
-    console.error('Mailbox outbound send failed', { id, error });
+    console.error('Mailbox outbound send failed', { id, error: error instanceof Error ? error.message : String(error) });
     return json({ error: true, message: 'Emel tidak berjaya dihantar. Semak folder Dihantar.' }, 502);
   }
   try {
