@@ -4,6 +4,12 @@
 
 Worker ujian menggunakan alamat mudah `https://ujian.refpahang.com`; ini hanya
 subdomain ujian dan tidak mengalihkan laman atau MX `refpahang.com`.
+Kod peti emel commit `0c50714` dan domain ujian commit `302f623` telah dipush;
+Worker staging versi `6828f408-2a64-4a7e-90d4-6d69fe67cacb` memberi health
+HTTP 200, sementara API peti emel tanpa sesi memberi HTTP 401. Migrasi D1
+`0013_mailbox.sql` berjaya dipasang pada staging; jadual bermula dengan sifar
+emel. Semua suis staging termasuk `MAILBOX_SEND_ENABLED` kekal `0`. MX domain
+utama masih `mail.refpahang.com`, jadi emel sebenar belum dialihkan.
 
 Pengguna kini memilih **pindah sepenuhnya daripada pelayan emel lama dan mula
 peti masuk baharu**, tanpa import sejarah emel lama. Keputusan ini menggantikan
