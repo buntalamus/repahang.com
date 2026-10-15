@@ -15,10 +15,15 @@ function excerpt(value: string, maximum = 2_800): string {
 }
 
 function announcementMessage(title: string, content: string): string {
-  return '📢 <b>HEBAHAN RASMI PENGADIL PAHANG</b>\n\n'
-    + `<b>${excerpt(title, 400)}</b>\n\n`
-    + `${excerpt(content)}\n\n`
-    + '<i>Maklumat lanjut boleh dibaca di Portal Pengadil Pahang.</i>';
+  return [
+    '📢 <b>HEBAHAN RASMI</b>',
+    '<b>PORTAL PENGADIL PAHANG</b>',
+    '━━━━━━━━━━━━━━━━━━━━',
+    `📌 <b>${excerpt(title, 400)}</b>`,
+    excerpt(content),
+    '━━━━━━━━━━━━━━━━━━━━',
+    '<i>Makluman ini dikeluarkan melalui Portal Pengadil Pahang.</i>',
+  ].join('\n\n');
 }
 
 async function recipients(env: Env): Promise<string[]> {
@@ -38,7 +43,7 @@ export async function announceOnTelegram(env: Env, id: number, title: string, co
   const targets = await recipients(env);
   const message = announcementMessage(title, content);
   const button = { inline_keyboard: [[{
-    text: 'Buka Portal Pengadil',
+    text: '📖 Baca pengumuman di portal',
     url: new URL('/login', env.BASE_URL).toString(),
   }]] };
   let sent = 0;
