@@ -1241,6 +1241,26 @@ perlawanan Hanafi 2026, serta domain production masih melalui LiteSpeed.
 
 ## Laluan staging hingga pertukaran domain
 
+### Pemulihan mod penyelenggaraan (15 Oktober 2026)
+
+Pada pelayan PHP lama, fail `storage/maintenance.flag` telah menutup halaman
+log masuk kepada pengguna tanpa sesi, termasuk Admin. Fail itu telah dinamakan
+semula kepada `maintenance.flag.disabled-20261015` melalui cPanel. Semakan live
+`/api/check-maintenance.php` kini memulangkan `maintenance_mode:false`, dan
+`/login` memulangkan HTTP 200. Pengesahan menggunakan akaun Admin sebenar
+belum dibuat kerana kata laluan akaun itu tidak tersedia dalam sesi ini.
+
+Kod sumber telah dibaiki pada commit `a871d56`: halaman log masuk kekal
+tersedia semasa penyelenggaraan, sementara API PHP dan Worker mengehadkan
+akses bukan Admin. Pembetulan sumber itu sudah dideploy ke Worker **ujian**
+`ujian.refpahang.com` (versi `dee72a12-72f5-48c2-8975-2e206caad0d3`).
+Ujian live Worker mengesahkan log masuk Admin sintetik, sesi, peti masuk
+Admin, statistik dan log keluar; laluan peti masuk tanpa sesi ditolak 401.
+Suis tulis dan penghantaran emel ujian kekal dimatikan. Pelayan PHP utama
+belum menerima kod baharu ini; jangan aktifkan semula mod penyelenggaraan
+di pelayan lama sebelum hotfix pelayan lama dideploy atau domain dialihkan
+ke Worker. Flag lama kekal dinyahaktifkan semasa migrasi.
+
 1. D1 staging `refpahan_pahang_staging_20261015` sudah menerima dump terbaru
    bersama 51 perlawanan Hanafi. Semak production dan ambil sandaran akhir
    selepas pembekuan tulis sebelum cutover; bandingkan kiraan/ID dengan salinan ini.
