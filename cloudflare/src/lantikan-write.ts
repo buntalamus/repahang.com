@@ -115,13 +115,16 @@ async function assign(env: Env, input: Record<string, unknown>, user: User, meta
     return json({ error: true, message: 'Lantikan tidak boleh diubah untuk perlawanan yang dibatalkan atau ditangguhkan.' }, 409);
   }
   const poolMember = await env.DB.prepare(`
-    SELECT COALESCE(u.jenis_pengadil,pl.jenis_pengadil,'') AS jenis_pengadil
+    SELECT COALESCE(u.jenis_pengadil,pl.jenis_pengadil,'') AS jenis_pengadil,
+      u.telegram_chat_id
     FROM jadual_perlawanan jp
     JOIN pool_pengadil pp ON pp.kejohanan_id=jp.kejohanan_id
     LEFT JOIN users u ON u.id=pp.pengadil_id
     LEFT JOIN pengadil_luar pl ON pl.id=pp.pengadil_luar_id
     WHERE jp.id=? AND ((? IS NOT NULL AND pp.pengadil_id=?) OR (? IS NOT NULL AND pp.pengadil_luar_id=?))
-    LIMIT 1`).bind(jadualId, pengadilId, pengadilId, luarId, luarId).first<{ jenis_pengadil: string }>();
+    LIMIT 1`).bind(jadualId, pengadilId, pengadilId, luarId, luarId).first<{
+      jenis_pengadil: string; telegram_chat_id: string | number | null;
+    }>();
   if (!poolMember) return json({ error: true, message: 'Pegawai yang dipilih tiada dalam pool kejohanan ini.' }, 409);
   const jenisPengadil = String(poolMember.jenis_pengadil ?? '').trim();
   if (jawatan === 'Penilai Pengadil' && jenisPengadil !== 'Penilai Pengadil') {
@@ -131,6 +134,10 @@ async function assign(env: Env, input: Record<string, unknown>, user: User, meta
     return json({ error: true, message: 'Penilai Pengadil tidak boleh ditempatkan dalam slot KUP.' }, 409);
   }
   const matchStarted = hasMatchStarted(String(timing.tarikh), String(timing.masa ?? ''));
+  if (!matchStarted && pengadilId && !String(poolMember.telegram_chat_id ?? '').trim()) {
+    return json({ error: true, telegram_link_required: true,
+      message: 'Pegawai ini perlu menghubungkan Telegram sebelum boleh menerima lantikan. Minta beliau buka pautan dalam emel atau menu Profil.' }, 409);
+  }
 
   const existing = await env.DB.prepare(`SELECT id,pengadil_id,pengadil_luar_id,status,penilaian_token
     FROM lantikan_pengadil WHERE jadual_id=? AND jawatan=?`).bind(jadualId, jawatan)
@@ -465,6 +472,12 @@ async function pendingAssignments(env: Env, jadualId: number): Promise<PendingAs
     WHERE lp.jadual_id=? AND lp.status='Belum Jawab'`).bind(jadualId).all<PendingAssignment>()).results;
 }
 
+function awaitingTelegram(assignments: PendingAssignment[]): string[] {
+  return assignments.filter((a) => a.user_id != null &&
+    !String(a.telegram_chat_id ?? '').trim())
+    .map((a) => a.nama);
+}
+
 type DispatchTotals = { tgSent: number; tgSkipped: number; emailSent: number; delivered: number; failed: number };
 
 /** Body of the per-assignment loop shared by notify and notify_all. */
@@ -591,6 +604,9 @@ async function notifyMatch(env: Env, input: Record<string, unknown>, user: User,
   if (assignments.length === 0) {
     return json({ error: true, message: 'Tiada pengadil dengan status Belum Jawab.' }, 400);
   }
+  const unlinked = awaitingTelegram(assignments);
+  if (unlinked.length) return json({ error: true, telegram_link_required: true,
+    message: `Notifikasi belum boleh dihantar. Pegawai perlu menghubungkan Telegram: ${unlinked.join(', ')}.` }, 409);
   const totals: DispatchTotals = { tgSent: 0, tgSkipped: 0, emailSent: 0, delivered: 0, failed: 0 };
   await dispatchMatch(env, jadualId, assignments, user.id, meta, totals, new Set());
   const dispatchComplete = await markMatchDispatchedIfComplete(env, jadualId);
@@ -643,6 +659,7 @@ async function notifyAll(env: Env, input: Record<string, unknown>, user: User, m
   let totalRenotify = 0;
   let matchesProcessed = 0;
   let incompleteMatchCount = 0;
+  let telegramPendingMatchCount = 0;
   const ppNotified = new Set<string>();
   for (const jadualId of jadualIds) {
     if (!(await getAppointmentSlotValidation(env, jadualId)).valid) { incompleteMatchCount++; continue; }
@@ -651,6 +668,7 @@ async function notifyAll(env: Env, input: Record<string, unknown>, user: User, m
     totalRenotify += Number(renotify?.n ?? 0);
     const assignments = await pendingAssignments(env, jadualId);
     if (assignments.length === 0) continue;
+    if (awaitingTelegram(assignments).length) { telegramPendingMatchCount++; continue; }
     await dispatchMatch(env, jadualId, assignments, user.id, meta, totals, ppNotified);
     if (!(await markMatchDispatchedIfComplete(env, jadualId))) {
       await env.DB.prepare("UPDATE jadual_perlawanan SET status='Menunggu Pengesahan' WHERE id=?").bind(jadualId).run();
@@ -664,11 +682,13 @@ async function notifyAll(env: Env, input: Record<string, unknown>, user: User, m
   if (totalRenotify > 0) parts.push(`Nota: ${totalRenotify} pengadil dihantar semula (pautan asal masih sah; tempoh jawapan dikira semula dari notifikasi terbaru).`);
   if (startedMatchCount > 0) parts.push(`${startedMatchCount} perlawanan yang telah bermula dilangkau.`);
   if (incompleteMatchCount > 0) parts.push(`${incompleteMatchCount} perlawanan tanpa Pengadil, AR1 dan AR2 lengkap dilangkau.`);
+  if (telegramPendingMatchCount > 0) parts.push(`${telegramPendingMatchCount} perlawanan dilangkau kerana pengadil belum menghubungkan Telegram.`);
   if (totals.failed > 0) parts.push(`${totals.failed} lantikan gagal dihantar dan tempoh jawapannya belum bermula.`);
   return json({
     error: false, message: parts.join(' '), total_assignments: totals.delivered,
     matches_processed: matchesProcessed, email_sent: totals.emailSent, tg_sent: totals.tgSent,
     tg_skipped: totals.tgSkipped, delivery_failed: totals.failed,
     matches_skipped_incomplete: incompleteMatchCount, matches_skipped_started: startedMatchCount,
+    matches_skipped_telegram: telegramPendingMatchCount,
   });
 }

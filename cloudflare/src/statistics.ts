@@ -109,8 +109,8 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
       WHERE lpp.markah IS NOT NULL AND laporan.status IN ('Dihantar','Disahkan')
         AND substr(jp.tarikh,1,4)=?`).bind(yearText).all<Row>(),
     env.DB.prepare(`SELECT COUNT(*) AS total,
-      SUM(CASE WHEN telegram_chat_id IS NOT NULL AND telegram_chat_id<>'' THEN 1 ELSE 0 END) AS linked
-      FROM users WHERE aktif=1 AND email IS NOT NULL AND email<>''`).first<Row>(),
+      SUM(CASE WHEN trim(COALESCE(telegram_chat_id,''))<>'' THEN 1 ELSE 0 END) AS linked
+      FROM users WHERE email IS NOT NULL AND trim(email)<>''`).first<Row>(),
     env.DB.prepare(`SELECT COUNT(*) AS total,
       SUM(CASE WHEN lp.status='Diterima' THEN 1 ELSE 0 END) AS diterima,
       SUM(CASE WHEN lp.status='Ditolak' THEN 1 ELSE 0 END) AS ditolak,

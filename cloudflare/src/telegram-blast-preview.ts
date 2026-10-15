@@ -34,7 +34,7 @@ export async function adminTelegramBlastPreview(request:Request,env:Env):Promise
       return json({error:true,message:'Penghantaran blast belum tersedia di staging.'},503);
     }
     const rows=await env.DB.prepare(`SELECT id,nama_penuh,email,tg_link_token FROM users
-      WHERE aktif=1 AND email IS NOT NULL AND trim(email)<>''
+      WHERE email IS NOT NULL AND trim(email)<>''
         AND (telegram_chat_id IS NULL OR trim(telegram_chat_id)='') ORDER BY id`).all<Invitee>();
     const bot=(env.TELEGRAM_BOT_USERNAME || 'refpahang_bot').replace(/^@+/,'');
     let sent=0;
@@ -50,13 +50,13 @@ export async function adminTelegramBlastPreview(request:Request,env:Env):Promise
       let token=String(row.tg_link_token ?? '').trim();
       if (!token) {
         const generated=tokenHex();
-        await env.DB.prepare(`UPDATE users SET tg_link_token=? WHERE id=? AND aktif=1
+        await env.DB.prepare(`UPDATE users SET tg_link_token=? WHERE id=?
           AND (tg_link_token IS NULL OR trim(tg_link_token)='')
           AND (telegram_chat_id IS NULL OR trim(telegram_chat_id)='')`)
           .bind(generated,row.id).run();
       }
       const fresh=await env.DB.prepare(`SELECT tg_link_token FROM users WHERE id=?
-        AND aktif=1 AND (telegram_chat_id IS NULL OR trim(telegram_chat_id)='')`).bind(row.id)
+        AND (telegram_chat_id IS NULL OR trim(telegram_chat_id)='')`).bind(row.id)
         .first<{tg_link_token:string|null}>();
       token=String(fresh?.tg_link_token ?? '').trim();
       if (!token) continue; // User linked Telegram while the blast was running.
@@ -84,11 +84,19 @@ export async function adminTelegramBlastPreview(request:Request,env:Env):Promise
   const row=await env.DB.prepare(`SELECT
     COUNT(*) AS total,
     COALESCE(SUM(CASE WHEN telegram_chat_id IS NOT NULL AND trim(telegram_chat_id)<>''
-      THEN 1 ELSE 0 END),0) AS linked
-    FROM users WHERE aktif=1 AND email IS NOT NULL AND email<>''`).first<{total:number;linked:number}>();
+      THEN 1 ELSE 0 END),0) AS linked,
+    COALESCE(SUM(CASE WHEN aktif=1 AND trim(COALESCE(telegram_chat_id,''))=''
+      THEN 1 ELSE 0 END),0) AS active_not_linked,
+    COALESCE(SUM(CASE WHEN aktif<>1 AND trim(COALESCE(telegram_chat_id,''))=''
+      THEN 1 ELSE 0 END),0) AS inactive_not_linked
+    FROM users WHERE email IS NOT NULL AND trim(email)<>''`).first<{
+      total:number;linked:number;active_not_linked:number;inactive_not_linked:number
+    }>();
   const total=Number(row?.total ?? 0);
   const linked=Number(row?.linked ?? 0);
-  return json({error:false,total,linked,not_linked:total-linked});
+  return json({error:false,total,linked,not_linked:total-linked,
+    active_not_linked:Number(row?.active_not_linked ?? 0),
+    inactive_not_linked:Number(row?.inactive_not_linked ?? 0)});
 }
 
 export async function externalTelegramBlastPreview(request:Request,env:Env):Promise<Response> {

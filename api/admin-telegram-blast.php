@@ -1,7 +1,7 @@
 <?php
 /**
  * Admin Telegram Blast API
- * Sends Telegram activation emails to all active users who haven't linked Telegram yet.
+ * Sends Telegram linking emails to all users who haven't linked Telegram yet.
  *
  * GET  → preview counts (total eligible, already linked)
  * POST → send blast emails with Telegram link
@@ -27,20 +27,26 @@ try {
     // ── GET: Preview counts ──────────────────────────────────────────
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $total = $pdo->query(
-            "SELECT COUNT(*) FROM users WHERE aktif = 1 AND email IS NOT NULL AND email != ''"
+            "SELECT COUNT(*) FROM users WHERE email IS NOT NULL AND TRIM(email) != ''"
         )->fetchColumn();
 
         $linked = $pdo->query(
-            "SELECT COUNT(*) FROM users WHERE aktif = 1 AND email IS NOT NULL AND email != '' AND telegram_chat_id IS NOT NULL AND telegram_chat_id != ''"
+            "SELECT COUNT(*) FROM users WHERE email IS NOT NULL AND TRIM(email) != '' AND telegram_chat_id IS NOT NULL AND TRIM(telegram_chat_id) != ''"
         )->fetchColumn();
 
         $notLinked = $total - $linked;
+        $activeNotLinked = $pdo->query(
+            "SELECT COUNT(*) FROM users WHERE aktif = 1 AND email IS NOT NULL AND TRIM(email) != '' AND (telegram_chat_id IS NULL OR TRIM(telegram_chat_id) = '')"
+        )->fetchColumn();
+        $inactiveNotLinked = $notLinked - $activeNotLinked;
 
         jsonResponse([
             'error'      => false,
             'total'      => (int) $total,
             'linked'     => (int) $linked,
             'not_linked' => (int) $notLinked,
+            'active_not_linked' => (int) $activeNotLinked,
+            'inactive_not_linked' => (int) $inactiveNotLinked,
         ]);
     }
 
@@ -51,13 +57,12 @@ try {
 
     set_time_limit(300); // Allow up to 5 minutes for large batches
 
-    // Fetch all active users without Telegram linked
+    // Include inactive users; linking Telegram does not change account status.
     $stmt = $pdo->query(
         "SELECT id, nama_penuh, email, tg_link_token
          FROM users
-         WHERE aktif = 1
-           AND email IS NOT NULL AND email != ''
-           AND (telegram_chat_id IS NULL OR telegram_chat_id = '')"
+         WHERE email IS NOT NULL AND TRIM(email) != ''
+           AND (telegram_chat_id IS NULL OR TRIM(telegram_chat_id) = '')"
     );
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 

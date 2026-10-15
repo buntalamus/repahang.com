@@ -5,11 +5,12 @@ import { bundle, openDatabase } from './_harness.mjs';
 const { register } = await bundle("export {register} from '../src/register';");
 const { db, DB, close } = openDatabase(['0001_worker_sessions']);
 const objects = new Map();
+const emails = [];
 const env = {
   DB, STAGING_AUTH_ENABLED: '1', STAGING_WRITES_ENABLED: '1',
   BASE_URL: 'https://staging.refpahang.example', TELEGRAM_BOT_USERNAME: 'test_bot',
   MAIL_DAFTAR_USER: 'daftar@refpahang.example', MAIL_DAFTAR_NAME: 'PBNP',
-  EMAIL: { send: async () => ({ messageId: 'test' }) },
+  EMAIL: { send: async message => { emails.push(message); return { messageId: 'test' }; } },
   MEDIA: { put: async (key, bytes) => objects.set(key, bytes),
     delete: async key => objects.delete(key) },
 };
@@ -85,6 +86,9 @@ try {
   assert.equal(user.tahun_mula_aktif, '2026');
   assert.ok(user.url_gambar_profil.startsWith('/uploads/profiles/registration_'));
   assert.equal(objects.size, 1);
+  assert.equal(emails.length, 1);
+  assert.match(emails[0].text, /Wajib: Hubungkan Telegram sebelum anda boleh menerima lantikan/);
+  assert.match(emails[0].html, /Hubungkan Telegram \(Wajib\)/);
   assert.equal((await post(form())).status, 409);
   assert.equal(objects.size, 1);
   const assessor = form('Penilai Pengadil');

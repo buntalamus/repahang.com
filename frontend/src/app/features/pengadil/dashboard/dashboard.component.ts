@@ -43,7 +43,7 @@ export class PengadilDashboardComponent implements OnInit {
       .subscribe({
         next: ({ profile, matches, notifications, announcements, tugasan }) => {
           if (!profile.error) {
-            this.profile = profile.data || profile.profile || profile;
+            this.profile = profile.user || profile.data || profile.profile || {};
           }
           if (!matches.error) {
             const list = matches.data || matches.matches || [];

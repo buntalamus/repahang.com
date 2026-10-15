@@ -116,7 +116,7 @@ export class PengadilProfileComponent implements OnInit {
       next: (res) => {
         this.generatingTgLink = false;
         if (!res.error && res.link_url) {
-          window.open(res.link_url, '_blank');
+          window.location.href = res.link_url;
         } else if (res.linked) {
           this.profile.telegram_chat_id = 'linked';
           this.toast.success('Telegram telah dihubungkan.');

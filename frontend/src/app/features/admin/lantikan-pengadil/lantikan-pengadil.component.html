@@ -1067,6 +1067,9 @@
                             @if (ref.jenis_sumber === 'Luar') {
                               <span class="text-[10px] text-amber-600 font-medium">Luar</span>
                             }
+                            @if (ref.telegram_required) {
+                              <span class="text-[10px] text-amber-700 font-medium">Telegram wajib dipaut</span>
+                            }
                           </div>
                           <div class="flex items-center gap-2 mt-1">
                             <span class="text-[10px] text-slate-500">{{ getRegionValue(ref) }}</span>

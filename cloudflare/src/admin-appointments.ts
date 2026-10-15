@@ -60,6 +60,10 @@ export async function adminAppointments(request:Request,env:Env):Promise<Respons
         CASE WHEN pp.pengadil_id IS NOT NULL THEN u.no_telefon ELSE pl.no_tel END AS no_telefon,
         CASE WHEN pp.pengadil_id IS NOT NULL THEN u.email ELSE pl.emel END AS email,
         CASE WHEN pp.pengadil_id IS NOT NULL THEN u.jenis_pengadil ELSE pl.jenis_pengadil END AS jenis_pengadil,
+        CASE WHEN pp.pengadil_id IS NOT NULL AND trim(COALESCE(u.telegram_chat_id,''))=''
+          THEN 1 ELSE 0 END AS telegram_required,
+        CASE WHEN COALESCE(u.telegram_chat_id,pl.telegram_chat_id) IS NOT NULL
+          AND trim(COALESCE(u.telegram_chat_id,pl.telegram_chat_id))<>'' THEN 1 ELSE 0 END AS telegram_linked,
         CASE WHEN pp.pengadil_id IS NOT NULL THEN 'Berdaftar' ELSE 'Luar' END AS jenis_sumber,
         CASE WHEN pp.pengadil_id IS NOT NULL THEN u.daerah ELSE pl.daerah END AS daerah,
         CASE WHEN pp.pengadil_id IS NOT NULL THEN u.negeri ELSE pl.negeri END AS negeri,

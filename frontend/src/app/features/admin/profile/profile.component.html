@@ -132,6 +132,26 @@
       </div>
     </div>
 
+    <!-- Telegram account linking for administrators, assessors and development officers -->
+    <div id="telegram" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <h3 class="text-lg font-semibold text-slate-900 mb-4 border-l-4 border-pahang-yellow pl-3">Pemautan Telegram</h3>
+      @if (profile.telegram_chat_id) {
+        <p class="text-sm font-medium text-emerald-700">Telegram berjaya dipaut.</p>
+      } @else {
+        <p class="text-sm text-slate-700 mb-4">Buka pautan Telegram dan tekan Mula / Start dalam bot untuk menerima notifikasi. Akaun yang tidak aktif juga boleh dipaut melalui pautan yang dihantar ke emel, tanpa mengaktifkan semula akaun.</p>
+        <div class="flex flex-wrap gap-3">
+          <button type="button" (click)="generateTelegramLink()" [disabled]="generatingTgLink"
+            class="px-4 py-2 text-sm font-semibold text-white bg-[#0088CC] rounded-lg hover:bg-[#006FA3] disabled:opacity-60">
+            {{ generatingTgLink ? 'Mendapatkan pautan...' : 'Hubungkan Telegram' }}
+          </button>
+          <button type="button" (click)="loadProfile()"
+            class="px-4 py-2 text-sm font-semibold text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-50">
+            Semak Status Pemautan
+          </button>
+        </div>
+      }
+    </div>
+
     <!-- Change Password -->
     <app-change-password />
 

@@ -175,7 +175,7 @@ export async function register(request: Request, env: Env): Promise<Response> {
   await env.DB.prepare(`
     INSERT INTO notifications(user_id,type,subject,message,created_at)
     VALUES(?,'Permohonan Diterima','Pendaftaran Berjaya',
-      'Selamat datang! Akaun dan profil anda telah berjaya didaftarkan. Sila semak profil anda di dashboard.',
+      'Akaun dan profil anda telah didaftarkan. Hubungkan Telegram melalui pautan dalam emel pendaftaran sebelum menerima lantikan.',
       datetime('now','+8 hours'))
   `).bind(userId).run();
   const bot = env.TELEGRAM_BOT_USERNAME || 'refpahang_bot';
@@ -187,8 +187,10 @@ export async function register(request: Request, env: Env): Promise<Response> {
       `Emel log masuk: ${email}`,
       `Kata laluan sementara: ${password}`,
       'Sila tukar kata laluan selepas log masuk. Jangan kongsikan butiran ini.',
-      `Untuk menghubungkan Telegram, buka ${telegramLink}`,
-    ], { label: 'Log Masuk Sekarang', url: new URL('/login', env.BASE_URL).toString() });
+      'Wajib: Hubungkan Telegram sebelum anda boleh menerima lantikan. Buka pautan di bawah dan tekan Mula / Start dalam bot.',
+      `Pautan Telegram: ${telegramLink}`,
+      `Selepas itu, log masuk di ${new URL('/login', env.BASE_URL).toString()}`,
+    ], { label: 'Hubungkan Telegram (Wajib)', url: telegramLink });
     await sendRefpahangEmail(env, 'daftar', email, name,
       'Selamat Datang - Sistem Pengadil Pahang', html, text);
     emailSent = true;
@@ -198,6 +200,6 @@ export async function register(request: Request, env: Env): Promise<Response> {
   return json({ error: false, user_id: userId, email_sent: emailSent,
     telegram_link: telegramLink,
     message: emailSent
-      ? 'Pendaftaran berjaya! Emel dengan kata laluan telah dihantar.'
-      : 'Akaun berjaya didaftarkan tetapi emel belum dapat dihantar. Gunakan tetapan semula kata laluan untuk mendapatkan akses.' });
+      ? 'Pendaftaran berjaya! Hubungkan Telegram melalui pautan ini sebelum menerima lantikan. Kata laluan dihantar melalui emel.'
+      : 'Akaun berjaya didaftarkan tetapi emel belum dapat dihantar. Hubungkan Telegram melalui pautan ini, kemudian gunakan tetapan semula kata laluan untuk mendapatkan akses.' });
 }

@@ -21,6 +21,7 @@ export class AdminProfileComponent implements OnInit {
   saving = false;
   profile: any = {};
   profileImageUrl = '';
+  generatingTgLink = false;
 
   constructor(
     private api: ApiService,
@@ -36,7 +37,7 @@ export class AdminProfileComponent implements OnInit {
     this.api.get<any>('get-user-profile.php').subscribe({
       next: (res) => {
         if (!res.error) {
-          this.profile = res.data || res;
+          this.profile = res.user || res.data || res;
           if (this.profile.url_gambar_profil) {
             this.profileImageUrl = this.profile.url_gambar_profil;
           }
@@ -89,6 +90,27 @@ export class AdminProfileComponent implements OnInit {
         } else {
           this.toast.error(res.message);
         }
+      },
+    });
+  }
+
+  generateTelegramLink(): void {
+    this.generatingTgLink = true;
+    this.api.post<any>('telegram-link-self.php', {}).subscribe({
+      next: (res) => {
+        this.generatingTgLink = false;
+        if (!res.error && res.link_url) {
+          window.location.href = res.link_url;
+        } else if (res.linked) {
+          this.loadProfile();
+          this.toast.success('Telegram telah dihubungkan.');
+        } else {
+          this.toast.error(res.message || 'Gagal mendapatkan pautan Telegram.');
+        }
+      },
+      error: (err: any) => {
+        this.generatingTgLink = false;
+        this.toast.error(err?.error?.message || 'Gagal mendapatkan pautan Telegram.');
       },
     });
   }

@@ -29,10 +29,14 @@ try {
   assert.equal((await externalTelegramBlastPreview(get(`${external}?kejohanan_id=16`,refereeCookie),env)).status,403);
   const stats=await (await adminTelegramBlastPreview(get(main,adminCookie),env)).json();
   const expected=db.prepare(`SELECT count(*) AS total,sum(CASE WHEN telegram_chat_id IS NOT NULL
-    AND trim(telegram_chat_id)<>'' THEN 1 ELSE 0 END) AS linked
-    FROM users WHERE aktif=1 AND email IS NOT NULL AND email<>''`).get();
-  assert.deepEqual({total:stats.total,linked:stats.linked,not_linked:stats.not_linked},
-    {total:expected.total,linked:expected.linked,not_linked:expected.total-expected.linked});
+    AND trim(telegram_chat_id)<>'' THEN 1 ELSE 0 END) AS linked,
+    sum(CASE WHEN aktif=1 AND trim(COALESCE(telegram_chat_id,''))='' THEN 1 ELSE 0 END) AS active_not_linked,
+    sum(CASE WHEN aktif<>1 AND trim(COALESCE(telegram_chat_id,''))='' THEN 1 ELSE 0 END) AS inactive_not_linked
+    FROM users WHERE email IS NOT NULL AND trim(email)<>''`).get();
+  assert.deepEqual({total:stats.total,linked:stats.linked,not_linked:stats.not_linked,
+    active_not_linked:stats.active_not_linked,inactive_not_linked:stats.inactive_not_linked},
+    {total:expected.total,linked:expected.linked,not_linked:expected.total-expected.linked,
+      active_not_linked:expected.active_not_linked,inactive_not_linked:expected.inactive_not_linked});
   assert.equal((await adminTelegramBlastPreview(post(adminCookie),env)).status,503);
   assert.equal(messages.length,0);
   assert.equal((await externalTelegramBlastPreview(get(external,adminCookie),env)).status,400);
@@ -55,20 +59,27 @@ try {
 
   const invitees=db.prepare(`SELECT id,email FROM users WHERE aktif=1 AND email IS NOT NULL
     AND trim(email)<>'' AND (telegram_chat_id IS NULL OR trim(telegram_chat_id)='')
-    AND id<>? ORDER BY id LIMIT 2`).all(admin.id);
-  assert.equal(invitees.length,2);
-  db.prepare('UPDATE users SET aktif=0 WHERE id NOT IN (?,?,?)')
-    .run(admin.id,invitees[0].id,invitees[1].id);
+    AND id<>? ORDER BY id LIMIT 3`).all(admin.id);
+  assert.equal(invitees.length,3);
+  db.prepare('UPDATE users SET telegram_chat_id=123456 WHERE id NOT IN (?,?,?)')
+    .run(invitees[0].id,invitees[1].id,invitees[2].id);
+  db.prepare('UPDATE users SET aktif=0,tg_link_token=NULL WHERE id=?').run(invitees[2].id);
+  db.prepare('UPDATE users SET tg_link_token=NULL WHERE id IN (?,?)')
+    .run(invitees[0].id,invitees[1].id);
   db.prepare('UPDATE users SET telegram_chat_id=123456 WHERE id=?').run(admin.id);
+  const filtered=await (await adminTelegramBlastPreview(get(main,adminCookie),env)).json();
+  assert.equal(filtered.not_linked,3);
+  assert.equal(filtered.active_not_linked,2);
+  assert.equal(filtered.inactive_not_linked,1);
   env.STAGING_WRITES_ENABLED='1';
   assert.equal((await adminTelegramBlastPreview(post(adminCookie),env)).status,503);
   env.BULK_EMAIL_ENABLED='1';
   globalThis.failRecipient=invitees[1].email;
   const first=await (await adminTelegramBlastPreview(post(adminCookie),env)).json();
   assert.equal(first.error,false);
-  assert.deepEqual([first.sent,first.failed],[1,1]);
+  assert.deepEqual([first.sent,first.failed],[2,1]);
   assert.deepEqual(first.errors,[invitees[1].email]);
-  assert.equal(messages.length,2);
+  assert.equal(messages.length,3);
   assert.ok(messages.every(message=>message.from.email==='admin@refpahang.example'));
   for(const invitee of invitees){
     const token=db.prepare('SELECT tg_link_token FROM users WHERE id=?').get(invitee.id).tg_link_token;
@@ -78,7 +89,7 @@ try {
   }
   globalThis.failRecipient=null;
   const second=await (await adminTelegramBlastPreview(post(adminCookie),env)).json();
-  assert.deepEqual([second.sent,second.failed],[2,0]);
-  assert.equal(messages.length,4);
+  assert.deepEqual([second.sent,second.failed],[3,0]);
+  assert.equal(messages.length,6);
   console.log('Telegram blast: Admin scope, preview, write/delivery gates, token reuse and email failures passed');
 } finally {close();}

@@ -423,10 +423,10 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
         <div class="bg-white rounded-xl shadow-sm border border-slate-200">
           <div class="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
             <span class="material-icons text-[#0088CC]">send</span>
-            <h2 class="font-bold text-slate-800">Blast Telegram Activation</h2>
+            <h2 class="font-bold text-slate-800">Pautan Telegram Pengguna</h2>
           </div>
           <div class="p-6">
-            <p class="text-sm text-slate-600 mb-4">Hantar emel pengaktifan Telegram kepada semua pengadil aktif yang <strong>belum</strong> menghubungkan akaun Telegram mereka.</p>
+            <p class="text-sm text-slate-600 mb-4">Hantar emel pautan Telegram kepada semua pengguna yang belum memautkan akaun, termasuk akaun aktif dan tidak aktif. Pemautan tidak mengaktifkan semula akaun.</p>
 
             @if (tgStats) {
               <div class="grid grid-cols-3 gap-3 mb-5">
@@ -436,13 +436,14 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
                 </div>
                 <div class="rounded-lg bg-green-50 border border-green-200 p-3 text-center">
                   <p class="text-2xl font-bold text-green-600">{{ tgStats.linked }}</p>
-                  <p class="text-xs text-green-600">Sudah Aktif</p>
+                  <p class="text-xs text-green-600">Sudah Dipaut</p>
                 </div>
                 <div class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-center">
                   <p class="text-2xl font-bold text-amber-600">{{ tgStats.not_linked }}</p>
-                  <p class="text-xs text-amber-600">Belum Aktif</p>
+                  <p class="text-xs text-amber-600">Belum Dipaut</p>
                 </div>
               </div>
+              <p class="text-xs text-slate-600 mb-4">Belum dipaut: {{ tgStats.active_not_linked }} akaun aktif, {{ tgStats.inactive_not_linked }} akaun tidak aktif.</p>
             }
 
             @if (tgBlastResult) {
@@ -490,7 +491,8 @@ export class AdminSettingsComponent implements OnInit {
   loading = true;
   saving = false;
   resetting = false;
-  tgStats: { total: number; linked: number; not_linked: number } | null = null;
+  tgStats: { total: number; linked: number; not_linked: number;
+    active_not_linked: number; inactive_not_linked: number } | null = null;
   tgLoading = false;
   tgBlasting = false;
   tgBlastResult: { message: string; sent: number; failed: number } | null = null;
@@ -637,7 +639,8 @@ export class AdminSettingsComponent implements OnInit {
       next: (res) => {
         this.tgLoading = false;
         if (!res.error) {
-          this.tgStats = { total: res.total, linked: res.linked, not_linked: res.not_linked };
+          this.tgStats = { total: res.total, linked: res.linked, not_linked: res.not_linked,
+            active_not_linked: res.active_not_linked, inactive_not_linked: res.inactive_not_linked };
         }
       },
       error: () => { this.tgLoading = false; this.toast.error('Gagal memuatkan statistik Telegram.'); },
@@ -645,7 +648,7 @@ export class AdminSettingsComponent implements OnInit {
   }
 
   sendTelegramBlast(): void {
-    if (!confirm(`Hantar emel pengaktifan Telegram kepada ${this.tgStats?.not_linked} pengguna?`)) return;
+    if (!confirm(`Hantar emel pautan Telegram kepada ${this.tgStats?.not_linked} pengguna, termasuk ${this.tgStats?.inactive_not_linked} akaun tidak aktif?`)) return;
     this.tgBlasting = true;
     this.tgBlastResult = null;
     this.api.post<any>('admin-telegram-blast.php', {}, 300_000).subscribe({

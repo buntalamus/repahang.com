@@ -8,6 +8,16 @@
       <p class="text-gray-300 text-sm mt-1">Panel Pengadil — Sistem Pengurusan Pengadil PBNP</p>
     </div>
 
+    @if (profile.telegram_link_required && !profile.telegram_chat_id) {
+      <div class="rounded-xl border border-amber-300 bg-amber-50 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4" role="alert">
+        <div>
+          <h3 class="font-semibold text-amber-900">Hubungkan Telegram sebelum menerima lantikan</h3>
+          <p class="text-sm text-amber-800 mt-1">Buka pautan Telegram dan tekan Mula / Start dalam bot. Semak status pemautan di halaman profil.</p>
+        </div>
+        <a routerLink="/pengadil/profil" fragment="telegram" class="shrink-0 rounded-lg bg-pahang-black px-4 py-2 text-center text-sm font-semibold text-pahang-yellow">Hubungkan Telegram</a>
+      </div>
+    }
+
     <!-- Stats -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
