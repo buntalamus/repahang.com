@@ -988,7 +988,9 @@ R1 bagi RA, atau R4 bagi Kelas III. Kegagalan PDF/emel dilaporkan melalui
 untuk dimuat turun. Ujian pada salinan D1 mengesahkan 51 perlawanan Hanafi
 dipaut kepada permohonan ujian tanpa memadam rekod, lampiran Pengadil dan RA,
 penolakan fail rosak, penguncian staging, pendua dan pembersihan R2 pada
-kegagalan transaksi. Ini **bukan** bukti emel benar sampai atau borang dalam
+kegagalan transaksi. Ujian Admin memadam permohonan ujian itu selepasnya dan
+mengesahkan semua 51 perlawanan Hanafi tahun 2026 masih wujud, dengan pautan
+permohonan dikosongkan. Ini **bukan** bukti emel benar sampai atau borang dalam
 akaun production boleh dimuat turun; kedua-duanya masih memerlukan ujian
 staging yang terkawal selepas suis dibuka.
 

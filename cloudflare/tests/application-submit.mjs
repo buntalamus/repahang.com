@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import {bundle,openDatabase,sessionCookie} from './_harness.mjs';
 
-const {submitRefereeApplication}=await bundle(
-  "export {submitRefereeApplication} from '../src/application-submit';"
+const {submitRefereeApplication,deleteApplication}=await bundle(
+  "export {submitRefereeApplication} from '../src/application-submit'; export {deleteApplication} from '../src/applications';"
 );
 const {db,DB,hooks,close}=openDatabase(['0001_worker_sessions','0011_application_uniqueness']);
 const objects=new Map();
@@ -80,5 +80,16 @@ try {
   assert.equal(raResult.email_sent,true);
   assert.match(emails.at(-1).attachments[0].filename,/RA_R1/);
   assert.equal(emails.at(-1).attachments.length,1);
-  console.log('application submit: auth/write gates, uploads, atomic match links, PDF mail and duplicate guard passed');
+  const admin=db.prepare("SELECT id FROM users WHERE role='Admin' AND aktif=1 LIMIT 1").get();
+  const adminCookie=await sessionCookie(db,admin.id);
+  const allMatchesBefore=db.prepare('SELECT COUNT(*) n FROM perlawanan WHERE user_id=80').get().n;
+  const deletion=await deleteApplication(new Request('https://staging.refpahang.example/api/admin-applications.php',{
+    method:'POST',headers:{Cookie:adminCookie,'Content-Type':'application/json'},
+    body:JSON.stringify({action:'delete_application',id:result.application_id}),
+  }),env);
+  assert.equal(deletion.status,200);
+  assert.equal((await deletion.json()).unlinked_matches,51);
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM perlawanan WHERE user_id=80 AND substr(tarikh,1,4)='2026' AND permohonan_id IS NULL").get().n,51);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM perlawanan WHERE user_id=80').get().n,allMatchesBefore);
+  console.log('application submit/delete: auth/write gates, uploads, PDF mail, duplicate guard and 51 preserved matches passed');
 } finally {close();}
