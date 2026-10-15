@@ -36,6 +36,14 @@ pengguna, 11,608 perlawanan, 51 perlawanan Hanafi 2026, sifar penghantaran
 Kelas 3 baharu dan 10 batch onboarding Telegram lama. Domain production masih
 PHP; `api_complete` kekal `false`.
 
+Commit `fd51c71` telah dipush dan dideploy daripada worktree bersih sebagai
+Worker staging versi `27fefcfa-53ff-49e1-9fde-014ac9a875bd`. Binaan Angular
+berjaya dengan amaran bajet awal 11.80 KB. URL staging memberi health 200
+(`api_complete:false`); kedua-dua POST blast tanpa sesi memberi 401. Semakan
+D1 selepas deploy mengekalkan 370 pengguna, 11,608 perlawanan, 51 perlawanan
+Hanafi 2026, sifar tugas penghantaran Kelas 3 dan 10 batch Telegram lama.
+Domain `refpahang.com` masih PHP (`/api/__migration-health` = 404).
+
 Tarikh audit: 13–15 Oktober 2026. Ini ialah inventori dan alat persediaan untuk
 staging. DNS kini diurus oleh Cloudflare dan rekod hos emel telah dibetulkan;
 aplikasi production masih berjalan pada pelayan PHP lama. Peti masuk kekal
