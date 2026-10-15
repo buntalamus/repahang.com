@@ -47,9 +47,8 @@ def upload(bucket: str, path: Path, key: str) -> tuple[str, int, str]:
     command = ["npx", "--yes", "wrangler@4", "r2", "object", "put",
                bucket + "/" + key, "--file", str(path), "--remote", "--force",
                "--content-type", content_type]
-    environ = {**os.environ, "PATH": "/opt/homebrew/opt/node@22/bin:" + os.environ.get("PATH", "")}
     for attempt in range(3):
-        result = subprocess.run(command, env=environ, capture_output=True, text=True)
+        result = subprocess.run(command, capture_output=True, text=True)
         if result.returncode == 0:
             return key, path.stat().st_size, sha256(path)
         time.sleep(2 * (attempt + 1))
@@ -59,24 +58,27 @@ def upload(bucket: str, path: Path, key: str) -> tuple[str, int, str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bucket", required=True)
+    parser.add_argument("--source", type=Path, default=UPLOADS,
+                        help="Root of a reviewed uploads tree; defaults to repository uploads/")
     parser.add_argument("--jobs", type=int, default=6)
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     args = parser.parse_args()
     if not (1 <= args.jobs <= 12):
         parser.error("--jobs must be between 1 and 12")
-    if not UPLOADS.is_dir():
-        parser.error("uploads/ is missing")
+    source = args.source.resolve()
+    if not source.is_dir():
+        parser.error("uploads source is missing")
     records: dict = {"bucket": args.bucket, "files": {}, "errors": {}}
     if args.manifest.exists():
         records = json.loads(args.manifest.read_text(encoding="utf-8"))
         if records["bucket"] != args.bucket:
             parser.error("manifest is for a different R2 bucket")
 
-    files = sorted(path for path in UPLOADS.rglob("*") if path.is_file()
+    files = sorted(path for path in source.rglob("*") if path.is_file()
                    and path.name not in EXCLUDED and not path.is_symlink())
     pending = []
     for path in files:
-        key = path.relative_to(UPLOADS).as_posix()
+        key = path.relative_to(source).as_posix()
         prior = records["files"].get(key)
         if prior and prior.get("size") == path.stat().st_size and prior.get("sha256") == sha256(path):
             continue

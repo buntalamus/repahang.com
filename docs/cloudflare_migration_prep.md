@@ -1,12 +1,73 @@
 # Persediaan migrasi RefPahang ke Cloudflare
 
-Tarikh audit: 13–14 Oktober 2026. Ini ialah inventori dan alat persediaan untuk
+Tarikh audit: 13–15 Oktober 2026. Ini ialah inventori dan alat persediaan untuk
 staging. DNS kini diurus oleh Cloudflare dan rekod hos emel telah dibetulkan;
 aplikasi production masih berjalan pada pelayan PHP lama. Peti masuk kekal
 pada pelayan lama. Domain telah didaftarkan untuk Cloudflare Email Sending,
 tetapi penghantaran emel aplikasi belum dipindahkan ke Worker.
 
-## Sumber data yang dipilih
+## Salinan terkini 15 Oktober
+
+Pengguna membekalkan `refpahan_refpahang-4.sql` (SHA-256
+`9319563ecb7383428d40c1a718352e195ee67df09b0972a2546a6e57c32876a9`)
+dan `uploads-2.zip` (SHA-256
+`b8bfe0b6bbb0f27de8c02364996d0fff1ab82ed0c00268f406a11db8e1350e03`).
+Dump dijana pada 15 Oktober 2026, 14:24; ia mengandungi 40 jadual dan 58,745
+baris. Ia **masih tidak mempunyai** permohonan #535 atau perlawanan Hanafi
+tahun 2026. Dump ini ialah sumber terkini yang pengguna serahkan, bukan bukti
+bahawa penulisan production sudah dibekukan.
+
+Salinan SQLite dump terkini digabung dengan 51 rekod perlawanan Hanafi yang
+telah diaudit sebelum ini. Sebanyak 13 ID pemulihan bertembung dengan rekod
+perlawanan sebenar dalam dump terkini; rekod sebenar dikekalkan dan 13 rekod
+pemulihan diberi ID baharu. Sebanyak 38 ID pemulihan lain dikekalkan. Hasilnya
+40 jadual, **58,796** baris dan **11,608** perlawanan, termasuk tepat **51**
+perlawanan Hanafi tahun 2026. Permohonan #535 masih tidak direka semula.
+Manifest pemetaan ID disimpan secara peribadi di
+`output/cloudflare/refpahang_2026-10-15_hanafi51_manifest.json`.
+
+Pangkalan D1 staging baharu `refpahan_pahang_staging_20261015` menerima salinan
+gabungan penuh dan migrasi Worker `0001` hingga `0011`; bukan Hanafi sahaja.
+Semakan setempat: `integrity_check=ok`, sifar pelanggaran foreign key, tiada
+pendua permohonan bagi indeks unik. Semakan D1 jauh mengesahkan 51 ID Hanafi
+yang sama; binding Worker staging dipindahkan selepas semakan 51 jadual.
+
+Arkib baharu mengandungi 964 fail media sebenar dan satu `.htaccess` yang
+tidak diekstrak. Kesemua 835 objek R2 sebelumnya sepadan hash dengan arkib,
+129 fail tambahan dimuat naik tanpa ralat, dan tiga objek baharu yang dimuat
+turun semula sepadan SHA-256. Kesemua **584** laluan `/uploads/` yang dirujuk
+oleh dump terkini ada dalam arkib/R2; 42 pautan Google Drive kekal luaran.
+Manifest private: `output/cloudflare/r2-media-upload-20261015.json`.
+
+Untuk membina semula salinan setempat daripada fail yang sama, import SQL ke
+MySQL **tempatan terasing** dahulu, kemudian jalankan:
+
+```sh
+python3 cloudflare/mysql_to_d1_snapshot.py --database NAMA_DB_TEMPATAN \
+  --output output/cloudflare/refpahang_2026-10-15_latest.sqlite
+python3 cloudflare/reconcile_latest_seed.py \
+  --fresh output/cloudflare/refpahang_2026-10-15_latest.sqlite \
+  --recovered output/cloudflare/refpahang_2026-10-13_hanafi51.sqlite \
+  --output output/cloudflare/refpahang_2026-10-15_hanafi51.sqlite \
+  --manifest output/cloudflare/refpahang_2026-10-15_hanafi51_manifest.json
+python3 cloudflare/sqlite_to_d1_sql.py \
+  --snapshot output/cloudflare/refpahang_2026-10-15_hanafi51.sqlite \
+  --output output/cloudflare/refpahang_2026-10-15_hanafi51_d1.sql
+python3 cloudflare/extract_uploads_archive.py \
+  --archive /PATH/TO/uploads-2.zip \
+  --output output/cloudflare/uploads_20261015
+python3 cloudflare/sync_media.py \
+  --source output/cloudflare/uploads_20261015 \
+  --bucket refpahang-staging-20261013-media \
+  --manifest output/cloudflare/r2-media-upload-20261015.json
+```
+
+Fail dalam `output/cloudflare/` mengandungi data peribadi dan diabaikan Git.
+Salinan baharu ini masih staging. Sebelum cutover production, hentikan tulis
+sementara pada PHP, ambil dump dan fail tambahan terakhir, dan ulang semakan
+delta supaya perubahan selepas 14:24 tidak tercicir.
+
+## Sejarah sumber data 13 Oktober
 
 - Dump: `refpahan_refpahang-3.sql` (17,938,043 bait), SHA-256
   `e9b2919f76e3112037b6c94d725f1f7d37db1f6510b4fe0e0d941104de1d7575`.
@@ -85,7 +146,7 @@ WHERE user_id=80 AND tarikh >= '2026-01-01' AND tarikh < '2027-01-01';
 ```
 
 SQL gabungan telah diimport melalui Wrangler 4.150.0 ke **D1 tempatan dan
-D1 staging jauh**. Binding Worker kini menggunakan `refpahan_pahang_staging`
+D1 staging jauh**. Binding Worker ketika itu menggunakan `refpahan_pahang_staging`
 di rantau APAC; nama ini merujuk pangkalan RefPahang penuh, bukan Hanafi sahaja.
 Semakan terus pada D1 jauh membandingkan setiap satu daripada 40 jadual aplikasi
 dengan salinan staging terdahulu `refpahang-staging-20261013-hanafi51`: semua
@@ -1049,17 +1110,18 @@ perlawanan Hanafi 2026, serta domain production masih melalui LiteSpeed.
 
 ## Laluan staging hingga pertukaran domain
 
-1. D1 staging `refpahan_pahang_staging` sudah memasukkan 51 perlawanan Hanafi. Semak
-   production dan ambil sandaran baharu sebelum migrasi sebenar; bandingkan
-   kiraan/ID penting dengan fail gabungan ini.
+1. D1 staging `refpahan_pahang_staging_20261015` sudah menerima dump terbaru
+   bersama 51 perlawanan Hanafi. Semak production dan ambil sandaran akhir
+   selepas pembekuan tulis sebelum cutover; bandingkan kiraan/ID dengan salinan ini.
 2. Uji SQL yang telah ditukar pada D1 staging, kemudian lengkapkan skema dan
    pertanyaan Worker serta pengesahan setiap jadual, ID, hubungan dan transaksi.
    Jangan gunakan `refpahan_refpahang-3.sql` terus sebagai fail import D1.
 3. Bina Worker API di staging dengan kontrak `/api` sedia ada. Uji login,
    peranan Admin/PP Daerah/Pengadil/RA, permohonan, lantikan tanpa konflik,
    audit, laporan, PDF, Telegram dan tugas berkala sebelum mengalihkan trafik.
-4. Lengkapkan salinan media production ke R2 dan sahkan semua rujukan gambar,
-   resit, logo serta lampiran. Uji lima kategori emel, templat, lampiran PDF,
+4. Salinan media daripada arkib 15 Oktober ada di R2; ulang delta selepas
+   pembekuan tulis dan sahkan rujukan gambar, resit, logo serta lampiran.
+   Uji lima kategori emel, templat, lampiran PDF,
    penolakan dan logging tanpa menghantar secara besar-besaran.
 5. Apabila staging setara, bekukan tulis sebentar, ambil dump terkini,
    migrasikan delta, semak jumlah/ID dan jalankan ujian akhir. Sediakan laluan

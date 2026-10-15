@@ -12,8 +12,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "refpahan_pahang_staging",
-      "database_id": "53677914-dc72-4797-9877-53f9265f980a"
+      "database_name": "refpahan_pahang_staging_20261015",
+      "database_id": "eb7f6762-fd38-4324-969f-ba3c38aa058b"
     }
   ],
   "r2_buckets": [
