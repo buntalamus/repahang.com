@@ -73,6 +73,61 @@ D1 staging mempunyai sifar `kup_crew_notifications` tertunggak, jadi cron
 tidak menghantar notifikasi lama apabila suis lantikan dibuka. Semua suis
 tulis dan emel staging masih `0`.
 
+## Ujian tulis dan emel live di staging, 15 Oktober
+
+Secret `STAGING_EMAIL_REDIRECT` (commit `64c1e10`) mengalihkan **setiap** emel
+Worker ke satu peti ujian milik pemilik akaun Cloudflare, dengan subjek
+`[UJIAN → penerima asal] ...`. Staging tiada `TELEGRAM_BOT_TOKEN`, jadi tiada
+Telegram keluar. Suis tulis, lantikan, laporan dan peti emel dibuka melalui
+`wrangler deploy --var ...` sahaja (bukan dalam `wrangler.jsonc`);
+`BULK_EMAIL_ENABLED` kekal `0`. Selepas ujian, Worker dideploy semula dengan
+semua suis `0` (versi `c4f8000b-9964-4ab5-9507-a1e495fe9f0e`).
+
+Lulus secara live dengan Cloudflare Email Sending sebenar:
+
+| Aliran | Hasil |
+|---|---|
+| Peti Emel Admin → hantar | `sent`; emel diterima melalui pengalihan |
+| `lantikan.php` assign 4 slot + notify | 4 emel; Telegram gagal seperti dijangka (tiada token) |
+| `lantikan-jawab-token.php` | halaman sahkan, terima, tolak; pautan terpakai → "Pautan Tidak Sah" |
+| `lantikan-audit.php` | override hanya untuk lantikan ditolak; override 1433 berjaya |
+| `kejohanan-pengesah-laporan.php` POST | Pengerusi ditetapkan semula |
+| `penilaian-token.php` GET, draf, hantar | laporan 104 `Dihantar`; salinan Admin dibuat |
+| `laporan-penilaian.php` cuba semula Pengerusi | emel Pengerusi dihantar |
+| `laporan-pengesahan-token.php` | halaman semak, sahkan → `Disahkan`; ulangan 409 |
+| `download-laporan-penilaian.php` | HTML 200, 295 KB |
+| `pengadil-application.php` POST | #537 dihantar, 20 perlawanan dipaut, emel salinan dihantar |
+| `pp-verify.php` → `admin-approve.php` | Admin sebelum PP 404; PP sahkan; Admin lulus + emel; ulangan 404 |
+| `download-borang-pendaftaran.php?permohonan_id=537` | PDF 382 KB untuk PP Daerah |
+
+Tiga aliran emel pukal (blast Kelas III, blast Telegram Admin, blast pengadil
+luar) tidak dihantar secara live: satu blast pengadil luar sahaja = 76 emel.
+Ia kekal diuji dengan penghantar palsu dan disenaraikan dalam
+`endpoint_coverage.py`. Penghantaran Telegram sebenar juga belum diuji di
+Worker; ia hanya boleh diuji selepas token bot dipasang dan webhook bot
+dialihkan dari PHP ke Worker semasa cutover.
+
+### Pepijat yang ditemui dan dibaiki
+
+1. **`meta.changes` D1 termasuk baris trigger** (commit `e720d8f`). D1 jauh
+   melaporkan `total_changes()`, jadi UPDATE satu baris pada jadual dengan
+   trigger `ON UPDATE` (migrasi 0009) memberi `changes: 2`; cascade FK juga
+   dikira. Setiap semakan `changes === 1` menganggap tulisan berjaya sebagai
+   konflik. Kesan yang dilihat live: emel Pengerusi diklaim tetapi tidak
+   dihantar; kelulusan Admin menulis keputusan tetapi menjawab "Permohonan
+   sudah diproses." tanpa emel. Semakan satu baris kini guna `wroteRow()`,
+   semakan berbilang baris "semua atau tiada" guna `<`. Harness ujian kini
+   melaporkan `total_changes()` seperti D1, dan `tests/admin-approve.mjs`
+   ditambah. 20/20 ujian lulus.
+2. **Penerima tanpa nama ditolak oleh binding emel** (commit `ff3145f`).
+   `{email, name: undefined}` ditolak; balasan Peti Emel Admin sentiasa
+   gagal. Penerima tanpa nama kini dihantar sebagai alamat biasa.
+
+Data sintetik yang kekal dalam D1 staging (akan diganti oleh import akhir):
+perlawanan `1190` (QA01, kejohanan 17) dan lantikan `1432`–`1435`, laporan
+`104` / pengesahan `57`, pengguna `443` (`staging-pengadil@example.invalid`)
+dengan 20 perlawanan `QA UJIAN STAGING`, dan permohonan `537`.
+
 ## Penutupan 12 laluan separa, 15 Oktober
 
 Dua tindakan POST yang sebelum ini belum wujud di Worker kini dipindahkan:

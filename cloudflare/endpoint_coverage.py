@@ -35,18 +35,12 @@ BACKGROUND_JOBS: dict[str, str] = {
 
 # A routed GET must not be mistaken for complete PHP GET/POST parity.
 KNOWN_PARTIAL_ROUTES = {
-    "admin-applications.php": "blast_kelas3_welcome dipindah dan diuji dengan emel palsu; penghantaran sebenar belum diuji",
-    "download-borang-pendaftaran.php": "R1/R2/R4, R1 RA dan R11 diuji; PDF pemohon sebenar melalui Browser Run staging belum disemak",
-    "pengadil-application.php": "GET dan POST serta lampiran PDF tersedia di belakang suis staging; ujian penghantaran emel dan muat naik sebenar belum dibuat",
-    "download-laporan-penilaian.php": "HTML A4 dan logo R2 diuji; rupa laporan sebenar di staging belum disemak",
-    "laporan-pengesahan-token.php": "GET dan POST berpenjaga tersedia; penghantaran KUP perlu pengesahan staging sebenar sebelum dibuka",
-    "lantikan-audit.php": "GET dan empat tindakan POST tersedia; override Admin memerlukan suis penghantaran aktif",
-    "lantikan.php": "GET dan semua tindakan PHP (assign/ganti, notify, notify_all, batal, DELETE) tersedia di belakang suis lantikan; penghantaran sebenar perlu ujian staging",
-    "admin-telegram-blast.php": "GET/POST tersedia; penghantaran emel pukal sebenar perlu ujian staging dan suis BULK_EMAIL_ENABLED",
-    "pengadil-luar-telegram-blast.php": "GET dan POST batch, claim, log dan emel palsu diuji; penghantaran sebenar belum diuji",
-    "penilaian-token.php": "GET, POST draf dan hantar tersedia di belakang suis penghantaran; penghantaran sebenar perlu ujian staging",
-    "laporan-penilaian.php": "GET, POST draf, PUT hantar/override/cuba semula Pengerusi tersedia di belakang suis penghantaran; penghantaran sebenar perlu ujian staging",
-    "kejohanan-pengesah-laporan.php": "GET dan POST tetapan tersedia di belakang suis penghantaran; pemakluman sebenar perlu ujian staging",
+    # Sembilan laluan lain diuji live di staging pada 15 Oktober 2026 dengan
+    # emel dialih ke peti ujian (lihat docs/cloudflare_migration_prep.md).
+    # Tiga di bawah menghantar emel pukal; hanya diuji dengan penghantar palsu.
+    "admin-applications.php": "blast_kelas3_welcome diuji dengan emel palsu sahaja; penghantaran pukal sebenar belum diuji",
+    "admin-telegram-blast.php": "GET/POST diuji dengan emel palsu sahaja; penghantaran pukal sebenar perlu suis BULK_EMAIL_ENABLED",
+    "pengadil-luar-telegram-blast.php": "batch, claim, log dan emel palsu diuji; penghantaran pukal sebenar belum diuji",
 }
 
 
