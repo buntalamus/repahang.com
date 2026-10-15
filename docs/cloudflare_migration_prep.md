@@ -67,6 +67,26 @@ Salinan baharu ini masih staging. Sebelum cutover production, hentikan tulis
 sementara pada PHP, ambil dump dan fail tambahan terakhir, dan ulang semakan
 delta supaya perubahan selepas 14:24 tidak tercicir.
 
+Deployment staging daripada commit `c6c5b78`, Worker versi
+`58d771a4-a198-4527-9287-c2ea1aedd59e`, mengikat D1 baharu tersebut.
+Selepas deploy, kesemua 51 jadual D1 jauh sepadan kiraan dengan salinan tempatan,
+51 ID perlawanan Hanafi sepadan tepat, dan 11 jadual Worker belum mempunyai
+tugas yang menunggu. `GET /api/__migration-health` memberi 200 dengan
+`api_complete:false`; log masuk staging kekal 503 dan fail media tanpa sesi
+ditolak 401. Keempat-empat suis staging masih `0`. Domain utama masih
+meneruskan trafik kepada PHP LiteSpeed, jadi ini **belum cutover production**.
+
+POST `admin-telegram-blast.php` kini menyediakan jemputan akaun Telegram
+khusus Admin melalui templat emel seragam. Ia menjana token pautan secara
+bersyarat, menggunakan semula token sedia ada, menyemak semula bahawa akaun
+belum terpaut, dan mengembalikan kiraan berjaya/gagal seperti PHP. Penghantaran
+memerlukan kedua-dua `STAGING_WRITES_ENABLED=1` dan suis berasingan
+`BULK_EMAIL_ENABLED=1`; kedua-duanya `0` pada staging. Ujian dengan pengirim
+emel palsu meliputi peranan, penjanaan serta guna semula token, kegagalan
+seorang penerima dan penolakan semasa suis ditutup. Tiada emel sebenar
+dihantar oleh ujian ini. POST jemputan `pengadil-luar-telegram-blast.php`
+masih separa dan memerlukan giliran serta log onboarding.
+
 ## Sejarah sumber data 13 Oktober
 
 - Dump: `refpahan_refpahang-3.sql` (17,938,043 bait), SHA-256

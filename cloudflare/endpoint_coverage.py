@@ -42,7 +42,7 @@ KNOWN_PARTIAL_ROUTES = {
     "laporan-pengesahan-token.php": "GET dan POST berpenjaga tersedia; penghantaran KUP perlu pengesahan staging sebenar sebelum dibuka",
     "lantikan-audit.php": "GET dan empat tindakan POST tersedia; override Admin memerlukan suis penghantaran aktif",
     "lantikan.php": "GET dan semua tindakan PHP (assign/ganti, notify, notify_all, batal, DELETE) tersedia di belakang suis lantikan; penghantaran sebenar perlu ujian staging",
-    "admin-telegram-blast.php": "GET kiraan Admin tersedia; POST penghantaran emel masih 503",
+    "admin-telegram-blast.php": "GET/POST tersedia; penghantaran emel pukal sebenar perlu ujian staging dan suis BULK_EMAIL_ENABLED",
     "pengadil-luar-telegram-blast.php": "GET pratonton pool, penerima dan batch tersedia; POST penghantaran emel masih 503",
     "penilaian-token.php": "GET, POST draf dan hantar tersedia di belakang suis penghantaran; penghantaran sebenar perlu ujian staging",
     "laporan-penilaian.php": "GET, POST draf, PUT hantar/override/cuba semula Pengerusi tersedia di belakang suis penghantaran; penghantaran sebenar perlu ujian staging",

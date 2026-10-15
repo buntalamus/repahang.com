@@ -1,3 +1,4 @@
+import {buildRefpahangEmail,sendRefpahangEmail} from '../mail';
 import {currentUser,json} from './auth';
 import {mysqlTextOrder} from './php/mysql-order';
 import type {Env} from './types';
@@ -9,12 +10,69 @@ type External = Record<string,unknown> & {
 
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Admin-only Telegram onboarding previews. Sending remains closed. */
+type Invitee = {id:number;nama_penuh:string|null;email:string;tg_link_token:string|null};
+
+function tokenHex():string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)),
+    (byte)=>byte.toString(16).padStart(2,'0')).join('');
+}
+
+/** Admin-only Telegram account linking invitation and preview. */
 export async function adminTelegramBlastPreview(request:Request,env:Env):Promise<Response> {
   const user=await currentUser(request,env);
   if (!user) return json({error:true,message: 'Sesi tidak sah. Sila log masuk semula.'},401);
   if (user.role!=='Admin') return json({error:true,message:'Akses ditolak.'},403);
-  if (request.method==='POST') return json({error:true,message:'Penghantaran blast belum tersedia di staging.'},503);
+  if (request.method==='POST') {
+    if (env.STAGING_WRITES_ENABLED!=='1' || env.BULK_EMAIL_ENABLED!=='1') {
+      return json({error:true,message:'Penghantaran blast belum tersedia di staging.'},503);
+    }
+    const rows=await env.DB.prepare(`SELECT id,nama_penuh,email,tg_link_token FROM users
+      WHERE aktif=1 AND email IS NOT NULL AND trim(email)<>''
+        AND (telegram_chat_id IS NULL OR trim(telegram_chat_id)='') ORDER BY id`).all<Invitee>();
+    const bot=(env.TELEGRAM_BOT_USERNAME || 'refpahang_bot').replace(/^@+/,'');
+    let sent=0;
+    let failed=0;
+    const errors:string[]=[];
+    for (const row of rows.results) {
+      const email=String(row.email ?? '').trim();
+      if (!EMAIL.test(email)) {
+        failed++;
+        errors.push(email);
+        continue;
+      }
+      let token=String(row.tg_link_token ?? '').trim();
+      if (!token) {
+        const generated=tokenHex();
+        await env.DB.prepare(`UPDATE users SET tg_link_token=? WHERE id=? AND aktif=1
+          AND (tg_link_token IS NULL OR trim(tg_link_token)='')
+          AND (telegram_chat_id IS NULL OR trim(telegram_chat_id)='')`)
+          .bind(generated,row.id).run();
+      }
+      const fresh=await env.DB.prepare(`SELECT tg_link_token FROM users WHERE id=?
+        AND aktif=1 AND (telegram_chat_id IS NULL OR trim(telegram_chat_id)='')`).bind(row.id)
+        .first<{tg_link_token:string|null}>();
+      token=String(fresh?.tg_link_token ?? '').trim();
+      if (!token) continue; // User linked Telegram while the blast was running.
+      const name=String(row.nama_penuh ?? '').trim() || 'Pengadil';
+      const link=`https://t.me/${encodeURIComponent(bot)}?start=${encodeURIComponent(token)}`;
+      const {html,text}=buildRefpahangEmail('Aktifkan Notifikasi Telegram',name,[
+        'Sistem Pengurusan Pengadil PBNP menggunakan Telegram untuk menghantar notifikasi lantikan perlawanan.',
+        'Hubungkan akaun anda untuk menerima notifikasi serta menerima atau menolak lantikan melalui Telegram.',
+        `Buka pautan ini dan tekan START pada bot @${bot}.`,
+      ],{label:'Aktifkan Telegram Sekarang',url:link});
+      try {
+        await sendRefpahangEmail(env,'admin',email,name,
+          'Aktifkan Telegram — Sistem Pengurusan Pengadil PBNP',html,text);
+        sent++;
+      } catch {
+        failed++;
+        errors.push(email);
+      }
+    }
+    return json({error:false,
+      message:`Blast selesai. ${sent} emel berjaya dihantar${failed ? `, ${failed} gagal.` : '.'}`,
+      sent,failed,errors});
+  }
   if (request.method!=='GET') return json({error:true,message:'Kaedah tidak disokong.'},405);
   const row=await env.DB.prepare(`SELECT
     COUNT(*) AS total,
