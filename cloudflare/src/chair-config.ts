@@ -1,5 +1,5 @@
 import { currentUser, json } from './auth';
-import { chairDispatchIntegrity, chairDispatchStatements } from './chair-dispatch';
+import { chairDispatchIntegrity, chairDispatchStatements, sendChairJobsNow } from './chair-dispatch';
 import { boundedJson } from './request';
 import type { Env } from './types';
 
@@ -128,15 +128,10 @@ async function assignChair(request: Request, env: Env, adminId: number): Promise
     LEFT JOIN pengadil_luar pl ON pl.id=kp.pengesah_luar_id
     WHERE kp.kejohanan_id=? LIMIT 1
   `).bind(kejohananId).first<Mapping>();
-  const old = existing?.aktif === 1 ? {
-    source: existing.pengesah_user_id !== null ? 'Berdaftar' : 'Luar',
-    official_id: existing.pengesah_user_id ?? existing.pengesah_luar_id,
-    nama: existing.nama_snapshot,
-    jawatan: existing.jawatan_snapshot,
-    peringkat: existing.peringkat_snapshot,
-    email: existing.email || null,
-    telegram_linked: Boolean(existing.telegram_chat_id),
-  } : null;
+  // PHP stores the whole active mapping row as the old identity.
+  const old = existing?.aktif === 1
+    ? await env.DB.prepare(currentChairSql).bind(kejohananId).first<Chair>()
+    : null;
   const newIdentity = JSON.stringify({
     source, official_id: officialId, nama: official.nama, jawatan,
     peringkat: tournament.peringkat_kejohanan, email: official.email ?? null,
@@ -204,14 +199,16 @@ async function assignChair(request: Request, env: Env, adminId: number): Promise
       result[2]?.meta?.changes !== 1 || result[result.length - 1]?.meta?.changes !== 1) {
     throw new Error('Incomplete chair assignment transaction');
   }
-  const queued = await env.DB.prepare(`SELECT count(DISTINCT report_id) AS n
-    FROM worker_chair_jobs WHERE substr(delivery_key,-36)=?`).bind(nonce).first<{ n: number }>();
+  // PHP dispatches every pending report of the tournament before responding.
+  await sendChairJobsNow(env, nonce);
+  const pending = await env.DB.prepare(`SELECT count(*) AS n
+    FROM worker_chair_assignment_items WHERE nonce=?`).bind(nonce).first<{ n: number }>();
   return json({
     error: false,
     message: 'Pengerusi Pengadil berjaya ditetapkan untuk kejohanan ini.',
     data: {
       current: await currentChair(env, kejohananId),
-      pending_dispatched: Number(queued?.n ?? 0),
+      pending_dispatched: Number(pending?.n ?? 0),
       pending_failed: 0,
     },
   });

@@ -6,7 +6,7 @@ const source = readFileSync(new URL('../src/chair-config.ts', import.meta.url), 
   .replace("import { currentUser, json } from './auth';", `
     const currentUser = async () => globalThis.chairUser;
     const json = (value, status=200) => Response.json(value, {status});`)
-  .replace("import { chairDispatchIntegrity, chairDispatchStatements } from './chair-dispatch';",
+  .replace("import { chairDispatchIntegrity, chairDispatchStatements, sendChairJobsNow } from './chair-dispatch';",
     'const chairDispatchIntegrity = () => { throw new Error(\'Unexpected write\'); };'
     + 'const chairDispatchStatements = chairDispatchIntegrity;')
   .replace("import { boundedJson } from './request';",

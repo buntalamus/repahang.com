@@ -21,6 +21,8 @@ const {submitAssessmentRequest}=await load('../src/report-submission.ts',[
     'const overrideAdminReport=(...args)=>globalThis.realOverride(...args);'],
   ["import {retryChairNotification} from './chair-dispatch';",
     'const retryChairNotification=(...args)=>globalThis.retryChairNotification(...args);'],
+  ["import {processChairDeliveries} from './chair-delivery';",
+    'const processChairDeliveries=async()=>({processed:0,sent:0,skipped:0,failed:0});'],
 ]);
 globalThis.realOverride=overrideAdminReport;
 const {processReportDeliveries}=await load('../src/report-delivery.ts',[

@@ -732,27 +732,29 @@ Admin `retry_pengerusi_notification` kini menggunakan
 memerlukan rekod `worker_report_submissions`. Oleh itu laporan `Dihantar` yang
 dihantar melalui PHP sebelum cutover turut dimaklumkan, seperti
 `dispatchLaporanForPengerusi` dalam PHP. Satu batch D1 menyimpan Pengerusi,
-mencatat audit `chair_assigned`/`chair_changed` tanpa chat id mentah, dan bagi
-setiap laporan menunggu dalam kejohanan: menyediakan rekod kelulusan yang
-belum wujud, memutar token jika Pengerusi bertukar, menyegarkan kenalan jika
-Pengerusi sama, membuat salinan Admin yang belum ada, merekod saluran tanpa
-alamat sekali sahaja, dan menjadualkan emel/Telegram yang belum dihantar.
-Penanda `worker_chair_assignments` menggugurkan seluruh batch jika tetapan
-berubah sejak dibaca (409) atau semakan integriti gagal. Job bagi token yang
-telah diputar ditanda `skipped`, jadi pautan lama tidak dihantar lagi.
+mencatat audit `chair_assigned`/`chair_changed` dengan baris pemetaan lama
+seperti PHP, dan bagi setiap laporan menunggu dalam kejohanan mengulangi
+`ensureLaporanPengesahanState`: menyediakan rekod kelulusan yang belum wujud,
+memutar token hanya jika ID pemetaan berbeza, menyegarkan emel/Telegram jika
+pemetaan sama, membuat salinan Admin yang belum ada, merekod saluran tanpa
+alamat sekali sahaja, dan menghantar saluran yang belum berjaya **sebelum
+respons dipulangkan**, sama seperti PHP. Kegagalan penyedia dicatat sebagai
+audit `failed` dan kekal dalam giliran untuk cron. Penanda
+`worker_chair_assignments` menggugurkan seluruh batch jika tetapan berubah
+sejak dibaca (409) atau semakan integriti gagal.
 
-Satu perbezaan sengaja daripada PHP: PHP mengekalkan ID pemetaan yang sama
-apabila Pengerusi ditukar, jadi laporan yang telah dimaklumkan kekal dengan
-token dan nama Pengerusi lama. Worker membandingkan identiti pegawai, bukan
-hanya ID pemetaan; Pengerusi baharu menerima token baharu dan pemakluman.
-Cuba semula Admin menyegarkan rekod yang sama, menjadualkan hanya saluran yang
-belum berjaya, memprosesnya serta-merta dan memulangkan `email_sent`/
-`telegram_sent` tanpa token. Tetapan POST tidak menghantar dalam permintaan;
-cron lima minit memproses giliran. Ujian salinan D1 (`chair-assignment.mjs`)
-meliputi laporan PHP yang telah dan belum dimaklumkan, putaran token, job
-token lama, simpan semula Pengerusi sama, perubahan serentak, cuba semula
-satu saluran, kegagalan penyedia serta penjaga 400/403/404/409/422/503.
-Kesemua 20 ujian Worker dan `tsc --noEmit` lulus.
+Pariti PHP dikekalkan dengan sengaja walaupun kelihatan janggal: upsert
+mengekalkan ID pemetaan apabila Pengerusi ditukar, jadi laporan yang telah
+dimaklumkan kekal dengan token dan nama Pengerusi lama, hanya alamat emel/
+Telegram dikemas kini, dan saluran yang telah dihantar tidak dihantar semula.
+Hantar laporan RA kini juga memaklumkan Pengerusi dalam permintaan yang sama,
+bukan menunggu cron. Audit `approval_prepared`, `approver_*` dan
+`chair_notification` kini membawa `link_url` seperti PHP kerana log pengesahan
+Admin memaparkannya. Ujian salinan D1 (`chair-assignment.mjs`) meliputi laporan
+PHP yang telah dimaklumkan, belum disediakan dan disediakan tanpa Pengerusi,
+penghantaran serta-merta, simpan semula Pengerusi sama, perubahan serentak,
+cuba semula satu saluran, kegagalan penyedia serta penjaga
+400/403/404/409/422/503. Kesemua 20 ujian Worker dan `tsc --noEmit` lulus.
 
 ## Semua tetapan emel semasa
 

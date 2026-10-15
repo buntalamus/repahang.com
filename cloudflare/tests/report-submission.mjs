@@ -20,6 +20,8 @@ const {submitAssessment,submitAssessmentRequest}=await load('../src/report-submi
     "const overrideAdminReport=async()=> 'already_processed';"],
   ["import {retryChairNotification} from './chair-dispatch';",
     'const retryChairNotification=(...args)=>globalThis.retryChairNotification(...args);'],
+  ["import {processChairDeliveries} from './chair-delivery';",
+    'const processChairDeliveries=async()=>({processed:0,sent:0,skipped:0,failed:0});'],
 ]);
 const {processChairDeliveries}=await load('../src/chair-delivery.ts',[
   ["import {buildRefpahangEmail,sendRefpahangEmail} from '../mail';",

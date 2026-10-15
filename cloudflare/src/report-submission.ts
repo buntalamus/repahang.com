@@ -2,6 +2,7 @@ import {currentUser,json} from './auth';
 import {boundedJson} from './request';
 import {overrideAdminReport} from './report-admin-override';
 import {retryChairNotification} from './chair-dispatch';
+import {processChairDeliveries} from './chair-delivery';
 import type {Env} from './types';
 
 type Report={id:number;status:string;penilai_id:number|null;jadual_id:number;
@@ -124,10 +125,11 @@ export async function submitAssessment(env:Env,reportId:number,userId:number|nul
        link_url,details_json,created_at)
       SELECT a.id,a.laporan_id,'approval_prepared','system',
         CASE WHEN a.kejohanan_pengesah_id IS NULL THEN 'failed' ELSE 'success' END,
-        'system',NULL,CASE WHEN a.kejohanan_pengesah_id IS NULL
+        'system',CASE WHEN length(a.approval_token)=64 THEN ?||a.approval_token END,CASE WHEN a.kejohanan_pengesah_id IS NULL
           THEN '{"reason":"pengerusi_not_configured"}' ELSE NULL END,${now}
       FROM laporan_pengesahan_pengerusi a WHERE a.laporan_id=? AND ${active}`)
-      .bind(reportId,reportId,nonce),
+      .bind(`${env.BASE_URL.replace(/\/$/,'')}/api/laporan-pengesahan-token.php?token=`,
+        reportId,reportId,nonce),
     env.DB.prepare(`INSERT INTO laporan_pengesahan_audit
       (laporan_pengesahan_id,laporan_id,event_type,channel,event_status,actor_type,
        details_json,created_at)
@@ -171,6 +173,8 @@ export async function submitAssessment(env:Env,reportId:number,userId:number|nul
       result[5]?.meta?.changes!==1 || result[7]?.meta?.changes!==1) {
     throw new Error('Incomplete RA submission transaction');
   }
+  // PHP notifies the chair before responding; failures stay queued for cron.
+  await processChairDeliveries(env,2,{},{reportId});
   const approval=await env.DB.prepare(`SELECT a.id,a.status,a.pengesah_nama,
     CASE WHEN a.kejohanan_pengesah_id IS NULL THEN 0 ELSE 1 END AS configured,
     a.email_sent_at,a.telegram_sent_at FROM laporan_pengesahan_pengerusi a

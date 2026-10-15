@@ -60,7 +60,7 @@ async function getContext(env:Env,job:Job):Promise<Context|null> {
 }
 
 async function complete(env:Env,job:Job,approvalId:number|null,
-  status:'sent'|'skipped'|'pending',reason:string):Promise<void> {
+  status:'sent'|'skipped'|'pending',reason:string,url:string|null=null):Promise<void> {
   const seconds=Math.min(3600,60*2**Math.min(Math.max(job.attempts,0),6));
   const result=await env.DB.batch([
     env.DB.prepare(`UPDATE worker_chair_jobs SET status=?,claimed_at=NULL,
@@ -79,13 +79,15 @@ async function complete(env:Env,job:Job,approvalId:number|null,
       WHERE id=? AND EXISTS(SELECT 1 FROM worker_chair_jobs
         WHERE delivery_key=? AND status=? AND attempts=?)`)
       .bind(status,status,reason||null,approvalId,job.delivery_key,status,job.attempts),
+    // PHP logs every attempt: success, failed or skipped, with the approval link.
     env.DB.prepare(`INSERT INTO laporan_pengesahan_audit
       (laporan_pengesahan_id,laporan_id,event_type,channel,event_status,actor_type,
-       details_json,created_at)
-      SELECT ?,?,'chair_notification',?,?,'system',?,datetime('now','+8 hours')
+       link_url,details_json,created_at)
+      SELECT ?,?,'chair_notification',?,?,'system',?,?,datetime('now','+8 hours')
       WHERE ? IS NOT NULL AND EXISTS(SELECT 1 FROM worker_chair_jobs
-        WHERE delivery_key=? AND status=? AND attempts=? AND completed_at IS NOT NULL)`)
-      .bind(approvalId,job.report_id,job.channel,status==='sent'?'success':status,
+        WHERE delivery_key=? AND status=? AND attempts=? AND claimed_at IS NULL)`)
+      .bind(approvalId,job.report_id,job.channel,
+        status==='sent'?'success':status==='pending'?'failed':'skipped',url,
         JSON.stringify({reason:reason||undefined}),approvalId,
         job.delivery_key,status,job.attempts),
   ]);
@@ -94,17 +96,21 @@ async function complete(env:Env,job:Job,approvalId:number|null,
 
 /** Only jobs the Worker queued are eligible; stage switches gate all sends. */
 export async function processChairDeliveries(env:Env,limit=20,senders:ChairSenders={},
-  approvalId:number|null=null):
+  only:{nonce?:string;reportId?:number}={}):
   Promise<{processed:number;sent:number;skipped:number;failed:number}> {
   const counts={processed:0,sent:0,skipped:0,failed:0};
   if (env.REPORT_DELIVERY_ENABLED!=='1' || env.STAGING_AUTH_ENABLED!=='1' ||
       env.STAGING_WRITES_ENABLED!=='1') return counts;
   const jobs=await env.DB.prepare(`SELECT delivery_key,approval_id,report_id,token_tag,
-    channel,attempts FROM worker_chair_jobs WHERE status='pending' AND (? IS NULL OR approval_id=?)
+    channel,attempts FROM worker_chair_jobs WHERE status='pending'
+      AND (? IS NULL OR approval_id IN (SELECT a.id FROM worker_chair_assignment_items i
+        JOIN laporan_pengesahan_pengerusi a ON a.laporan_id=i.report_id WHERE i.nonce=?))
+      AND (? IS NULL OR report_id=?)
       AND (next_attempt_at IS NULL OR next_attempt_at<=datetime('now','+8 hours'))
       AND (claimed_at IS NULL OR claimed_at<datetime('now','+8 hours','-5 minutes'))
     ORDER BY created_at,delivery_key LIMIT ?`)
-    .bind(approvalId,approvalId,Math.max(1,Math.min(limit,50))).all<Job>();
+        .bind(only.nonce??null,only.nonce??null,only.reportId??null,only.reportId??null,
+      Math.max(1,Math.min(limit,50))).all<Job>();
   for (const candidate of jobs.results) {
     const claimed=await env.DB.prepare(`UPDATE worker_chair_jobs SET
       claimed_at=datetime('now','+8 hours'),attempts=attempts+1
@@ -116,6 +122,7 @@ export async function processChairDeliveries(env:Env,limit=20,senders:ChairSende
     const job={...candidate,attempts:candidate.attempts+1};
     counts.processed++;
     let contextId:number|null=null;
+    let link:string|null=null;
     try {
       const row=await getContext(env,job);
       contextId=row?.approval_id??null;
@@ -132,6 +139,7 @@ export async function processChairDeliveries(env:Env,limit=20,senders:ChairSende
       }
       const base=env.BASE_URL.replace(/\/$/,'');
       const url=`${base}/api/laporan-pengesahan-token.php?token=${row.approval_token}`;
+      link=url;
       const preview=`${base}/api/download-laporan-penilaian.php?id=${job.report_id}&approval_token=${row.approval_token}`;
       const match=`${row.pasukan_home} lwn ${row.pasukan_away}`;
       const subject=`Pengesahan Laporan RA — ${match}`;
@@ -150,11 +158,11 @@ export async function processChairDeliveries(env:Env,limit=20,senders:ChairSende
         if (senders.telegram) await senders.telegram(env,Number(recipient),message,url);
         else await sendTelegram(env,Number(recipient),message,url);
       }
-      await complete(env,job,contextId,'sent','');counts.sent++;
+      await complete(env,job,contextId,'sent','',url);counts.sent++;
     } catch(error) {
       console.error('RA chair delivery failed',job.channel,
         error instanceof Error ? error.name : 'UnknownError');
-      await complete(env,job,contextId,'pending','Penghantaran gagal; percubaan semula dijadualkan.');
+      await complete(env,job,contextId,'pending','Penghantaran gagal; percubaan semula dijadualkan.',link);
       counts.failed++;
     }
   }
