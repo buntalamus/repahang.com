@@ -26,6 +26,23 @@ CNAME `www`. Rekod `mail`, `cpanel`, MX, SPF dan DKIM dikekalkan.
   Deploy semula dengan `addresses` hanya semasa langkah emel (langkah 8 di bawah).
 - Semakan selepas deploy: `/`, `www`, `/api/__migration-health` 200; `/uploads/`
   tanpa sesi 401; Admin log masuk dan menu berfungsi selepas muat semula keras.
+- Ujian live: emel keluar Peti Emel → Gmail sampai ke Peti Masuk; `/start` kepada
+  `@refpahang_bot` dibalas oleh Worker; satu larian cron `ok` tanpa ralat.
+
+**Emel masuk dipindahkan (15 Okt, 21:20–21:40).** Email Routing diaktifkan melalui
+dashboard: MX lama `mail.refpahang.com` dipadam, MX `route1/2/3` dan DKIM
+`cf2024-1` ditambah, SPF akar diganti dengan rekod Cloudflare yang dikunci
+(`v=spf1 include:_spf.mx.cloudflare.net ~all`; IP cPanel tidak lagi disenaraikan).
+Rekod A `mail.refpahang.com` juga tiada lagi. Deploy dengan `addresses` mencipta
+lima peraturan → Worker `refpahang`; alamat lain dibuang (catch-all drop).
+Tiada cron PHP di pelayan lama (disemak pemilik).
+
+Emel masuk pertama gagal (`worker script threw an exception`): R2 menolak
+`message.raw` kerana panjang strim tidak diketahui. Ujian terdahulu memakai R2
+palsu yang menerima apa sahaja. Commit `99cee60` menimbal emel dahulu dan R2
+palsu kini menolak strim tanpa panjang; selepas deploy `f944fc43`, emel dari
+Gmail muncul dalam Peti Emel Admin. Emel yang gagal sebelum itu ditandakan ralat
+sementara dan bergantung pada cubaan semula penghantar.
 
 ## Peti emel baharu di Cloudflare — 15 Oktober 2026
 
