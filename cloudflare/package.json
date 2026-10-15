@@ -14,6 +14,7 @@
     "test:admin-appointments": "node --no-warnings tests/admin-appointments.mjs",
     "test:lantikan-write": "node --no-warnings tests/lantikan-write.mjs",
     "test:appointment-response": "node --no-warnings tests/appointment-response.mjs",
+    "test:telegram-webhook": "node --no-warnings tests/telegram-webhook.mjs",
     "test:telegram-blast-preview": "node --no-warnings tests/telegram-blast-preview.mjs",
     "test:print-assessment": "node --no-warnings tests/print-assessment.mjs",
     "test:chair-approval-link": "node --no-warnings tests/chair-approval-link.mjs",

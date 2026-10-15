@@ -39,6 +39,40 @@ export async function tgSend(env: Env, chatId: number | string, text: string,
   }
 }
 
+/** Test seam for answerCallbackQuery/editMessageText; same payloads otherwise. */
+export type TelegramApiCall = (method: string, payload: Record<string, unknown>) => Promise<void>;
+let telegramApiOverride: TelegramApiCall | null = null;
+export function setTelegramApiForTests(call: TelegramApiCall | null): void {
+  telegramApiOverride = call;
+}
+
+async function tgPost(env: Env, method: string, payload: Record<string, unknown>): Promise<void> {
+  if (telegramApiOverride) return telegramApiOverride(method, payload);
+  const token = env.TELEGRAM_BOT_TOKEN ?? '';
+  if (token === '' || token === 'your_bot_token_here') return;
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload), signal: AbortSignal.timeout(5_000),
+    });
+  } catch {
+    console.error(`[Telegram] ${method} failed`);
+  }
+}
+
+/** Removes the button spinner, optionally as an alert. */
+export function tgAnswerCallback(env: Env, callbackQueryId: string, text = '', showAlert = false): Promise<void> {
+  return tgPost(env, 'answerCallbackQuery', { callback_query_id: callbackQueryId, text, show_alert: showAlert });
+}
+
+/** Replaces a message and drops its inline buttons. */
+export function tgEditMessage(env: Env, chatId: number | string, messageId: number, text: string): Promise<void> {
+  return tgPost(env, 'editMessageText', {
+    chat_id: chatId, message_id: messageId, text, parse_mode: 'HTML', disable_web_page_preview: true,
+    reply_markup: JSON.stringify({ inline_keyboard: [] }),
+  });
+}
+
 export function tgBatalMessage(nama: string, jawatan: string, kejohanan: string, tarikh: string,
   masa: string, tempat: string, pasukanHome: string, pasukanAway: string, noMatch = '',
   status = 'Dibatalkan', sebab = ''): string {

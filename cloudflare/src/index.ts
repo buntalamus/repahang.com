@@ -16,6 +16,7 @@ import { assessmentReports } from './assessment-reports';
 import { assessmentDraft } from './assessment-draft';
 import { submitAssessmentRequest } from './report-submission';
 import { processChairDeliveries } from './chair-delivery';
+import { telegramWebhook } from './telegram-webhook';
 import { appointmentWritesEnabled } from './lantikan-write';
 import { processQueuedKupCrewNotifications } from './php/lantikan-helper';
 import { districtAssessments, refereeAssessments } from './assessments';
@@ -207,6 +208,7 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/lantikan-jawab.php') return appointmentReply(request, env);
   if (pathname === '/api/lantikan.php') return adminAppointments(request, env);
   if (pathname === '/api/lantikan-jawab-token.php') return appointmentEmailLink(request, env);
+  if (pathname === '/api/telegram-webhook.php') return telegramWebhook(request, env);
   if (pathname === '/api/lantikan-audit.php') return appointmentAudit(request, env);
   if (pathname === '/api/penilaian-token.php') return request.method === 'POST'
     ? assessmentDraft(request,env,'token') : assessmentToken(request, env);
