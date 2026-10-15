@@ -23,7 +23,8 @@ export class AdminApplicationsComponent implements OnInit {
   statusFilter = 'all';
   districtFilter = 'all';
   searchQuery = '';
-  yearFilter = new Date().getFullYear().toString();
+  yearFilter = Math.max(new Date().getFullYear(), 2027).toString();
+  years = Array.from({ length: Math.max(new Date().getFullYear(), 2027) - 2023 }, (_, i) => 2024 + i);
   currentPage = 1;
   pageSize = 10;
   group = 'pengadil';
@@ -89,7 +90,8 @@ export class AdminApplicationsComponent implements OnInit {
       year: this.yearFilter,
     }).subscribe({
       next: (res) => {
-        this.applications = res.data || res.applications || [];
+        this.applications = (res.data || res.applications || []).filter((a: any) =>
+          String(a.tahun_permohonan) === this.yearFilter);
         this.updateStats();
         this.applyFilter();
         this.loading = false;
@@ -170,7 +172,8 @@ export class AdminApplicationsComponent implements OnInit {
 
   getDisplayStatus(app: any): string {
     const s = app.status || '';
-    if (s === 'Menunggu Admin' || s === 'Menunggu PP Daerah' || s === 'Pembayaran' || s === 'Draf') {
+    if (s === 'Menunggu Admin' || s === 'Menunggu PP Daerah' || s === 'Pembayaran' || s === 'Draf' ||
+        (s === 'Admin Diluluskan' && this.isAnnualFitnessApp(app))) {
       return 'Menunggu';
     }
     if (s === 'Lengkap' || s === 'Admin Diluluskan' || s === 'Approved') {
@@ -260,6 +263,15 @@ export class AdminApplicationsComponent implements OnInit {
     return this.activeTab === 'kelas3' || this.activeTab === 'kelas1';
   }
 
+  isAnnualFitnessApp(app: any): boolean {
+    return app.jenis_borang === 'pengadil_berdaftar' && +app.tahun_permohonan >= 2027 &&
+      !['Penilai Pengadil', 'Pegawai Pembangunan'].includes(app.jenis_pengadil);
+  }
+
+  canRecordAnnualFitness(app: any): boolean {
+    return this.isAnnualFitnessApp(app) && ['Admin Diluluskan', 'Lengkap'].includes(app.status);
+  }
+
   get isUjianButtonAlwaysEnabled(): boolean {
     return this.activeTab === 'kelas3';
   }
@@ -336,7 +348,7 @@ export class AdminApplicationsComponent implements OnInit {
     }).subscribe({
       next: (res) => {
         if (!res.error) {
-          this.toast.success('Permohonan berjaya dipadam.');
+          this.toast.success(res.message || 'Permohonan berjaya dipadam; rekod perlawanan dikekalkan.');
           this.showDeleteModal = false;
           this.loadApplications();
         } else {

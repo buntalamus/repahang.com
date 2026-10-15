@@ -180,7 +180,7 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
               <div class="flex items-start justify-between">
                 <div>
                   <p class="font-bold text-slate-800 text-sm">Pendaftaran Penilai</p>
-                  <p class="text-xs text-slate-500 mt-0.5">Borang R4 — Penilai Pengadil Negeri</p>
+                  <p class="text-xs text-slate-500 mt-0.5">Borang R1 — Penilai Pengadil Negeri</p>
                 </div>
                 <label class="relative inline-flex items-center cursor-pointer mt-0.5">
                   <input type="checkbox" [(ngModel)]="settings.penilai_open" class="sr-only peer" />

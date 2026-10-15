@@ -54,6 +54,12 @@ export const routes: Routes = [
       import('./layouts/admin-layout/admin-layout.component').then((m) => m.AdminLayoutComponent),
     children: [
       {
+        path: 'daftar/ra',
+        loadComponent: () =>
+          import('./features/pengadil/application/application.component').then((m) => m.PengadilApplicationComponent),
+        data: { type: 'penilai_berdaftar' },
+      },
+      {
         path: '',
         loadComponent: () =>
           import('./features/admin/dashboard/dashboard.component').then((m) => m.AdminDashboardComponent),

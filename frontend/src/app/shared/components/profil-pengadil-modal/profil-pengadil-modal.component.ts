@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthService } from '../../../core/services/auth.service';
@@ -410,10 +410,19 @@ interface EditForm {
               <!-- TAB: PERLAWANAN -->
               @if (tab() === 'perlawanan') {
                 <div class="p-4 sm:p-5">
-                  @if (p.perlawanan.length) {
+                  <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                    <p class="text-xs text-slate-500">{{ filteredMatches().length }} daripada {{ p.perlawanan.length }} rekod perlawanan</p>
+                    <select [ngModel]="matchYear()" (ngModelChange)="matchYear.set($event)"
+                      aria-label="Tapis tahun perlawanan"
+                      class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs focus:ring-2 focus:ring-pahang-yellow">
+                      <option value="all">Semua tahun</option>
+                      @for (year of matchYears(); track year) { <option [value]="year">{{ year }}</option> }
+                    </select>
+                  </div>
+                  @if (filteredMatches().length) {
                     <!-- Kad (mobile) -->
                     <div class="sm:hidden space-y-2">
-                      @for (m of p.perlawanan; track m.id; let i = $index) {
+                      @for (m of filteredMatches(); track m.id; let i = $index) {
                         <div class="border border-slate-200 rounded-lg p-3">
                           <div class="flex items-start justify-between gap-2">
                             <p class="text-xs font-semibold text-slate-800 leading-snug">{{ m.jenis || '—' }}</p>
@@ -442,7 +451,7 @@ interface EditForm {
                           </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-50">
-                          @for (m of p.perlawanan; track m.id; let i = $index) {
+                          @for (m of filteredMatches(); track m.id; let i = $index) {
                             <tr>
                               <td class="py-2 pr-2 text-center text-slate-400">{{ i + 1 }}</td>
                               <td class="py-2 pr-3 text-slate-500 whitespace-nowrap">{{ formatTarikh(m.tarikh) }}</td>
@@ -460,7 +469,7 @@ interface EditForm {
                       </table>
                     </div>
                   } @else {
-                    <p class="py-12 text-center text-sm text-slate-400">Tiada rekod perlawanan.</p>
+                    <p class="py-12 text-center text-sm text-slate-400">Tiada rekod perlawanan untuk tahun ini.</p>
                   }
                 </div>
               }
@@ -654,6 +663,15 @@ export class ProfilPengadilModalComponent {
   readonly loading = signal(false);
   readonly savingTaraf = signal(false);
   readonly tab = signal<'maklumat' | 'permohonan' | 'perlawanan'>('maklumat');
+  readonly matchYear = signal('all');
+  readonly matchYears = computed(() => [...new Set((this.profil()?.perlawanan ?? [])
+    .map((match) => String(match.tarikh ?? '').slice(0, 4))
+    .filter((year) => /^\d{4}$/.test(year)))].sort().reverse());
+  readonly filteredMatches = computed(() => {
+    const matches = this.profil()?.perlawanan ?? [];
+    const year = this.matchYear();
+    return year === 'all' ? matches : matches.filter((match) => String(match.tarikh ?? '').startsWith(year));
+  });
 
   // ── Mod kemaskini (Admin semua; PP Daerah untuk daerah sendiri) ──
   readonly editMode = signal(false);
@@ -694,6 +712,7 @@ export class ProfilPengadilModalComponent {
       const uid = this.modal.userId();
       if (uid) {
         this.tab.set('maklumat');
+        this.matchYear.set('all');
         this.editMode.set(false);
         this.load(uid);
       } else {

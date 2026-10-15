@@ -11,6 +11,7 @@ export interface RefereeOption {
   role: string;
   jenis_pengadil: string;
   persatuan_nama: string;
+  can_referee?: number;
 }
 
 @Component({
@@ -151,7 +152,7 @@ export class RefereeSearchComponent implements OnInit, OnDestroy {
     this.searching = true;
     this.api.get<any>('get-active-referees.php').subscribe({
       next: (res) => {
-        this.allReferees = res.data || [];
+        this.allReferees = (res.data || []).filter((ref: RefereeOption) => Number(ref.can_referee) === 1);
         this.loaded = true;
         this.searching = false;
         this.filterLocal(initialQuery);

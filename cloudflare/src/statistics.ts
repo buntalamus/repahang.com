@@ -35,20 +35,21 @@ function byDistrict(rows: Row[], withVerified: boolean): Row[] {
     let district = districts.get(name);
     if (!district) {
       district = { daerah: name, total: 0, ...(withVerified
-        ? { disahkan: 0 } : { diterima: 0, ditolak: 0, belum: 0 }), pengadil: [] as Row[] };
+        ? { disahkan: 0 } : { diterima: 0, ditolak: 0, belum: 0, dibatalkan: 0 }), pengadil: [] as Row[] };
       districts.set(name, district);
     }
     district.total = number(district.total) + number(row.total);
     if (withVerified) district.disahkan = number(district.disahkan) + number(row.disahkan);
     else {
-      for (const field of ['diterima', 'ditolak', 'belum']) {
+      for (const field of ['diterima', 'ditolak', 'belum', 'dibatalkan']) {
         district[field] = number(district[field]) + number(row[field]);
       }
     }
     (district.pengadil as Row[]).push({ id: row.pengadil_id ?? null,
       nama: row.nama_penuh, total: number(row.total), ...(withVerified
         ? { disahkan: number(row.disahkan) }
-        : { diterima: number(row.diterima), ditolak: number(row.ditolak), belum: number(row.belum) }) });
+        : { diterima: number(row.diterima), ditolak: number(row.ditolak),
+          belum: number(row.belum), dibatalkan: number(row.dibatalkan) }) });
   }
   return [...districts.values()].sort((a, b) => number(b.total) - number(a.total));
 }
@@ -69,25 +70,31 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
   const [referees, applications, matches, exams, ratings, telegram, appointmentStatus,
     districtAppointments, externalAppointments, districtMatches, tournaments] = await Promise.all([
     env.DB.prepare(`SELECT a.jantina,a.daerah AS alamat_daerah,p.nama_persatuan AS persatuan,
-      a.status_kerja,COALESCE(a.status_kemaskini,a.tarikh_hantar) AS approval_date
-      FROM permohonan a LEFT JOIN persatuan_bolasepak_daerah p ON p.id=a.persatuan_id
-      WHERE a.status='Approved' AND a.tahun_permohonan=?
-      AND (a.jenis_borang<>'pengadil_berdaftar' OR a.tahun_permohonan<2027
-        OR a.jenis_pengadil IN ('Penilai Pengadil','Pegawai Pembangunan') OR a.status_ujian='Lulus')`)
+      a.status_kerja,COALESCE(a.final_approved_at,a.status_kemaskini,a.tarikh_hantar) AS approval_date
+      FROM permohonan a JOIN users u ON u.id=a.user_id AND u.aktif=1
+      LEFT JOIN persatuan_bolasepak_daerah p ON p.id=a.persatuan_id
+      WHERE a.jenis_borang='pengadil_berdaftar' AND a.status='Approved'
+        AND a.tahun_permohonan=?
+        AND COALESCE(a.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan')
+        AND (a.tahun_permohonan<2027 OR a.status_ujian='Lulus')
+        AND a.id=(SELECT MAX(p2.id) FROM permohonan p2
+          WHERE p2.user_id=a.user_id AND p2.jenis_borang='pengadil_berdaftar'
+            AND p2.tahun_permohonan=a.tahun_permohonan AND p2.status='Approved')`)
       .bind(year).all<Row>(),
     env.DB.prepare(`SELECT status,status_workflow,tarikh_hantar,jenis_borang
-      FROM permohonan WHERE substr(tarikh_hantar,1,4)=?`).bind(yearText).all<Row>(),
-    env.DB.prepare(`SELECT p.user_id,p.jawatan,p.tarikh,p.tempat,p.jenis,u.nama_penuh
+      FROM permohonan WHERE tahun_permohonan=?`).bind(year).all<Row>(),
+    env.DB.prepare(`SELECT p.id,p.match_group_id,p.user_id,p.jawatan,p.tarikh,p.masa,
+        p.tempat,p.jenis,p.nama_kejohanan,p.home_team,p.away_team,u.nama_penuh
       FROM perlawanan p JOIN users u ON u.id=p.user_id
-      WHERE substr(p.tarikh,1,4)=? AND p.lantikan_id IS NULL
-        AND lower(u.role)='pengadil' ORDER BY p.id`).bind(yearText).all<Row>(),
+      WHERE substr(p.tarikh,1,4)=? ORDER BY p.id`).bind(yearText).all<Row>(),
     env.DB.prepare(`SELECT p.jenis_borang,p.jenis_permohonan,p.status_ujian,p.workflow_status,
       p.tarikh_hantar,p.daerah,pb.nama_persatuan
       FROM permohonan p LEFT JOIN persatuan_bolasepak_daerah pb ON pb.id=p.persatuan_id
       WHERE (p.jenis_borang IN ('ujian_kecergasan','ujian_bertulis','kelas3_fam','ujian_kelas1_fam')
+        OR (p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan>=2027)
         OR p.jenis_permohonan IN ('ujian_kecergasan','ujian_bertulis','kelas3_fam','ujian_kelas1_fam'))
-        AND (substr(p.tarikh_hantar,1,4)=? OR p.tahun_permohonan=?)`)
-      .bind(yearText, year).all<Row>(),
+        AND p.tahun_permohonan=?`)
+      .bind(year).all<Row>(),
     env.DB.prepare(`SELECT lpp.lantikan_pengadil_id,lpp.markah,lpp.nama_pengadil,
       COALESCE(u.nama_penuh,lpp.nama_pengadil) AS nama,lp.pengadil_id AS ref_user_id
       FROM laporan_penilaian_pegawai lpp
@@ -101,16 +108,18 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
       SUM(CASE WHEN telegram_chat_id IS NOT NULL AND telegram_chat_id<>'' THEN 1 ELSE 0 END) AS linked
       FROM users WHERE aktif=1 AND email IS NOT NULL AND email<>''`).first<Row>(),
     env.DB.prepare(`SELECT COUNT(*) AS total,
-      SUM(CASE WHEN jp.status='Selesai' THEN 1 ELSE 0 END) AS selesai,
-      SUM(CASE WHEN jp.status='Disahkan' THEN 1 ELSE 0 END) AS disahkan,
-      SUM(CASE WHEN jp.status IN ('Belum Lantik','Menunggu Pengesahan') THEN 1 ELSE 0 END) AS belum
-      FROM jadual_perlawanan jp JOIN kejohanan k ON k.id=jp.kejohanan_id
+      SUM(CASE WHEN lp.status='Diterima' THEN 1 ELSE 0 END) AS diterima,
+      SUM(CASE WHEN lp.status='Ditolak' THEN 1 ELSE 0 END) AS ditolak,
+      SUM(CASE WHEN lp.status='Belum Jawab' OR lp.status IS NULL THEN 1 ELSE 0 END) AS belum,
+      SUM(CASE WHEN lp.status='Dibatalkan' THEN 1 ELSE 0 END) AS dibatalkan
+      FROM lantikan_pengadil lp JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id
       WHERE substr(jp.tarikh,1,4)=?`).bind(yearText).first<Row>(),
     env.DB.prepare(`SELECT COALESCE(pb.daerah,'Tanpa Daerah') AS daerah,
       u.id AS pengadil_id,u.nama_penuh,COUNT(*) AS total,
       SUM(CASE WHEN lp.status='Diterima' THEN 1 ELSE 0 END) AS diterima,
       SUM(CASE WHEN lp.status='Ditolak' THEN 1 ELSE 0 END) AS ditolak,
-      SUM(CASE WHEN lp.status='Belum Jawab' THEN 1 ELSE 0 END) AS belum
+      SUM(CASE WHEN lp.status='Belum Jawab' THEN 1 ELSE 0 END) AS belum,
+      SUM(CASE WHEN lp.status='Dibatalkan' THEN 1 ELSE 0 END) AS dibatalkan
       FROM lantikan_pengadil lp JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id
       JOIN users u ON u.id=lp.pengadil_id
       LEFT JOIN persatuan_bolasepak_daerah pb ON pb.id=u.persatuan_id
@@ -121,7 +130,8 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
       COUNT(*) AS total,
       SUM(CASE WHEN lp.status='Diterima' THEN 1 ELSE 0 END) AS diterima,
       SUM(CASE WHEN lp.status='Ditolak' THEN 1 ELSE 0 END) AS ditolak,
-      SUM(CASE WHEN lp.status='Belum Jawab' THEN 1 ELSE 0 END) AS belum
+      SUM(CASE WHEN lp.status='Belum Jawab' THEN 1 ELSE 0 END) AS belum,
+      SUM(CASE WHEN lp.status='Dibatalkan' THEN 1 ELSE 0 END) AS dibatalkan
       FROM lantikan_pengadil lp JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id
       JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
       WHERE substr(jp.tarikh,1,4)=? GROUP BY pl.id,pl.nama ORDER BY total DESC`)
@@ -159,7 +169,8 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
 
   const applicationStats = {
     total: applications.results.length, approved: 0,
-    types: { pengadil_berdaftar: 0, penilai_berdaftar: 0, ujian_bertulis: 0, ujian_kelas1_fam: 0 } as Counts,
+    types: { pengadil_berdaftar: 0, penilai_berdaftar: 0, pp_berdaftar: 0,
+      ujian_kecergasan: 0, kelas3_fam: 0, ujian_bertulis: 0, ujian_kelas1_fam: 0 } as Counts,
     statusBreakdown: { Menunggu: 0, Lengkap: 0, Ditolak: 0 } as Counts,
     monthlyTrend: months(),
   };
@@ -178,10 +189,14 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
   const uniqueMatches = new Set<string>();
   const leadMatchCount = new Map<number, { name: string; count: number }>();
   for (const match of matches.results) {
-    // MySQL COUNT(DISTINCT CONCAT(...)) ignores NULL and uses a case-insensitive collation.
-    if (match.tarikh != null && match.tempat != null && match.jenis != null) {
-      uniqueMatches.add(`${match.tarikh}${match.tempat}${match.jenis}`.toLowerCase());
-    }
+    // A group id represents one match with several officials. Older records
+    // have no group id, so include teams and kick-off time in the fallback.
+    const group = String(match.match_group_id ?? '').trim();
+    const detail = [match.tarikh, match.masa, match.tempat, match.jenis,
+      match.nama_kejohanan, match.home_team, match.away_team]
+      .map((value) => String(value ?? '').trim().toLowerCase()).join('|');
+    uniqueMatches.add(group ? `group:${group}` : detail.replaceAll('|', '')
+      ? `detail:${detail}` : `row:${match.id}`);
     const id = number(match.user_id);
     const name = String(match.nama_penuh ?? 'Tidak Dinyatakan');
     if (match.jawatan === 'Pengadil') {
@@ -206,11 +221,13 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
   for (const exam of exams.results) {
     let type = String(exam.jenis_borang ?? exam.jenis_permohonan ?? '');
     if (type === 'kelas3_fam') type = 'ujian_bertulis';
+    if (type === 'pengadil_berdaftar') type = 'ujian_kecergasan';
     const stats = examStats[type];
     if (!stats) continue;
     stats.total = number(stats.total) + 1;
     const decision = exam.status_ujian ?? (
-      exam.workflow_status === 'Approved' ? 'Lulus'
+      exam.jenis_borang === 'ujian_kelas1_fam' ? null
+        : exam.workflow_status === 'Approved' ? 'Lulus'
         : exam.workflow_status === 'Rejected' ? 'Tidak Lulus'
           : exam.workflow_status === 'Absent' ? 'Tidak Hadir' : null);
     const key = decision === 'Lulus' ? 'lulus' : decision === 'Tidak Lulus' ? 'tidak_lulus'
@@ -253,8 +270,9 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
     employmentBreakdown: sorted(employmentBreakdown), monthlyTrend,
     applications: applicationStats, matches: matchStats, exams: examStats, ratings: ratingStats,
     telegram: { total: number(telegram?.total), linked: number(telegram?.linked) },
-    lantikan: { total: number(appointmentStatus?.total), selesai: number(appointmentStatus?.selesai),
-      disahkan: number(appointmentStatus?.disahkan), belum: number(appointmentStatus?.belum) },
+    lantikan: { total: number(appointmentStatus?.total), diterima: number(appointmentStatus?.diterima),
+      ditolak: number(appointmentStatus?.ditolak), belum: number(appointmentStatus?.belum),
+      dibatalkan: number(appointmentStatus?.dibatalkan) },
     lantikanDaerah: byDistrict([...districtAppointments.results, ...externalAppointments.results], false),
     perlawananDaerah: byDistrict(districtMatches.results, true),
     kejohanan: tournaments.results.map((row) => ({ ...row, jum_perlawanan: number(row.jum_perlawanan) })),

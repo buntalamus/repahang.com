@@ -71,13 +71,12 @@ export async function adminRefereeExport(request: Request, env: Env): Promise<Re
   }
   const ra = params.get('type') === 'penilai_berdaftar';
   const filter = ra
-    ? "(u.role='PP Daerah' OR u.jenis_pengadil IN ('Penilai Pengadil','Pegawai Pembangunan') OR a.jenis_pengadil IN ('Penilai Pengadil','Pegawai Pembangunan'))"
-    : "a.id IS NOT NULL AND (a.jenis_pengadil NOT IN ('Penilai Pengadil','Pegawai Pembangunan') OR a.jenis_pengadil IS NULL)";
+    ? "(u.role='Penilai' OR u.jenis_pengadil='Penilai Pengadil' OR a.id IS NOT NULL)"
+    : 'a.id IS NOT NULL';
   const result = await env.DB.prepare(`
     SELECT DISTINCT u.id AS user_id, u.nama_penuh, u.no_ic AS no_kp, u.jantina,
       u.email AS emel, u.no_telefon, u.saiz_baju,
-      CASE WHEN u.role='PP Daerah' THEN 'Penilai Pengadil'
-           WHEN u.jenis_pengadil IN ('Penilai Pengadil','Pegawai Pembangunan') THEN u.jenis_pengadil
+      CASE WHEN u.role='Penilai' OR u.jenis_pengadil='Penilai Pengadil' THEN 'Penilai Pengadil'
            ELSE a.jenis_pengadil END AS jenis_pengadil,
       COALESCE(a.alamat1,u.alamat1) AS alamat1, COALESCE(a.alamat2,u.alamat2) AS alamat2,
       COALESCE(a.poskod,u.poskod) AS poskod, COALESCE(a.daerah,u.daerah) AS daerah,
@@ -89,7 +88,8 @@ export async function adminRefereeExport(request: Request, env: Env): Promise<Re
       p.nama_persatuan AS persatuan
     FROM users u
     LEFT JOIN permohonan a ON a.user_id=u.id
-      AND a.jenis_borang IN ('pengadil_berdaftar','penilai_berdaftar')
+      AND a.jenis_borang=${ra ? "'penilai_berdaftar'" : "'pengadil_berdaftar'"}
+      ${ra ? '' : "AND COALESCE(a.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan')"}
       AND a.status='Approved'
       AND (a.jenis_borang<>'pengadil_berdaftar' OR a.tahun_permohonan<2027
            OR a.jenis_pengadil IN ('Penilai Pengadil','Pegawai Pembangunan') OR a.status_ujian='Lulus')

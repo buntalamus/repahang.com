@@ -162,22 +162,26 @@ declare const Chart: any;
             <!-- ── TAB: LANTIKAN ── -->
             @if (activeTab === 'lantikan') {
               <div class="space-y-6">
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
                   <div (click)="router.navigate(['/admin/lantikan'])" class="rounded-lg bg-slate-50 border border-slate-200 p-3 cursor-pointer hover:shadow-md hover:border-slate-300 transition-all">
                     <p class="text-xs text-slate-500 font-medium">Jumlah Lantikan</p>
                     <p class="text-lg font-bold text-slate-800">{{ s.lantikan?.total || 0 }}</p>
                   </div>
                   <div (click)="router.navigate(['/admin/lantikan'])" class="rounded-lg bg-green-50 border border-green-200 p-3 cursor-pointer hover:shadow-md hover:border-green-300 transition-all">
-                    <p class="text-xs text-green-600 font-medium">Selesai</p>
-                    <p class="text-lg font-bold text-green-700">{{ s.lantikan?.selesai || 0 }}</p>
+                    <p class="text-xs text-green-600 font-medium">Diterima</p>
+                    <p class="text-lg font-bold text-green-700">{{ s.lantikan?.diterima || 0 }}</p>
                   </div>
                   <div (click)="router.navigate(['/admin/lantikan'])" class="rounded-lg bg-blue-50 border border-blue-200 p-3 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all">
-                    <p class="text-xs text-blue-600 font-medium">Disahkan</p>
-                    <p class="text-lg font-bold text-blue-700">{{ s.lantikan?.disahkan || 0 }}</p>
+                    <p class="text-xs text-blue-600 font-medium">Ditolak</p>
+                    <p class="text-lg font-bold text-blue-700">{{ s.lantikan?.ditolak || 0 }}</p>
                   </div>
                   <div (click)="router.navigate(['/admin/lantikan'])" class="rounded-lg bg-amber-50 border border-amber-200 p-3 cursor-pointer hover:shadow-md hover:border-amber-300 transition-all">
-                    <p class="text-xs text-amber-600 font-medium">Belum Selesai</p>
+                    <p class="text-xs text-amber-600 font-medium">Belum Jawab</p>
                     <p class="text-lg font-bold text-amber-700">{{ s.lantikan?.belum || 0 }}</p>
+                  </div>
+                  <div (click)="router.navigate(['/admin/lantikan'])" class="rounded-lg bg-slate-50 border border-slate-200 p-3 cursor-pointer hover:shadow-md hover:border-slate-300 transition-all">
+                    <p class="text-xs text-slate-600 font-medium">Dibatalkan</p>
+                    <p class="text-lg font-bold text-slate-700">{{ s.lantikan?.dibatalkan || 0 }}</p>
                   </div>
                 </div>
 
@@ -230,6 +234,7 @@ declare const Chart: any;
                             <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 text-xs font-semibold hidden md:inline">✓ {{ d.diterima }}</span>
                             <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-700 text-xs font-semibold hidden md:inline">✗ {{ d.ditolak }}</span>
                             <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-700 text-xs font-semibold hidden md:inline">? {{ d.belum }}</span>
+                            <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-xs font-semibold hidden md:inline">− {{ d.dibatalkan }}</span>
                           </button>
                           <!-- Senarai pengadil dalam daerah -->
                           @if (expandedDaerah === d.daerah) {
@@ -247,6 +252,7 @@ declare const Chart: any;
                                     <span class="text-emerald-600">✓ {{ pg.diterima }}</span>
                                     <span class="text-rose-500">✗ {{ pg.ditolak }}</span>
                                     <span class="text-amber-600">? {{ pg.belum }}</span>
+                                    <span class="text-slate-600">− {{ pg.dibatalkan }}</span>
                                   </div>
                                 </div>
                               }
@@ -261,6 +267,7 @@ declare const Chart: any;
                                     <th class="text-center px-2 py-1.5 font-medium">Diterima</th>
                                     <th class="text-center px-2 py-1.5 font-medium">Ditolak</th>
                                     <th class="text-center px-2 py-1.5 font-medium">Belum</th>
+                                    <th class="text-center px-2 py-1.5 font-medium">Dibatalkan</th>
                                   </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-50">
@@ -274,6 +281,7 @@ declare const Chart: any;
                                       <td class="px-2 py-2 text-center text-emerald-600">{{ pg.diterima }}</td>
                                       <td class="px-2 py-2 text-center text-rose-500">{{ pg.ditolak }}</td>
                                       <td class="px-2 py-2 text-center text-amber-600">{{ pg.belum }}</td>
+                                      <td class="px-2 py-2 text-center text-slate-600">{{ pg.dibatalkan }}</td>
                                     </tr>
                                   }
                                 </tbody>
@@ -681,7 +689,9 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
     const types = this.s.applications?.types || {};
     const typeLabels: Record<string, string> = {
       'pengadil_berdaftar': 'Pengadil Berdaftar', 'penilai_berdaftar': 'RA Berdaftar',
-      'ujian_bertulis': 'Ujian Kelas III', 'ujian_kelas1_fam': 'Ujian Kelas I',
+      'pp_berdaftar': 'PP Berdaftar', 'ujian_kecergasan': 'Ujian Kecergasan',
+      'kelas3_fam': 'Kelas III FAM', 'ujian_bertulis': 'Ujian Kelas III',
+      'ujian_kelas1_fam': 'Ujian Kelas I',
     };
     this.makeChart('chartAppTypes', 'bar', {
       labels: Object.keys(types).map(k => typeLabels[k] || k),
@@ -726,8 +736,8 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
   private renderLantikanCharts(): void {
     const l = this.s.lantikan || {};
     this.makeChart('chartLantikan', 'doughnut', {
-      labels: ['Selesai', 'Disahkan', 'Belum Selesai'],
-      datasets: [{ data: [l.selesai || 0, l.disahkan || 0, l.belum || 0], backgroundColor: ['#10b981', '#3b82f6', '#f59e0b'], borderWidth: 0 }],
+      labels: ['Diterima', 'Ditolak', 'Belum Jawab', 'Dibatalkan'],
+      datasets: [{ data: [l.diterima || 0, l.ditolak || 0, l.belum || 0, l.dibatalkan || 0], backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#64748b'], borderWidth: 0 }],
     }, { cutout: '60%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 10 } } } });
   }
 

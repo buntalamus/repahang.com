@@ -117,11 +117,22 @@ export class SidebarComponent implements OnDestroy {
   private updateNav(): void {
     switch (this.auth.currentUser?.role) {
       case 'Admin':
-        this.navItems = ADMIN_NAV;
+        this.navItems = this.auth.currentUser?.jenis_pengadil === 'Penilai Pengadil'
+          ? [...ADMIN_NAV, { label: 'Pendaftaran RA Saya (R1)', icon: 'how_to_reg', route: '/admin/daftar/ra' }]
+          : ADMIN_NAV;
         this.roleLabel = 'Admin';
         break;
       case 'PP Daerah':
-        this.navItems = PP_DAERAH_NAV;
+        this.navItems = [...PP_DAERAH_NAV];
+        if (this.auth.currentUser.can_referee === 1) {
+          this.navItems.push(
+            { label: 'Rekod Perlawanan Saya', icon: 'sports', route: '/pengadil/perlawanan' },
+            { label: 'Pendaftaran Pengadil Saya', icon: 'badge', route: '/pengadil/permohonan/berdaftar' },
+          );
+        }
+        if (this.auth.currentUser.can_ra === 1) {
+          this.navItems.push({ label: 'Panel RA Saya', icon: 'rate_review', route: '/penilai' });
+        }
         this.roleLabel = 'PP Daerah';
         break;
       case 'Pengadil':

@@ -98,9 +98,16 @@ async function addMatch(input: Record<string, unknown>, env: Env,
   const [district, users, districtApprovers] = await Promise.all([
     env.DB.prepare('SELECT id,nama FROM districts WHERE id=?').bind(districtId)
       .first<{ id: number; nama: string }>(),
-    env.DB.prepare(`SELECT id,nama_penuh,aktif FROM users WHERE id IN (${officials.map(() => '?').join(',')})`)
+    env.DB.prepare(`SELECT u.id,u.nama_penuh,u.aktif,
+      CASE WHEN u.role='Pengadil' OR (u.role='PP Daerah' AND
+        (u.jenis_pengadil IN ('Pengadil Negeri','Pengadil Kebangsaan','Kelas III FAM','Kelas I FAM')
+         OR EXISTS (SELECT 1 FROM permohonan ref WHERE ref.user_id=u.id
+           AND ref.jenis_borang='pengadil_berdaftar' AND ref.status='Approved'
+           AND COALESCE(ref.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan'))))
+        THEN 1 ELSE 0 END AS can_referee
+      FROM users u WHERE u.id IN (${officials.map(() => '?').join(',')})`)
       .bind(...officials.map((item) => item.user_id))
-      .all<{ id: number; nama_penuh: string; aktif: number }>(),
+      .all<{ id: number; nama_penuh: string; aktif: number; can_referee: number }>(),
     env.DB.prepare(`SELECT u.id,u.nama_penuh,u.email FROM users u
       JOIN persatuan_bolasepak_daerah p ON p.id=u.persatuan_id
       JOIN districts d ON d.nama=p.daerah
@@ -108,8 +115,9 @@ async function addMatch(input: Record<string, unknown>, env: Env,
       .bind(districtId).all<Recipient>(),
   ]);
   if (!district) return json({ error: true, message: 'Daerah perlawanan tidak dijumpai.' }, 422);
-  if (users.results.length !== officials.length || users.results.some((user) => Number(user.aktif) !== 1)) {
-    return json({ error: true, message: 'Semua pegawai mesti mempunyai akaun aktif.' }, 422);
+  if (users.results.length !== officials.length || users.results.some((user) =>
+    Number(user.aktif) !== 1 || Number(user.can_referee) !== 1)) {
+    return json({ error: true, message: 'Semua pegawai perlawanan mesti mempunyai akaun pengadil yang aktif.' }, 422);
   }
   const groupId = crypto.randomUUID();
   const formattedDate = date.split('-').reverse().join('/');
@@ -237,7 +245,7 @@ export async function refereeMatchManage(request: Request, env: Env): Promise<Re
   if (request.method !== 'POST') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
   const actor = await currentUser(request, env);
   if (!actor) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
-  if (actor.role !== 'Pengadil') return json({ error: true, message: 'Akses ditolak.' }, 403);
+  if (Number(actor.can_referee) !== 1) return json({ error: true, message: 'Akses ditolak.' }, 403);
   if (env.STAGING_WRITES_ENABLED !== '1') {
     return json({ error: true, message: 'Tindakan tulis belum tersedia di staging.' }, 503);
   }

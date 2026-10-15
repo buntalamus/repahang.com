@@ -66,9 +66,14 @@ export async function districtApplications(request: Request, env: Env): Promise<
        WHERE persatuan_id=? AND status_workflow IN
          ('PP Daerah Disahkan','Menunggu Admin','Admin Diluluskan','Lengkap')
          AND pp_verified_at >= ?) AS approved_this_month,
-      (SELECT COUNT(*) FROM users
-       WHERE persatuan_id=? AND role='Pengadil' AND aktif=1) AS total_referees
-  `).bind(user.persatuan_id, `${month}-01`, user.persatuan_id)
+      (SELECT COUNT(*) FROM users u WHERE u.persatuan_id=? AND u.aktif=1
+        AND EXISTS (SELECT 1 FROM permohonan p WHERE p.user_id=u.id
+          AND p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan=?
+          AND p.status='Approved'
+          AND COALESCE(p.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan')
+          AND (p.tahun_permohonan<2027 OR p.status_ujian='Lulus'))) AS total_referees
+  `).bind(user.persatuan_id, `${month}-01`, user.persatuan_id,
+    Number(month.slice(0, 4)))
     .first<{ approved_this_month: number; total_referees: number }>();
 
   return json({

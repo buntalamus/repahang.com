@@ -11,7 +11,14 @@ const COMPLETE = `p.status_workflow='Lengkap' AND
    OR p.status_ujian='Lulus')`;
 
 function roleFilter(role: string): string {
-  return role === 'Penilai' ? "u.role IN ('Penilai','PP Daerah')" : "u.role='Pengadil'";
+  return role === 'Penilai'
+    ? `(u.role='Penilai' OR u.jenis_pengadil='Penilai Pengadil' OR EXISTS
+        (SELECT 1 FROM permohonan ra WHERE ra.user_id=u.id
+          AND ra.jenis_borang='penilai_berdaftar' AND ra.status='Approved'))`
+    : `(u.role='Pengadil' OR (u.role='PP Daerah' AND
+        (u.jenis_pengadil IN ('Pengadil Negeri','Pengadil Kebangsaan','Kelas III FAM','Kelas I FAM')
+         OR EXISTS (SELECT 1 FROM permohonan pr WHERE pr.user_id=u.id
+           AND pr.jenis_borang='pengadil_berdaftar' AND pr.status='Approved'))))`;
 }
 
 function positiveId(raw: string | null): number | null {
@@ -85,19 +92,21 @@ export async function districtReferees(request: Request, env: Env): Promise<Resp
     timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit',
   }).format(new Date());
   const year = month.slice(0, 4);
+  const annualType = role === 'Penilai' ? 'penilai_berdaftar' : 'pengadil_berdaftar';
   const stats = await env.DB.prepare(`
     SELECT
       (SELECT COUNT(*) FROM users u WHERE ${filter} AND u.persatuan_id=?) AS total,
       (SELECT COUNT(DISTINCT u.id) FROM users u
        LEFT JOIN permohonan p ON p.user_id=u.id
        WHERE ${filter} AND u.persatuan_id=? AND u.aktif=1
-         AND (u.role='PP Daerah' OR
-              (p.tahun_permohonan=2026 AND p.status='Approved'))) AS active,
+         AND p.tahun_permohonan=? AND p.jenis_borang=? AND p.status='Approved'
+         AND (p.jenis_borang<>'pengadil_berdaftar' OR p.tahun_permohonan<2027
+           OR p.status_ujian='Lulus')) AS active,
       (SELECT COUNT(*) FROM permohonan WHERE persatuan_id=?
          AND substr(tarikh_hantar,1,7)=?) AS applications_this_month,
       (SELECT COUNT(*) FROM permohonan WHERE persatuan_id=?
          AND status='Approved' AND substr(status_kemaskini,1,4)=?) AS approved_this_year
-  `).bind(user.persatuan_id, user.persatuan_id, user.persatuan_id,
+  `).bind(user.persatuan_id, user.persatuan_id, Number(year), annualType, user.persatuan_id,
     month, user.persatuan_id, year)
     .first<{ total: number; active: number; applications_this_month: number; approved_this_year: number }>();
   const total = Number(stats?.total ?? 0);

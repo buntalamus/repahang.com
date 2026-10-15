@@ -32,6 +32,19 @@ export class PengadilBerdaftarComponent implements OnInit {
   showDetailModal = false;
   selectedReferee: any = null;
   detailTab: 'maklumat' | 'sejarah' | 'perlawanan' = 'maklumat';
+  matchYearFilter = 'all';
+
+  get matchYears(): string[] {
+    return [...new Set<string>((this.selectedReferee?.perlawanan || [])
+      .map((match: any) => String(match.tarikh || '').slice(0, 4))
+      .filter((year: string) => /^\d{4}$/.test(year)))].sort().reverse();
+  }
+
+  get visibleMatches(): any[] {
+    const matches = this.selectedReferee?.perlawanan || [];
+    return this.matchYearFilter === 'all' ? matches
+      : matches.filter((match: any) => String(match.tarikh || '').startsWith(this.matchYearFilter));
+  }
 
   showEditModal = false;
   savingEdit = false;
@@ -237,6 +250,7 @@ export class PengadilBerdaftarComponent implements OnInit {
   viewReferee(ref: any): void {
     this.selectedReferee = ref;
     this.detailTab = 'maklumat';
+    this.matchYearFilter = 'all';
     this.showDetailModal = true;
   }
 

@@ -22,18 +22,15 @@ export async function registeredReferees(request: Request, env: Env): Promise<Re
     return json({ error: true, message: 'Tahun tidak sah.' }, 422);
   }
   const ra = query.get('type') === 'penilai_berdaftar';
-  const roleCondition = ra ? `(
-    u.role='PP Daerah' OR u.jenis_pengadil IN ('Penilai Pengadil','Pegawai Pembangunan')
-    OR a.jenis_pengadil IN ('Penilai Pengadil','Pegawai Pembangunan'))`
-    : `a.id IS NOT NULL AND (a.jenis_pengadil NOT IN ('Penilai Pengadil','Pegawai Pembangunan')
-      OR a.jenis_pengadil IS NULL)`;
+  const roleCondition = ra
+    ? "(u.role='Penilai' OR u.jenis_pengadil='Penilai Pengadil' OR a.id IS NOT NULL)"
+    : 'a.id IS NOT NULL';
   const rows = await env.DB.prepare(`SELECT DISTINCT u.id AS user_id,u.role AS user_role,
     u.nama_penuh,u.no_ic AS no_kp,u.jantina,u.email AS emel,u.no_telefon,u.saiz_baju,
     COALESCE(NULLIF(a.url_gambar_profil,''),u.url_gambar_profil) AS url_gambar_profil,
     a.id,COALESCE(a.persatuan_id,u.persatuan_id) AS persatuan_id,
     COALESCE(a.umur,u.umur) AS umur,
-    CASE WHEN u.role='PP Daerah' THEN 'Penilai Pengadil'
-      WHEN u.jenis_pengadil IN ('Penilai Pengadil','Pegawai Pembangunan') THEN u.jenis_pengadil
+    CASE WHEN u.role='Penilai' OR u.jenis_pengadil='Penilai Pengadil' THEN 'Penilai Pengadil'
       ELSE a.jenis_pengadil END AS jenis_pengadil,
     COALESCE(a.alamat1,u.alamat1) AS alamat1,COALESCE(a.alamat2,u.alamat2) AS alamat2,
     COALESCE(a.poskod,u.poskod) AS poskod,COALESCE(a.daerah,u.daerah) AS daerah,
@@ -51,10 +48,12 @@ export async function registeredReferees(request: Request, env: Env): Promise<Re
     u.tahun_mohon_kelas3,u.tahun_lulus_kelas3,
     u.pengadil_kebangsaan,u.pengadil_negeri,u.pengadil_daerah,
     p.nama_persatuan AS persatuan,
-    CASE WHEN u.role='PP Daerah' THEN 'PP Daerah (RA automatik)'
-      WHEN a.id IS NULL THEN 'Peranan RA pada akaun ' || u.role ELSE 'Permohonan RA' END AS sumber_ra
+    CASE WHEN a.id IS NOT NULL THEN 'Permohonan RA'
+      WHEN u.role='Penilai' OR u.jenis_pengadil='Penilai Pengadil' THEN 'Peranan RA pada akaun'
+      ELSE NULL END AS sumber_ra
     FROM users u LEFT JOIN permohonan a ON a.user_id=u.id
-      AND a.jenis_borang IN ('pengadil_berdaftar','penilai_berdaftar')
+      AND a.jenis_borang=${ra ? "'penilai_berdaftar'" : "'pengadil_berdaftar'"}
+      ${ra ? '' : "AND COALESCE(a.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan')"}
       AND a.status='Approved'
       AND (a.jenis_borang<>'pengadil_berdaftar' OR a.tahun_permohonan<2027
         OR a.jenis_pengadil IN ('Penilai Pengadil','Pegawai Pembangunan') OR a.status_ujian='Lulus')

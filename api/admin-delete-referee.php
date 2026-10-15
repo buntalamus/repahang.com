@@ -2,7 +2,7 @@
 
 /**
  * Admin Delete Referee API
- * DELETE: Delete approved referee application
+ * DELETE: Deactivate a referee account while retaining all history.
  */
 
 declare(strict_types=1);
@@ -15,7 +15,7 @@ try {
     // Require Admin role
     requireAdmin();
 
-if ($_SERVER['REQUEST_METHOD'] !== 'DELETE' && 
+if ($_SERVER['REQUEST_METHOD'] !== 'DELETE' &&
     !($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE']) && $_SERVER['HTTP_X_HTTP_METHOD_OVERRIDE'] === 'DELETE')) {
     jsonResponse(['error' => true, 'message' => 'Kaedah tidak dibenarkan.'], 405);
 }
@@ -23,57 +23,41 @@ if ($_SERVER['REQUEST_METHOD'] !== 'DELETE' &&
     $input = json_decode($raw, true) ?: [];
     $userId = $input['user_id'] ?? $_GET['id'] ?? 0;
 
-    if (!$userId) {
+    if (!filter_var($userId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]])) {
         jsonResponse(['error' => true, 'message' => 'ID pengguna diperlukan.'], 422);
     }
 
     $pdo = getDbConnection();
 
-    // Get user details and their approved application
+    // This endpoint acts on an account. Annual application deletion uses
+    // admin-applications.php and must never delete match history.
     $stmt = $pdo->prepare("
-        SELECT p.id as permohonan_id, p.*, u.email as user_email, u.nama_penuh as user_nama
-        FROM users u
-        LEFT JOIN permohonan p ON p.user_id = u.id AND p.status = 'Approved'
-        WHERE u.id = :id AND u.role = 'Pengadil'
+        SELECT nama_penuh, aktif FROM users
+        WHERE id = :id AND role = 'Pengadil'
         LIMIT 1
     ");
     $stmt->execute(['id' => $userId]);
-    $application = $stmt->fetch(PDO::FETCH_ASSOC);
+    $referee = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$application) {
+    if (!$referee) {
         jsonResponse(['error' => true, 'message' => 'Pengadil tidak dijumpai.'], 404);
     }
 
     $pdo->beginTransaction();
 
-    // Delete from perlawanan table first (foreign key constraint)
-    if ($application['permohonan_id']) {
-        $deleteMatchesStmt = $pdo->prepare("DELETE FROM perlawanan WHERE permohonan_id = :id");
-        $deleteMatchesStmt->execute(['id' => $application['permohonan_id']]);
-
-        // Delete from permohonan table
-        $deleteStmt = $pdo->prepare("DELETE FROM permohonan WHERE id = :id");
-        $deleteStmt->execute(['id' => $application['permohonan_id']]);
-    }
-
-    // Also delete matches linked directly to user
-    $deleteUserMatchesStmt = $pdo->prepare("DELETE FROM perlawanan WHERE user_id = :id");
-    $deleteUserMatchesStmt->execute(['id' => $userId]);
-
-    // Delete user account
-    $deleteUserStmt = $pdo->prepare("DELETE FROM users WHERE id = :id");
-    $deleteUserStmt->execute(['id' => $userId]);
+    $pdo->prepare("UPDATE users SET aktif = 0 WHERE id = :id AND role = 'Pengadil'")
+        ->execute(['id' => $userId]);
 
     // Log activity
-    logActivity($pdo, $_SESSION['user_id'], 'delete_referee', 'users', (int) $userId,
-        "Pengadil {$application['user_nama']} (User ID: {$userId}) dipadam oleh admin");
+    logActivity($pdo, $_SESSION['user_id'], 'deactivate_referee', 'users', (int) $userId,
+        "Akaun pengadil {$referee['nama_penuh']} (User ID: {$userId}) dinyahaktifkan; sejarah dikekalkan.");
 
     $pdo->commit();
 
     jsonResponse([
         'error' => false,
-        'message' => 'Pengadil berdaftar berjaya dipadam.',
-        'referee_name' => $application['user_nama']
+        'message' => 'Akaun pengadil dinyahaktifkan. Semua sejarah perlawanan dikekalkan.',
+        'referee_name' => $referee['nama_penuh']
     ]);
 
 } catch (Throwable $e) {

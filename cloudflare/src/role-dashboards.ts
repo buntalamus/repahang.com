@@ -4,7 +4,7 @@ import type { Env } from './types';
 export async function assessorDashboard(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
   if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
-  if (user.role !== 'Penilai' && !(user.role === 'Admin' && user.jenis_pengadil === 'Penilai Pengadil')) {
+  if (Number(user.can_ra) !== 1 && !(user.role === 'Admin' && user.jenis_pengadil === 'Penilai Pengadil')) {
     return json({ error: true, message: 'Akses ditolak.' }, 403);
   }
   const [assignments, completed, assessed, recent] = await Promise.all([
@@ -63,7 +63,7 @@ export async function districtAnnouncements(request: Request, env: Env): Promise
 
 const DISTRICT_MATCH_SCOPE = `(
   (p.match_group_id IS NOT NULL AND p.daerah_perlawanan_id=?)
-  OR (p.match_group_id IS NULL AND u.persatuan_id=? AND u.role='Pengadil')
+  OR (p.match_group_id IS NULL AND u.persatuan_id=? AND u.role IN ('Pengadil','PP Daerah'))
 )`;
 
 export async function districtOverview(request: Request, env: Env): Promise<Response> {
@@ -84,20 +84,26 @@ export async function districtOverview(request: Request, env: Env): Promise<Resp
     timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(now);
   const month = dateParts.slice(0, 7);
+  const year = Number(dateParts.slice(0, 4));
 
   const [referees, applications, matches, topReferees, currentAssignments] = await Promise.all([
     env.DB.prepare(`
-      SELECT COUNT(*) AS total FROM users WHERE role='Pengadil' AND persatuan_id=?
-    `).bind(persatuanId).first<{ total: number }>(),
+      SELECT COUNT(*) AS total FROM users u WHERE u.aktif=1 AND u.persatuan_id=?
+        AND EXISTS (SELECT 1 FROM permohonan p WHERE p.user_id=u.id
+          AND p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan=?
+          AND p.status='Approved'
+          AND COALESCE(p.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan')
+          AND (p.tahun_permohonan<2027 OR p.status_ujian='Lulus'))
+    `).bind(persatuanId,year).first<{ total: number }>(),
     env.DB.prepare(`
       SELECT
         SUM(CASE WHEN p.status_workflow='Menunggu PP Daerah' THEN 1 ELSE 0 END)
           AS pending,
-        SUM(CASE WHEN p.status_workflow='Admin Diluluskan' THEN 1 ELSE 0 END)
+        SUM(CASE WHEN p.status='Approved' THEN 1 ELSE 0 END)
           AS approved
       FROM permohonan p JOIN users u ON u.id=p.user_id
-      WHERE u.persatuan_id=?
-    `).bind(persatuanId).first<{ pending: number | null; approved: number | null }>(),
+      WHERE u.persatuan_id=? AND p.tahun_permohonan=?
+    `).bind(persatuanId,year).first<{ pending: number | null; approved: number | null }>(),
     env.DB.prepare(`
       SELECT
         COUNT(DISTINCT COALESCE(p.match_group_id,CAST(p.id AS TEXT))) AS total,
@@ -121,7 +127,7 @@ export async function districtOverview(request: Request, env: Env): Promise<Resp
           THEN COALESCE(p.match_group_id,CAST(p.id AS TEXT)) END)
           AS verified_matches
       FROM users u JOIN perlawanan p ON p.user_id=u.id
-      WHERE u.role='Pengadil' AND (
+      WHERE u.role IN ('Pengadil','PP Daerah') AND (
         (p.match_group_id IS NOT NULL AND p.daerah_perlawanan_id=?)
         OR (p.match_group_id IS NULL AND u.persatuan_id=?))
       GROUP BY u.id,u.nama_penuh,u.jenis_pengadil

@@ -10,7 +10,7 @@ const annual = new Set<FormType>(['pengadil_berdaftar', 'penilai_berdaftar']);
 const allowed: Record<string, FormType[]> = {
   Pengadil: ['pengadil_berdaftar', 'kelas3_fam', 'ujian_kelas1_fam'],
   Penilai: ['penilai_berdaftar'],
-  'PP Daerah': ['penilai_berdaftar', 'kelas3_fam', 'ujian_kelas1_fam'],
+  'PP Daerah': ['pengadil_berdaftar', 'penilai_berdaftar', 'kelas3_fam', 'ujian_kelas1_fam'],
 };
 const openSetting: Record<FormType, string> = {
   pengadil_berdaftar: 'berdaftar_open', penilai_berdaftar: 'penilai_open',
@@ -104,6 +104,9 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
   const canSubmit = allowed[user.role]?.includes(type)
     || (user.role === 'Admin' && user.jenis_pengadil === 'Penilai Pengadil' && type === 'penilai_berdaftar');
   if (!canSubmit) return json({error: true, message: 'Jenis borang tidak dibenarkan untuk peranan anda.'}, 403);
+  if (user.role === 'PP Daerah' && type === 'pengadil_berdaftar' && Number(user.can_referee) !== 1) {
+    return json({error: true, message: 'Akaun PP ini tidak mempunyai kelayakan pengadil.'}, 403);
+  }
 
   const settingsRows = await env.DB.prepare('SELECT setting_key,setting_value FROM application_settings')
     .all<{setting_key: string; setting_value: string}>();
@@ -140,10 +143,13 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
   if (type === 'ujian_kelas1_fam') {
     const deadline = year - 2;
     const classThree = await env.DB.prepare(`
-      SELECT 1 FROM permohonan WHERE user_id=? AND jenis_borang='kelas3_fam'
-        AND status_workflow IN ('Lengkap','Admin Diluluskan','Bayaran Diterima')
-        AND tahun_permohonan<=? LIMIT 1
-    `).bind(user.id, deadline).first();
+      SELECT 1 FROM users u WHERE u.id=? AND (
+        (u.tahun_lulus_kelas3 GLOB '20[0-9][0-9]'
+          AND CAST(u.tahun_lulus_kelas3 AS INTEGER)<=?)
+        OR EXISTS (SELECT 1 FROM permohonan p WHERE p.user_id=u.id
+          AND p.jenis_borang IN ('kelas3_fam','ujian_bertulis')
+          AND p.status_ujian='Lulus' AND p.tahun_permohonan<=?)) LIMIT 1
+    `).bind(user.id, deadline, deadline).first();
     if (!classThree) return json({error: true, message:
       `Anda tidak layak memohon Ujian Kelas I FAM. Sijil Kelas III FAM mesti diperoleh pada tahun ${deadline} atau sebelumnya (sekurang-kurangnya 2 tahun).`}, 400);
   }

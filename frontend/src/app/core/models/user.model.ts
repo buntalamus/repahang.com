@@ -28,6 +28,8 @@ export interface User {
   url_gambar_profil?: string | null;
   jantina?: 'Lelaki' | 'Perempuan' | '';
   jenis_pengadil?: string;
+  can_referee?: number;
+  can_ra?: number;
   jenis_penilai?: string;
   tahun_mula_aktif?: number | null;
   saiz_baju?: string;
@@ -180,6 +182,9 @@ export interface SessionResponse {
   user_id?: number;
   user_email?: string;
   user_role?: string;
+  user_jenis_pengadil?: string | null;
+  can_referee?: number;
+  can_ra?: number;
   user_persatuan_id?: number;
   user_persatuan_name?: string;
   nama_penuh?: string;

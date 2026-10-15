@@ -49,8 +49,8 @@ export class PengadilDashboardComponent implements OnInit {
             const list = matches.data || matches.matches || [];
             this.recentMatches = list.slice(0, 5);
             const stats = matches.statistics || {};
-            this.matchStats.total = stats.current_year || list.length;
-            this.matchStats.verified = stats.verified_year || list.filter((m: any) => m.status_pp === 'Disahkan').length;
+            this.matchStats.total = Number(stats.current_year ?? 0);
+            this.matchStats.verified = Number(stats.verified_year ?? 0);
             this.matchStats.year = stats.year || new Date().getFullYear();
             this.matchStats.eligible = stats.eligible || false;
           }

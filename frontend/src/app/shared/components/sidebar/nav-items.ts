@@ -29,7 +29,7 @@ export const PP_DAERAH_NAV: NavItem[] = [
     label: 'Permohonan Saya',
     icon: 'how_to_reg',
     children: [
-      { label: 'Pendaftaran Tahunan Penilai (R4)', icon: 'badge', route: '/pp-daerah/daftar/tahunan' },
+      { label: 'Pendaftaran Tahunan Penilai (R1)', icon: 'badge', route: '/pp-daerah/daftar/tahunan' },
       { label: 'Kelas III FAM', icon: 'quiz', route: '/pp-daerah/daftar/kelas3' },
       { label: 'Ujian Kelas I FAM', icon: 'military_tech', route: '/pp-daerah/daftar/kelas1' },
     ],
@@ -73,7 +73,7 @@ export const PENGADIL_NAV: NavItem[] = [
 export const PENILAI_NAV: NavItem[] = [
   { label: 'Dashboard', icon: 'dashboard', route: '/penilai' },
   { label: 'Penilaian Pengadil', icon: 'rate_review', route: '/penilai/penilaian' },
-  { label: 'Pendaftaran Tahunan (R4)', icon: 'how_to_reg', route: '/penilai/permohonan/tahunan' },
+  { label: 'Pendaftaran Tahunan (R1)', icon: 'how_to_reg', route: '/penilai/permohonan/tahunan' },
   { label: 'Tugasan', icon: 'assignment', route: '/penilai/tugasan' },
   { label: 'Statistik', icon: 'bar_chart', route: '/penilai/statistik' },
   { label: 'Profil', icon: 'person', route: '/penilai/profil' },

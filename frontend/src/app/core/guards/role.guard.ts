@@ -9,7 +9,10 @@ export function roleGuard(...allowedRoles: string[]): CanActivateFn {
     const router = inject(Router);
 
     const check = () => {
-      if (auth.currentUser && allowedRoles.includes(auth.currentUser.role)) {
+      const user = auth.currentUser;
+      if (user && (allowedRoles.includes(user.role)
+        || (user.role === 'PP Daerah' && allowedRoles.includes('Pengadil') && user.can_referee === 1)
+        || (user.role === 'PP Daerah' && allowedRoles.includes('Penilai') && user.can_ra === 1))) {
         return true;
       }
       return router.createUrlTree(['/login']);

@@ -39,13 +39,13 @@ export class PengadilApplicationComponent implements OnInit {
   saizBajuOptions = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
 
   typeLabels: Record<string, string> = {
-    berdaftar:          'Pendaftaran Tahunan Pengadil (R1+R2)',
-    pengadil_berdaftar: 'Pendaftaran Tahunan Pengadil (R1+R2)',
+    berdaftar:          'Pendaftaran Tahunan Pengadil (R1+R2+R4)',
+    pengadil_berdaftar: 'Pendaftaran Tahunan Pengadil (R1+R2+R4)',
     kelas3:             'Peperiksaan Kelas III FAM',
     kelas3_fam:         'Peperiksaan Kelas III FAM',
     kelas1:             'Ujian Kelas I FAM',
     ujian_kelas1_fam:   'Ujian Kelas I FAM',
-    penilai_berdaftar:  'Pendaftaran Tahunan Penilai Pengadil Negeri (R4)',
+    penilai_berdaftar:  'Pendaftaran Tahunan Penilai Pengadil (R1)',
     pp_berdaftar:       'Pendaftaran Tahunan PP Daerah (R1)',
   };
 
@@ -107,12 +107,10 @@ export class PengadilApplicationComponent implements OnInit {
       next: ({ history, settings, profile }) => {
         if (!history.error) {
           this.history = history.data || [];
-          this.currentApp = this.history.find((a: any) =>
-            ['Draf', 'Menunggu PP Daerah', 'PP Daerah Disahkan', 'Menunggu Admin',
-             'Menunggu Bayaran', 'Pending'].includes(a.status_workflow || a.status),
-          );
         }
         if (!settings.error) { this.appSettings = settings.settings || {}; }
+        this.currentApp = this.history.find((a: any) =>
+          +a.tahun_permohonan === +this.applicationYear) || null;
         if (!profile.error)  { this.profile = profile.user || profile.data || {}; }
         this.loading = false;
       },
@@ -139,7 +137,7 @@ export class PengadilApplicationComponent implements OnInit {
       if (!this.declare1 || !this.declare2 || !this.declare3) {
         this.toast.error('Sila tandakan semua perakuan am.'); return;
       }
-      if (!this.declareHealth1 || !this.declareHealth2 || !this.declareHealth3 || !this.declareHealth4 || !this.declareHealth5) {
+      if (this.isBerdaftar && (!this.declareHealth1 || !this.declareHealth2 || !this.declareHealth3 || !this.declareHealth4 || !this.declareHealth5)) {
         this.toast.error('Sila tandakan semua perakuan kesihatan.'); return;
       }
     } else if (this.isKelas3 || this.isKelas1) {
@@ -173,6 +171,9 @@ export class PengadilApplicationComponent implements OnInit {
         this.submitting = false;
         if (!res.error) {
           this.toast.success('Permohonan berjaya dihantar!');
+          if (res.email_sent === false && res.email_message) {
+            this.toast.error(res.email_message);
+          }
           this.form = { nama_waris: '', hubungan_waris: '', telefon_waris: '', saiz_baju: '' };
           this.declare1 = this.declare2 = this.declare3 = false;
           this.declareHealth1 = this.declareHealth2 = this.declareHealth3 = this.declareHealth4 = this.declareHealth5 = false;
@@ -192,12 +193,12 @@ export class PengadilApplicationComponent implements OnInit {
 
   statusClass(status: string): string {
     switch (status) {
-      case 'Lengkap': case 'Admin Diluluskan': case 'Bayaran Diterima': case 'Approved':
+      case 'Lengkap': case 'Bayaran Diterima': case 'Approved':
         return 'bg-green-100 text-green-700';
       case 'Ditolak': case 'Rejected':
         return 'bg-red-100 text-red-700';
       case 'Menunggu PP Daerah': case 'Menunggu Admin': case 'Menunggu Bayaran':
-      case 'PP Daerah Disahkan': case 'Pending':
+      case 'PP Daerah Disahkan': case 'Pending': case 'Admin Diluluskan':
         return 'bg-yellow-100 text-yellow-700';
       case 'Draf': return 'bg-gray-100 text-gray-600';
       default: return 'bg-gray-100 text-gray-700';

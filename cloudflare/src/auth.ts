@@ -8,6 +8,8 @@ export interface SessionUser {
   email: string;
   role: string;
   jenis_pengadil: string | null;
+  can_referee: number;
+  can_ra: number;
   nama_penuh: string;
   persatuan_id: number | null;
   district_id: number | null;
@@ -24,6 +26,17 @@ const COOKIE_NAME = 'refpahang_session';
 const SESSION_SECONDS = 12 * 60 * 60;
 const LIMIT_WINDOW_SECONDS = 15 * 60;
 const MAX_FAILURES = 10;
+const CAPABILITIES = `
+  CASE WHEN u.role='Pengadil' OR (u.role='PP Daerah' AND
+    (u.jenis_pengadil IN ('Pengadil Negeri','Pengadil Kebangsaan','Kelas III FAM','Kelas I FAM')
+     OR EXISTS (SELECT 1 FROM permohonan ref WHERE ref.user_id=u.id
+       AND ref.jenis_borang='pengadil_berdaftar' AND ref.status='Approved'
+       AND COALESCE(ref.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan'))))
+    THEN 1 ELSE 0 END AS can_referee,
+  CASE WHEN u.role='Penilai' OR u.jenis_pengadil='Penilai Pengadil'
+    OR EXISTS (SELECT 1 FROM permohonan ra WHERE ra.user_id=u.id
+      AND ra.jenis_borang='penilai_berdaftar' AND ra.status='Approved')
+    THEN 1 ELSE 0 END AS can_ra`;
 
 export function json(payload: unknown, status = 200, cookie?: string): Response {
   const headers = new Headers({
@@ -85,6 +98,7 @@ export async function currentUser(request: Request, env: Env): Promise<SessionUs
   if (!token) return null;
   const user = await env.DB.prepare(`
     SELECT u.id, u.email, u.role, u.jenis_pengadil, u.nama_penuh,
+           ${CAPABILITIES},
            COALESCE(NULLIF(u.persatuan_id,0),u.district_id) AS persatuan_id,
            u.district_id, p.nama_persatuan AS persatuan_nama,
            u.password_changed
@@ -130,6 +144,7 @@ export async function login(request: Request, env: Env): Promise<Response> {
 
   const user = await env.DB.prepare(`
     SELECT u.id, u.email, u.password, u.role, u.jenis_pengadil,
+           ${CAPABILITIES},
            u.persatuan_id, u.district_id, u.nama_penuh, u.aktif,
            u.password_changed, p.nama_persatuan AS persatuan_nama
     FROM users u
@@ -176,6 +191,8 @@ export async function login(request: Request, env: Env): Promise<Response> {
       email: user.email,
       role: user.role,
       jenis_pengadil: user.jenis_pengadil,
+      can_referee: Number(user.can_referee),
+      can_ra: Number(user.can_ra),
       nama_penuh: user.nama_penuh,
       persatuan_id: user.persatuan_id,
       persatuan_nama: user.persatuan_nama,
@@ -196,6 +213,8 @@ export async function session(request: Request, env: Env): Promise<Response> {
     user_role: user.role,
     // session.php refreshes Admin classification with fetchColumn() ?: null.
     user_jenis_pengadil: user.role === 'Admin' ? (user.jenis_pengadil || null) : user.jenis_pengadil,
+    can_referee: Number(user.can_referee),
+    can_ra: Number(user.can_ra),
     user_persatuan_id: user.persatuan_id ?? user.district_id,
     user_persatuan_name: user.persatuan_nama,
     nama_penuh: user.nama_penuh,

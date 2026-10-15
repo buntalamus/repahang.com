@@ -83,6 +83,12 @@
             </span>
           </div>
         </div>
+        @if (currentApp.jenis_borang === 'pengadil_berdaftar' && +applicationYear >= 2027 && currentApp.status_workflow === 'Admin Diluluskan') {
+          <p class="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">Dokumen telah disahkan. Pendaftaran akhir menunggu keputusan ujian kecergasan.</p>
+        }
+        @if (currentApp.jenis_borang === 'pengadil_berdaftar' && +applicationYear >= 2027 && currentApp.status_ujian) {
+          <p class="mt-4 text-sm font-medium text-slate-700">Keputusan ujian kecergasan: {{ currentApp.status_ujian }}</p>
+        }
         @if (currentApp.pp_notes || currentApp.admin_notes) {
           <div class="mt-4 p-3 bg-slate-50 rounded-lg text-sm text-slate-600 space-y-1 border border-slate-200">
             @if (currentApp.pp_notes) {
@@ -321,8 +327,8 @@
             </div>
           }
 
-          <!-- Deklarasi Kesihatan (annual reg — includes fitness test) -->
-          @if (isAnnualReg) {
+          <!-- Deklarasi kesihatan khusus pendaftaran pengadil dengan ujian kecergasan. -->
+          @if (isBerdaftar) {
             <div class="p-6">
               <h4 class="font-semibold text-slate-800 mb-1 flex items-center gap-2">
                 <span class="material-icons text-pahang-yellow text-lg">favorite</span>
@@ -441,9 +447,9 @@
                 </td>
                 <td class="px-4 py-3 text-slate-500 max-w-xs truncate">{{ a.pp_notes || a.admin_notes || '&mdash;' }}</td>
                 <td class="px-4 py-3">
-                  @if (['Lengkap','Admin Diluluskan','Bayaran Diterima','Approved'].includes(a.status_workflow || a.status)) {
+                  @if (['pengadil_berdaftar', 'penilai_berdaftar', 'kelas3_fam'].includes(a.jenis_borang) || ['Lengkap','Admin Diluluskan','Bayaran Diterima','Approved'].includes(a.status_workflow || a.status)) {
                     <button (click)="downloadPdf(a)" class="inline-flex items-center gap-1 text-xs font-medium text-slate-700 hover:text-pahang-black underline underline-offset-2">
-                      <span class="material-icons text-sm">download</span>PDF
+                      <span class="material-icons text-sm">download</span>{{ a.jenis_borang === 'pengadil_berdaftar' ? 'R1 + R2 + R4' : a.jenis_borang === 'penilai_berdaftar' ? 'R1' : a.jenis_borang === 'kelas3_fam' ? 'R4' : 'PDF' }}
                     </button>
                   } @else {
                     <span class="text-slate-300">&mdash;</span>

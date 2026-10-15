@@ -18,7 +18,13 @@ export async function activeReferees(request: Request, env: Env): Promise<Respon
   const referees = await env.DB.prepare(`
     SELECT u.id, u.nama_penuh, u.role, u.no_ic AS no_kp, u.jenis_pengadil,
            u.no_telefon, u.saiz_baju, u.email, u.url_gambar_profil,
-           u.daerah, u.negeri, p.nama_persatuan AS persatuan_nama
+           u.daerah, u.negeri, p.nama_persatuan AS persatuan_nama,
+           CASE WHEN u.role='Pengadil' OR (u.role='PP Daerah' AND
+             (u.jenis_pengadil IN ('Pengadil Negeri','Pengadil Kebangsaan','Kelas III FAM','Kelas I FAM')
+              OR EXISTS (SELECT 1 FROM permohonan ref WHERE ref.user_id=u.id
+                AND ref.jenis_borang='pengadil_berdaftar' AND ref.status='Approved'
+                AND COALESCE(ref.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan'))))
+             THEN 1 ELSE 0 END AS can_referee
     FROM users u
     LEFT JOIN persatuan_bolasepak_daerah p ON p.id=u.persatuan_id
     WHERE (u.role IN ('Pengadil','PP Daerah','Penilai')
@@ -33,7 +39,7 @@ export async function activeReferees(request: Request, env: Env): Promise<Respon
 export async function refereeMatches(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
   if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
-  if (user.role !== 'Pengadil') return json({ error: true, message: 'Akses ditolak.' }, 403);
+  if (Number(user.can_referee) !== 1) return json({ error: true, message: 'Akses ditolak.' }, 403);
 
   const params = new URL(request.url).searchParams;
   const page = Math.min(pageNumber(params.get('page'), 1), 1000000);
@@ -44,8 +50,10 @@ export async function refereeMatches(request: Request, env: Env): Promise<Respon
   }).format(new Date()));
 
   const [count, matches, yearStats] = await Promise.all([
-    env.DB.prepare('SELECT COUNT(*) AS total FROM perlawanan WHERE user_id=?')
-      .bind(user.id).first<{ total: number }>(),
+    env.DB.prepare(`SELECT COUNT(*) AS total,
+      SUM(CASE WHEN status_pp='Disahkan' THEN 1 ELSE 0 END) AS verified_total
+      FROM perlawanan WHERE user_id=?`)
+      .bind(user.id).first<{ total: number; verified_total: number | null }>(),
     env.DB.prepare(`
       SELECT p.id, p.match_group_id, p.tarikh, p.masa, p.jenis,
              p.nama_kejohanan, p.tempat, p.jawatan, p.status_pp,
@@ -84,6 +92,7 @@ export async function refereeMatches(request: Request, env: Env): Promise<Respon
     matches: matches.results,
     statistics: {
       total,
+      verified_total: Number(count?.verified_total ?? 0),
       current_year: Number(yearStats?.current_year ?? 0),
       verified_year: verified,
       year: String(year),

@@ -20,6 +20,9 @@ export class AdminUsersComponent implements OnInit {
   paged: any[] = [];
   searchQuery = '';
   roleFilter = 'all';
+  typeFilter = 'all';
+  yearFilter = new Date().getFullYear();
+  years = Array.from({ length: 7 }, (_, index) => new Date().getFullYear() + 1 - index);
   showInactive = false;
   currentPage = 1;
   pageSize = 10;
@@ -38,7 +41,7 @@ export class AdminUsersComponent implements OnInit {
   confirmAction: (() => void) | null = null;
 
   roles = ['Admin', 'PP Daerah', 'Pengadil', 'Penilai'];
-  stats = { total: 0, pengadil: 0, pp: 0, staff: 0 };
+  stats = { total: 0, pengadil: 0, pp: 0, ra: 0 };
 
   constructor(
     private api: ApiService,
@@ -52,7 +55,7 @@ export class AdminUsersComponent implements OnInit {
 
   loadUsers(): void {
     this.loading = true;
-    this.api.get<any>('admin-users.php').subscribe({
+    this.api.get<any>('admin-users.php', { year: String(this.yearFilter) }).subscribe({
       next: (res) => {
         this.users = res.data || res.users || [];
         this.persatuanList = res.persatuan || [];
@@ -68,6 +71,9 @@ export class AdminUsersComponent implements OnInit {
     let data = this.showInactive ? [...this.users] : this.users.filter((u) => this.isActive(u));
     if (this.roleFilter !== 'all') {
       data = data.filter((u) => (u.user_role || u.role) === this.roleFilter);
+    }
+    if (this.typeFilter !== 'all') {
+      data = data.filter((u) => this.matchesType(u, this.typeFilter));
     }
     if (this.searchQuery) {
       const q = this.searchQuery.toLowerCase();
@@ -106,11 +112,36 @@ export class AdminUsersComponent implements OnInit {
   }
 
   updateStats(): void {
-    const active = this.users.filter((u) => this.isActive(u));
-    this.stats.total = active.length;
-    this.stats.pengadil = active.filter(u => (u.user_role || u.role) === 'Pengadil').length;
-    this.stats.pp = active.filter(u => (u.user_role || u.role) === 'PP Daerah').length;
-    this.stats.staff = active.filter(u => ['Admin', 'Penilai'].includes(u.user_role || u.role)).length;
+    this.stats.total = this.users.length;
+    this.stats.pengadil = this.users.filter(u => this.matchesType(u, 'pengguna_pengadil')).length;
+    this.stats.pp = this.users.filter(u => (u.user_role || u.role) === 'PP Daerah').length;
+    this.stats.ra = this.users.filter(u => Number(u.is_ra) === 1).length;
+  }
+
+  matchesType(user: any, type: string): boolean {
+    const referee = Number(user.is_referee) === 1;
+    switch (type) {
+      case 'pengguna_pengadil': return referee;
+      case 'berdaftar': return referee && Number(user.current_approved) === 1;
+      case 'baharu': return referee && Number(user.current_approved) !== 1 && Number(user.prior_approved) !== 1;
+      case 'tidak_aktif': return referee && Number(user.prior_approved) === 1 && Number(user.current_approved) !== 1;
+      case 'kelas3': return referee && Number(user.class3_passed) === 1;
+      case 'kelas1': return referee && Number(user.class1_passed) === 1;
+      case 'ra': return Number(user.is_ra) === 1;
+      case 'pp': return (user.user_role || user.role) === 'PP Daerah';
+      default: return true;
+    }
+  }
+
+  hasFlag(user: any, flag: 'current_applied' | 'current_approved' | 'class3_passed' | 'class1_passed'): boolean {
+    return Number(user[flag]) === 1;
+  }
+
+  registrationLabel(user: any): string {
+    if (!this.matchesType(user, 'pengguna_pengadil')) return '-';
+    if (Number(user.current_approved) === 1) return 'Pengadil Berdaftar';
+    if (Number(user.prior_approved) === 1) return 'Pengadil Tidak Aktif';
+    return 'Pengadil Baharu';
   }
 
   reactivate(user: any): void {

@@ -23,6 +23,7 @@
     "test:futsal-form": "node --no-warnings tests/futsal-form.mjs",
     "test:registration-pdf": "node --no-warnings tests/registration-pdf.mjs",
     "test:application-submit": "node --no-warnings tests/application-submit.mjs",
+    "test:referee-audit": "node --no-warnings tests/referee-audit.mjs",
     "test:chair-config": "node --no-warnings tests/chair-config.mjs",
     "build:frontend": "npm --prefix ../frontend run build:prod",
     "dev": "wrangler dev",

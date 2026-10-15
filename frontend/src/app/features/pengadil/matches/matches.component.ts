@@ -52,8 +52,8 @@ export class PengadilMatchesComponent implements OnInit {
         if (!res.error) {
           this.matches = res.data || res.matches || [];
           this.filtered = [...this.matches];
-          this.stats.total = res.statistics?.total || this.matches.length;
-          this.stats.disahkan = res.statistics?.verified_year || this.matches.filter((m: any) => m.status_pp === 'Disahkan').length;
+          this.stats.total = res.statistics?.total ?? this.matches.length;
+          this.stats.disahkan = res.statistics?.verified_total ?? this.matches.filter((m: any) => m.status_pp === 'Disahkan').length;
           this.stats.belum_disahkan = Math.max(0, this.stats.total - this.stats.disahkan);
         }
         this.loading = false;

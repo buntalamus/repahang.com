@@ -39,21 +39,67 @@ export async function adminUsers(request: Request, env: Env): Promise<Response> 
     const count = await env.DB.prepare('SELECT COUNT(*) AS total FROM users').first<{ total: number }>();
     return json({ error: false, total: count?.total ?? 0 });
   }
+  const currentYear = Number(new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kuala_Lumpur', year: 'numeric',
+  }).format(new Date()));
+  const yearText = url.searchParams.get('year');
+  const year = yearText === null ? currentYear : Number(yearText);
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+    return json({ error: true, message: 'Tahun tidak sah.' }, 400);
+  }
   const [users, persatuan] = await Promise.all([
     env.DB.prepare(`
+      WITH annual AS (
+        SELECT p.user_id,
+          MAX(CASE WHEN p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan=?
+            AND COALESCE(p.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan')
+            THEN 1 ELSE 0 END) AS current_applied,
+          MAX(CASE WHEN p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan=?
+            AND p.status='Approved'
+            AND (p.tahun_permohonan<2027 OR p.status_ujian='Lulus')
+            AND COALESCE(p.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan')
+            THEN 1 ELSE 0 END) AS current_approved,
+          MAX(CASE WHEN p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan<?
+            AND p.status='Approved'
+            AND (p.tahun_permohonan<2027 OR p.status_ujian='Lulus')
+            AND COALESCE(p.jenis_pengadil,'') NOT IN ('Penilai Pengadil','Pegawai Pembangunan')
+            THEN 1 ELSE 0 END) AS prior_approved,
+          MAX(CASE WHEN p.jenis_borang='penilai_berdaftar' AND p.status='Approved'
+            THEN 1 ELSE 0 END) AS ra_approved,
+          MAX(CASE WHEN p.jenis_borang IN ('kelas3_fam','ujian_bertulis')
+            AND p.status_ujian='Lulus'
+            THEN 1 ELSE 0 END) AS class3_passed,
+          MAX(CASE WHEN p.jenis_borang='ujian_kelas1_fam'
+            AND p.status_ujian='Lulus'
+            THEN 1 ELSE 0 END) AS class1_passed
+        FROM permohonan p GROUP BY p.user_id
+      )
       SELECT u.id, u.email, u.role AS user_role, u.persatuan_id,
              u.nama_penuh, u.no_ic, u.no_telefon, u.jantina,
              u.jenis_pengadil, u.url_gambar_profil,
              u.aktif AS is_active, u.telegram_chat_id, u.created_at,
+             COALESCE(a.current_applied,0) AS current_applied,
+             COALESCE(a.current_approved,0) AS current_approved,
+             COALESCE(a.prior_approved,0) AS prior_approved,
+             CASE WHEN u.role='Pengadil'
+               OR u.jenis_pengadil IN ('Pengadil Negeri','Pengadil Kebangsaan','Kelas III FAM','Kelas I FAM')
+               OR COALESCE(a.current_applied,0)=1 OR COALESCE(a.prior_approved,0)=1
+               THEN 1 ELSE 0 END AS is_referee,
+             CASE WHEN u.role='Penilai' OR COALESCE(a.ra_approved,0)=1
+               OR u.jenis_pengadil='Penilai Pengadil' THEN 1 ELSE 0 END AS is_ra,
+             CASE WHEN u.tahun_lulus_kelas3 IS NOT NULL OR COALESCE(a.class3_passed,0)=1
+               THEN 1 ELSE 0 END AS class3_passed,
+             COALESCE(a.class1_passed,0) AS class1_passed,
              p.nama_persatuan AS persatuan_nama, p.kod_persatuan
       FROM users u
+      LEFT JOIN annual a ON a.user_id=u.id
       LEFT JOIN persatuan_bolasepak_daerah p ON p.id=u.persatuan_id
       ORDER BY u.created_at DESC
-    `).all(),
+    `).bind(year, year, year).all(),
     env.DB.prepare(`
       SELECT id, nama_persatuan FROM persatuan_bolasepak_daerah
       ORDER BY nama_persatuan
     `).all(),
   ]);
-  return json({ error: false, users: users.results, persatuan: persatuan.results });
+  return json({ error: false, year, users: users.results, persatuan: persatuan.results });
 }
