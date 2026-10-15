@@ -7,7 +7,14 @@ const {adminMailbox,receiveMailboxEmail}=await bundle(
 const {db,DB,close}=openDatabase(['0001_worker_sessions','0013_mailbox']);
 const objects=new Map();
 const MEDIA={
-  async put(key,value){objects.set(key,await new Response(value).arrayBuffer());},
+  async put(key,value){
+    // Real R2 rejects a ReadableStream whose length is unknown, which is what
+    // ForwardableEmailMessage.raw is.
+    if (value instanceof ReadableStream) {
+      throw new TypeError('Provided readable stream must have a known length');
+    }
+    objects.set(key,await new Response(value).arrayBuffer());
+  },
   async get(key){const bytes=objects.get(key);return bytes===undefined?null:{
     body:new Response(bytes).body,arrayBuffer:async()=>bytes,
   };},

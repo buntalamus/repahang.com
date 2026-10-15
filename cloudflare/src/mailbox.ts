@@ -55,7 +55,9 @@ export async function receiveMailboxEmail(message: ForwardableEmailMessage, env:
   const key = `mailbox/${mailbox}/inbox/${id}.eml`;
   // Store the original MIME so attachments and all headers are preserved.
   // A failure here rejects the incoming message instead of silently losing it.
-  await env.MEDIA.put(key, message.raw, {
+  // R2 rejects a stream of unknown length, so buffer it (bounded above).
+  const raw = await new Response(message.raw).arrayBuffer();
+  await env.MEDIA.put(key, raw, {
     httpMetadata: { contentType: 'message/rfc822' },
     customMetadata: { mailbox, folder: 'inbox' },
   });
