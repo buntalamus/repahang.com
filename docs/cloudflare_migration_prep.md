@@ -1007,6 +1007,16 @@ Semakan selepas pemasangan: 370 pengguna, 997 lantikan, 91 laporan RA,
 51 perlawanan Hanafi 2026, dan satu indeks unik baharu. Tiada permohonan
 baharu atau emel production dihantar ketika pemasangan ini.
 
+Commit `1411460` membawa POST permohonan, dan `9d8f15d` menambah PDF Futsal
+R3. Kedua-duanya dipush; staging terakhir dideploy daripada worktree bersih
+`9d8f15d` sebagai versi Worker `cf865199-1349-4401-a336-31def848fb29`.
+Ujian jauh: health 200 dengan `api_complete:false`, POST permohonan tanpa
+sesi 401, R3 Futsal tanpa sesi 403, semua suis staging masih `0`, dan D1
+masih 370 pengguna, 997 lantikan, 91 laporan RA, 51 perlawanan Hanafi 2026
+serta indeks unik `0011`. Domain utama masih dijawab oleh PHP LiteSpeed.
+Ini tidak mengesahkan muat naik, PDF, atau penghantaran emel berautentikasi
+di staging; senario itu masih perlu diuji secara terkawal sebelum cutover.
+
 Commit `5d5eb75` telah dipush dan Worker staging dideploy daripada worktree
 bersih (versi `3d45aed5-f364-4e60-98b8-d8bdc7dea0fe`). Semakan jauh:
 health 200 dengan `api_complete:false`, muat turun PDF tanpa sesi 401,
