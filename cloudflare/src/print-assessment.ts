@@ -54,6 +54,11 @@ function role(raw:unknown):string {
 function difficulty(raw:unknown):string {
   return raw==='Susah' ? 'Sukar' : raw==='Sangat Susah' ? 'Sangat Sukar' : 'Normal';
 }
+function logo(raw:unknown):string {
+  const url=String(raw ?? '');
+  return /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(url)
+    ? `<img class="logo" src="${url}" alt="">` : '<span class="logo-spacer"></span>';
+}
 function officialSection(official:Row):string {
   const position=String(official.jawatan ?? '');
   const sections=position==='Pengadil'
@@ -94,12 +99,15 @@ export function renderAssessmentReport(report:Row,officials:Row[],autoprint=fals
       button{background:#fada00;border:0;border-radius:4px;padding:8px 16px;font-weight:700;cursor:pointer}
       main{width:210mm;min-height:280mm;background:#fff;margin:auto;padding:12mm;box-shadow:0 2px 12px #0002}
       h1{text-align:center;font-size:18pt;margin:0}header{text-align:center;border-bottom:3px solid #003366;padding-bottom:10px;margin-bottom:14px}
+      .report-header{display:flex;align-items:center;justify-content:space-between;gap:6mm}
+      .report-header .logo,.report-header .logo-spacer{width:17mm;height:17mm;object-fit:contain;flex:none}
+      .report-header .heading{flex:1}.team-logo{width:13mm;height:13mm;object-fit:contain;display:block;margin:0 auto 2mm}
       h2{background:#003366;color:#fff;font-size:11pt;padding:7px 9px;margin:16px 0 7px}
       h3{font-size:10pt;margin:9px 0 5px}h4{font-size:9pt;margin:8px 0 3px}
       table{width:100%;border-collapse:collapse;margin:7px 0 12px;table-layout:fixed}
       td,th{border:1px solid #9ca3af;padding:5px 7px;vertical-align:top;overflow-wrap:anywhere}
       th,.label{background:#eef2f7;font-weight:700}.center{text-align:center}
-      .section{break-inside:avoid}.official{break-before:page}.official:first-of-type{break-before:auto}
+      .section{break-inside:avoid}.official{break-inside:avoid}.official ~ .official{break-before:page}
       ol{margin:3px 0 8px;padding-left:26px}li{padding:2px 0;overflow-wrap:anywhere}
       .advice{border-left:4px solid #ef4444;background:#fef2f2;padding:7px 10px;overflow-wrap:anywhere}
       .remarks{border:1px solid #9ca3af;padding:8px;white-space:normal;overflow-wrap:anywhere}
@@ -108,7 +116,7 @@ export function renderAssessmentReport(report:Row,officials:Row[],autoprint=fals
       @media print{body{background:#fff;padding:0}main{width:auto;min-height:0;padding:0;box-shadow:none}.toolbar{display:none}}
     </style></head><body>
     <div class="toolbar"><strong>Laporan Penilai Pengadil</strong><button onclick="window.print()">Cetak / Simpan PDF</button></div>
-    <main><header><h1>LAPORAN PENILAI PENGADIL</h1><strong>PERSATUAN BOLA SEPAK NEGERI PAHANG (PBNP)</strong></header>
+    <main><header class="report-header">${logo(report.logo_kiri_data)}<div class="heading"><h1>LAPORAN PENILAI PENGADIL</h1><strong>PERSATUAN BOLA SEPAK NEGERI PAHANG (PBNP)</strong></div>${logo(report.logo_kanan_data)}</header>
     <table><tr><td class="label">Kejohanan</td><td colspan="3">${esc(report.nama_kejohanan)}</td></tr>
       <tr><td class="label">Penilai Pengadil</td><td>${esc(report.nama_penilai || '-')}</td><td class="label">Negeri</td><td>${esc(report.penilai_negeri || '-')}</td></tr></table>
     <h2>MAKLUMAT PERLAWANAN</h2><table>
@@ -116,7 +124,7 @@ export function renderAssessmentReport(report:Row,officials:Row[],autoprint=fals
       <tr><td class="label">Cuaca</td><td>${esc(report.cuaca || '-')}</td><td class="label">Masa</td><td>${esc(String(report.masa ?? '').slice(0,5))}</td></tr>
       <tr><td class="label">Tempat</td><td colspan="3">${esc(report.tempat || '-')}</td></tr></table>
     <table><colgroup><col style="width:40%"><col style="width:20%"><col style="width:40%"></colgroup>
-      <tr><th>${esc(report.pasukan_home)}</th><th>lwn</th><th>${esc(report.pasukan_away)}</th></tr>
+      <tr><th>${report.logo_home_data ? logo(report.logo_home_data) : ''}${esc(report.pasukan_home)}</th><th>lwn</th><th>${report.logo_away_data ? logo(report.logo_away_data) : ''}${esc(report.pasukan_away)}</th></tr>
       <tr class="center"><td>${esc(score(halfHome))}</td><td>Separuh Masa Pertama</td><td>${esc(score(halfAway))}</td></tr>
       <tr class="center"><td>${esc(score(secondHome))}</td><td>Separuh Masa Kedua</td><td>${esc(score(secondAway))}</td></tr>
       <tr class="center"><td>${esc(score(extraHome))}</td><td>Masa Tambahan</td><td>${esc(score(extraAway))}</td></tr>
@@ -144,6 +152,20 @@ async function verifyViewToken(reportId:number,secret:string,signature:string):P
   const bytes=new Uint8Array(signature.match(/../g)!.map((part)=>parseInt(part,16)));
   return crypto.subtle.verify('HMAC',key,bytes,
     new TextEncoder().encode(`laporan-penilaian:view:${reportId}`));
+}
+
+async function reportLogo(env:Env,raw:unknown):Promise<string> {
+  const path=String(raw ?? '');
+  if (!/^\/uploads\/[A-Za-z0-9_./-]+$/.test(path) || path.includes('..')) return '';
+  const object=await env.MEDIA.get(path.slice('/uploads/'.length));
+  if (!object) return '';
+  const mime=object.httpMetadata?.contentType;
+  if (mime!=='image/png' && mime!=='image/jpeg') return '';
+  const bytes=new Uint8Array(await object.arrayBuffer());
+  if (bytes.length===0 || bytes.length>1_000_000) return '';
+  let binary='';
+  for (let i=0;i<bytes.length;i+=8192) binary+=String.fromCharCode(...bytes.subarray(i,i+8192));
+  return `data:${mime};base64,${btoa(binary)}`;
 }
 
 /** Read-only, printable RA report with the same three access modes as PHP. */
@@ -174,7 +196,8 @@ export async function printAssessment(request:Request,env:Env):Promise<Response>
     }
   }
   const report=await env.DB.prepare(`SELECT r.*,jp.no_perlawanan,jp.tarikh,jp.masa,
-    jp.pasukan_home,jp.pasukan_away,jp.tempat,k.nama AS nama_kejohanan,
+    jp.pasukan_home,jp.pasukan_away,jp.tempat,jp.logo_home,jp.logo_away,
+    k.nama AS nama_kejohanan,k.logo_kiri,k.logo_kanan,
     COALESCE(u.nama_penuh,pl.nama) AS nama_penilai,
     COALESCE(NULLIF(trim(u.negeri),''),NULLIF(trim(pl.negeri),''),'-') AS penilai_negeri,
     a.status AS pengesahan_status,a.pengesah_nama,a.pengesah_jawatan,
@@ -225,5 +248,12 @@ export async function printAssessment(request:Request,env:Env):Promise<Response>
   for (const official of officials.results) {
     for (const field of JSON_COLUMNS) if (official[field]===undefined) official[field]=null;
   }
-  return html(renderAssessmentReport(safeReport,officials.results,params.has('print')));
+  const [logoKiri,logoKanan,logoHome,logoAway]=await Promise.all([
+    reportLogo(env,report.logo_kiri),reportLogo(env,report.logo_kanan),
+    reportLogo(env,report.logo_home),reportLogo(env,report.logo_away),
+  ]);
+  return html(renderAssessmentReport({...safeReport,
+    logo_kiri_data:logoKiri,logo_kanan_data:logoKanan,
+    logo_home_data:logoHome,logo_away_data:logoAway,
+  },officials.results,params.has('print')));
 }

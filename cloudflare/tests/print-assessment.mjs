@@ -11,14 +11,15 @@ const compiled=ts.transpileModule(source,{compilerOptions:{
 }}).outputText;
 const {printAssessment,renderAssessmentReport}=await import(
   `data:text/javascript,${encodeURIComponent(compiled)}`);
-const db=new DatabaseSync(new URL('../../output/cloudflare/refpahang_2026-10-13_hanafi51_v2.sqlite',
-  import.meta.url).pathname,{readOnly:true});
+const db=new DatabaseSync(process.env.REFPAHANG_TEST_SNAPSHOT ??
+  new URL('../../output/cloudflare/refpahang_2026-10-13_hanafi51_v2.sqlite',
+    import.meta.url).pathname,{readOnly:true});
 const env={STAGING_AUTH_ENABLED:'0',DB:{
   prepare:(sql)=>({bind:(...params)=>({
     first:async()=>db.prepare(sql).get(...params)??null,
     all:async()=>({results:db.prepare(sql).all(...params)}),
   })}),
-}};
+},MEDIA:{get:async()=>null}};
 const report=db.prepare(`SELECT r.id,r.penilai_id,r.jadual_id,la.penilaian_token
   FROM laporan_penilaian r JOIN lantikan_pengadil la ON la.id=r.lantikan_id
   WHERE r.status='Disahkan' AND la.status='Diterima'
@@ -37,6 +38,15 @@ const admin=await printAssessment(url(),env);
 assert.equal(admin.status,200);
 assert.match(admin.headers.get('Content-Type'),/text\/html/);
 assert.match(await admin.text(),/LAPORAN PENILAI PENGADIL/);
+const pixel=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/N0kAAAAASUVORK5CYII=','base64');
+env.MEDIA.get=async()=>({httpMetadata:{contentType:'image/png'},arrayBuffer:async()=>pixel});
+const withLogos=await printAssessment(url(),env);
+const reportLogos=db.prepare(`SELECT k.logo_kiri,k.logo_kanan,jp.logo_home,jp.logo_away
+  FROM laporan_penilaian r JOIN jadual_perlawanan jp ON jp.id=r.jadual_id
+  JOIN kejohanan k ON k.id=jp.kejohanan_id WHERE r.id=?`).get(report.id);
+if(Object.values(reportLogos).some(Boolean)) {
+  assert.match(await withLogos.text(),/data:image\/png;base64,/);
+}
 assert.equal((await printAssessment(url('&view_token=bad'),env)).status,404,
   'A bad view token never falls back to an Admin session');
 globalThis.actor={id:report.penilai_id,role:'Penilai'};

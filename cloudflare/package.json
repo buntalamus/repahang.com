@@ -14,6 +14,8 @@
     "test:telegram-webhook": "node --no-warnings tests/telegram-webhook.mjs",
     "test:laporan-flow": "node --no-warnings tests/laporan-flow.mjs",
     "test:telegram-blast-preview": "node --no-warnings tests/telegram-blast-preview.mjs",
+    "test:external-telegram-blast": "node --no-warnings tests/external-telegram-blast.mjs",
+    "test:kelas3-welcome": "node --no-warnings tests/kelas3-welcome.mjs",
     "test:print-assessment": "node --no-warnings tests/print-assessment.mjs",
     "test:futsal-form": "node --no-warnings tests/futsal-form.mjs",
     "test:registration-pdf": "node --no-warnings tests/registration-pdf.mjs",

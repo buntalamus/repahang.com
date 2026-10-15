@@ -56,5 +56,10 @@ try {
   assert.match(html,/NO\. 123 JALAN YANG PANJANG/);
   assert.match(html,/overflow-wrap:anywhere/);
   assert.match(html,/break-inside:avoid/);
+  const r11=renderRegistrationHtml(synthetic,'ujian_bertulis',null,[]);
+  assert.match(r11,/PENGAKUAN/);
+  assert.match(r11,/tidak akan menuntut sebarang ganti rugi/);
+  assert.match(r11,/R-11/);
+  assert.match(r11,/PERSATUAN BOLA SEPAK DAERAH/);
   console.log('registration PDF route: ownership, RA R1, binary MIME and dynamic 51-match layout passed');
 } finally { close(); }

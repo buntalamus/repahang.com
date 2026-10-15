@@ -2,6 +2,7 @@ import { currentUser, json } from './auth';
 import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { blastKelas3Welcome } from './kelas3-welcome';
 
 const APPLICATION_TYPES: Record<string, string> = {
   berdaftar: 'pengadil_berdaftar',
@@ -186,6 +187,7 @@ export async function deleteApplication(request: Request, env: Env): Promise<Res
     return json({ error: true, message: 'Data tidak sah.' }, 400);
   }
   const body = input as Record<string, unknown>;
+  if (body.action === 'blast_kelas3_welcome') return blastKelas3Welcome(env, user.id);
   if (body.action === 'update_status_ujian') return updateFitnessResult(body, env);
   if (body.action !== 'delete_application') {
     return json({ error: true, message: 'Tindakan belum tersedia di staging.' }, 503);

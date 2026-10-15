@@ -1,5 +1,41 @@
 # Persediaan migrasi RefPahang ke Cloudflare
 
+## Penutupan 12 laluan separa, 15 Oktober
+
+Dua tindakan POST yang sebelum ini belum wujud di Worker kini dipindahkan:
+`pengadil-luar-telegram-blast.php` merekod batch, claim setiap penerima,
+token Telegram kekal, log sebelum/selepas emel, mod `initial`/`resend` dan
+litar henti selepas tiga kegagalan berturut-turut. Ia tidak menyentuh
+`lantikan_pengadil`. `admin-applications.php` kini mengendalikan
+`blast_kelas3_welcome` Kelas III 2026 dengan jadual penghantaran unik,
+kata laluan sementara yang dihash, pemulihan hash lama jika emel gagal,
+serta pembatalan sesi selepas emel berjaya. Kedua-duanya memerlukan
+`STAGING_WRITES_ENABLED=1` dan `BULK_EMAIL_ENABLED=1`; staging masih `0`.
+
+Borang R11 Worker kini merangkumi pengakuan, butiran pejabat dan susun atur
+tajuk seperti borang PHP. PDF sintetik alamat panjang dirender satu halaman A4
+di Chrome. Cetakan laporan RA kini menyemat logo kejohanan/pasukan dari R2 dan
+menjaga seksyen penilaian apabila halaman bertukar. R1/R2/R4 sintetik dengan
+51 perlawanan dirender tujuh halaman A4 tanpa teks terpotong. Fail semakan
+visual disimpan sementara di `tmp/pdfs/`, bukan data production.
+
+Kesemua 17 ujian Worker termasuk kedua-dua blast tiruan, muat naik R2 tiruan,
+aliran RA, lantikan dan PDF lulus pada salinan dump 15 Oktober; `tsc --noEmit`
+juga lulus. Ini menyelesaikan tindakan kod yang diketahui hilang. Senarai 12
+dalam `endpoint_coverage.py` kini menandakan **ujian staging/live yang belum
+disahkan**, bukannya 12 route yang tiada. Untuk menutupnya, perlu ujian
+terkawal dengan peti masuk ujian yang diluluskan, PDF/laporan daripada akaun
+ujian sebenar, dan pengesahan penghantaran serta penerimaan emel/Telegram.
+Tiada emel kepada pemohon production dihantar oleh ujian setempat.
+
+Migrasi `0012_kelas3_welcome_delivery.sql` ditambah pada D1 staging.
+Percubaan eksport D1 melalui API Wrangler gagal dengan kod autentikasi 10000,
+tetapi `d1 execute` berjaya. Migrasi hanya mencipta jadual baharu; salinan
+MySQL/D1 tempatan 15 Oktober masih ada. Semakan jauh selepas migrasi: 370
+pengguna, 11,608 perlawanan, 51 perlawanan Hanafi 2026, sifar penghantaran
+Kelas 3 baharu dan 10 batch onboarding Telegram lama. Domain production masih
+PHP; `api_complete` kekal `false`.
+
 Tarikh audit: 13–15 Oktober 2026. Ini ialah inventori dan alat persediaan untuk
 staging. DNS kini diurus oleh Cloudflare dan rekod hos emel telah dibetulkan;
 aplikasi production masih berjalan pada pelayan PHP lama. Peti masuk kekal
@@ -84,8 +120,9 @@ memerlukan kedua-dua `STAGING_WRITES_ENABLED=1` dan suis berasingan
 `BULK_EMAIL_ENABLED=1`; kedua-duanya `0` pada staging. Ujian dengan pengirim
 emel palsu meliputi peranan, penjanaan serta guna semula token, kegagalan
 seorang penerima dan penolakan semasa suis ditutup. Tiada emel sebenar
-dihantar oleh ujian ini. POST jemputan `pengadil-luar-telegram-blast.php`
-masih separa dan memerlukan giliran serta log onboarding.
+dihantar oleh ujian ini. Pada deployment tersebut, POST jemputan
+`pengadil-luar-telegram-blast.php` masih 503; pelaksanaannya yang baharu
+diterangkan pada bahagian penutupan 12 laluan di atas.
 Commit `12dfbc0` dipush dan dideploy ke staging sebagai Worker versi
 `a907e82b-20b2-4d5e-84dc-67b06b499a8e`. Semua lima suis staging kekal
 `0`, termasuk `BULK_EMAIL_ENABLED`. Semakan selepas deploy: health 200 dengan

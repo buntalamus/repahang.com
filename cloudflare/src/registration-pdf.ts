@@ -171,26 +171,38 @@ function r4(rowData: Row, logo: string): string {
 }
 
 function r11(rowData: Row, logo: string, kelas: string): string {
-  return `<section class="form-page r11">${header(rowData, 'R11', `PERMOHONAN MENGIKUTI KURSUS<br>PENGADIL BOLASEPAK / PENGADIL FUTSAL<br>KELAS ${kelas}`, logo)}
-    ${section('MAKLUMAT PERIBADI')}
-    ${row(['Nama Penuh:', upper(value(rowData, 'nama_penuh'))], ['No. KP:', value(rowData, 'no_kp', value(rowData, 'no_ic'))])}
-    ${row(['Alamat Emel:', value(rowData, 'emel', value(rowData, 'email'))], ['No. Telefon:', value(rowData, 'no_telefon')])}
-    ${row(['Jantina:', value(rowData, 'jantina')], ['Jenis Peperiksaan:', `KELAS ${kelas}`])}
+  const year=value(rowData,'tahun_permohonan',String(new Date().getFullYear()));
+  const reference=`PBNP/KELAS ${kelas}/${year}/${value(rowData,'id','0').padStart(4,'0')}`;
+  const date=value(rowData,'tarikh_hantar').slice(0,10).split('-');
+  const submitted=date.length===3 ? `${date[2]}/${date[1]}/${date[0]}` : today();
+  const ic=value(rowData,'no_kp',value(rowData,'no_ic'));
+  return `<section class="form-page r11"><div class="form-code">Borang R11</div>
+    <div class="r11-org"><div class="logo">${logo ? `<img src="${logo}" alt="">` : ''}</div>
+      <div><strong>PERSATUAN BOLASEPAK NEGERI PAHANG</strong><span>PAHANG FOOTBALL ASSOCIATION</span>
+      <small>(Ahli gabungan Persatuan Bolasepak Malaysia dan berdaftar dengan Pesuruhjaya Sukan Malaysia 0077/98)</small></div></div>
+    <div class="r11-title"><strong>R-11</strong><span>PERMOHONAN MENGIKUTI KURSUS<br>PENGADIL BOLASEPAK<br>PENGADIL FUTSAL</span></div>
+    <div class="meta"><span>No. Rujukan: ${esc(reference)}</span><span>Tarikh: ${esc(submitted)}</span></div>
+    ${section('MAKLUMAT PEMOHON')}
+    ${row(['Nama Penuh:', upper(value(rowData, 'nama_penuh'))], ['No. KP:', ic])}
+    ${row(['Alamat Emel:', value(rowData, 'emel',value(rowData,'email',value(rowData,'user_email')))], ['No. Telefon:', value(rowData, 'no_telefon')])}
+    ${row(['Jantina:', upper(value(rowData, 'jantina'))], ['Jenis Peperiksaan:', `BOLA SEPAK KELAS ${kelas} FAM`])}
     ${row(['Alamat:', address(rowData)])}
     ${section('MAKLUMAT TEMPAT KERJA')}
-    ${row(['Status Kerja:', value(rowData, 'status_kerja')], ['Jawatan:', value(rowData, 'jawatan')])}
-    ${row(['Nama Majikan:', value(rowData, 'nama_majikan')])}
-    ${row(['Alamat:', address(rowData, true)])}
+    ${row(['Status Kerja:', upper(value(rowData, 'status_kerja'))], ['Jawatan:', upper(value(rowData, 'jawatan'))])}
+    ${row(['Nama Majikan:', upper(value(rowData, 'nama_majikan'))])}
+    ${row(['Alamat:', [value(rowData,'alamat_majikan1'),value(rowData,'alamat_majikan2')].filter(Boolean).join(', ').toLocaleUpperCase('ms') || '-'])}
     ${section('MAKLUMAT WARIS TERDEKAT')}
-    ${row(['Nama Waris:', value(rowData, 'nama_waris')])}
-    ${row(['No. Telefon Waris:', value(rowData, 'telefon_waris')], ['Hubungan:', value(rowData, 'hubungan_waris')])}
-    ${section('MAKLUMAT PEGAWAI PEMBANGUNAN')}
-    ${row(['Nama Pegawai Pembangunan:', value(rowData, 'pp_daerah_nama')])}
+    ${row(['Nama Waris:', upper(value(rowData, 'nama_waris'))])}
+    ${row(['No. Telefon Waris:', value(rowData, 'telefon_waris')], ['Hubungan:', upper(value(rowData, 'hubungan_waris'))])}
+    ${section(`MAKLUMAT PERSATUAN BOLA SEPAK DAERAH ${upper(value(rowData,'district_nama'))}`)}
+    ${row(['Nama Pegawai Pembangunan:', upper(value(rowData, 'pp_daerah_nama'))])}
     ${row(['No. Telefon:', value(rowData, 'pp_telefon')], ['Alamat Emel:', value(rowData, 'pp_emel')])}
-    <p>Saya mengesahkan segala maklumat di atas adalah benar.</p>
+    ${section('PENGAKUAN')}
+    <div class="declaration">Saya mengaku bahawa saya tidak akan menuntut sebarang ganti rugi daripada PBNP / Pengelola jika berlaku apa-apa kemalangan pada saya, sebelum, semasa, selepas penyertaan di dalam kursus ini.</div>
+    <p>Terima kasih</p><p>Saya yang benar</p>
     <div class="signatures"><div><div class="sign-line"></div>Tandatangan pemohon<br>Nama: ${esc(value(rowData, 'nama_penuh'))}<br>MYKad: ${esc(value(rowData, 'no_kp', value(rowData, 'no_ic')))}</div>
       <div><div class="sign-line"></div>Tarikh</div></div>
-    ${section('UNTUK KEGUNAAN PEJABAT')}
+    ${section('UNTUK KEGUNAAN PERSATUAN BOLASEPAK NEGERI PAHANG')}
     <p>Permohonan dilulus / ditolak<br>No. Pendaftaran: ____________________</p></section>`;
 }
 
@@ -199,6 +211,11 @@ const css = `@page{size:A4;margin:15mm}*{box-sizing:border-box}html,body{margin:
   .masthead{display:flex;align-items:flex-start;min-height:33mm;gap:3mm}.logo{width:21mm;flex:none}.logo img{max-width:20mm;max-height:20mm}
   .masthead-title{flex:1;text-align:center;padding-top:3mm}.masthead-title strong{display:block;font-size:12pt;line-height:1.2}
   .masthead-title span{display:block;font-size:10pt;font-weight:bold;margin-top:2mm}.photo{width:29mm;height:31mm;flex:none;border:1px solid #555;display:flex;align-items:end;justify-content:center;text-align:center;font-size:6pt;padding:1mm}
+  .r11-org{display:flex;align-items:center;border-bottom:1px solid #111;padding:1mm 0 4mm;text-align:center;gap:3mm}.r11-org>div:last-child{flex:1}.r11-org strong,.r11-org span,.r11-org small{display:block}.r11-org strong{font-size:12pt}.r11-org span{font-size:10pt;font-weight:bold}.r11-org small{font-size:7pt;font-style:italic}
+  .r11-title{display:flex;align-items:center;gap:7mm;margin:4mm 0 2mm}.r11-title strong{font-size:30pt;font-style:italic}.r11-title span{font-size:11pt;font-style:italic;line-height:1.2}
+  .r11{font-size:8pt;line-height:1.2}.r11 .r11-org{padding-bottom:2mm}.r11 .r11-title{margin:2mm 0 1mm}
+  .r11 .section{font-size:8pt;margin:2.5mm 0 1mm;padding:1.2mm 2mm}.r11 .data-cell{min-height:6mm;padding:1mm}
+  .r11 .signatures{margin:4mm 0 2mm}.r11 .sign-line{height:8mm}.r11 p{margin:1.5mm 0}
   .photo img{width:100%;height:100%;object-fit:contain}.meta{display:flex;justify-content:space-between;margin:1mm 0 5mm;font-size:8pt}
   p{margin:2.5mm 0}.section{font-size:9pt;background:#111;color:#fff;padding:2mm 3mm;margin:4mm 0 2mm;break-after:avoid}
   .r1 .section{background:#fff;color:#111;border:1px solid #111;text-align:center}.data-row{display:flex;width:100%;break-inside:avoid}
