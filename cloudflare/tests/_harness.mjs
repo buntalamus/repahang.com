@@ -19,7 +19,7 @@ export async function bundle(contents) {
 export function openDatabase(migrations) {
   const directory=mkdtempSync(join(tmpdir(),'refpahang-db-'));
   const path=join(directory,'db.sqlite');
-  copyFileSync(new URL('../../output/cloudflare/refpahang_2026-10-13_hanafi51.sqlite',import.meta.url),path);
+  copyFileSync(new URL('../../output/cloudflare/refpahang_2026-10-13_hanafi51_v2.sqlite',import.meta.url),path);
   const db=new DatabaseSync(path);
   for (const file of migrations) {
     db.exec(readFileSync(new URL(`../migrations/${file}.sql`,import.meta.url),'utf8'));

@@ -111,7 +111,7 @@ export async function assessmentReports(request: Request, env: Env): Promise<Res
     return json({error:true,message:'Penulisan laporan belum tersedia di staging.'},503);
   }
   const user = await currentUser(request,env);
-  if (!user) return json({error:true,message:'Sila log masuk.'},401);
+  if (!user) return json({error:true,message: 'Sesi tidak sah. Sila log masuk semula.'},401);
   if (!['Admin','Penilai','PP Daerah'].includes(user.role)) {
     return json({error:true,message:'Akses ditolak.'},403);
   }

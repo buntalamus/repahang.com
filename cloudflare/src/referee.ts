@@ -10,7 +10,7 @@ function pageNumber(value: string | null, fallback: number): number {
 /** The appointment picker and referee search use the same active-user list. */
 export async function activeReferees(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
-  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   if (!['Pengadil', 'Penilai', 'PP Daerah', 'Admin'].includes(user.role)) {
     return json({ error: true, message: 'Akses ditolak.' }, 403);
   }
@@ -32,7 +32,7 @@ export async function activeReferees(request: Request, env: Env): Promise<Respon
 /** The legacy referee dashboard and match list share this owner-scoped feed. */
 export async function refereeMatches(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
-  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   if (user.role !== 'Pengadil') return json({ error: true, message: 'Akses ditolak.' }, 403);
 
   const params = new URL(request.url).searchParams;
@@ -101,7 +101,7 @@ export async function refereeMatches(request: Request, env: Env): Promise<Respon
 
 export async function ownApplications(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
-  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   const allowed = ['Pengadil', 'Penilai', 'PP Daerah'].includes(user.role)
     || (user.role === 'Admin' && user.jenis_pengadil === 'Penilai Pengadil');
   if (!allowed) return json({ error: true, message: 'Akses ditolak.' }, 403);

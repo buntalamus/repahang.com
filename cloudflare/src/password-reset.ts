@@ -22,7 +22,7 @@ function enabled(env: Env): boolean {
 }
 
 export async function forgotPassword(request: Request, env: Env): Promise<Response> {
-  if (request.method !== 'POST') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
+  if (request.method !== 'POST') return json({ error: true, message: 'Method not allowed.' }, 405);
   if (!enabled(env)) return json({ error: true, message: 'Fungsi ini belum tersedia di staging.' }, 503);
   const input = await boundedJson(request);
   if (input instanceof Response) return input;
@@ -77,7 +77,7 @@ export async function forgotPassword(request: Request, env: Env): Promise<Respon
 }
 
 export async function resetPassword(request: Request, env: Env): Promise<Response> {
-  if (request.method !== 'POST') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
+  if (request.method !== 'POST') return json({ error: true, message: 'Method not allowed.' }, 405);
   if (!enabled(env)) return json({ error: true, message: 'Fungsi ini belum tersedia di staging.' }, 503);
   const input = await boundedJson(request);
   if (input instanceof Response) return input;

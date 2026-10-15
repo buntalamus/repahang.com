@@ -55,7 +55,7 @@ function byDistrict(rows: Row[], withVerified: boolean): Row[] {
 export async function statistics(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'GET') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
   const actor = await currentUser(request, env);
-  if (!actor) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!actor) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   if (actor.role !== 'Admin') return json({ error: true, message: 'Akses ditolak.' }, 403);
   const requested = new URL(request.url).searchParams.get('year');
   const year = requested === null ? Number(new Intl.DateTimeFormat('en', {

@@ -13,6 +13,7 @@ import { assessmentReports } from './assessment-reports';
 import { assessmentDraft } from './assessment-draft';
 import { submitAssessmentRequest } from './report-submission';
 import { telegramWebhook } from './telegram-webhook';
+import { GATES } from './php/gates';
 import { appointmentWritesEnabled } from './lantikan-write';
 import { processQueuedKupCrewNotifications } from './php/lantikan-helper';
 import { districtAssessments, refereeAssessments } from './assessments';
@@ -95,7 +96,7 @@ async function publicPersatuan(env: Env): Promise<Response> {
 
 async function districts(request: Request, env: Env): Promise<Response> {
   if (!await currentUser(request, env)) {
-    return json({ error: true, message: 'Sila log masuk.' }, 401);
+    return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   }
   const result = await env.DB.prepare('SELECT id, nama FROM districts ORDER BY nama ASC').all();
   return json({ error: false, data: result.results });
@@ -103,7 +104,7 @@ async function districts(request: Request, env: Env): Promise<Response> {
 
 async function userProfile(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
-  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   const profile = await env.DB.prepare(`
     SELECT u.id, u.email, u.nama_penuh, u.no_ic, u.no_telefon, u.jantina,
            u.alamat1, u.alamat2, u.poskod, u.daerah, u.negeri,
@@ -130,7 +131,7 @@ async function userProfile(request: Request, env: Env): Promise<Response> {
 
 async function privateMedia(request: Request, env: Env, pathname: string): Promise<Response> {
   const user = await currentUser(request, env);
-  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   let key: string;
   try {
     key = decodeURIComponent(pathname.slice('/uploads/'.length));
@@ -193,6 +194,11 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
     if (request.method !== 'GET') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
     await env.DB.prepare('SELECT 1').first();
     return json({ ok: true, stage: 'migration', api_complete: false });
+  }
+  const gate = GATES[pathname.slice('/api/'.length)];
+  if (gate && request.method !== 'OPTIONS') {
+    const denied = gate(await currentUser(request, env));
+    if (denied) return denied;
   }
   if (pathname === '/api/login.php') return login(request, env);
   if (pathname === '/api/register.php') return register(request, env);

@@ -38,7 +38,7 @@ function decodeOfficial(row: Row): Row {
 /** Confirmed RA reports visible to a KUP official appointed to that report. */
 export async function refereeAssessments(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
-  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   if (user.role !== 'Pengadil') return json({ error: true, message: 'Akses ditolak.' }, 403);
 
   const id = reportId(request);
@@ -99,7 +99,7 @@ export async function refereeAssessments(request: Request, env: Env): Promise<Re
 /** Confirmed reports involving at least one official in the PP's persatuan. */
 export async function districtAssessments(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
-  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   if (user.role !== 'PP Daerah') return json({ error: true, message: 'Akses ditolak.' }, 403);
   if (!user.persatuan_id) return json({ error: true, message: 'Persatuan ID tidak ditemui.' }, 400);
 

@@ -58,7 +58,7 @@ function ageFromIc(raw: unknown, today: string): number | '' {
 export async function adminRefereeExport(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'GET') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
   const user = await currentUser(request, env);
-  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   if (user.role !== 'Admin') return json({ error: true, message: 'Akses ditolak.' }, 403);
   const params = new URL(request.url).searchParams;
   const today = malaysiaToday();
@@ -115,7 +115,7 @@ export async function adminRefereeExport(request: Request, env: Env): Promise<Re
 export async function districtRefereeExport(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'GET') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
   const user = await currentUser(request, env);
-  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   if (user.role !== 'PP Daerah') return json({ error: true, message: 'Akses ditolak.' }, 403);
   if (!user.persatuan_id) return json({ error: true, message: 'Persatuan not assigned to your account.' }, 403);
   const typeMap: Record<string, string> = {

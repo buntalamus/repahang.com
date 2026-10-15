@@ -11,7 +11,7 @@ const compiled=ts.transpileModule(source,{compilerOptions:{
 }}).outputText;
 const {printAssessment,renderAssessmentReport}=await import(
   `data:text/javascript,${encodeURIComponent(compiled)}`);
-const db=new DatabaseSync(new URL('../../output/cloudflare/refpahang_2026-10-13_hanafi51.sqlite',
+const db=new DatabaseSync(new URL('../../output/cloudflare/refpahang_2026-10-13_hanafi51_v2.sqlite',
   import.meta.url).pathname,{readOnly:true});
 const env={STAGING_AUTH_ENABLED:'0',DB:{
   prepare:(sql)=>({bind:(...params)=>({

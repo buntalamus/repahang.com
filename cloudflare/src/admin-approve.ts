@@ -15,9 +15,9 @@ interface Application {
 }
 
 export async function adminApprove(request: Request, env: Env): Promise<Response> {
-  if (request.method !== 'POST') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
+  if (request.method !== 'POST') return json({ error: true, message: 'Method not allowed' }, 405);
   const actor = await currentUser(request, env);
-  if (!actor) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!actor) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   if (actor.role !== 'Admin') return json({ error: true, message: 'Akses ditolak. Hanya admin boleh mengakses.' }, 403);
   if (env.STAGING_WRITES_ENABLED !== '1') {
     return json({ error: true, message: 'Tindakan tulis belum tersedia di staging.' }, 503);

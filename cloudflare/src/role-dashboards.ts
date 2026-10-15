@@ -3,7 +3,7 @@ import type { Env } from './types';
 
 export async function assessorDashboard(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
-  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   if (user.role !== 'Penilai' && !(user.role === 'Admin' && user.jenis_pengadil === 'Penilai Pengadil')) {
     return json({ error: true, message: 'Akses ditolak.' }, 403);
   }
@@ -52,7 +52,7 @@ export async function assessorDashboard(request: Request, env: Env): Promise<Res
 
 export async function districtAnnouncements(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
-  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   if (user.role !== 'PP Daerah') return json({ error: true, message: 'Akses ditolak.' }, 403);
   const rows = await env.DB.prepare(`
     SELECT id,title,content,created_at FROM announcements
@@ -68,7 +68,7 @@ const DISTRICT_MATCH_SCOPE = `(
 
 export async function districtOverview(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
-  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   if (user.role !== 'PP Daerah') return json({ error: true, message: 'Akses ditolak.' }, 403);
   if (!user.persatuan_id) {
     return json({ error: true, message: 'Persatuan not assigned to your account.' }, 403);

@@ -176,7 +176,7 @@ export async function adminMatches(request: Request, env: Env): Promise<Response
     return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
   }
   const user = await currentUser(request, env);
-  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   if (user.role !== 'Admin') return json({ error: true, message: 'Akses ditolak.' }, 403);
   if (request.method === 'GET') return listMatches(request, env);
   if (env.STAGING_WRITES_ENABLED !== '1') {

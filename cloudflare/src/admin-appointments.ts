@@ -10,7 +10,7 @@ type PoolOfficial = Record<string,unknown> & {daerah:string|null;negeri:string|n
 /** Admin match assignment view and the write actions of api/lantikan.php. */
 export async function adminAppointments(request:Request,env:Env):Promise<Response> {
   const user=await currentUser(request,env);
-  if (!user) return json({error:true,message:'Sila log masuk.'},401);
+  if (!user) return json({error:true,message: 'Sesi tidak sah. Sila log masuk semula.'},401);
   if (user.role!=='Admin') return json({error:true,message:'Akses ditolak.'},403);
   if (request.method!=='GET') return lantikanWrite(request,env,user);
   const raw=new URL(request.url).searchParams.get('jadual_id');

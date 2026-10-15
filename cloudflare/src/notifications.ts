@@ -4,7 +4,7 @@ import type { Env } from './types';
 
 export async function notifications(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
-  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
 
   if (request.method === 'GET') {
     const [rows, count] = await Promise.all([
@@ -51,7 +51,7 @@ export async function notifications(request: Request, env: Env): Promise<Respons
 
 export async function announcements(request: Request, env: Env): Promise<Response> {
   if (!await currentUser(request, env)) {
-    return json({ error: true, message: 'Sila log masuk.' }, 401);
+    return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   }
   const idRaw = new URL(request.url).searchParams.get('id');
   if (idRaw !== null) {

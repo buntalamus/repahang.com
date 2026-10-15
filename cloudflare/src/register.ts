@@ -21,7 +21,7 @@ function tokenHex(): string {
 }
 
 export async function register(request: Request, env: Env): Promise<Response> {
-  if (request.method !== 'POST') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
+  if (request.method !== 'POST') return json({ error: true, message: 'Method not allowed' }, 405);
   if (env.STAGING_AUTH_ENABLED !== '1' || env.STAGING_WRITES_ENABLED !== '1') {
     return json({ error: true, message: 'Pendaftaran belum tersedia di staging.' }, 503);
   }

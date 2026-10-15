@@ -72,7 +72,8 @@ export async function currentUser(request: Request, env: Env): Promise<SessionUs
   if (!token) return null;
   return await env.DB.prepare(`
     SELECT u.id, u.email, u.role, u.jenis_pengadil, u.nama_penuh,
-           u.persatuan_id, u.district_id, p.nama_persatuan AS persatuan_nama,
+           COALESCE(NULLIF(u.persatuan_id,0),u.district_id) AS persatuan_id,
+           u.district_id, p.nama_persatuan AS persatuan_nama,
            u.password_changed
     FROM worker_sessions s
     JOIN users u ON u.id = s.user_id

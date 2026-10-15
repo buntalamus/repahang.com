@@ -12,7 +12,7 @@ type RefereeRow = Record<string, unknown> & { user_id: number };
 export async function registeredReferees(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'GET') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
   const user = await currentUser(request, env);
-  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   if (user.role !== 'Admin') return json({ error: true, message: 'Akses ditolak.' }, 403);
   const query = new URL(request.url).searchParams;
   const currentYear = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kuala_Lumpur', year: 'numeric' }).format(new Date()));
@@ -97,7 +97,7 @@ export async function registeredReferees(request: Request, env: Env): Promise<Re
 export async function deactivateReferee(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'DELETE') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
   const user = await currentUser(request, env);
-  if (!user) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   if (user.role !== 'Admin') return json({ error: true, message: 'Akses ditolak.' }, 403);
   if (env.STAGING_WRITES_ENABLED !== '1') {
     return json({ error: true, message: 'Tindakan tulis belum tersedia di staging.' }, 503);

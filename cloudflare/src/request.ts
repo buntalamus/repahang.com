@@ -9,17 +9,18 @@ function badJson(message: string, status: number): Response {
   });
 }
 
-/** Read JSON with a real byte cap even when Content-Length is absent. */
+/**
+ * getJsonInput() from PHP: the body is decoded whatever the Content-Type, and
+ * anything that is not a JSON object/array becomes an empty object so the
+ * endpoint's own field validation answers. A real byte cap still applies.
+ */
 export async function boundedJson(request: Request, maxBytes = 4096): Promise<unknown | Response> {
-  if (request.headers.get('Content-Type')?.split(';')[0] !== 'application/json') {
-    return badJson('JSON diperlukan.', 415);
-  }
   if (Number(request.headers.get('Content-Length') ?? 0) > maxBytes) {
     return badJson('Permintaan terlalu besar.', 413);
   }
   try {
     const reader = request.body?.getReader();
-    if (!reader) return badJson('JSON tidak sah.', 400);
+    if (!reader) return {};
     const chunks: Uint8Array[] = [];
     let length = 0;
     while (true) {
@@ -38,8 +39,9 @@ export async function boundedJson(request: Request, maxBytes = 4096): Promise<un
       bodyBytes.set(chunk, offset);
       offset += chunk.byteLength;
     }
-    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bodyBytes)) as unknown;
+    const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bodyBytes));
+    return parsed !== null && typeof parsed === 'object' ? parsed : {};
   } catch {
-    return badJson('JSON tidak sah.', 400);
+    return {};
   }
 }

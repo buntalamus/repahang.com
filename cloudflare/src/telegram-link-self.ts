@@ -2,9 +2,8 @@ import { currentUser, json } from './auth';
 import type { Env } from './types';
 
 export async function telegramLinkSelf(request: Request, env: Env): Promise<Response> {
-  if (request.method !== 'POST') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
   const actor = await currentUser(request, env);
-  if (!actor) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!actor) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   const row = await env.DB.prepare('SELECT telegram_chat_id,tg_link_token FROM users WHERE id=? AND aktif=1')
     .bind(actor.id).first<{ telegram_chat_id: number | null; tg_link_token: string | null }>();
   if (!row) return json({ error: true, message: 'Pengguna tidak ditemui.' }, 404);

@@ -72,7 +72,7 @@ assert.equal(payload.referees.find((item)=>item.pengadil_luar_id===8).wilayah,'K
 assert.doesNotMatch(JSON.stringify(payload),/12345/);
 assert.equal(db.prepare('SELECT COUNT(*) AS n FROM lantikan_pengadil').get().n,3);
 db.close();
-const snapshotPath=new URL('../../output/cloudflare/refpahang_2026-10-13_hanafi51.sqlite',import.meta.url);
+const snapshotPath=new URL('../../output/cloudflare/refpahang_2026-10-13_hanafi51_v2.sqlite',import.meta.url);
 if (existsSync(snapshotPath)) {
   const snapshot=new DatabaseSync(snapshotPath.pathname,{readOnly:true});
   const match=snapshot.prepare(`SELECT lp.jadual_id FROM lantikan_pengadil lp

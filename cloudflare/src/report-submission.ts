@@ -66,7 +66,7 @@ async function hantar(env:Env,id:number,userId:number,meta:AuditMeta):Promise<Re
 export async function submitAssessmentRequest(request:Request,env:Env):Promise<Response> {
   if (request.method!=='PUT') return json({error:true,message:'Kaedah tidak disokong.'},405);
   const user=await currentUser(request,env);
-  if (!user) return json({error:true,message:'Sila log masuk.'},401);
+  if (!user) return json({error:true,message: 'Sesi tidak sah. Sila log masuk semula.'},401);
   if (!['Admin','Penilai','PP Daerah'].includes(user.role)) return json({error:true,message:'Akses ditolak.'},403);
   if (!reportWritesEnabled(env)) {
     return json({error:true,message:'Penghantaran laporan belum tersedia di staging.'},503);

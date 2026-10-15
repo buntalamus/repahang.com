@@ -11,7 +11,7 @@ const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Admin-only Telegram onboarding previews. Sending remains closed. */
 export async function adminTelegramBlastPreview(request:Request,env:Env):Promise<Response> {
   const user=await currentUser(request,env);
-  if (!user) return json({error:true,message:'Sila log masuk.'},401);
+  if (!user) return json({error:true,message: 'Sesi tidak sah. Sila log masuk semula.'},401);
   if (user.role!=='Admin') return json({error:true,message:'Akses ditolak.'},403);
   if (request.method==='POST') return json({error:true,message:'Penghantaran blast belum tersedia di staging.'},503);
   if (request.method!=='GET') return json({error:true,message:'Kaedah tidak disokong.'},405);
@@ -27,7 +27,7 @@ export async function adminTelegramBlastPreview(request:Request,env:Env):Promise
 
 export async function externalTelegramBlastPreview(request:Request,env:Env):Promise<Response> {
   const user=await currentUser(request,env);
-  if (!user) return json({error:true,message:'Sila log masuk.'},401);
+  if (!user) return json({error:true,message: 'Sesi tidak sah. Sila log masuk semula.'},401);
   if (user.role!=='Admin') return json({error:true,message:'Akses ditolak.'},403);
   if (request.method==='POST') return json({error:true,message:'Penghantaran onboarding belum tersedia di staging.'},503);
   if (request.method!=='GET') return json({error:true,message:'Kaedah tidak disokong.'},405);

@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Convert an imported MySQL dump into a private SQLite/D1 staging snapshot.
 
-This copies schema, data, indexes and declared foreign keys. It does not port
-application SQL, MySQL defaults, ENUM validation or transaction behaviour.
+This copies schema, data, indexes, declared foreign keys, column defaults
+(CURRENT_TIMESTAMP becomes Malaysia time) and case-insensitive collation:
+utf8mb4_*_ci text columns become COLLATE NOCASE so comparisons, GROUP BY,
+DISTINCT and ORDER BY ignore ASCII case like MySQL. NOCASE does not ignore
+accents or trailing spaces. It does not port application SQL, ENUM validation
+or transaction behaviour.
 Do not use the resulting file for production cutover without those reviews.
 """
 
@@ -41,6 +45,32 @@ def sqlite_type(data_type: str) -> str:
         return "BLOB"
     # DECIMAL stays text to retain exact digits. Dates/JSON/ENUM stay text.
     return "TEXT"
+
+
+def column_default(column: dict) -> str:
+    """SQLite DEFAULT clause equivalent to the MySQL column default."""
+    default = column.get("column_default")
+    if isinstance(default, (bytes, bytearray)):
+        default = bytes(default).decode("utf-8")
+    if default is None:
+        return ""
+    extra = str(column.get("extra") or "").upper()
+    text = str(default)
+    if "DEFAULT_GENERATED" in extra or text.upper().startswith("CURRENT_TIMESTAMP"):
+        if text.upper().startswith("CURRENT_TIMESTAMP") or text.upper() == "NOW()":
+            return " DEFAULT (datetime('now','+8 hours'))"
+        raise RuntimeError(f"Unsupported generated default {column['table_name']}.{column['column_name']}: {text}")
+    if sqlite_type(column["data_type"]) in ("INTEGER", "REAL"):
+        float(text)
+        return " DEFAULT " + text
+    return " DEFAULT '" + text.replace("'", "''") + "'"
+
+
+def text_collation(column: dict) -> str:
+    collation = str(column.get("collation_name") or "")
+    if sqlite_type(column["data_type"]) == "TEXT" and collation.endswith("_ci"):
+        return " COLLATE NOCASE"
+    return ""
 
 
 def normalize(value: object, data_type: str) -> object:
@@ -93,7 +123,8 @@ def main() -> int:
         WHERE table_schema=%s AND table_type='BASE TABLE' ORDER BY table_name
     """, (args.database,))
     columns = fetch_dicts(meta, """
-        SELECT table_name,column_name,data_type,is_nullable,ordinal_position
+        SELECT table_name,column_name,data_type,is_nullable,ordinal_position,
+               collation_name,column_default,extra
         FROM information_schema.columns WHERE table_schema=%s
         ORDER BY table_name,ordinal_position
     """, (args.database,))
@@ -155,11 +186,14 @@ def main() -> int:
             )) == "INTEGER"
             definitions = []
             for column in table_columns:
-                part = quote(column["column_name"]) + " " + sqlite_type(column["data_type"])
+                part = (quote(column["column_name"]) + " " + sqlite_type(column["data_type"])
+                        + text_collation(column))
                 if inline_pk and column["column_name"] == pk[0]:
                     part += " PRIMARY KEY"
                 elif column["is_nullable"] == "NO":
                     part += " NOT NULL"
+                if not (inline_pk and column["column_name"] == pk[0]):
+                    part += column_default(column)
                 definitions.append(part)
             if pk and not inline_pk:
                 definitions.append("PRIMARY KEY (" + ", ".join(map(quote, pk)) + ")")

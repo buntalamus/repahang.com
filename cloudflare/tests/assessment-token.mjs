@@ -71,7 +71,7 @@ db.exec(`
 const draft=await (await assessmentToken(new Request(url),env)).json();
 assert.equal(draft.existing.status,'Draf');
 assert.deepEqual(draft.existing.pegawai[0].kawalan_kekuatan,['Baik']);
-const snapshotPath=new URL('../../output/cloudflare/refpahang_2026-10-13_hanafi51.sqlite',import.meta.url);
+const snapshotPath=new URL('../../output/cloudflare/refpahang_2026-10-13_hanafi51_v2.sqlite',import.meta.url);
 if (existsSync(snapshotPath)) {
   const snapshot=new DatabaseSync(snapshotPath.pathname,{readOnly:true});
   const snapshotEnv={...env,DB:{prepare:(sql)=>({bind:(...params)=>({

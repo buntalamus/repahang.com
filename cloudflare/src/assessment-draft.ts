@@ -131,7 +131,7 @@ export async function assessmentDraft(request: Request,env: Env,source:'session'
     return json({error:true,message:'Simpanan laporan belum tersedia di staging.'},503);
   }
   const user = source==='session' ? await currentUser(request,env) : null;
-  if (source==='session' && !user) return json({error:true,message:'Sila log masuk.'},401);
+  if (source==='session' && !user) return json({error:true,message: 'Sesi tidak sah. Sila log masuk semula.'},401);
   if (user && !['Admin','Penilai','PP Daerah'].includes(user.role)) {
     return json({error:true,message:'Lantikan RA tidak sah atau bukan milik anda.'},403);
   }

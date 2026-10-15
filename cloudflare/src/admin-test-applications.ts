@@ -28,7 +28,7 @@ export async function adminTestApplications(request: Request, env: Env): Promise
     return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
   }
   const actor = await currentUser(request, env);
-  if (!actor) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!actor) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   if (actor.role !== 'Admin') return json({ error: true, message: 'Akses ditolak.' }, 403);
   if (request.method === 'GET') {
     const search = new URL(request.url).searchParams;

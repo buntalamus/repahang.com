@@ -3,7 +3,7 @@ import type { Env } from './types';
 
 export async function adminUsers(request: Request, env: Env): Promise<Response> {
   const session = await currentUser(request, env);
-  if (!session) return json({ error: true, message: 'Sila log masuk.' }, 401);
+  if (!session) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   if (session.role !== 'Admin') {
     return json({ error: true, message: 'Akses ditolak. Hanya admin boleh mengakses.' }, 403);
   }
