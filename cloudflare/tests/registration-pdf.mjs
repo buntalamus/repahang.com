@@ -23,7 +23,7 @@ async function call(path,ownerId=null) {
 }
 
 try {
-  const annual=db.prepare("SELECT id,user_id FROM permohonan WHERE jenis_borang='pengadil_berdaftar' ORDER BY id DESC LIMIT 1").get();
+  const annual=db.prepare("SELECT id,user_id,persatuan_id FROM permohonan WHERE jenis_borang='pengadil_berdaftar' AND status='Approved' AND district_id IS NULL AND persatuan_id IS NOT NULL ORDER BY id DESC LIMIT 1").get();
   const ra=db.prepare("SELECT id,user_id FROM permohonan WHERE jenis_borang='penilai_berdaftar' ORDER BY id DESC LIMIT 1").get();
   assert.equal((await call(`?type=pengadil_berdaftar&application_id=${annual.id}`)).status,401);
   const own=await call(`?type=pengadil_berdaftar&application_id=${annual.id}`,annual.user_id);
@@ -34,6 +34,12 @@ try {
   assert.match(captured.at(-1),/SENARAI PERLAWANAN/);
   assert.match(captured.at(-1),/PERAKUAN KESIHATAN/);
   assert.equal((await call(`?type=pengadil_berdaftar&application_id=${annual.id}`,ra.user_id)).status,403);
+  const ppId=Number(db.prepare('SELECT MAX(id) AS id FROM users').get().id)+1;
+  db.prepare(`INSERT INTO users(id,email,password,role,nama_penuh,persatuan_id,aktif,password_changed)
+    VALUES(?,?,'unused','PP Daerah','PP Ujian PDF',?,1,1)`).run(ppId,'pp-pdf@example.invalid',annual.persatuan_id);
+  assert.equal((await call(`?type=pengadil_berdaftar&application_id=${annual.id}`,ppId)).status,200);
+  db.prepare('UPDATE users SET persatuan_id=? WHERE id=?').run(Number(annual.persatuan_id)+1,ppId);
+  assert.equal((await call(`?type=pengadil_berdaftar&application_id=${annual.id}`,ppId)).status,403);
   const raPdf=await call(`?type=penilai_berdaftar&application_id=${ra.id}`,ra.user_id);
   assert.equal(raPdf.status,200);
   assert.match(captured.at(-1),/PENDAFTARAN TAHUNAN<br>PENILAI PENGADIL/);

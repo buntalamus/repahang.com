@@ -283,7 +283,9 @@ async function application(env: Env, user: SessionUser, type: FormType, id: numb
     : type === 'ujian_kecergasan' ? "p.jenis_permohonan='ujian_kecergasan' AND p.workflow_status='Approved'"
     : `p.jenis_borang='${type}'`;
   const approved = isWritten || type === 'pengadil_futsal' ? "AND lower(p.status)='approved'" : '';
-  const districtField = isWritten ? 'p.persatuan_id' : 'p.district_id';
+  // Imported annual applications commonly store the district in persatuan_id
+  // while district_id is NULL. Both identify the same PP Daerah scope.
+  const districtField = isWritten ? 'p.persatuan_id' : 'COALESCE(p.district_id,p.persatuan_id)';
   const districtAccess = type === 'kelas3_fam' ? '' : ` OR (${districtField}=?${type === 'pengadil_berdaftar' || type === 'penilai_berdaftar' ? " AND lower(p.status)='approved'" : ''})`;
   const params = id ? [id, user.id, ...(districtAccess ? [scope] : [])]
     : [user.id, ...(districtAccess ? [scope] : [])];
