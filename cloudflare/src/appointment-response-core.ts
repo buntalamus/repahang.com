@@ -322,3 +322,140 @@ export async function recordAppointmentReply(
 export async function recordExpiredAppointment(env: Env, id: number): Promise<ReplyOutcome> {
   return recordAppointmentReply(env,id,'reject','',{kind:'system',value:id});
 }
+
+/** Admin records an acceptance already confirmed outside the portal. */
+export async function recordAdminOverride(env: Env, id: number, actorId: number,
+  ipAddress: string | null, userAgent: string | null): Promise<'accepted' | 'not_found' | 'ineligible'> {
+  const row = await env.DB.prepare(`
+    SELECT lp.id,lp.jadual_id,lp.pengadil_id,lp.pengadil_luar_id,lp.jawatan,
+      lp.status,lp.komen,lp.sebab_status,jp.status AS jadual_status,
+      jp.tarikh,jp.pasukan_home,jp.pasukan_away,jp.kejohanan_id,
+      COALESCE(u.nama_penuh,pl.nama,'') AS nama_pegawai,
+      COALESCE(u.email,pl.emel,'') AS emel_pegawai,
+      COALESCE(u.no_telefon,pl.no_tel,'') AS no_telefon_pegawai
+    FROM lantikan_pengadil lp
+    JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id
+    LEFT JOIN users u ON u.id=lp.pengadil_id
+    LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
+    WHERE lp.id=? LIMIT 1
+  `).bind(id).first<Assignment & { komen: string | null; sebab_status: string | null;
+    jadual_status: string }>();
+  if (!row) return 'not_found';
+  const auto = row.status === 'Ditolak' && row.komen === AUTO_REJECT_COMMENT;
+  const manualKup = row.status === 'Ditolak' && !auto && KUP_POSITION.has(row.jawatan);
+  if (['Dibatalkan','Ditangguhkan'].includes(row.jadual_status) || (!auto && !manualKup)) {
+    return 'ineligible';
+  }
+  const reason = auto ? 'Diterima melalui override Admin selepas tempoh tamat'
+    : 'Diterima melalui override Admin selepas penolakan tersilap';
+  const auditKey = `worker-admin-override-${id}-${crypto.randomUUID()}`;
+  const marker = 'EXISTS (SELECT 1 FROM lantikan_audit_log a WHERE a.event_key=?)';
+  const details = JSON.stringify({
+    previous_status:row.status,previous_comment:row.komen,previous_reason:row.sebab_status,
+    new_status:'Diterima',reason,
+    override_source:auto ? 'automatic_timeout_rejection' : 'official_rejection_mistake',
+    official_confirmation_received_outside_portal:true,
+  });
+  const statements = [
+    env.DB.prepare(`
+      UPDATE lantikan_pengadil AS lp SET status='Diterima',komen=?,sebab_status=?,
+        tarikh_jawab=datetime('now','+8 hours'),status_dikemaskini_at=datetime('now','+8 hours'),
+        tg_token=NULL,email_token=NULL
+      WHERE lp.id=? AND lp.status='Ditolak' AND COALESCE(lp.komen,'')=COALESCE(?,'')
+        AND COALESCE(lp.sebab_status,'')=COALESCE(?,'')
+        AND lp.jadual_id=? AND lp.jawatan=?
+        AND COALESCE(lp.pengadil_id,-1)=COALESCE(?,-1)
+        AND COALESCE(lp.pengadil_luar_id,-1)=COALESCE(?,-1)
+        AND EXISTS (SELECT 1 FROM jadual_perlawanan jp WHERE jp.id=lp.jadual_id
+          AND jp.status NOT IN ('Dibatalkan','Ditangguhkan'))
+    `).bind(reason,reason,id,row.komen,row.sebab_status,row.jadual_id,row.jawatan,
+      row.pengadil_id,row.pengadil_luar_id),
+    env.DB.prepare(`
+      INSERT INTO lantikan_audit_log (
+        event_key,lantikan_id,jadual_id,kejohanan_id,pengadil_id,pengadil_luar_id,
+        jawatan,nama_pegawai,emel_pegawai,no_telefon_pegawai,event_type,channel,
+        event_status,details_json,actor_type,actor_user_id,ip_address,user_agent,created_at
+      ) SELECT ?,?,?,?,?,?,?,?,?,?,'appointment_admin_acceptance_override','admin',
+        'success',?,'admin',?,?,?,datetime('now','+8 hours') WHERE changes()=1
+    `).bind(auditKey,id,row.jadual_id,row.kejohanan_id,row.pengadil_id,row.pengadil_luar_id,
+      row.jawatan,row.nama_pegawai,row.emel_pegawai,row.no_telefon_pegawai,
+      details,actorId,ipAddress,userAgent),
+    env.DB.prepare(historySql).bind(row.jadual_id,auditKey),
+    env.DB.prepare(`
+      UPDATE jadual_perlawanan SET status='Disahkan' WHERE id=? AND ${marker}
+        AND (SELECT COUNT(DISTINCT jawatan) FROM lantikan_pengadil
+          WHERE jadual_id=? AND status IN ('Belum Jawab','Diterima')) BETWEEN 3 AND 5
+        AND NOT EXISTS (SELECT 1 FROM lantikan_pengadil
+          WHERE jadual_id=? AND status IN ('Belum Jawab','Diterima')
+            AND status<>'Diterima' AND COALESCE(notif_hantar,0)<>1)
+        AND EXISTS (SELECT 1 FROM lantikan_pengadil WHERE jadual_id=?
+          AND jawatan='Pengadil' AND status IN ('Belum Jawab','Diterima'))
+        AND EXISTS (SELECT 1 FROM lantikan_pengadil WHERE jadual_id=?
+          AND jawatan='Penolong Pengadil 1' AND status IN ('Belum Jawab','Diterima'))
+        AND EXISTS (SELECT 1 FROM lantikan_pengadil WHERE jadual_id=?
+          AND jawatan='Penolong Pengadil 2' AND status IN ('Belum Jawab','Diterima'))
+    `).bind(row.jadual_id,auditKey,row.jadual_id,row.jadual_id,
+      row.jadual_id,row.jadual_id,row.jadual_id),
+    env.DB.prepare(`
+      INSERT INTO worker_appointment_outbox
+        (event_key,lantikan_id,jadual_id,response_status,response_channel)
+      SELECT ?,?,?,'Diterima','admin' WHERE ${marker}
+    `).bind(auditKey,id,row.jadual_id,auditKey),
+  ];
+  if (row.pengadil_id !== null) {
+    const match = `${row.pasukan_home ?? ''} lwn ${row.pasukan_away ?? ''}`;
+    statements.push(env.DB.prepare(`
+      INSERT INTO notifications(user_id,type,subject,message,created_at)
+      SELECT ?,'Lantikan Diterima',?, ?,datetime('now','+8 hours') WHERE ${marker}
+    `).bind(row.pengadil_id,`Lantikan ${match}`,
+      `Pentadbir telah merekodkan penerimaan anda sebagai ${row.jawatan} selepas pengesahan diterima di luar portal.`,auditKey));
+  }
+  if (row.jawatan === 'Penilai Pengadil') {
+    statements.push(env.DB.prepare(`
+      UPDATE lantikan_pengadil SET penilaian_token=COALESCE(NULLIF(penilaian_token,''),?)
+      WHERE id=? AND status='Diterima' AND ${marker}
+    `).bind(crypto.randomUUID().replaceAll('-','') + crypto.randomUUID().replaceAll('-',''),id,auditKey));
+    for (const channel of ['email','telegram'] as const) {
+      const hasContact = channel === 'email'
+        ? "COALESCE(NULLIF(trim(u.email),''),NULLIF(trim(pl.emel),''),'')<>''"
+        : 'COALESCE(u.telegram_chat_id,pl.telegram_chat_id) IS NOT NULL';
+      statements.push(env.DB.prepare(`
+        INSERT INTO worker_appointment_deliveries
+          (delivery_key,event_key,kind,channel,recipient_lantikan_id)
+        SELECT ?||':ra:'||lp.id||':${channel}',?,'ra_form','${channel}',lp.id
+        FROM lantikan_pengadil lp LEFT JOIN users u ON u.id=lp.pengadil_id
+        LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
+        WHERE lp.id=? AND lp.status='Diterima' AND ${hasContact} AND ${marker}
+      `).bind(auditKey,auditKey,id,auditKey));
+    }
+  }
+  if (KUP_POSITION.has(row.jawatan)) {
+    for (const channel of ['email','telegram'] as const) {
+      const hasContact = channel === 'email'
+        ? "COALESCE(NULLIF(trim(u.email),''),NULLIF(trim(pl.emel),''),'')<>''"
+        : 'COALESCE(u.telegram_chat_id,pl.telegram_chat_id) IS NOT NULL';
+      statements.push(env.DB.prepare(`
+        INSERT INTO worker_appointment_deliveries
+          (delivery_key,event_key,kind,channel,recipient_lantikan_id,crew_key)
+        SELECT ?||':kup:'||lp.id||':${channel}',?,'kup_crew','${channel}',lp.id,
+          ${crewKey}
+        FROM lantikan_pengadil lp LEFT JOIN users u ON u.id=lp.pengadil_id
+        LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
+        WHERE lp.jadual_id=? AND lp.jawatan IN (${KUP_ROLES})
+          AND lp.status='Diterima' AND ${hasContact}
+          AND ${crewComplete} AND ${marker}
+      `).bind(auditKey,auditKey,row.jadual_id,row.jadual_id,row.jadual_id,auditKey));
+    }
+  }
+  statements.push(env.DB.prepare(`
+    UPDATE worker_appointment_outbox SET completed_at=datetime('now','+8 hours')
+    WHERE event_key=? AND NOT EXISTS (SELECT 1 FROM worker_appointment_deliveries
+      WHERE event_key=? AND status='pending')
+  `).bind(auditKey,auditKey));
+  const results = await env.DB.batch(statements);
+  if (results[0].meta.changes !== 1) return 'ineligible';
+  if (results[1].meta.changes !== 1 || results[4].meta.changes !== 1) {
+    throw new Error('Audit atau tugas penghantaran override Admin tidak disimpan.');
+  }
+  return 'accepted';
+}

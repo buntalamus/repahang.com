@@ -238,8 +238,10 @@ memulakan tempoh jawapan; selepas batch D1, ia membaca semula token sebenar
 dan memulangkan pautan. Token dan audit ditulis dalam batch D1 yang sama.
 `mark_manual_delivery` kini merekodkan penghantaran manual dan, bagi lantikan,
 memulakan tempoh jawapan sekali sahaja dalam transaksi bersama audit. Tindakan
-`admin_override_acceptance` masih menjawab 503 sehingga sejarah perlawanan,
-audit dan notifikasinya dipindahkan lengkap. Audit
+`admin_override_acceptance` kini mengemas kini penerimaan, sejarah KUP,
+audit, notifikasi portal dan tugas penghantaran dalam satu batch D1. Ia hanya
+menerima penolakan automatik atau penolakan KUP yang telah disahkan tersilap,
+dan disekat lagi oleh suis `APPOINTMENT_DELIVERY_ENABLED`. Audit
 `prepare_links` menyimpan pautan yang terhasil daripada token sebenar dalam
 transaksi tersebut.
 `kejohanan-pengesah-laporan.php` pula menyediakan GET khusus Admin untuk
@@ -498,6 +500,12 @@ binaan Angular. SQL kemas kini token dan INSERT audit diuji pada salinan D1
 setempat dengan rollback. POST tanpa sesi di staging menjawab 401, health
 menjawab 200 dengan `api_complete:false`, dan D1 jauh masih 370 pengguna
 serta 51 perlawanan Hanafi 2026. Suis tulis kekal `0`.
+Commit `415b620` menyatukan token dan audit `prepare_links` dalam satu batch
+D1 dan menambah `mark_manual_delivery`. Ujian SQLite mengekalkan tempoh jawapan
+daripada dimulakan dua kali. Deployment staging versi
+`986767a4-19b4-4284-9719-f01ae9e5cd9e` lulus binaan Angular; GET/POST audit
+tanpa sesi menjawab 401 dan health masih `api_complete:false`. D1 jauh kekal
+370 pengguna dan 51 perlawanan Hanafi 2026. Empat suis staging masih `0`.
 
 ## Semua tetapan emel semasa
 

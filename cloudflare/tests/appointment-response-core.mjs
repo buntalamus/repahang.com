@@ -8,7 +8,7 @@ const source = readFileSync(fileURLToPath(new URL('../src/appointment-response-c
 const compiled = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 }).outputText;
-const { recordAppointmentReply, recordExpiredAppointment } = await import(`data:text/javascript,${encodeURIComponent(compiled)}`);
+const { recordAppointmentReply, recordExpiredAppointment, recordAdminOverride } = await import(`data:text/javascript,${encodeURIComponent(compiled)}`);
 const db = new DatabaseSync(':memory:');
 db.exec(`
   CREATE TABLE users(id INTEGER PRIMARY KEY,nama_penuh TEXT,email TEXT,no_telefon TEXT,
@@ -64,6 +64,11 @@ db.exec(`
     (10,3,3,NULL,'Penolong Pengadil 2','Belum Jawab',NULL,NULL,NULL,0,NULL,NULL,'email-10',NULL);
   INSERT INTO perlawanan(user_id,lantikan_id,tarikh,status_pp,created_at,skor_ft_home)
     VALUES(2,2,'2026-12-01','Disahkan','2026-10-01 10:00:00',4);
+  ALTER TABLE jadual_perlawanan ADD COLUMN status TEXT DEFAULT 'Draf';
+  ALTER TABLE lantikan_pengadil ADD COLUMN sebab_status TEXT;
+  ALTER TABLE lantikan_audit_log ADD COLUMN ip_address TEXT;
+  ALTER TABLE lantikan_audit_log ADD COLUMN user_agent TEXT;
+  ALTER TABLE worker_appointment_outbox ADD COLUMN completed_at TEXT;
 `);
 
 class Statement {
@@ -113,6 +118,25 @@ const rejected = await recordAppointmentReply(env,3,'reject','Sakit',{kind:'emai
 assert.equal(rejected.status,'Ditolak');
 assert.equal(scalar('SELECT COUNT(*) AS n FROM perlawanan WHERE lantikan_id=3').n,0);
 assert.equal(scalar('SELECT email_token AS value FROM lantikan_pengadil WHERE id=3').value,null);
+assert.equal(await recordAdminOverride(env,999,5,null,null),'not_found');
+beforeBatch = () => db.exec("UPDATE lantikan_pengadil SET komen='Changed' WHERE id=3");
+assert.equal(await recordAdminOverride(env,3,5,null,null),'ineligible',
+  'Concurrent reason edits must not create an override');
+assert.equal(scalar("SELECT COUNT(*) AS n FROM lantikan_audit_log WHERE lantikan_id=3 AND event_type='appointment_admin_acceptance_override'").n,0);
+db.exec("UPDATE lantikan_pengadil SET komen='Sakit' WHERE id=3");
+db.exec(`CREATE TRIGGER fail_override_notification BEFORE INSERT ON notifications
+  WHEN NEW.user_id=3 BEGIN SELECT RAISE(ABORT,'test override rollback'); END`);
+await assert.rejects(recordAdminOverride(env,3,5,null,null),/test override rollback/);
+assert.equal(scalar('SELECT status AS value FROM lantikan_pengadil WHERE id=3').value,'Ditolak');
+db.exec('DROP TRIGGER fail_override_notification');
+assert.equal(await recordAdminOverride(env,3,5,'127.0.0.1','test-client'),'accepted');
+assert.equal(scalar('SELECT status AS value FROM lantikan_pengadil WHERE id=3').value,'Diterima');
+assert.equal(scalar('SELECT COUNT(*) AS n FROM perlawanan WHERE lantikan_id=3').n,1);
+assert.equal(scalar('SELECT skor_ft_home AS n FROM perlawanan WHERE lantikan_id=2').n,4);
+assert.equal(scalar("SELECT COUNT(*) AS n FROM worker_appointment_deliveries WHERE kind='kup_crew' AND event_key LIKE 'worker-admin-override-%'").n,6);
+assert.equal(scalar("SELECT actor_user_id AS value FROM lantikan_audit_log WHERE event_type='appointment_admin_acceptance_override' AND lantikan_id=3").value,5);
+assert.equal(await recordAdminOverride(env,3,5,null,null),'ineligible',
+  'An accepted override is one-time');
 const ra = await recordAppointmentReply(env,4,'accept','',{kind:'user',value:4},4);
 assert.equal(ra.status,'Diterima');
 assert.equal(scalar("SELECT COUNT(*) AS n FROM worker_appointment_deliveries WHERE kind='ra_form'").n,2);
@@ -133,6 +157,13 @@ assert.equal(scalar('SELECT tarikh_jawab AS value FROM lantikan_pengadil WHERE i
   '2026-10-03 09:00:00');
 assert.equal(scalar('SELECT event_type AS value FROM lantikan_audit_log WHERE lantikan_id=5').value,
   'appointment_auto_rejected');
+assert.equal(await recordAdminOverride(env,5,5,null,null),'accepted',
+  'An automatic rejection may be overridden after external confirmation');
+assert.equal(scalar('SELECT COUNT(*) AS n FROM perlawanan WHERE lantikan_id=5').n,1);
+db.exec("UPDATE jadual_perlawanan SET status='Dibatalkan' WHERE id=2");
+assert.equal(await recordAdminOverride(env,7,5,null,null),'ineligible',
+  'Canceled matches cannot be overridden');
+db.exec("UPDATE jadual_perlawanan SET status='Draf' WHERE id=2");
 
 assert.deepEqual(await recordAppointmentReply(env,6,'accept','',
   {kind:'telegram',value:'tg-6',chatId:9999}), {kind:'not_found'},
@@ -160,21 +191,28 @@ assert.equal(scalar("SELECT COUNT(*) AS n FROM worker_appointment_deliveries WHE
 db.exec('DROP TRIGGER fail_notification');
 const crewComplete = await recordAppointmentReply(env,10,'accept','',{kind:'user',value:3},3);
 assert.equal(crewComplete.status,'Diterima');
-assert.equal(scalar("SELECT COUNT(*) AS n FROM worker_appointment_deliveries WHERE kind='kup_crew'").n,6,
+assert.equal(scalar("SELECT COUNT(*) AS n FROM worker_appointment_deliveries WHERE kind='kup_crew'").n,12,
   'Final KUP acceptance queues email and Telegram for the full three-person crew');
-assert.equal(scalar("SELECT count(DISTINCT crew_key) AS n FROM worker_appointment_deliveries WHERE kind='kup_crew'").n,1);
-assert.equal(scalar("SELECT crew_key AS value FROM worker_appointment_deliveries WHERE kind='kup_crew' LIMIT 1").value,
+assert.equal(scalar("SELECT count(DISTINCT crew_key) AS n FROM worker_appointment_deliveries WHERE kind='kup_crew'").n,2);
+assert.equal(scalar("SELECT crew_key AS value FROM worker_appointment_deliveries WHERE kind='kup_crew' AND crew_key LIKE '%Pengadil:8%' LIMIT 1").value,
   'Pengadil:8|Penolong Pengadil 1:9|Penolong Pengadil 2:10');
 db.exec(`
-  INSERT INTO jadual_perlawanan VALUES
+  INSERT INTO jadual_perlawanan(id,kejohanan_id,tarikh,masa,kategori,peringkat,tempat,pasukan_home,pasukan_away) VALUES
     (4,1,'2099-12-01','18:00:00','Dewasa','Akhir','Padang Pahang','G','H');
-  INSERT INTO lantikan_pengadil VALUES
+  INSERT INTO lantikan_pengadil(id,jadual_id,pengadil_id,pengadil_luar_id,jawatan,status,komen,tarikh_jawab,
+    status_dikemaskini_at,notif_hantar,tarikh_notif,tg_token,email_token,penilaian_token) VALUES
     (11,4,1,NULL,'Pengadil','Diterima',NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),
     (12,4,2,NULL,'Penolong Pengadil 1','Diterima',NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),
     (13,4,3,NULL,'Penolong Pengadil 2','Diterima',NULL,NULL,NULL,0,NULL,NULL,NULL,NULL),
     (14,4,NULL,10,'Pegawai ke4','Belum Jawab',NULL,NULL,NULL,1,'2026-10-01 09:00:00',NULL,NULL,NULL),
     (15,4,4,NULL,'Penilai Pengadil','Belum Jawab',NULL,NULL,NULL,0,NULL,NULL,NULL,NULL);
+  INSERT INTO lantikan_pengadil(id,jadual_id,pengadil_id,jawatan,status,komen)
+    VALUES (16,3,4,'Penilai Pengadil','Ditolak','Ditolak automatik - tiada jawapan dalam tempoh');
 `);
+assert.equal(await recordAdminOverride(env,16,5,null,null),'accepted');
+assert.equal(scalar('SELECT length(penilaian_token) AS n FROM lantikan_pengadil WHERE id=16').n,64);
+assert.equal(scalar("SELECT COUNT(*) AS n FROM worker_appointment_deliveries WHERE kind='ra_form' AND recipient_lantikan_id=16").n,2);
+assert.equal(scalar('SELECT COUNT(*) AS n FROM perlawanan WHERE lantikan_id=16').n,0);
 assert.deepEqual(await recordExpiredAppointment(env,15),{kind:'not_found'},
   'Cron cannot reject an appointment with no notification deadline');
 assert.equal(scalar('SELECT COUNT(*) AS n FROM lantikan_audit_log WHERE lantikan_id=15').n,0);

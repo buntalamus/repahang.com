@@ -1,5 +1,6 @@
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
+import { recordAdminOverride } from './appointment-response-core';
 import type { Env } from './types';
 
 interface Snapshot {
@@ -276,13 +277,27 @@ async function auditPost(request: Request, env: Env, actorId: number): Promise<R
   }
   const body = input as Record<string,unknown>;
   if (body.action !== 'record_copy' && body.action !== 'prepare_links'
-      && body.action !== 'mark_manual_delivery') {
+      && body.action !== 'mark_manual_delivery' && body.action !== 'admin_override_acceptance') {
     return json({error:true,message:'Tindakan audit lantikan belum tersedia di staging.'},503);
   }
   const id = positiveId(body.lantikan_id);
   if (!id) return json({error:true,message:'lantikan_id diperlukan.'},400);
   if (body.action === 'record_copy') return recordCopy(request,env,actorId,body,id);
   if (body.action === 'mark_manual_delivery') return markManualDelivery(request,env,actorId,body,id);
+  if (body.action === 'admin_override_acceptance') {
+    if (env.APPOINTMENT_DELIVERY_ENABLED !== '1') {
+      return json({error:true,message:'Override lantikan belum tersedia di staging.'},503);
+    }
+    const result = await recordAdminOverride(env,id,actorId,
+      request.headers.get('CF-Connecting-IP'),request.headers.get('User-Agent')?.slice(0,255) ?? null);
+    if (result === 'not_found') return json({error:true,message:'Lantikan tidak dijumpai.'},404);
+    if (result === 'ineligible') return json({error:true,
+      message:'Override hanya dibenarkan untuk penolakan automatik atau penolakan KUP yang disahkan tersilap.'},409);
+    const after = await loadSnapshot(env,id);
+    if (!after) return json({error:true,message:'Lantikan berubah semasa override Admin.'},409);
+    return json({error:false,message:'Penerimaan lantikan disahkan oleh Admin.',
+      data:await auditData(env,id,after)});
+  }
   return prepareLinks(request,env,actorId,id);
 }
 
@@ -314,7 +329,7 @@ async function auditData(env: Env,id: number,snapshot: Snapshot): Promise<Record
   };
 }
 
-/** Admin audit lookup and direct-link actions; override stays gated. */
+/** Admin audit lookup and direct-link actions. */
 export async function appointmentAudit(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request,env);
   if (!user) return json({error:true,message:'Sila log masuk.'},401);

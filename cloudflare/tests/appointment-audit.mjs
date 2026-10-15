@@ -8,7 +8,9 @@ const source = readFileSync(new URL('../src/appointment-audit.ts',import.meta.ur
     `const currentUser = async () => globalThis.auditUser;
      const json = (value,status=200) => Response.json(value,{status});`)
   .replace("import { boundedJson } from './request';",
-    'const boundedJson = async (request) => request.json();');
+    'const boundedJson = async (request) => request.json();')
+  .replace("import { recordAdminOverride } from './appointment-response-core';",
+    "const recordAdminOverride = async () => 'ineligible';");
 const compiled = ts.transpileModule(source,{
   compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext},
 }).outputText;
@@ -84,6 +86,7 @@ env.STAGING_WRITES_ENABLED='1';
 const post=(body)=>new Request(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 assert.equal((await appointmentAudit(post({action:'record_copy',lantikan_id:12,link_type:'bad'}),env)).status,400);
 assert.equal((await appointmentAudit(post({action:'mark_manual_delivery',lantikan_id:12}),env)).status,409);
+assert.equal((await appointmentAudit(post({action:'admin_override_acceptance',lantikan_id:12}),env)).status,503);
 assert.equal(insertedAudit,null);
 globalThis.auditSnapshot={...snapshot,status:'Diterima'};
 assert.equal((await appointmentAudit(post({action:'record_copy',lantikan_id:12,link_type:'accept_url'}),env)).status,409);
