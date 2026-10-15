@@ -14,6 +14,8 @@ import { appointmentAudit } from './appointment-audit';
 import { assessmentToken } from './assessment-token';
 import { assessmentReports } from './assessment-reports';
 import { assessmentDraft } from './assessment-draft';
+import { submitAssessmentRequest } from './report-submission';
+import { processChairDeliveries } from './chair-delivery';
 import { districtAssessments, refereeAssessments } from './assessments';
 import { districtApplications } from './district-applications';
 import { districtReferees } from './district-referees';
@@ -207,7 +209,8 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/penilaian-token.php') return request.method === 'POST'
     ? assessmentDraft(request,env,'token') : assessmentToken(request, env);
   if (pathname === '/api/laporan-penilaian.php') return request.method === 'POST'
-    ? assessmentDraft(request,env,'session') : assessmentReports(request, env);
+    ? assessmentDraft(request,env,'session') : request.method === 'PUT'
+      ? submitAssessmentRequest(request,env) : assessmentReports(request, env);
   if (pathname === '/api/statistics.php') return statistics(request, env);
   if (pathname === '/api/download-referees-excel.php') return adminRefereeExport(request, env);
   if (pathname === '/api/pp-export-referees.php') return districtRefereeExport(request, env);
@@ -306,5 +309,6 @@ export default {
     await processExpiredAppointments(env);
     await processAppointmentDeliveries(env);
     await processReportDeliveries(env);
+    await processChairDeliveries(env);
   },
 } satisfies ExportedHandler<Env>;

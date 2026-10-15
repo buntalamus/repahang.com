@@ -1,5 +1,6 @@
 import {currentUser,json} from './auth';
 import {boundedJson} from './request';
+import {submitAssessment} from './report-submission';
 import type {Env} from './types';
 
 type Body = Record<string,unknown>;
@@ -130,14 +131,14 @@ export async function assessmentDraft(request: Request,env: Env,source:'session'
   }
   const user = source==='session' ? await currentUser(request,env) : null;
   if (source==='session' && !user) return json({error:true,message:'Sila log masuk.'},401);
-  if (user && !['Penilai','PP Daerah'].includes(user.role)) {
+  if (user && !['Admin','Penilai','PP Daerah'].includes(user.role)) {
     return json({error:true,message:'Lantikan RA tidak sah atau bukan milik anda.'},403);
   }
   const input = await boundedJson(request,256*1024);
   if (input instanceof Response) return input;
   if (!input || typeof input!=='object' || Array.isArray(input)) return invalid('Data laporan tidak sah.');
   const body = input as Body;
-  if (body.hantar) {
+  if (body.hantar && (source!=='token' || env.REPORT_DELIVERY_ENABLED!=='1')) {
     return json({error:true,message:'Penghantaran kepada Pengerusi belum tersedia di staging.'},503);
   }
   const token = source==='token' && typeof body.token==='string' ? body.token : '';
@@ -238,5 +239,6 @@ export async function assessmentDraft(request: Request,env: Env,source:'session'
   const saved = await env.DB.prepare(`SELECT id FROM laporan_penilaian
     WHERE lantikan_id=? AND worker_revision=? LIMIT 1`).bind(assignment.id,revision).first<{id:number}>();
   if (!saved) throw new Error('Assessment draft not visible after D1 batch');
+  if (body.hantar && source==='token') return submitAssessment(env,saved.id,null,token);
   return json({error:false,message:'Draf laporan disimpan.',id:saved.id});
 }

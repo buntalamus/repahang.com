@@ -265,14 +265,17 @@ Pautan `/penilaian-borang.html` kini disertakan dalam aset Angular staging.
 lantikan: butiran perlawanan, KUP diterima, draf sedia ada dan kriteria asal.
 Endpoint ini memerlukan suis `STAGING_AUTH_ENABLED=1`. POST draf telah
 dipindahkan tetapi hanya boleh digunakan apabila kedua-dua suis auth dan
-tulis staging diaktifkan. Pilihan `hantar` kekal 503 sebelum sebarang data
-ditulis kerana penghantaran kepada Pengerusi belum lengkap.
+tulis staging diaktifkan. Pilihan `hantar` kini menyimpan draf dan menyediakan
+pengesahan Pengerusi serta salinan Admin; ia memerlukan juga
+`REPORT_DELIVERY_ENABLED=1`. Jika penghantaran gagal, draf kekal untuk
+disemak dan dicuba semula.
 `laporan-penilaian.php` menyediakan semua mod GET bagi RA berlog masuk dan Admin:
 senarai sendiri, butiran, laporan per perlawanan, KUP diterima dan kriteria.
 Laporan pengguna lain ditapis di SQL; token Pengerusi tidak dipulangkan dan
-`approval_url` sengaja kosong sehingga halaman semakan, PDF dan tindakan sahkan
-siap. POST draf berkongsi teras transaksi dengan borang bertoken; PUT
-hantar/override masih 503. Ujian sintetik dan bacaan
+`approval_url` sengaja kosong sehingga salinan pautan terus untuk Admin
+dipindahkan. POST draf berkongsi teras transaksi dengan borang bertoken;
+PUT `action=hantar` tersedia di sebalik tiga suis staging. Override Admin
+dan pemakluman semula masih 503. Ujian sintetik dan bacaan
 salinan D1 mengesahkan skema, skop RA, pemisahan peranan dan lampiran pengesahan.
 Migrasi `0003_assessment_drafts.sql` menambah indeks unik lantikan laporan dan
 `worker_revision` untuk menolak simpanan serentak yang menggunakan versi lama.
@@ -285,7 +288,7 @@ D1 staging, eksport jauh disimpan secara private di
 Migrasi jauh memproses dua arahan; semakan selepas itu menunjukkan 370 pengguna,
 91 laporan asal, 51 perlawanan Hanafi 2026, serta satu lajur revisi dan satu
 indeks unik baharu. Kesemua suis staging masih `0`.
-Skema `0001` hingga `0005` dipasang melalui `wrangler d1 execute`, bukan
+Skema `0001` hingga `0006` dipasang melalui `wrangler d1 execute`, bukan
 ledger `wrangler d1 migrations apply`. Oleh itu, `migrations list` masih
 menyenaraikannya sebagai belum dilaksana walaupun skemanya wujud. Jangan
 jalankan `migrations apply` secara terus pada D1 staging ini tanpa menyelaraskan
@@ -655,8 +658,8 @@ penghantaran. Ujian salinan D1 import meliputi pengesahan sekali sahaja,
 rekod KUP tidak lengkap, semua tugasan penghantaran, token HMAC dan kegagalan
 penyedia emel. Suis baharu `REPORT_DELIVERY_ENABLED` kekal `0` di staging;
 POST dan giliran hanya boleh berjalan jika suis ini, auth dan writes semuanya
-`1`. Penghantaran RA kepada Pengerusi dan override Admin masih belum dipindah,
-jadi ini belum melengkapkan aliran laporan hujung ke hujung.
+`1`. Penghantaran RA kepada Pengerusi kini dipindahkan, tetapi override Admin
+dan tetapan semula Pengerusi untuk laporan yang telah dihantar masih belum dipindah.
 Sebelum migrasi skema `0005` pada D1 staging, eksport jauh disimpan secara
 private di `output/cloudflare/refpahang_staging_before_0005_20261015.sql`.
 Migrasi jauh selesai dengan tiga arahan; semakan selepasnya menunjukkan
@@ -670,6 +673,27 @@ amaran bajet awal 511.80 kB berbanding 500 kB. Health jauh 200 dengan
 writes dan `REPORT_DELIVERY_ENABLED` masih `0`. Semakan D1 selepas deploy
 mendapati 91 laporan, sifar pengesahan/penghantaran Worker dan 51 perlawanan
 Hanafi 2026. Tiada emel/Telegram dihantar atau laporan disahkan di staging.
+
+Aliran hantar RA melalui sesi `PUT action=hantar` dan borang token
+`POST hantar=true` kini menggunakan `0006_report_submission_outbox.sql`.
+Terasnya menolak laporan bukan milik RA, status selain `Draf`, markah kosong,
+KUP tidak diterima atau tidak sepadan, dan permintaan serentak. Satu batch D1
+menukar status kepada `Dihantar`, menyediakan rekod Pengerusi bertoken,
+menambah notifikasi setiap Admin aktif, menulis audit, dan menjadualkan emel
+serta Telegram jika pemetaan Pengerusi aktif tersedia. Kekangan integriti
+akhir menggugurkan seluruh batch jika komponen tidak sepadan. Giliran hanya
+membaca `worker_report_submissions` baharu supaya rekod PHP lama tidak
+dihantar semula. Tanpa Pengerusi, laporan tetap `Dihantar`, Admin menerima
+salinan dan tiada tugas keluar. Ujian pada salinan import D1 meliputi sesi,
+token, markah kosong, perubahan data sebelum batch, pendua, tanpa Pengerusi,
+serta emel/Telegram tiruan. Semua 18 ujian Worker dan `tsc --noEmit` lulus.
+Sebelum migrasi `0006` pada D1 staging, sandaran private disimpan di
+`output/cloudflare/refpahang_staging_before_0006_20261015.sql` (31,758,120
+bait; mod 600; diabaikan Git). Selepas migrasi: 370 pengguna, 91 laporan RA
+asal, **51** perlawanan Hanafi 2026, sifar penghantaran RA Worker dan sifar
+tugas Pengerusi. Semua suis staging masih `0`; tiada emel atau Telegram
+sebenar dihantar. Override Admin, PDF lain dan muat naik media masih perlu
+disiapkan sebelum domain dialih ke Worker.
 
 ## Semua tetapan emel semasa
 

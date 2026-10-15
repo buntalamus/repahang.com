@@ -8,7 +8,9 @@ const source=readFileSync(new URL('../src/assessment-draft.ts',import.meta.url),
     const currentUser=async()=>globalThis.assessmentUser;
     const json=(body,status=200)=>Response.json(body,{status});`)
   .replace("import {boundedJson} from './request';",`const boundedJson=async(request)=>request.json();`);
-const compiled=ts.transpileModule(source,{
+const linkedSource=source.replace("import {submitAssessment} from './report-submission';",
+  `const submitAssessment=async()=>Response.json({error:false,message:'Submitted'});`);
+const compiled=ts.transpileModule(linkedSource,{
   compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext},
 }).outputText;
 const {assessmentDraft}=await import(`data:text/javascript,${encodeURIComponent(compiled)}`);
