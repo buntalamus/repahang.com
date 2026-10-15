@@ -180,7 +180,11 @@ try {
 
         'statistics' => [
 
-            'total' => $totalMatches,
+            'total' => $currentYearCount,
+
+            'verified_total' => $verifiedYearCount,
+
+            'all_time_total' => $totalMatches,
 
             'current_year' => $currentYearCount,
             'verified_year' => $verifiedYearCount,

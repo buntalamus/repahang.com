@@ -230,7 +230,7 @@ function getTotalMatchesCount(PDO $pdo, int $persatuanId): int
         SELECT COUNT(DISTINCT COALESCE(p.match_group_id, CAST(p.id AS CHAR))) as count
         FROM perlawanan p
         INNER JOIN users u ON p.user_id = u.id
-        WHERE $scope
+        WHERE $scope AND YEAR(p.tarikh) = YEAR(CURRENT_DATE)
     ");
     $stmt->execute([':district_id' => $districtId, ':persatuan_id' => $persatuanId]);
     return (int) ($stmt->fetchColumn() ?: 0);
@@ -267,7 +267,7 @@ function getVerifiedMatchesCount(PDO $pdo, int $persatuanId): int
         SELECT COUNT(DISTINCT COALESCE(p.match_group_id, CAST(p.id AS CHAR))) as count
         FROM perlawanan p
         INNER JOIN users u ON p.user_id = u.id
-        WHERE $scope AND p.status_pp = 'Disahkan'
+        WHERE $scope AND YEAR(p.tarikh) = YEAR(CURRENT_DATE) AND p.status_pp = 'Disahkan'
     ");
     $stmt->execute([':district_id' => $districtId, ':persatuan_id' => $persatuanId]);
     return (int) ($stmt->fetchColumn() ?: 0);
@@ -281,7 +281,7 @@ function getPendingMatchesCount(PDO $pdo, int $persatuanId): int
         SELECT COUNT(DISTINCT COALESCE(p.match_group_id, CAST(p.id AS CHAR))) as count
         FROM perlawanan p
         INNER JOIN users u ON p.user_id = u.id
-        WHERE $scope
+        WHERE $scope AND YEAR(p.tarikh) = YEAR(CURRENT_DATE)
         AND (p.status_pp IS NULL OR p.status_pp = '' OR p.status_pp = 'Belum Disahkan')
     ");
     $stmt->execute([':district_id' => $districtId, ':persatuan_id' => $persatuanId]);
@@ -302,6 +302,7 @@ function getTopRefereesByMatches(PDO $pdo, int $persatuanId): array
         FROM users u
         INNER JOIN perlawanan p ON p.user_id = u.id
         WHERE u.role = 'Pengadil'
+        AND YEAR(p.tarikh) = YEAR(CURRENT_DATE)
         AND (
             (p.match_group_id IS NOT NULL AND p.daerah_perlawanan_id = :district_id)
             OR (p.match_group_id IS NULL AND u.persatuan_id = :persatuan_id)

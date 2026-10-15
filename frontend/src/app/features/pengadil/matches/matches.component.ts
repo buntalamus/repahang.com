@@ -22,7 +22,7 @@ export class PengadilMatchesComponent implements OnInit {
   matches: any[] = [];
   filtered: any[] = [];
   search = '';
-  stats = { total: 0, disahkan: 0, belum_disahkan: 0 };
+  stats = { total: 0, disahkan: 0, belum_disahkan: 0, year: new Date().getFullYear() };
   showForm = false;
   submitting = false;
 
@@ -52,8 +52,11 @@ export class PengadilMatchesComponent implements OnInit {
         if (!res.error) {
           this.matches = res.data || res.matches || [];
           this.filtered = [...this.matches];
-          this.stats.total = res.statistics?.total ?? this.matches.length;
-          this.stats.disahkan = res.statistics?.verified_total ?? this.matches.filter((m: any) => m.status_pp === 'Disahkan').length;
+          this.stats.year = Number(res.statistics?.year) || this.stats.year;
+          const yearMatches = this.matches.filter((m: any) => String(m.tarikh || '').startsWith(String(this.stats.year)));
+          this.stats.total = res.statistics?.current_year ?? res.statistics?.total ?? yearMatches.length;
+          this.stats.disahkan = res.statistics?.verified_year ?? res.statistics?.verified_total
+            ?? yearMatches.filter((m: any) => m.status_pp === 'Disahkan').length;
           this.stats.belum_disahkan = Math.max(0, this.stats.total - this.stats.disahkan);
         }
         this.loading = false;

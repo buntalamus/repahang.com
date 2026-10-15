@@ -117,8 +117,8 @@ export async function districtOverview(request: Request, env: Env): Promise<Resp
           OR p.status_pp='Belum Disahkan'
           THEN COALESCE(p.match_group_id,CAST(p.id AS TEXT)) END) AS pending
       FROM perlawanan p JOIN users u ON u.id=p.user_id
-      WHERE ${DISTRICT_MATCH_SCOPE}
-    `).bind(month, districtId, persatuanId).first<{
+      WHERE substr(p.tarikh,1,4)=? AND ${DISTRICT_MATCH_SCOPE}
+    `).bind(month, String(year), districtId, persatuanId).first<{
       total: number; this_month: number; verified: number; pending: number;
     }>(),
     env.DB.prepare(`
@@ -129,12 +129,12 @@ export async function districtOverview(request: Request, env: Env): Promise<Resp
           THEN COALESCE(p.match_group_id,CAST(p.id AS TEXT)) END)
           AS verified_matches
       FROM users u JOIN perlawanan p ON p.user_id=u.id
-      WHERE u.role IN ('Pengadil','PP Daerah') AND (
+      WHERE substr(p.tarikh,1,4)=? AND u.role IN ('Pengadil','PP Daerah') AND (
         (p.match_group_id IS NOT NULL AND p.daerah_perlawanan_id=?)
         OR (p.match_group_id IS NULL AND u.persatuan_id=?))
       GROUP BY u.id,u.nama_penuh,u.jenis_pengadil
       ORDER BY total_matches DESC,verified_matches DESC,u.id LIMIT 5
-    `).bind(districtId, persatuanId).all(),
+    `).bind(String(year), districtId, persatuanId).all(),
     env.DB.prepare(`
       SELECT DISTINCT p.match_group_id,p.jenis,p.tempat,p.tarikh,
         p.home_team,p.away_team,u.nama_penuh,p.jawatan,p.status_pp AS status

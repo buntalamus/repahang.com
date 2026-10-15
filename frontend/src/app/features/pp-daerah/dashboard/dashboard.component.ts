@@ -67,7 +67,7 @@ import { catchError, finalize } from 'rxjs/operators';
             <span class="text-[10px] font-semibold text-blue-400 uppercase tracking-wide">Perlawanan</span>
           </div>
           <p class="text-2xl font-bold text-blue-700">{{ overview.pending_matches || 0 }}</p>
-          <p class="text-xs text-blue-600 mt-1">Rekod Belum Disahkan</p>
+          <p class="text-xs text-blue-600 mt-1">Rekod Belum Disahkan Tahun {{ overview.year }}</p>
         </a>
 
         <!-- Perlawanan Bulan Ini -->
@@ -119,7 +119,7 @@ import { catchError, finalize } from 'rxjs/operators';
         <!-- Top Pengadil -->
         <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-slate-900">Pengadil Teratas</h3>
+            <h3 class="text-sm font-semibold text-slate-900">Pengadil Teratas Tahun {{ overview.year }}</h3>
             <a routerLink="/pp-daerah/pengadil" class="text-xs text-pahang-yellow hover:underline font-medium">Lihat Semua</a>
           </div>
           @if (topReferees.length) {

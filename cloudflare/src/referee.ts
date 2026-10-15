@@ -91,8 +91,10 @@ export async function refereeMatches(request: Request, env: Env): Promise<Respon
     error: false,
     matches: matches.results,
     statistics: {
-      total,
-      verified_total: Number(count?.verified_total ?? 0),
+      total: Number(yearStats?.current_year ?? 0),
+      verified_total: verified,
+      all_time_total: total,
+      all_time_verified_total: Number(count?.verified_total ?? 0),
       current_year: Number(yearStats?.current_year ?? 0),
       verified_year: verified,
       year: String(year),
