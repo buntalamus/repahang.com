@@ -716,6 +716,14 @@ bait; mod 600; diabaikan Git). Skema `0007` dipasang tanpa mengubah rekod
 laporan sedia ada. Kesemua 19 ujian Worker dan `tsc --noEmit` lulus.
 Pemakluman semula Pengerusi, tetapan Pengerusi melalui POST, PDF lain serta
 muat naik media masih perlu disiapkan sebelum domain dialih ke Worker.
+Commit `dd5c77b` dipush dan dideploy daripada worktree bersih ke staging versi
+`e793a936-2b1d-44a0-933c-b9fcaf2f6ce1`. Health staging 200 dengan
+`api_complete:false`; PUT override memulangkan 503 kerana suis auth, writes
+dan penghantaran laporan kekal `0`. D1 selepas deploy: 370 pengguna, 997
+lantikan, 91 laporan, **51** perlawanan Hanafi 2026, sifar penghantaran RA,
+sifar pengesahan Worker dan sifar tugas Pengerusi. Domain `refpahang.com`
+masih tidak menyediakan `/api/__migration-health` Worker (404), maka ujian
+ini tidak menandakan cutover production.
 
 ## Semua tetapan emel semasa
 
