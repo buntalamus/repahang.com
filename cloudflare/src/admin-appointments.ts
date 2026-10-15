@@ -1,4 +1,5 @@
 import {currentUser,json} from './auth';
+import {adminAppointmentCreate} from './admin-appointment-create';
 import type {Env} from './types';
 
 type Tournament = {kejohanan_id:number;peringkat_kejohanan:string};
@@ -6,6 +7,7 @@ type PoolOfficial = Record<string,unknown> & {daerah:string|null;negeri:string|n
 
 /** Admin match assignment view. Expiry and retries run in the scheduled Worker. */
 export async function adminAppointments(request:Request,env:Env):Promise<Response> {
+  if (request.method==='POST') return adminAppointmentCreate(request,env);
   const user=await currentUser(request,env);
   if (!user) return json({error:true,message:'Sila log masuk.'},401);
   if (user.role!=='Admin') return json({error:true,message:'Akses ditolak.'},403);

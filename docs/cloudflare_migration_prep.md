@@ -253,8 +253,13 @@ perlawanan dan pengadil dalam pool kejohanan, termasuk bilangan lantikan,
 wilayah, ketersediaan emel serta status Telegram tanpa membocorkan token.
 Ujian pada skema D1 import dan data sintetik lulus. Tamat tempoh jawapan dan
 cubaan semula notifikasi dijalankan oleh Worker berkala apabila suis berkaitan
-diaktifkan; GET sendiri tidak mengubah data. POST, PUT dan DELETE `lantikan.php`
-masih 503 sehingga transaksi lantikan, audit dan notifikasi dipindahkan.
+diaktifkan; GET sendiri tidak mengubah data. POST `assign` untuk slot kosong sebelum
+sepak mula kini mempunyai transaksi D1 berpagar pool, jenis RA/KUP, pertindihan
+masa, laporan sedia ada dan slot serentak. Lantikan, audit dan status jadual
+ditulis dalam satu batch. Migrasi `0004_admin_appointment_create.sql` menambah
+penanda unik bagi menghubungkan tiga tulisan itu. Penggantian slot, tindakan
+notifikasi, pembatalan, PUT dan DELETE masih 503. Kedua-dua suis auth dan tulis
+staging perlu diaktifkan untuk menggunakan POST; staging sedia ada kekal tertutup.
 Pautan `/penilaian-borang.html` kini disertakan dalam aset Angular staging.
 `penilaian-token.php` menyediakan GET bertoken bagi RA yang telah menerima
 lantikan: butiran perlawanan, KUP diterima, draf sedia ada dan kriteria asal.

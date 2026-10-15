@@ -40,7 +40,7 @@ KNOWN_PARTIAL_ROUTES = {
     "download-borang-ujian-kecergasan.php": "HTML boleh dicetak; belum PDF binari",
     "download-jadual-lantikan.php": "HTML boleh dicetak; belum PDF binari",
     "lantikan-audit.php": "GET dan empat tindakan POST tersedia; override Admin memerlukan suis penghantaran aktif",
-    "lantikan.php": "GET Admin tersedia; POST/PUT/DELETE lantikan serta notifikasi masih 503",
+    "lantikan.php": "GET Admin dan POST lantikan baharu sebelum sepak mula tersedia; penggantian, notifikasi, pembatalan, PUT dan DELETE masih 503",
     "penilaian-token.php": "GET dan POST draf tersedia; hantar serta notifikasi Pengerusi masih 503",
     "laporan-penilaian.php": "GET dan POST draf tersedia; PUT hantar/override serta notifikasi Pengerusi masih 503",
     "kejohanan-pengesah-laporan.php": "GET tersedia; tetapan POST masih 503",

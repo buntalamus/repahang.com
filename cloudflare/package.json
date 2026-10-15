@@ -14,6 +14,7 @@
     "test:assessment-reports": "node --no-warnings tests/assessment-reports.mjs",
     "test:assessment-draft": "node --no-warnings tests/assessment-draft.mjs",
     "test:admin-appointments": "node --no-warnings tests/admin-appointments.mjs",
+    "test:admin-appointment-create": "node --no-warnings tests/admin-appointment-create.mjs",
     "test:futsal-form": "node --no-warnings tests/futsal-form.mjs",
     "test:chair-config": "node --no-warnings tests/chair-config.mjs",
     "build:frontend": "npm --prefix ../frontend run build:prod",

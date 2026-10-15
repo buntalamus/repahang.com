@@ -6,7 +6,9 @@ import ts from 'typescript';
 const source=readFileSync(new URL('../src/admin-appointments.ts',import.meta.url),'utf8')
   .replace("import {currentUser,json} from './auth';",`
     const currentUser=async()=>globalThis.appointmentUser;
-    const json=(body,status=200)=>Response.json(body,{status});`);
+    const json=(body,status=200)=>Response.json(body,{status});`)
+  .replace("import {adminAppointmentCreate} from './admin-appointment-create';",
+    'const adminAppointmentCreate=async()=>Response.json({error:true},{status:503});');
 const compiled=ts.transpileModule(source,{
   compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext},
 }).outputText;
