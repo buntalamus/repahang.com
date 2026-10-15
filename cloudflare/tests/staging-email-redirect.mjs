@@ -10,9 +10,12 @@ await sendRefpahangEmail(env,'lantikan','pengadil@example.test','Pengadil','Lant
 assert.deepEqual(sent[0].to,{email:'pengadil@example.test',name:'Pengadil'});
 assert.equal(sent[0].subject,'Lantikan');
 
+await sendRefpahangEmail(env,'lantikan','tanpa-nama@example.test','','Lantikan','<p>x</p>','x');
+assert.equal(sent[1].to,'tanpa-nama@example.test');
+
 env.STAGING_EMAIL_REDIRECT=' qa@example.test ';
 await sendRefpahangEmail(env,'lantikan','pengadil@example.test','Pengadil','Lantikan','<p>x</p>','x');
-assert.deepEqual(sent[1].to,{email:'qa@example.test'});
-assert.equal(sent[1].subject,'[UJIAN → pengadil@example.test] Lantikan');
-assert.equal(sent[1].from.email,'lantikan@refpahang.com');
+assert.equal(sent[2].to,'qa@example.test');
+assert.equal(sent[2].subject,'[UJIAN → pengadil@example.test] Lantikan');
+assert.equal(sent[2].from.email,'lantikan@refpahang.com');
 console.log('Staging email redirect passed');

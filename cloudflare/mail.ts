@@ -11,7 +11,7 @@ export interface MailAttachment {
 }
 
 interface EmailMessage {
-  to: { email: string; name?: string };
+  to: string | { email: string; name: string };
   from: { email: string; name: string };
   subject: string;
   html: string;
@@ -90,7 +90,9 @@ export async function sendRefpahangEmail(
   // Staging D1 holds copies of real users; never let a test reach them.
   const redirect = env.STAGING_EMAIL_REDIRECT?.trim();
   const result = await env.EMAIL.send({
-    to: redirect ? { email: redirect } : { email: to, name: toName || undefined },
+    // The binding rejects an EmailAddress whose name is not a string, so a
+    // recipient without a name is passed as a bare address.
+    to: redirect ? redirect : toName ? { email: to, name: toName } : to,
     from: { email: address, name },
     subject: redirect ? `[UJIAN → ${to}] ${subject}` : subject,
     html,
