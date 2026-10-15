@@ -34,8 +34,9 @@ export function openDatabase(migrations) {
   // triggers of migration 0009 are counted too; SQLite's own count is not.
   const totalChanges=()=>db.prepare('SELECT total_changes() AS n').get().n;
   const runCounted=(sql,values)=>{
-    const before=totalChanges();db.prepare(sql).run(...values);
-    return {meta:{changes:totalChanges()-before}};
+    const before=totalChanges();
+    const {lastInsertRowid}=db.prepare(sql).run(...values);
+    return {meta:{changes:totalChanges()-before,last_row_id:Number(lastInsertRowid)}};
   };
   class Statement {
     constructor(sql,values=[]){this.sql=sql;this.values=values;}

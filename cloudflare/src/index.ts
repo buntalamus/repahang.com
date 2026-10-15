@@ -13,6 +13,9 @@ import { assessmentReports } from './assessment-reports';
 import { assessmentDraft } from './assessment-draft';
 import { submitAssessmentRequest } from './report-submission';
 import { telegramWebhook } from './telegram-webhook';
+import { adminUsersWrite } from './admin-users-write';
+import { announcementsWrite } from './announcements-write';
+import { refereeProfileWrite } from './profile-admin-write';
 import { GATES } from './php/gates';
 import { appointmentWritesEnabled } from './lantikan-write';
 import { processQueuedKupCrewNotifications } from './php/lantikan-helper';
@@ -270,6 +273,11 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   }
   if (pathname === '/api/notifications.php' && request.method === 'POST') {
     return notifications(request, env);
+  }
+  if (pathname === '/api/admin-users.php' && request.method !== 'GET') return adminUsersWrite(request, env);
+  if (pathname === '/api/announcements.php' && request.method !== 'GET') return announcementsWrite(request, env);
+  if (pathname === '/api/profil-pengadil.php' && request.method !== 'GET') {
+    return refereeProfileWrite(request, env);
   }
   if (request.method !== 'GET') {
     return json({ error: true, message: 'Fungsi ini belum tersedia di staging.' }, 503);
