@@ -31,6 +31,8 @@ export interface EmailEnv {
   MAIL_SUPPORT_NAME: string;
   MAIL_PENGESAHAN_USER: string;
   MAIL_PENGESAHAN_NAME: string;
+  /** Staging only: every outgoing message goes here instead of its real recipient. */
+  STAGING_EMAIL_REDIRECT?: string;
 }
 
 function escapeHtml(value: string): string {
@@ -85,10 +87,12 @@ export async function sendRefpahangEmail(
   if (typeof address !== 'string' || !address || typeof name !== 'string' || !name) {
     throw new Error(`Missing sender settings for ${type}`);
   }
+  // Staging D1 holds copies of real users; never let a test reach them.
+  const redirect = env.STAGING_EMAIL_REDIRECT?.trim();
   const result = await env.EMAIL.send({
-    to: { email: to, name: toName || undefined },
+    to: redirect ? { email: redirect } : { email: to, name: toName || undefined },
     from: { email: address, name },
-    subject,
+    subject: redirect ? `[UJIAN → ${to}] ${subject}` : subject,
     html,
     text,
     ...(attachments.length ? { attachments } : {}),
