@@ -1,128 +1,232 @@
-import { expiryDeadline, recordAppointmentReply } from './appointment-response-core';
+/**
+ * api/lantikan-jawab-token.php: one-click accept/reject from the appointment
+ * email. GET is a read-only confirmation page (mail scanners open links);
+ * only POST records the answer.
+ */
+import { appointmentWritesEnabled } from './lantikan-write';
+import { calcDeadlineFromNotif, getDeadlineHours } from './php/email';
+import { h, klTimestamp, phpDate, tarikhFmt } from './php/format';
+import { auditMetaFrom } from './php/lantikan-audit';
+import { LANTIKAN_AUTO_TOLAK_KOMEN, autoTolakLantikanTertunggak, createPortalNotification,
+  generatePenilaianToken, getMatchKickoffTimestamp, notifyAdminLantikanResponse,
+  notifyCompleteKupCrew, notifyPPDaerahResponse } from './php/lantikan-helper';
+import { applyAppointmentResponse, ucfirst } from './php/lantikan-response';
 import type { Env } from './types';
 
-interface LinkAppointment {
-  id: number;
-  status: string;
-  jawatan: string;
-  pengadil_id: number | null;
-  notif_hantar: number | null;
-  tarikh_notif: string | null;
-  tarikh: string;
-  masa: string | null;
-  jenis_kejohanan: string | null;
-  pasukan_home: string;
-  pasukan_away: string;
-  tempat: string | null;
+type Row = { id: number; status: string; komen: string | null; tarikh_notif: string | null;
+  jawatan: string; jadual_id: number; tarikh: string; masa: string | null; tempat: string | null;
+  pasukan_home: string; pasukan_away: string; kejohanan: string; jenis_kejohanan: string;
+  pengadil_id: number | null; nama_penuh: string; persatuan_id: number | null };
+
+/** renderPage() from the PHP endpoint, markup unchanged. */
+function renderPage(title: string, icon: string, color: string, heading: string, body: string,
+  nextUrl = '', status = 200): Response {
+  const year = phpDate('Y', Date.now());
+  const btnHtml = nextUrl
+    ? `<a href="${h(nextUrl)}"
+              style="display:inline-block;margin-top:28px;background:#111827;color:#FADA00;
+                      padding:12px 32px;text-decoration:none;font-weight:700;font-size:13px;
+                      letter-spacing:1px;text-transform:uppercase;">
+            Ke Dashboard
+           </a>`
+    : '';
+  const html = `<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${title}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #E8EAED; font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
+           min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .card { background: #fff; max-width: 480px; width: 100%;
+            box-shadow: 0 1px 8px rgba(0,0,0,.12); }
+    .top  { background: ${color}; height: 6px; }
+    .hdr  { background: #111827; padding: 28px 36px 24px; text-align: center; }
+    .hdr img { width: 56px; height: 56px; border-radius: 50%; display: block; margin: 0 auto 12px; }
+    .hdr .org { color: #F9FAFB; font-size: 13px; font-weight: 700; letter-spacing: .6px; }
+    .hdr .sub { color: #6B7280; font-size: 10px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
+    .body { padding: 40px 36px 36px; text-align: center; }
+    .icon { font-size: 52px; margin-bottom: 18px; }
+    .heading { font-size: 22px; font-weight: 700; color: #111827; margin-bottom: 14px; }
+    .msg  { font-size: 14px; color: #6B7280; line-height: 1.7; }
+    .ftr  { background: #111827; padding: 18px 36px; text-align: center;
+            color: #9CA3AF; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="top"></div>
+    <div class="hdr">
+      <img src="https://upload.wikimedia.org/wikipedia/en/b/b3/Pahang_FA_logo.png" alt="PBNP">
+      <div class="org">PERSATUAN BOLA SEPAK NEGERI PAHANG</div>
+      <div class="sub">Sistem Pengurusan Pengadil</div>
+    </div>
+    <div class="body">
+      <div class="icon">${icon}</div>
+      <div class="heading">${heading}</div>
+      <div class="msg">${body}</div>
+      ${btnHtml}
+    </div>
+    <div class="ftr">&copy; ${year} Persatuan Bola Sepak Negeri Pahang</div>
+  </div>
+</body>
+</html>`;
+  const headers = new Headers({ 'Content-Type': 'text/html; charset=UTF-8', 'Cache-Control': 'no-store' });
+  if (status === 405) headers.set('Allow', 'GET, POST');
+  return new Response(html, { status, headers });
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  })[character] ?? character);
-}
-
-function page(heading: string, paragraphs: string[],
-  form?: { token: string; action: 'accept' | 'reject' }, status = 200): Response {
-  const label = form?.action === 'accept' ? 'Terima Tugasan' : 'Tolak Tugasan';
-  const color = form?.action === 'accept' ? '#047857' : '#b91c1c';
-  const confirmation = form ? `<form method="post" action="/api/lantikan-jawab-token.php">
-    <input type="hidden" name="token" value="${escapeHtml(form.token)}">
-    <input type="hidden" name="action" value="${form.action}">
-    <button type="submit" style="border:0;border-radius:6px;padding:12px 22px;background:${color};color:#fff;font-weight:700;cursor:pointer">${label}</button>
-  </form>` : '';
-  const html = `<!doctype html><html lang="ms"><head><meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>${escapeHtml(heading)} · RefPahang</title>
-    <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#e8eaed;font-family:Arial,sans-serif;color:#111827;padding:20px;box-sizing:border-box}
-    main{background:white;width:min(100%,500px);box-shadow:0 2px 12px #0002;border-top:6px solid #111827;padding:30px;box-sizing:border-box}
-    h1{font-size:22px;margin:0 0 18px}p{line-height:1.6;color:#475569}form{margin-top:24px}</style>
-    </head><body><main><h1>${escapeHtml(heading)}</h1>
-    ${paragraphs.map((text) => `<p>${escapeHtml(text)}</p>`).join('')}${confirmation}
-    </main></body></html>`;
-  return new Response(html,{status,headers:{
-    'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store',
-    'Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff',
-    'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'",
-  }});
-}
-
-async function formFields(request: Request): Promise<URLSearchParams | null> {
-  if (request.headers.get('Content-Type')?.split(';')[0] !== 'application/x-www-form-urlencoded' ||
-      Number(request.headers.get('Content-Length') ?? 0) > 2048) return null;
-  const reader = request.body?.getReader();
-  if (!reader) return null;
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > 2048) { await reader.cancel(); return null; }
-    chunks.push(value);
+async function postedFields(request: Request): Promise<URLSearchParams> {
+  const type = request.headers.get('Content-Type') ?? '';
+  if (type.startsWith('application/x-www-form-urlencoded') || type.startsWith('multipart/form-data')) {
+    try {
+      const form = await request.formData();
+      const fields = new URLSearchParams();
+      form.forEach((value, key) => { if (typeof value === 'string') fields.append(key, value); });
+      return fields;
+    } catch { return new URLSearchParams(); }
   }
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) { bytes.set(chunk,offset); offset += chunk.byteLength; }
-  try { return new URLSearchParams(new TextDecoder('utf-8',{fatal:true}).decode(bytes)); }
-  catch { return null; }
+  return new URLSearchParams();
 }
 
-/** GET is a read-only confirmation page. Only a deliberate same-origin POST replies. */
 export async function appointmentEmailLink(request: Request, env: Env): Promise<Response> {
-  if (request.method !== 'GET' && request.method !== 'POST') {
-    return page('Kaedah Tidak Sah',['Gunakan pautan daripada emel anda.'],undefined,405);
+  const method = request.method.toUpperCase();
+  if (method !== 'GET' && method !== 'POST') {
+    return renderPage('Kaedah Tidak Sah', '⚠️', '#F59E0B', 'Kaedah Tidak Sah', 'Gunakan pautan daripada emel anda.', '', 405);
   }
-  if (env.STAGING_AUTH_ENABLED !== '1' || env.STAGING_WRITES_ENABLED !== '1' ||
-      env.APPOINTMENT_DELIVERY_ENABLED !== '1') {
-    return new Response('Pautan jawapan belum tersedia di staging.',{
-      status:503,headers:{'Cache-Control':'no-store','Content-Type':'text/plain; charset=utf-8'},
+  if (!appointmentWritesEnabled(env)) {
+    return new Response('Pautan jawapan belum tersedia di staging.', {
+      status: 503, headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/plain; charset=utf-8' },
     });
   }
-  const params = request.method === 'GET' ? new URL(request.url).searchParams : await formFields(request);
-  const token = params?.get('token') ?? '';
-  const action = params?.get('action') ?? '';
-  if (!params || params.getAll('token').length !== 1 || params.getAll('action').length !== 1 ||
-      !/^(?:[a-fA-F0-9]{32}|[a-fA-F0-9]{64})$/.test(token) ||
-      (action !== 'accept' && action !== 'reject')) {
-    return page('Pautan Tidak Sah',['Pautan ini tidak sah atau tidak lengkap. Sila semak emel anda.']);
-  }
-  const appointment = await env.DB.prepare(`
-    SELECT lp.id,lp.status,lp.jawatan,lp.pengadil_id,lp.notif_hantar,lp.tarikh_notif,
-      jp.tarikh,jp.masa,jp.pasukan_home,jp.pasukan_away,jp.tempat,k.jenis_kejohanan
-    FROM lantikan_pengadil lp
-    JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id
-    LEFT JOIN kejohanan k ON k.id=jp.kejohanan_id
-    WHERE lp.email_token=? LIMIT 1
-  `).bind(token).first<LinkAppointment>();
-  if (!appointment) return page('Pautan Tidak Sah',[
-    'Pautan ini tidak dapat dikenal pasti. Tugasan mungkin sudah dijawab atau dikemas kini.']);
-  if (appointment.status !== 'Belum Jawab') {
-    return page('Tugasan Sudah Dijawab',['Tugasan ini sudah dijawab. Tiada tindakan lanjut diperlukan.']);
-  }
-  if (request.method === 'GET') {
-    if (expiryDeadline(appointment) !== null) {
-      return page('Tempoh Menjawab Tamat',[
-        'Tempoh menjawab telah tamat. Sila hubungi pentadbir jika anda masih boleh bertugas.']);
+  try {
+    const source = method === 'POST' ? await postedFields(request) : new URL(request.url).searchParams;
+    const token = (source.get('token') ?? '').trim();
+    const action = (source.get('action') ?? '').trim();
+    if (token === '' || (action !== 'accept' && action !== 'reject')) {
+      return renderPage('Pautan Tidak Sah', '⚠️', '#F59E0B', 'Pautan Tidak Sah',
+        'Pautan ini tidak sah atau tidak lengkap. Sila semak emel anda dan cuba lagi.');
     }
-    return page('Sahkan Jawapan Lantikan',[
-      `Sahkan ${action === 'accept' ? 'penerimaan' : 'penolakan'} lantikan sebagai ${appointment.jawatan}.`,
-      `${appointment.pasukan_home} lwn ${appointment.pasukan_away} pada ${appointment.tarikh}.`,
-    ],{ token, action });
+    const baseUrl = env.BASE_URL || 'https://refpahang.com';
+    const row = await env.DB.prepare(`
+      SELECT lp.id,lp.status,lp.komen,lp.tarikh_notif,lp.jawatan,lp.jadual_id,
+        jp.tarikh,jp.masa,jp.tempat,jp.pasukan_home,jp.pasukan_away,
+        COALESCE(kj.nama,'') AS kejohanan,
+        COALESCE(kj.jenis_kejohanan,'Persahabatan') AS jenis_kejohanan,
+        lp.pengadil_id,
+        COALESCE(NULLIF(trim(u.nama_penuh),''),NULLIF(trim(pl.nama),''),'Pengadil') AS nama_penuh,
+        u.persatuan_id
+      FROM lantikan_pengadil lp
+      JOIN jadual_perlawanan jp ON lp.jadual_id=jp.id
+      LEFT JOIN kejohanan kj ON jp.kejohanan_id=kj.id
+      LEFT JOIN users u ON lp.pengadil_id=u.id
+      LEFT JOIN pengadil_luar pl ON lp.pengadil_luar_id=pl.id
+      WHERE lp.email_token=? LIMIT 1`).bind(token).first<Row>();
+    if (!row) {
+      return renderPage('Pautan Tidak Sah', '⚠️', '#F59E0B', 'Pautan Tidak Sah',
+        `Pautan ini tidak dapat dikenal pasti. Kemungkinan tugasan telah dijawab melalui
+             saluran lain atau lantikan telah dikemaskini oleh pentadbir.
+             Sila hubungi pentadbir untuk mendapatkan pautan aktif.`, '');
+    }
+    const dashUrl = row.pengadil_id ? `${baseUrl}/pengadil-dashboard.html` : '';
+
+    if (method === 'GET' && row.status === 'Belum Jawab') {
+      const notif = row.tarikh_notif ? klTimestamp(String(row.tarikh_notif)) : null;
+      const kickoff = getMatchKickoffTimestamp(String(row.tarikh), String(row.masa ?? ''));
+      if (notif !== null && notif > 0 && kickoff !== null) {
+        const deadline = notif + getDeadlineHours(row.jenis_kejohanan) * 3600_000;
+        if (deadline <= Date.now() && deadline < kickoff) {
+          const deadlineDt = calcDeadlineFromNotif(row.jenis_kejohanan, notif);
+          return renderPage('Tempoh Menjawab Tamat', '⏰', '#F59E0B', 'Tempoh Menjawab Telah Tamat',
+            `Tempoh menjawab telah tamat pada <strong>${deadlineDt}</strong>. Sila hubungi pentadbir jika anda masih boleh bertugas.`,
+            dashUrl);
+        }
+      }
+      const actionLabel = action === 'accept' ? 'Terima Tugasan' : 'Tolak Tugasan';
+      const actionColor = action === 'accept' ? '#059669' : '#DC2626';
+      const body = `Sahkan tindakan <strong>${actionLabel}</strong> sebagai <strong>${h(row.jawatan)}</strong> untuk ${h(`${row.pasukan_home} lwn ${row.pasukan_away}`)}.`
+        + '<form method="post" style="margin-top:24px">'
+        + `<input type="hidden" name="token" value="${h(token)}">`
+        + `<input type="hidden" name="action" value="${h(action)}">`
+        + `<button type="submit" style="border:0;border-radius:4px;padding:13px 24px;background:${actionColor};color:#fff;font-weight:700;cursor:pointer">${actionLabel}</button></form>`;
+      return renderPage('Sahkan Jawapan', '✉️', actionColor, 'Sahkan Jawapan Lantikan', body, dashUrl);
+    }
+
+    const meta = auditMetaFrom(request);
+    const expiredNow = await autoTolakLantikanTertunggak(env, { id: row.id }, meta);
+    if (expiredNow > 0 || (row.status === 'Ditolak' && (row.komen ?? '') === LANTIKAN_AUTO_TOLAK_KOMEN)) {
+      const deadlineHours = getDeadlineHours(row.jenis_kejohanan);
+      const deadlineDt = row.tarikh_notif
+        ? calcDeadlineFromNotif(row.jenis_kejohanan, klTimestamp(String(row.tarikh_notif)) ?? 0) : '';
+      const deadlineLine = deadlineDt ? ` pada <strong>${deadlineDt}</strong>` : '';
+      return renderPage('Tempoh Menjawab Tamat', '⏰', '#F59E0B', 'Tempoh Menjawab Telah Tamat',
+        `Tempoh menjawab (${deadlineHours} jam selepas notifikasi) telah tamat${deadlineLine}.
+             Lantikan ini telah <strong>DITOLAK secara automatik</strong>.
+             Sila hubungi pentadbir jika anda masih boleh bertugas.`, dashUrl);
+    }
+    if (row.status !== 'Belum Jawab') {
+      const already = row.status === 'Diterima' ? 'diterima' : 'ditolak';
+      return renderPage('Sudah Dijawab', 'ℹ️', '#3B82F6', 'Tugasan Sudah Dijawab',
+        `Tugasan ini telah <strong>${already}</strong> sebelum ini. Tiada tindakan lanjut diperlukan.`, dashUrl);
+    }
+    const newStatus = action === 'accept' ? 'Diterima' : 'Ditolak';
+    const responseUrl = `${baseUrl.replace(/\/+$/, '')}/api/lantikan-jawab-token.php?token=`
+      + `${encodeURIComponent(token)}&action=${encodeURIComponent(action)}`;
+    const outcome = await applyAppointmentResponse(env, {
+      lantikanId: row.id, jadualId: row.jadual_id, jawatan: row.jawatan, newStatus,
+      channel: 'email_link', details: { action, new_status: newStatus }, linkUrl: responseUrl,
+      actorUserId: null,
+    }, meta);
+    if (!outcome.updated) {
+      return renderPage('Sudah Dijawab', 'ℹ️', '#3B82F6', 'Tugasan Sudah Dijawab',
+        'Tugasan ini telah dijawab sebelum ini. Tiada tindakan lanjut diperlukan.');
+    }
+    if (newStatus === 'Diterima') {
+      try { await generatePenilaianToken(env, row.id, meta); } catch (error) {
+        console.error('[lantikan-jawab-token] generatePenilaianToken error', error instanceof Error ? error.message : error);
+      }
+    }
+    if (outcome.shouldNotifyCompleteKup) {
+      try { await notifyCompleteKupCrew(env, row.jadual_id); } catch (error) {
+        console.error('[lantikan-jawab-token] KUP crew notification error', error instanceof Error ? error.message : error);
+      }
+    }
+    const tarikhText = tarikhFmt(row.tarikh);
+    const pasukan = h(`${row.pasukan_home} lwn ${row.pasukan_away}`);
+    const jawatan = h(row.jawatan);
+    // The answer is saved; a side notification failure must not turn this into an error page.
+    try {
+      await notifyAdminLantikanResponse(env, action, row.nama_penuh, row.jawatan, row.kejohanan, row.tarikh,
+        row.pasukan_home, row.pasukan_away);
+      if (row.pengadil_id) {
+        const label = action === 'accept' ? 'diterima' : 'ditolak';
+        await createPortalNotification(env, row.pengadil_id, `Lantikan ${ucfirst(label)}`,
+          `Lantikan ${row.pasukan_home} lwn ${row.pasukan_away}`,
+          `Anda telah ${label} lantikan sebagai ${row.jawatan} untuk ${row.pasukan_home} lwn ${row.pasukan_away} (${row.kejohanan}).`);
+        const persatuanId = Number(row.persatuan_id ?? 0);
+        if (persatuanId) {
+          await notifyPPDaerahResponse(env, action, persatuanId, row.nama_penuh, row.jawatan, row.kejohanan,
+            row.tarikh, row.pasukan_home, row.pasukan_away);
+        }
+      }
+    } catch (error) {
+      console.error('[lantikan-jawab-token] notification error', error instanceof Error ? error.message : error);
+    }
+    return action === 'accept'
+      ? renderPage('Tugasan Diterima', '✅', '#10B981', 'Tugasan Diterima',
+        `Terima kasih. Anda telah <strong>menerima</strong> tugasan sebagai <strong>${jawatan}</strong>.<br><br>
+             <strong>${pasukan}</strong><br>${tarikhText}<br>${h(row.tempat ?? '')}<br><br>
+             Sila hadir pada masa dan tempat yang ditetapkan.<br><br>
+             ⚠️ <strong>Sila bawa kelengkapan penuh pengadil.</strong>`, dashUrl)
+      : renderPage('Tugasan Ditolak', '❌', '#EF4444', 'Tugasan Ditolak',
+        `Anda telah <strong>menolak</strong> tugasan sebagai <strong>${jawatan}</strong>.<br><br>
+             <strong>${pasukan}</strong><br>${tarikhText}<br><br>
+             Pentadbir telah dimaklumkan. Terima kasih atas maklum balas anda.`, dashUrl);
+  } catch (error) {
+    console.error('[lantikan-jawab-token]', error instanceof Error ? error.message : error);
+    return renderPage('Ralat', '⚠️', '#EF4444', 'Ralat Dalaman',
+      'Ralat berlaku semasa memproses permintaan anda. Sila cuba lagi atau hubungi pentadbir.');
   }
-  const result = await recordAppointmentReply(env,appointment.id,action,'',
-    { kind:'email',value:token });
-  if (result.kind === 'expired') return page('Tempoh Menjawab Tamat',[
-    'Tempoh menjawab telah tamat dan lantikan ini telah ditolak secara automatik.']);
-  if (result.kind === 'already_answered' || result.kind === 'not_found') {
-    return page('Tugasan Sudah Dijawab',[
-      'Tugasan ini sudah dijawab atau pautan tidak lagi aktif. Tiada tindakan lanjut diperlukan.']);
-  }
-  return result.status === 'Diterima'
-    ? page('Tugasan Diterima',[
-      `Anda telah menerima tugasan sebagai ${appointment.jawatan}.`,
-      `${appointment.pasukan_home} lwn ${appointment.pasukan_away} pada ${appointment.tarikh} di ${appointment.tempat ?? '-'}.`,
-      'Sila bawa kelengkapan penuh pengadil.'])
-    : page('Tugasan Ditolak',[
-      `Anda telah menolak tugasan sebagai ${appointment.jawatan}. Pentadbir telah dimaklumkan.`]);
 }

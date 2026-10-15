@@ -41,3 +41,14 @@ export function openDatabase(migrations) {
   }};
   return {db,DB,hooks,close(){db.close();rmSync(directory,{recursive:true,force:true});}};
 }
+
+/** A real Worker session for userId, returned as a Cookie header value. */
+export async function sessionCookie(db,userId,cookieName='refpahang_session') {
+  db.exec(`CREATE TABLE IF NOT EXISTS worker_sessions (token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL)`);
+  const token=Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');
+  const hash=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token))).toString('hex');
+  const now=Math.floor(Date.now()/1000);
+  db.prepare('INSERT INTO worker_sessions VALUES (?,?,?,?)').run(hash,userId,now,now+3600);
+  return `${cookieName}=${token}`;
+}

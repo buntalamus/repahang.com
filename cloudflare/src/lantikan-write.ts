@@ -19,6 +19,7 @@ import { autoTolakLantikanTertunggak, createPortalNotification, generatePenilaia
   markMatchDispatchedIfComplete, matchStartedMessage, notifyCompleteKupCrew, notifyLantikanPortal,
   notifyPPDaerahLantikan, randomHex } from './php/lantikan-helper';
 import { tgBatalMessage, tgLantikanKeyboard, tgLantikanMessage, tgSend } from './php/telegram';
+import { guardStatement, runGuarded } from './php/guard';
 
 const VALID_JAWATAN = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4', 'Penilai Pengadil'];
 const CHANGED = 'Slot lantikan telah berubah. Muat semula dan cuba lagi.';
@@ -48,23 +49,6 @@ function phpEmpty(value: unknown): boolean {
 
 function phpTrim(value: unknown, fallback: string): string {
   return (value === undefined || value === null ? fallback : String(value)).trim();
-}
-
-function guardStatement(env: Env, scope: string, condition: string, binds: unknown[]): D1PreparedStatement {
-  return env.DB.prepare(`INSERT INTO worker_write_guards(nonce,scope,ok)
-    VALUES (?,?,CASE WHEN ${condition} THEN 1 ELSE 0 END)`)
-    .bind(crypto.randomUUID(), scope, ...binds);
-}
-
-async function runGuarded(env: Env, statements: D1PreparedStatement[]): Promise<D1Result[] | null> {
-  try {
-    return await env.DB.batch(statements);
-  } catch (error) {
-    if (String(error).includes('CHECK constraint failed') || String(error).includes('UNIQUE constraint failed')) {
-      return null;
-    }
-    throw error;
-  }
 }
 
 type Timing = { id: number; tarikh: string; masa: string | null; status: string };
