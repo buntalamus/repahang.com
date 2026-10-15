@@ -1,5 +1,6 @@
 import {currentUser,json} from './auth';
 import {boundedJson} from './request';
+import {overrideAdminReport} from './report-admin-override';
 import type {Env} from './types';
 
 type Report={id:number;status:string;penilai_id:number|null;jadual_id:number;
@@ -191,8 +192,51 @@ export async function submitAssessmentRequest(request:Request,env:Env):Promise<R
   if (input instanceof Response) return input;
   if (!input || typeof input!=='object' || Array.isArray(input)) return json({error:true,message:'Data laporan tidak sah.'},400);
   const body=input as Record<string,unknown>;
-  if (body.action!=='hantar') return json({error:true,message:'Tindakan belum tersedia di staging.'},503);
   const id=idOf(body.id);
   if (!id) return json({error:true,message:'ID diperlukan.'},400);
+  if (body.action==='log_pengerusi_link_copy') {
+    if (user.role!=='Admin') return json({error:true,message:'Akses ditolak.'},403);
+    const state=await env.DB.prepare(`SELECT a.id,a.approval_token FROM
+      laporan_pengesahan_pengerusi a JOIN laporan_penilaian r ON r.id=a.laporan_id
+      WHERE a.laporan_id=? AND a.status='Menunggu' AND r.status='Dihantar'
+        AND length(a.approval_token)=64 LIMIT 1`)
+      .bind(id).first<{id:number;approval_token:string}>();
+    if (!state || !/^[a-fA-F0-9]{64}$/.test(state.approval_token)) {
+      return json({error:true,message:'Pautan Pengerusi tidak lagi aktif.'},409);
+    }
+    const url=`${env.BASE_URL.replace(/\/$/,'')}/api/laporan-pengesahan-token.php?token=${state.approval_token}`;
+    const audit=await env.DB.prepare(`INSERT INTO laporan_pengesahan_audit
+      (laporan_pengesahan_id,laporan_id,event_type,channel,event_status,
+       actor_type,actor_user_id,link_url,details_json,created_at)
+      SELECT a.id,a.laporan_id,'direct_link_copied','admin','success','admin',
+        ?,?,'{"purpose":"chair_report_confirmation"}',datetime('now','+8 hours')
+      FROM laporan_pengesahan_pengerusi a JOIN laporan_penilaian r ON r.id=a.laporan_id
+      WHERE a.id=? AND a.laporan_id=? AND a.status='Menunggu'
+        AND a.approval_token=? AND r.status='Dihantar'`)
+      .bind(user.id,url,state.id,id,state.approval_token).run();
+    return audit.meta.changes===1
+      ? json({error:false,message:'Salinan pautan direkodkan.'})
+      : json({error:true,message:'Pautan Pengerusi tidak lagi aktif.'},409);
+  }
+  if (body.action==='sahkan') {
+    if (user.role!=='Admin') return json({error:true,message:'Akses ditolak.'},403);
+    const reason=typeof body.override_reason==='string' ? body.override_reason.trim() : '';
+    const comment=typeof body.catatan_admin==='string' ? body.catatan_admin.trim() : '';
+    if (!reason) return json({error:true,message:'Sebab override Admin diperlukan.'},400);
+    if (reason.length>5000 || comment.length>5000) {
+      return json({error:true,message:'Catatan override terlalu panjang.'},400);
+    }
+    let result:'confirmed'|'already_processed';
+    try {result=await overrideAdminReport(env,id,user.id,reason,comment,request);}
+    catch(error) {
+      if (String(error).includes('constraint')) return json({error:true,
+        message:'Laporan telah berubah atau tidak lengkap. Muat semula sebelum mengesahkan.'},409);
+      throw error;
+    }
+    return result==='confirmed'
+      ? json({error:false,message:'Override Admin direkodkan dan laporan disahkan.'})
+      : json({error:true,message:'Laporan ini telah disahkan atau di-override sebelum ini.'},409);
+  }
+  if (body.action!=='hantar') return json({error:true,message:'Tindakan belum tersedia di staging.'},503);
   return submitAssessment(env,id,user.id);
 }

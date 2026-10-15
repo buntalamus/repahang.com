@@ -3,7 +3,8 @@ import type {Env} from './types';
 
 type Job={delivery_key:string;approval_id:number;report_id:number;
   recipient_lantikan_id:number;channel:'email'|'telegram';attempts:number};
-type Context={status:string;approval_status:string;recipient_status:string;
+type Context={status:string;approval_status:string;confirmation_source:'chair'|'admin';
+  recipient_status:string;
   recipient_name:string|null;recipient_email:string|null;recipient_chat_id:number|null;
   jawatan:string;markah:number|null;prestasi:string|null;
   kawalan_kekuatan:string|null;kawalan_kelemahan:string|null;kawalan_nasihat:string|null;
@@ -38,6 +39,7 @@ async function viewUrl(env:Env,reportId:number,secret:string):Promise<string> {
 }
 async function context(env:Env,job:Job):Promise<Context|null> {
   return env.DB.prepare(`SELECT r.status,a.status AS approval_status,
+    c.source AS confirmation_source,
     lp.status AS recipient_status,
     COALESCE(u.nama_penuh,pl.nama) AS recipient_name,
     COALESCE(u.email,pl.emel) AS recipient_email,
@@ -126,7 +128,8 @@ export async function processReportDeliveries(env:Env,limit=20,senders:ReportSen
     counts.processed++;
     try {
       const row=await context(env,job);
-      if (!row || row.status!=='Disahkan' || row.approval_status!=='Disahkan' ||
+      if (!row || row.status!=='Disahkan' ||
+          row.approval_status!==(row.confirmation_source==='admin' ? 'Override Admin' : 'Disahkan') ||
           row.recipient_status!=='Diterima' || !row.penilaian_token) {
         await complete(env,job,'skipped','Report or recipient no longer valid');
         counts.skipped++;continue;
@@ -145,7 +148,8 @@ export async function processReportDeliveries(env:Env,limit=20,senders:ReportSen
           row[`${section}_nasihat`] && `${section}: Nasihat — ${row[`${section}_nasihat`]}`,
         ].filter((value):value is string=>Boolean(value))),
         row.ulasan_keseluruhan ? `Ulasan keseluruhan: ${row.ulasan_keseluruhan}` : '',
-        row.catatan_pengerusi ? `Catatan Pengerusi Pengadil: ${row.catatan_pengerusi}` : '',
+        row.catatan_pengerusi
+          ? `${row.confirmation_source==='admin' ? 'Catatan Override Admin' : 'Catatan Pengerusi Pengadil'}: ${row.catatan_pengerusi}` : '',
       ].filter(Boolean);
       if (job.channel==='email') {
         const address=row.recipient_email?.trim();

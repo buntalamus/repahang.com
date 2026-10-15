@@ -80,13 +80,16 @@ assert.equal(mine.data.length,1);
 assert.deepEqual(mine.data[0].pegawai[0].kawalan_kekuatan,['Baik']);
 assert.equal(mine.data[0].pengesahan.email_applicable,1);
 assert.equal(mine.data[0].pengesahan.approval_url,undefined);
+assert.equal(mine.data[0].pengesahan.approval_token,undefined);
 assert.equal(JSON.stringify(mine).includes('b'.repeat(64)),false,'chair token must stay private');
 assert.equal((await (await assessmentReports(new Request(`${base}?jadual_id=10`),env)).json()).data.length,1);
 assert.equal((await (await assessmentReports(new Request(`${base}?id=30`),env)).json()).laporan.id,30);
 globalThis.assessmentUser={id:9,role:'Admin'};
 const all=await (await assessmentReports(new Request(base),env)).json();
 assert.equal(all.data.length,1);
-assert.equal(all.data[0].pengesahan.approval_url,null,'inactive chair link must not be offered');
+assert.equal(all.data[0].pengesahan.approval_url,
+  `https://staging.example.test/api/laporan-pengesahan-token.php?token=${'b'.repeat(64)}`);
+assert.equal(all.data[0].pengesahan.approval_token,undefined);
 assert.deepEqual(all.data[0].pengesahan.audit[0].details,{test:true});
 assert.equal((await (await assessmentReports(new Request(`${base}?kriteria=1`),env)).json()).data.Pengadil.kawalan.label,
   criteria.Pengadil.kawalan.label);

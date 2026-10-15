@@ -16,6 +16,8 @@ const {submitAssessment,submitAssessmentRequest}=await load('../src/report-submi
   ["import {currentUser,json} from './auth';",`const currentUser=async()=>globalThis.testUser;
     const json=(body,status=200)=>Response.json(body,{status});`],
   ["import {boundedJson} from './request';",'const boundedJson=async(request)=>request.json();'],
+  ["import {overrideAdminReport} from './report-admin-override';",
+    "const overrideAdminReport=async()=> 'already_processed';"],
 ]);
 const {processChairDeliveries}=await load('../src/chair-delivery.ts',[
   ["import {buildRefpahangEmail,sendRefpahangEmail} from '../mail';",
@@ -54,6 +56,7 @@ const env={BASE_URL:'https://staging.example.test',STAGING_AUTH_ENABLED:'0',
 try {
   db.exec(readFileSync(new URL('../migrations/0003_assessment_drafts.sql',import.meta.url),'utf8'));
   db.exec(readFileSync(new URL('../migrations/0005_report_confirmation_outbox.sql',import.meta.url),'utf8'));
+  db.exec(readFileSync(new URL('../migrations/0007_report_admin_override.sql',import.meta.url),'utf8'));
   db.exec(readFileSync(new URL('../migrations/0006_report_submission_outbox.sql',import.meta.url),'utf8'));
   const candidates=db.prepare(`SELECT ra.id,ra.jadual_id,ra.pengadil_id
     FROM lantikan_pengadil ra JOIN jadual_perlawanan jp ON jp.id=ra.jadual_id
@@ -127,6 +130,14 @@ try {
   assert.equal(db.prepare('SELECT count(*) n FROM laporan_pengesahan_audit').get().n-before.audit,2);
   assert.equal(db.prepare('SELECT count(*) n FROM worker_chair_deliveries WHERE report_id=?')
     .get(first.reportId).n,2);
+  const adminId=db.prepare("SELECT id FROM users WHERE role='Admin' AND aktif=1 LIMIT 1").get().id;
+  globalThis.testUser={id:adminId,role:'Admin'};
+  assert.equal((await submitAssessmentRequest(request({action:'log_pengerusi_link_copy',
+    id:first.reportId}),env)).status,200);
+  assert.equal(db.prepare(`SELECT count(*) n FROM laporan_pengesahan_audit
+    WHERE laporan_id=? AND event_type='direct_link_copied' AND actor_user_id=?`)
+    .get(first.reportId,adminId).n,1);
+  globalThis.testUser={id:candidates[0].pengadil_id,role:'Penilai'};
   assert.equal((await submitAssessmentRequest(request(payload),env)).status,409);
   assert.equal(db.prepare('SELECT count(*) n FROM worker_chair_deliveries WHERE report_id=?')
     .get(first.reportId).n,2);

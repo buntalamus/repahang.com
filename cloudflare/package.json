@@ -20,6 +20,7 @@
     "test:chair-approval-link": "node --no-warnings tests/chair-approval-link.mjs",
     "test:chair-confirm-core": "node --no-warnings tests/chair-confirm-core.mjs",
     "test:report-submission": "node --no-warnings tests/report-submission.mjs",
+    "test:report-admin-override": "node --no-warnings tests/report-admin-override.mjs",
     "test:futsal-form": "node --no-warnings tests/futsal-form.mjs",
     "test:chair-config": "node --no-warnings tests/chair-config.mjs",
     "build:frontend": "npm --prefix ../frontend run build:prod",

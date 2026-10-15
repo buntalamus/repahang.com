@@ -44,6 +44,7 @@ const request=new Request('https://staging.example.test/api/laporan-pengesahan-t
 });
 try {
   db.exec(readFileSync(new URL('../migrations/0005_report_confirmation_outbox.sql',import.meta.url),'utf8'));
+  db.exec(readFileSync(new URL('../migrations/0007_report_admin_override.sql',import.meta.url),'utf8'));
   const candidate=db.prepare(`SELECT a.id,a.laporan_id,a.approval_token,r.jadual_id
     FROM laporan_pengesahan_pengerusi a JOIN laporan_penilaian r ON r.id=a.laporan_id
     WHERE length(a.approval_token)=64 AND r.status='Disahkan'

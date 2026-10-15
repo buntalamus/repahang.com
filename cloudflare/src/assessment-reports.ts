@@ -61,6 +61,7 @@ async function attachDetails(env: Env, reports: Row[], admin: boolean): Promise<
     const states = await env.DB.prepare(`
       SELECT laporan_id,id AS pengesahan_id,status AS pengesahan_status,
         pengesah_nama,pengesah_jawatan,pengesah_negeri,email_sent_at,telegram_sent_at,
+        approval_token,
         CASE WHEN NULLIF(trim(email_recipient),'') IS NULL THEN 0 ELSE 1 END AS email_applicable,
         CASE WHEN telegram_chat_id IS NULL THEN 0 ELSE 1 END AS telegram_applicable,
         catatan_pengerusi,tarikh_sahkan AS tarikh_sahkan_pengerusi,
@@ -90,11 +91,13 @@ async function attachDetails(env: Env, reports: Row[], admin: boolean): Promise<
     const state = approvals.get(id);
     let pengesahan: Row | null = null;
     if (state) {
-      const {laporan_id:_reportId,...rest} = state;
+      const {laporan_id:_reportId,approval_token:approvalToken,...rest} = state;
       pengesahan = {...rest};
       if (admin) {
-        // A chair link becomes actionable only after preview and POST confirmation exist.
-        pengesahan.approval_url = null;
+        pengesahan.approval_url = state.pengesahan_status==='Menunggu' &&
+          typeof approvalToken==='string' && /^[a-fA-F0-9]{64}$/.test(approvalToken)
+          ? `${env.BASE_URL.replace(/\/$/,'')}/api/laporan-pengesahan-token.php?token=${approvalToken}`
+          : null;
         pengesahan.audit = audits.get(id) ?? [];
       }
     }

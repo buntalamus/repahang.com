@@ -272,10 +272,12 @@ disemak dan dicuba semula.
 `laporan-penilaian.php` menyediakan semua mod GET bagi RA berlog masuk dan Admin:
 senarai sendiri, butiran, laporan per perlawanan, KUP diterima dan kriteria.
 Laporan pengguna lain ditapis di SQL; token Pengerusi tidak dipulangkan dan
-`approval_url` sengaja kosong sehingga salinan pautan terus untuk Admin
-dipindahkan. POST draf berkongsi teras transaksi dengan borang bertoken;
-PUT `action=hantar` tersedia di sebalik tiga suis staging. Override Admin
-dan pemakluman semula masih 503. Ujian sintetik dan bacaan
+`approval_url` kini dipulangkan hanya kepada Admin untuk rekod `Menunggu`
+yang bertoken; token mentah tidak dipulangkan dalam medan lain atau kepada RA.
+POST draf berkongsi teras transaksi dengan borang bertoken. PUT
+`action=hantar`, `action=sahkan` dan `action=log_pengerusi_link_copy`
+tersedia di sebalik tiga suis staging; pemakluman semula masih 503.
+Ujian sintetik dan bacaan
 salinan D1 mengesahkan skema, skop RA, pemisahan peranan dan lampiran pengesahan.
 Migrasi `0003_assessment_drafts.sql` menambah indeks unik lantikan laporan dan
 `worker_revision` untuk menolak simpanan serentak yang menggunakan versi lama.
@@ -288,7 +290,7 @@ D1 staging, eksport jauh disimpan secara private di
 Migrasi jauh memproses dua arahan; semakan selepas itu menunjukkan 370 pengguna,
 91 laporan asal, 51 perlawanan Hanafi 2026, serta satu lajur revisi dan satu
 indeks unik baharu. Kesemua suis staging masih `0`.
-Skema `0001` hingga `0006` dipasang melalui `wrangler d1 execute`, bukan
+Skema `0001` hingga `0007` dipasang melalui `wrangler d1 execute`, bukan
 ledger `wrangler d1 migrations apply`. Oleh itu, `migrations list` masih
 menyenaraikannya sebagai belum dilaksana walaupun skemanya wujud. Jangan
 jalankan `migrations apply` secara terus pada D1 staging ini tanpa menyelaraskan
@@ -658,8 +660,9 @@ penghantaran. Ujian salinan D1 import meliputi pengesahan sekali sahaja,
 rekod KUP tidak lengkap, semua tugasan penghantaran, token HMAC dan kegagalan
 penyedia emel. Suis baharu `REPORT_DELIVERY_ENABLED` kekal `0` di staging;
 POST dan giliran hanya boleh berjalan jika suis ini, auth dan writes semuanya
-`1`. Penghantaran RA kepada Pengerusi kini dipindahkan, tetapi override Admin
-dan tetapan semula Pengerusi untuk laporan yang telah dihantar masih belum dipindah.
+`1`. Pada tahap `0005`, penghantaran RA kepada Pengerusi, override Admin dan
+tetapan semula Pengerusi untuk laporan yang telah dihantar belum dipindah;
+status terkini diterangkan selepas rekod deploy di bawah.
 Sebelum migrasi skema `0005` pada D1 staging, eksport jauh disimpan secara
 private di `output/cloudflare/refpahang_staging_before_0005_20261015.sql`.
 Migrasi jauh selesai dengan tiga arahan; semakan selepasnya menunjukkan
@@ -692,8 +695,27 @@ Sebelum migrasi `0006` pada D1 staging, sandaran private disimpan di
 bait; mod 600; diabaikan Git). Selepas migrasi: 370 pengguna, 91 laporan RA
 asal, **51** perlawanan Hanafi 2026, sifar penghantaran RA Worker dan sifar
 tugas Pengerusi. Semua suis staging masih `0`; tiada emel atau Telegram
-sebenar dihantar. Override Admin, PDF lain dan muat naik media masih perlu
-disiapkan sebelum domain dialih ke Worker.
+sebenar dihantar. Commit `d6197c0` dipush dan dideploy dari worktree bersih
+ke staging versi `d715cdcc-4a40-4cc9-8b97-3e77017a949b`. Health 200 dengan
+`api_complete:false`; PUT hantar dan POST token kekal 503. Semakan D1 selepas
+deploy menunjukkan 370 pengguna, 997 lantikan, 91 laporan dan 51 perlawanan
+Hanafi 2026, tanpa sebarang tugas Worker baharu.
+
+Override bersebab oleh Admin kini menggunakan `0007_report_admin_override.sql`
+untuk menandakan sumber pengesahan `chair` atau `admin`. Batch D1 menukar
+status Pengerusi kepada `Override Admin`, menyimpan sebab dan catatan, menukar
+laporan serta perlawanan kepada `Disahkan`/`Selesai`, menulis audit dan
+menjadualkan emel/Telegram KUP melalui giliran Worker sedia ada. Pautan
+Pengerusi menjadi tidak boleh digunakan selepas override. Ujian salinan D1
+mengesahkan satu override sahaja, sebab/audit, saluran KUP tiruan dan
+penolakan tindakan berulang. Salinan pautan Pengerusi oleh Admin direkodkan
+sebagai audit `direct_link_copied`; RA tidak menerima token Pengerusi.
+Sandaran D1 staging sebelum `0007` ialah
+`output/cloudflare/refpahang_staging_before_0007_20261015.sql` (31,759,025
+bait; mod 600; diabaikan Git). Skema `0007` dipasang tanpa mengubah rekod
+laporan sedia ada. Kesemua 19 ujian Worker dan `tsc --noEmit` lulus.
+Pemakluman semula Pengerusi, tetapan Pengerusi melalui POST, PDF lain serta
+muat naik media masih perlu disiapkan sebelum domain dialih ke Worker.
 
 ## Semua tetapan emel semasa
 
