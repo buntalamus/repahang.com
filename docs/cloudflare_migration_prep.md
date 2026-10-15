@@ -248,6 +248,13 @@ transaksi tersebut.
 kejohanan, calon RA, pengerusi semasa dan audit tanpa mendedahkan ID Telegram.
 POST menetapkan pengerusi masih 503 kerana aliran itu juga perlu menyediakan
 token, menghantar laporan RA yang menunggu dan merekodkan notifikasi.
+`lantikan.php?jadual_id=...` kini menyediakan GET khusus Admin bagi slot
+perlawanan dan pengadil dalam pool kejohanan, termasuk bilangan lantikan,
+wilayah, ketersediaan emel serta status Telegram tanpa membocorkan token.
+Ujian pada skema D1 import dan data sintetik lulus. Tamat tempoh jawapan dan
+cubaan semula notifikasi dijalankan oleh Worker berkala apabila suis berkaitan
+diaktifkan; GET sendiri tidak mengubah data. POST, PUT dan DELETE `lantikan.php`
+masih 503 sehingga transaksi lantikan, audit dan notifikasi dipindahkan.
 Pautan `/penilaian-borang.html` kini disertakan dalam aset Angular staging.
 `penilaian-token.php` menyediakan GET bertoken bagi RA yang telah menerima
 lantikan: butiran perlawanan, KUP diterima, draf sedia ada dan kriteria asal.

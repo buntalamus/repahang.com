@@ -4,6 +4,7 @@ import { adminSettings, maintenanceEnabled } from './admin-settings';
 import { changePassword } from './change-password';
 import { adminDashboardStats, adminDashboardTasks, adminProfile } from './admin-dashboard';
 import { appointments } from './appointments';
+import { adminAppointments } from './admin-appointments';
 import { processAppointmentDeliveries } from './appointment-delivery';
 import { processExpiredAppointments } from './appointment-expiry';
 import { appointmentReply } from './appointment-reply';
@@ -196,6 +197,7 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/admin-test-applications.php') return adminTestApplications(request, env);
   if (pathname === '/api/pengadil-match-manage.php') return refereeMatchManage(request, env);
   if (pathname === '/api/lantikan-jawab.php') return appointmentReply(request, env);
+  if (pathname === '/api/lantikan.php') return adminAppointments(request, env);
   if (pathname === '/api/lantikan-jawab-token.php') return appointmentEmailLink(request, env);
   if (pathname === '/api/lantikan-audit.php') return appointmentAudit(request, env);
   if (pathname === '/api/penilaian-token.php') return request.method === 'POST'
