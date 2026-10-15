@@ -9,6 +9,8 @@ const source = readFileSync(new URL('../src/appointment-audit.ts',import.meta.ur
      const json = (value,status=200) => Response.json(value,{status});`)
   .replace("import { boundedJson } from './request';",
     'const boundedJson = async (request) => request.json();')
+  .replace("import { wroteRow } from './d1-changes';",
+    'const wroteRow = (result) => Number(result?.meta.changes ?? 0) > 0;')
   .replace("import { guardStatement, runGuarded } from './php/guard';",'')
   .replace("import { auditMetaFrom, getLantikanAuditSnapshot, lantikanAuditStatement } from './php/lantikan-audit';",'')
   .replace(`import { createPortalNotification, generatePenilaianToken, historySyncStatements,

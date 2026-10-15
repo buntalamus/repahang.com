@@ -1,6 +1,7 @@
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { wroteRow } from './d1-changes';
 
 const editable = [
   'nama_penuh', 'no_ic', 'umur', 'email', 'no_telefon', 'jantina',
@@ -188,7 +189,7 @@ export async function uploadProfileImage(request: Request, env: Env): Promise<Re
   try {
     const updated = await env.DB.prepare("UPDATE users SET url_gambar_profil=?,updated_at=datetime('now','+8 hours') WHERE id=?")
       .bind(path, user.id).run();
-    if (updated.meta.changes !== 1) throw new Error('User disappeared during image upload');
+    if (!wroteRow(updated)) throw new Error('User disappeared during image upload');
   } catch (error) {
     await env.MEDIA.delete(key);
     throw error;

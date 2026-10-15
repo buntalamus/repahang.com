@@ -3,6 +3,7 @@ import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
 import { boundedJson } from './request';
 import type { Env } from './types';
 import { blastKelas3Welcome } from './kelas3-welcome';
+import { wroteRow } from './d1-changes';
 
 const APPLICATION_TYPES: Record<string, string> = {
   berdaftar: 'pengadil_berdaftar',
@@ -203,7 +204,7 @@ export async function deleteApplication(request: Request, env: Env): Promise<Res
     env.DB.prepare('UPDATE perlawanan SET permohonan_id=NULL WHERE permohonan_id=?').bind(id),
     env.DB.prepare('DELETE FROM permohonan WHERE id=?').bind(id),
   ]);
-  if (results[1].meta.changes !== 1) {
+  if (!wroteRow(results[1])) {
     return json({ error: true, message: 'Permohonan sudah diproses.' }, 409);
   }
   return json({
@@ -259,7 +260,7 @@ async function updateFitnessResult(body: Record<string, unknown>, env: Env): Pro
             : `Keputusan ujian kecergasan anda: ${decision}. Pendaftaran belum diluluskan.`,
           application.user_id),
     ]);
-    if (results[0].meta.changes !== 1) {
+    if (!wroteRow(results[0])) {
       return json({ error: true, message: 'Keputusan berubah semasa semakan. Sila muat semula.' }, 409);
     }
     let emailSent = false;

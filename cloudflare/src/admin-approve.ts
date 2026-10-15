@@ -2,6 +2,7 @@ import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { wroteRow } from './d1-changes';
 
 interface Application {
   id: number;
@@ -81,7 +82,7 @@ export async function adminApprove(request: Request, env: Env): Promise<Response
       subject, message));
   }
   const results = await env.DB.batch(statements);
-  if (results[0].meta.changes !== 1) {
+  if (!wroteRow(results[0])) {
     return json({ error: true, message: 'Permohonan sudah diproses.' }, 409);
   }
   let emailSent = false;

@@ -2,6 +2,7 @@ import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { wroteRow } from './d1-changes';
 
 const scoreFields = [
   'skor_ht_home', 'skor_ht_away', 'skor_ft_home', 'skor_ft_away',
@@ -205,7 +206,7 @@ async function editMatch(input: Record<string, unknown>, env: Env, userId: numbe
   const result = await env.DB.prepare(`UPDATE perlawanan SET ${fields.join(',')} WHERE id=? AND user_id=?
     AND lantikan_id IS NULL AND match_group_id IS NULL AND COALESCE(status_pp,'')<>'Disahkan'`)
     .bind(...values, matchId, userId).run();
-  if (result.meta.changes !== 1) return json({ error: true, message: 'Rekod berubah semasa semakan.' }, 409);
+  if (!wroteRow(result)) return json({ error: true, message: 'Rekod berubah semasa semakan.' }, 409);
   return json({ error: false, message: 'Rekod perlawanan berjaya dikemaskini.' });
 }
 
@@ -228,7 +229,7 @@ async function deleteMatch(input: Record<string, unknown>, env: Env, userId: num
       SELECT ?,'referee_delete_match','perlawanan',?,?,datetime('now','+8 hours') WHERE changes()=1`)
       .bind(userId, matchId, `${match.home_team ?? ''} vs ${match.away_team ?? ''} (${match.tarikh})`),
   ]);
-  if (results[0].meta.changes !== 1) return json({ error: true, message: 'Perlawanan sudah berubah.' }, 409);
+  if (!wroteRow(results[0])) return json({ error: true, message: 'Perlawanan sudah berubah.' }, 409);
   return json({ error: false, message: 'Rekod perlawanan berjaya dipadam.' });
 }
 

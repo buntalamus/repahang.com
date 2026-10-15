@@ -1,6 +1,7 @@
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { wroteRow } from './d1-changes';
 
 const statuses = ['Draf', 'Aktif', 'Selesai', 'Dibatalkan'];
 const kinds = ['Karnival', 'Liga', 'Persahabatan'];
@@ -115,7 +116,7 @@ async function uploadLogo(request: Request, env: Env, id: number | null, side: s
   try {
     const result = await env.DB.prepare(`UPDATE kejohanan SET logo_${side}=?,updated_at=datetime('now','+8 hours') WHERE id=?`)
       .bind(logoPath, id).run();
-    if (result.meta.changes !== 1) throw new Error('Tournament disappeared during logo upload');
+    if (!wroteRow(result)) throw new Error('Tournament disappeared during logo upload');
   } catch (error) {
     await env.MEDIA.delete(key);
     throw error;
@@ -211,6 +212,6 @@ export async function tournaments(request: Request, env: Env): Promise<Response>
   `).bind(parsed.nama, parsed.jenis_kejohanan, parsed.peringkat_kejohanan,
     parsed.tarikh_mula, parsed.tarikh_akhir, parsed.tempat, parsed.anjuran,
     parsed.status, id).run();
-  if (result.meta.changes !== 1) return json({ error: true, message: 'Kejohanan tidak dijumpai.' }, 404);
+  if (!wroteRow(result)) return json({ error: true, message: 'Kejohanan tidak dijumpai.' }, 404);
   return json({ error: false, message: 'Kejohanan berjaya dikemaskini.' });
 }

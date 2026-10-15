@@ -6,6 +6,7 @@ import { auditMetaFrom, getLantikanAuditSnapshot, lantikanAuditStatement } from 
 import { createPortalNotification, generatePenilaianToken, historySyncStatements,
   isAcceptedKupCrewComplete, isKupPosition, markMatchDispatchedIfComplete,
   notifyCompleteKupCrew } from './php/lantikan-helper';
+import { wroteRow } from './d1-changes';
 
 interface Snapshot {
   lantikan_id: number;
@@ -190,7 +191,7 @@ async function prepareLinks(request: Request, env: Env, actorId: number, id: num
       actorId,request.headers.get('CF-Connecting-IP'),
       request.headers.get('User-Agent')?.slice(0,255) ?? null,id),
   ]);
-  if (changes[3].meta.changes !== 1) {
+  if (!wroteRow(changes[3])) {
     return json({error:true,message:'Lantikan berubah semasa menyediakan pautan.'},409);
   }
   const after = await loadSnapshot(env,id);
@@ -260,8 +261,8 @@ async function markManualDelivery(request: Request, env: Env, actorId: number,
       `).bind(id),audit,
     ])
     : [await audit.run()];
-  if (deliveryType === 'appointment' && results[0].meta.changes !== 1 ||
-      results.at(-1)?.meta.changes !== 1) {
+  if (deliveryType === 'appointment' && !wroteRow(results[0]) ||
+      !wroteRow(results.at(-1))) {
     return json({error:true,message:'Lantikan berubah semasa penghantaran manual. Muat semula log pautan.'},409);
   }
   const after = await loadSnapshot(env,id);

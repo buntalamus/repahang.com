@@ -4,6 +4,7 @@ import {guardStatement,runGuarded} from './php/guard';
 import {mysqlTextOrder} from './php/mysql-order';
 import {boundedJson} from './request';
 import type {Env} from './types';
+import { wroteRow } from './d1-changes';
 
 type External = Record<string,unknown> & {
   id:number;emel:string|null;telegram_chat_id:string|null;tg_link_token:string|null;
@@ -234,7 +235,7 @@ async function sendExternalTelegramBlast(request:Request,env:Env,id:number,
           AND (?='resend' OR first_sent_at IS NULL)
           AND (claimed_at IS NULL OR claimed_at<datetime('now','+8 hours','-10 minutes'))`)
         .bind(claim,batch.id,id,recipient.id,mode).run();
-      if (claimed.meta.changes!==1) {
+      if (!wroteRow(claimed)) {
         const state=await env.DB.prepare(`SELECT first_sent_at FROM telegram_onboarding_state
           WHERE kejohanan_id=? AND pengadil_luar_id=?`).bind(id,recipient.id)
           .first<{first_sent_at:string|null}>();

@@ -1,6 +1,7 @@
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { wroteRow } from './d1-changes';
 
 const positions = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4', 'Penilai Pengadil'];
 const autoRejectComment = 'Ditolak automatik - tiada jawapan dalam tempoh';
@@ -152,7 +153,7 @@ export async function scheduleReport(request: Request, env: Env): Promise<Respon
       nama_penyahkan=excluded.nama_penyahkan,jawatan_penyahkan=excluded.jawatan_penyahkan,
       nota=excluded.nota,tarikh_sahkan=excluded.tarikh_sahkan,created_by=excluded.created_by`)
     .bind(tournamentId, name, title, note, user.id, tournamentId).run();
-  if (result.meta.changes !== 1) {
+  if (!wroteRow(result)) {
     return json({ error: true, message: 'Jadual berubah semasa pengesahan. Sila semak semula.' }, 409);
   }
   return json({ error: false, message: 'Jadual lantikan berjaya disahkan.' });

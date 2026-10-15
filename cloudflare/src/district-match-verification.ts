@@ -134,7 +134,7 @@ async function change(request: Request, env: Env, userId: number,
         VALUES(?,?,'perlawanan',?,?,datetime('now','+8 hours'))`)
         .bind(userId, grouped ? 'delete_match_group' : 'delete_match', first.id, `Padam ${description}`),
     ]);
-    if (result[0].meta.changes !== rows.length) {
+    if (result[0].meta.changes < rows.length) {
       return json({ error: true, message: 'Perlawanan berubah semasa dipadam. Sila semak semula.' }, 409);
     }
     return json({ error: false, message: grouped
@@ -158,7 +158,7 @@ async function change(request: Request, env: Env, userId: number,
       VALUES(?,?,'perlawanan',?,?,datetime('now','+8 hours'))`)
       .bind(userId, grouped ? 'verify_match_group' : 'verify_match', first.id, `${description} - Status: ${status}`),
   ]);
-  if (results[0].meta.changes !== rows.length) {
+  if (results[0].meta.changes < rows.length) {
     return json({ error: true, message: 'Perlawanan berubah semasa semakan. Sila muat semula.' }, 409);
   }
   return json({ error: false, message: action === 'verify' ? 'Perlawanan berjaya disahkan.'

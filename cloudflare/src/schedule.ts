@@ -1,6 +1,7 @@
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { wroteRow } from './d1-changes';
 
 const fields = ['no_perlawanan', 'tarikh', 'masa', 'kategori', 'peringkat', 'kumpulan',
   'pasukan_home', 'pasukan_away', 'tempat'] as const;
@@ -237,7 +238,7 @@ export async function schedule(request: Request, env: Env): Promise<Response> {
           OR EXISTS(SELECT 1 FROM lantikan_audit_log al WHERE al.jadual_id=j.id)
         )
       )`).bind(...ids, ...ids, ids.length, ...ids).run();
-    if (result.meta.changes !== ids.length) {
+    if (result.meta.changes < ids.length) {
       return json({ error: true, message: 'Perlawanan mempunyai lantikan, laporan atau audit, atau ID tidak dijumpai. Tiada perlawanan dipadam.' }, 409);
     }
     return json({ error: false, message: `${ids.length} perlawanan berjaya dipadam.` });
@@ -306,7 +307,7 @@ export async function schedule(request: Request, env: Env): Promise<Response> {
         values.peringkat, values.kumpulan, values.pasukan_home, values.pasukan_away, values.tempat, id, id),
     ...history,
   ]);
-  if (results[0].meta.changes !== 1) {
+  if (!wroteRow(results[0])) {
     return json({ error: true, message: 'Perlawanan tidak dijumpai atau laporan RA telah diwujudkan.' }, 409);
   }
   await logoFromRegistry(env, id);

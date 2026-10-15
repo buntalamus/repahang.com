@@ -2,6 +2,7 @@ import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { wroteRow } from './d1-changes';
 
 interface DistrictApplication {
   id: number;
@@ -56,7 +57,7 @@ export async function ppVerify(request: Request, env: Env): Promise<Response> {
       .bind(application.user_id, approved ? 'Permohonan Disahkan PP Daerah' : 'Permohonan Ditolak PP Daerah',
         decisionMessage, application.user_id),
   ]);
-  if (result[0].meta.changes !== 1) {
+  if (!wroteRow(result[0])) {
     return json({ error: true, message: 'Permohonan sudah diproses.' }, 409);
   }
   if (approved) {

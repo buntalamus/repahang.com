@@ -2,6 +2,7 @@ import { currentUser, json } from './auth';
 import { mysqlTextOrder } from './php/mysql-order';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { wroteRow } from './d1-changes';
 
 export const states = ['Johor','Kedah','Kelantan','Melaka','Negeri Sembilan','Pahang','Perak','Perlis',
   'Pulau Pinang','Sabah','Sarawak','Selangor','Terengganu','WP Kuala Lumpur','WP Putrajaya','WP Labuan'];
@@ -107,7 +108,7 @@ export async function externalReferees(request: Request, env: Env): Promise<Resp
       AND (SELECT COUNT(*) FROM pengadil_luar WHERE id IN (${placeholders}))=?
       AND NOT EXISTS (SELECT 1 FROM pengadil_luar WHERE id IN (${placeholders}) AND (${linked}))`)
       .bind(...unique, ...unique, unique.length, ...unique).run();
-    if (result.meta.changes !== unique.length) {
+    if (result.meta.changes < unique.length) {
       return json({ error: true, message: 'Pengadil luar tidak boleh dipadam kerana mempunyai rekod lantikan, pengesahan atau audit; atau ID tidak dijumpai. Tiada rekod dipadam.' }, 409);
     }
     return json({ error: false, message: raw ? `${unique.length} pengadil luar berjaya dipadam.` : 'Pengadil luar berjaya dipadam.' });
@@ -127,6 +128,6 @@ export async function externalReferees(request: Request, env: Env): Promise<Resp
   const result = await env.DB.prepare(`UPDATE pengadil_luar SET nama=?,daerah=?,negeri=?,no_tel=?,emel=?,
     jenis_pengadil=?,updated_at=datetime('now','+8 hours') WHERE id=?`)
     .bind(fields.nama,fields.daerah,fields.negeri,fields.no_tel,fields.emel,fields.jenis_pengadil,id).run();
-  if (result.meta.changes !== 1) return json({ error: true, message: 'Pengadil luar tidak dijumpai.' }, 404);
+  if (!wroteRow(result)) return json({ error: true, message: 'Pengadil luar tidak dijumpai.' }, 404);
   return json({ error: false, message: 'Pengadil luar berjaya dikemaskini.' });
 }

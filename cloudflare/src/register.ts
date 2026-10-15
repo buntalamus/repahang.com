@@ -4,6 +4,7 @@ import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
 import { json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { wroteRow } from './d1-changes';
 
 const allowedTypes = new Set([
   'Pengadil Kebangsaan', 'Pengadil Negeri', 'Penilai Pengadil', 'Pegawai Pembangunan',
@@ -78,7 +79,7 @@ export async function register(request: Request, env: Env): Promise<Response> {
       WHERE NOT EXISTS (SELECT 1 FROM users WHERE no_ic=? OR lower(email)=?)
     `).bind(email, passwordHash, role, association.district_id, associationId,
       name, ic, phone, gender, refereeType, token, ic, email).run();
-    if (result.meta.changes !== 1) {
+    if (!wroteRow(result)) {
       return json({ error: true, message: 'Akaun sudah didaftarkan.' }, 409);
     }
     userId = Number(result.meta.last_row_id);

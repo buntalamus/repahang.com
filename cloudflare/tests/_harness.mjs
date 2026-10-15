@@ -30,13 +30,20 @@ export function openDatabase(migrations) {
   // Route tests exercise normal operation; staging-auth explicitly tests maintenance.
   db.prepare("UPDATE application_settings SET setting_value='0' WHERE setting_key='maintenance_mode'").run();
   const hooks={beforeBatch:null};
+  // Remote D1 reports total_changes(), so rows written by the ON UPDATE
+  // triggers of migration 0009 are counted too; SQLite's own count is not.
+  const totalChanges=()=>db.prepare('SELECT total_changes() AS n').get().n;
+  const runCounted=(sql,values)=>{
+    const before=totalChanges();db.prepare(sql).run(...values);
+    return {meta:{changes:totalChanges()-before}};
+  };
   class Statement {
     constructor(sql,values=[]){this.sql=sql;this.values=values;}
     bind(...values){return new Statement(this.sql,values);}
     async first(){return db.prepare(this.sql).get(...this.values)??null;}
     async all(){return {results:db.prepare(this.sql).all(...this.values)};}
-    async run(){const result=db.prepare(this.sql).run(...this.values);return {meta:{changes:result.changes}};}
-    runSync(){const result=db.prepare(this.sql).run(...this.values);return {meta:{changes:result.changes}};}
+    async run(){return runCounted(this.sql,this.values);}
+    runSync(){return runCounted(this.sql,this.values);}
   }
   const DB={prepare:(sql)=>new Statement(sql),batch:async(statements)=>{
     if (hooks.beforeBatch) {const callback=hooks.beforeBatch;hooks.beforeBatch=null;callback();}

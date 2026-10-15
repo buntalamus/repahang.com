@@ -3,6 +3,7 @@ import {buildRefpahangEmail,sendRefpahangEmail} from '../mail';
 import {json} from './auth';
 import {guardStatement,runGuarded} from './php/guard';
 import type {Env} from './types';
+import { wroteRow } from './d1-changes';
 
 type Recipient={id:number;nama_penuh:string;email:string;password:string};
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -49,7 +50,7 @@ export async function blastKelas3Welcome(env:Env,actorId:number):Promise<Respons
         attempts=attempts+1,actor_user_id=?
       WHERE user_id=? AND campaign_year=2026 AND status IN ('ready','failed')`)
       .bind(claim,actorId,recipient.id).run();
-    if (acquired.meta.changes!==1) {skipped++;continue;}
+    if (!wroteRow(acquired)) {skipped++;continue;}
     const password=temporaryPassword();
     const replacement=await hash(password,12);
     const updated=await env.DB.prepare(`UPDATE users SET password=?,updated_at=datetime('now','+8 hours')
@@ -57,7 +58,7 @@ export async function blastKelas3Welcome(env:Env,actorId:number):Promise<Respons
         AND EXISTS(SELECT 1 FROM permohonan p WHERE p.user_id=users.id
           AND p.jenis_borang='kelas3_fam' AND p.tahun_permohonan=2026)`)
       .bind(replacement,recipient.id,recipient.password).run();
-    if (updated.meta.changes!==1) {
+    if (!wroteRow(updated)) {
       await env.DB.prepare(`UPDATE worker_kelas3_welcome_delivery
         SET status='ready',claim_token=NULL,claimed_at=NULL
         WHERE user_id=? AND campaign_year=2026 AND claim_token=?`)

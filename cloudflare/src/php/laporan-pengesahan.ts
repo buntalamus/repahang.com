@@ -12,6 +12,7 @@ import type { AuditMeta } from './lantikan-audit';
 import { NOW } from './lantikan-audit';
 import { randomHex } from './lantikan-helper';
 import { tgSend } from './telegram';
+import { wroteRow } from '../d1-changes';
 
 export class PhpInvalidArgument extends Error {}
 export class PhpDomainError extends Error {}
@@ -127,7 +128,7 @@ export async function ensureLaporanPengesahanState(env: Env, reportId: number,
       mapping?.pengesah_user_id ?? null, mapping?.pengesah_luar_id ?? null, mapping?.nama_snapshot ?? null,
       mapping?.jawatan_snapshot ?? null, mapping?.negeri ?? null, token, mapping?.email ?? null,
       mapping?.telegram_chat_id ?? null).run();
-    if (inserted.meta.changes === 1) {
+    if (wroteRow(inserted)) {
       const created = await select();
       await recordLaporanPengesahanAudit(env, Number(created?.id), reportId, 'approval_prepared', 'system',
         mapping ? 'success' : 'failed', 'system', null, null, token ? buildPengerusiApprovalUrl(env, token) : null,
@@ -143,7 +144,7 @@ export async function ensureLaporanPengesahanState(env: Env, reportId: number,
       mapping?.pengesah_user_id ?? null, mapping?.pengesah_luar_id ?? null, mapping?.nama_snapshot ?? null,
       mapping?.jawatan_snapshot ?? null, mapping?.negeri ?? null, token, mapping?.email ?? null,
       mapping?.telegram_chat_id ?? null, state.id, state.kejohanan_pengesah_id ?? null).run();
-    if (updated.meta.changes === 1) {
+    if (wroteRow(updated)) {
       await recordLaporanPengesahanAudit(env, Number(state.id), reportId, 'approver_changed', 'system',
         mapping ? 'success' : 'failed', 'system', null, null, token ? buildPengerusiApprovalUrl(env, token) : null,
         { reason: mapping ? null : 'pengerusi_not_configured' }, meta);
@@ -214,13 +215,13 @@ export async function dispatchLaporanForPengerusi(env: Env, reportId: number,
     const skipped = await env.DB.prepare(`UPDATE laporan_pengesahan_pengerusi SET email_attempts=email_attempts+1,
         email_last_error='email_not_available' WHERE id=? AND email_sent_at IS NULL AND email_attempts=0`)
       .bind(stateId).run();
-    if (skipped.meta.changes === 1) await audit('email', 'skipped', { reason: 'email_not_available' });
+    if (wroteRow(skipped)) await audit('email', 'skipped', { reason: 'email_not_available' });
   }
   if (!telegramDelivered && !state.telegram_chat_id && Number(state.telegram_attempts ?? 0) === 0) {
     const skipped = await env.DB.prepare(`UPDATE laporan_pengesahan_pengerusi SET telegram_attempts=telegram_attempts+1,
         telegram_last_error='telegram_not_linked' WHERE id=? AND telegram_sent_at IS NULL AND telegram_attempts=0`)
       .bind(stateId).run();
-    if (skipped.meta.changes === 1) await audit('telegram', 'skipped', { reason: 'telegram_not_linked' });
+    if (wroteRow(skipped)) await audit('telegram', 'skipped', { reason: 'telegram_not_linked' });
   }
   if (!emailDelivered && str(state.email_recipient).trim() !== '') {
     const claim = await env.DB.prepare(`UPDATE laporan_pengesahan_pengerusi SET email_claimed_at=${NOW},
@@ -228,7 +229,7 @@ export async function dispatchLaporanForPengerusi(env: Env, reportId: number,
       WHERE id=? AND email_sent_at IS NULL
         AND (email_claimed_at IS NULL OR email_claimed_at<datetime('now','+8 hours','-10 minutes'))`)
       .bind(stateId).run();
-    if (claim.meta.changes === 1) {
+    if (wroteRow(claim)) {
       const body = emailGreeting(str(state.pengesah_nama))
         + emailPara(`Satu laporan Penilai Pengadil telah dihantar dan memerlukan pengesahan anda sebagai <strong>${h(state.pengesah_jawatan)}</strong>.`)
         + emailInfoTable([
@@ -257,7 +258,7 @@ export async function dispatchLaporanForPengerusi(env: Env, reportId: number,
       WHERE id=? AND telegram_sent_at IS NULL
         AND (telegram_claimed_at IS NULL OR telegram_claimed_at<datetime('now','+8 hours','-10 minutes'))`)
       .bind(stateId).run();
-    if (claim.meta.changes === 1) {
+    if (wroteRow(claim)) {
       const message = '📋 <b>Pengesahan Laporan RA</b>\n\n'
         + `🏆 ${h(report.nama_kejohanan)}\n`
         + `⚽ ${h(`${str(report.pasukan_home)} lwn ${str(report.pasukan_away)}`)}\n`

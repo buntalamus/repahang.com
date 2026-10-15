@@ -3,6 +3,7 @@ import { buildRefpahangEmail, sendRefpahangEmail, type MailType } from '../mail'
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { wroteRow } from './d1-changes';
 
 const ALIASES = ['admin', 'daftar', 'lantikan', 'support', 'pengesahan'] as const;
 const MAILBOXES = new Set(ALIASES.map((alias) => `${alias}@refpahang.com`));
@@ -170,7 +171,7 @@ export async function adminMailbox(request: Request, env: Env): Promise<Response
     (id, mailbox, folder, sender, recipient, subject, r2_key, size_bytes, delivery_status, request_id)
     VALUES (?, ?, 'sent', ?, ?, ?, ?, ?, 'processing', ?)
   `).bind(id, from, from, to, subject, key, new TextEncoder().encode(raw).byteLength, requestId).run();
-  if (claimed.meta.changes !== 1) {
+  if (!wroteRow(claimed)) {
     await env.MEDIA.delete(key);
     const duplicate = await env.DB.prepare('SELECT id,delivery_status FROM mailbox_messages WHERE request_id=?')
       .bind(requestId).first();

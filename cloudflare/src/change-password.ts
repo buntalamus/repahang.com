@@ -3,6 +3,7 @@ import { compare, hash } from 'bcryptjs';
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { wroteRow } from './d1-changes';
 
 export async function changePassword(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'POST') {
@@ -51,7 +52,7 @@ export async function changePassword(request: Request, env: Env): Promise<Respon
     UPDATE users SET password=?, password_changed=1, updated_at=datetime('now')
     WHERE id=? AND password=?
   `).bind(replacement, session.id, user.password).run();
-  if (result.meta.changes !== 1) {
+  if (!wroteRow(result)) {
     return json({ error: true, message: 'Kata laluan telah berubah. Cuba lagi.' }, 409);
   }
   return json({ error: false, message: 'Kata laluan berjaya dikemaskini!' });

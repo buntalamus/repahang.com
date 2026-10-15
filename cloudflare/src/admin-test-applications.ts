@@ -2,6 +2,7 @@ import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { wroteRow } from './d1-changes';
 
 const testTypes: Record<string, string> = {
   kecergasan: 'ujian_kecergasan', fitness: 'ujian_kecergasan',
@@ -105,7 +106,7 @@ export async function adminTestApplications(request: Request, env: Env): Promise
         `Keputusan permohonan ${label} anda: ${decision}.${notes ? ` Catatan: ${notes}` : ''}`));
   }
   const results = await env.DB.batch(statements);
-  if (results[0].meta.changes !== 1) return json({ error: true, message: 'Permohonan sudah diproses.' }, 409);
+  if (!wroteRow(results[0])) return json({ error: true, message: 'Permohonan sudah diproses.' }, 409);
   let emailSent = false;
   const recipient = application.user_email || application.emel;
   if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {

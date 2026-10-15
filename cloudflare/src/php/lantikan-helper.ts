@@ -8,6 +8,7 @@ import type { AuditMeta } from './lantikan-audit';
 import type { LantikanSnapshot } from './lantikan-audit';
 import { NOW, getLantikanAuditSnapshot, recordLantikanAudit } from './lantikan-audit';
 import { tgKupCrewCompleteMessage, tgSend } from './telegram';
+import { wroteRow } from '../d1-changes';
 
 export const LANTIKAN_AUTO_TOLAK_KOMEN = 'Ditolak automatik - tiada jawapan dalam tempoh';
 export const KUP_POSITIONS = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4'];
@@ -128,7 +129,7 @@ export async function markAppointmentExternallyDelivered(env: Env, lantikanId: n
       tarikh_notif=${NOW},
       tg_notif_hantar=CASE WHEN ?=1 THEN 1 ELSE tg_notif_hantar END
     WHERE id=? AND status='Belum Jawab'`).bind(telegramDelivered ? 1 : 0, lantikanId).run();
-  return result.meta.changes === 1;
+  return wroteRow(result);
 }
 
 /**
@@ -477,7 +478,7 @@ async function claimChannel(env: Env, id: number, channel: 'telegram' | 'email')
       AND (${channel}_next_attempt_at IS NULL OR ${channel}_next_attempt_at<=${NOW})
       AND (${channel}_claimed_at IS NULL OR ${channel}_claimed_at<datetime('now','+8 hours','-5 minutes'))`)
     .bind(id).run();
-  if (result.meta.changes !== 1) return null;
+  if (!wroteRow(result)) return null;
   const row = await env.DB.prepare(`SELECT ${channel}_attempts AS attempts FROM kup_crew_notifications
     WHERE id=?`).bind(id).first<{ attempts: number }>();
   return Number(row?.attempts ?? 0);

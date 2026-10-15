@@ -1,5 +1,6 @@
 import { currentUser, json } from './auth';
 import type { Env } from './types';
+import { wroteRow } from './d1-changes';
 
 function positiveId(value: string | null): number | null {
   if (!value || !/^[1-9]\d*$/.test(value)) return null;
@@ -119,7 +120,7 @@ export async function deactivateReferee(request: Request, env: Env): Promise<Res
       VALUES(?,'deactivate_referee','users',?,?,datetime('now','+8 hours'))`)
       .bind(user.id, id, `Akaun pengadil ${referee.nama_penuh} dinyahaktifkan oleh Admin; sejarah dikekalkan.`),
   ]);
-  if (results[0].meta.changes !== 1) return json({ error: true, message: 'Pengadil tidak dijumpai.' }, 404);
+  if (!wroteRow(results[0])) return json({ error: true, message: 'Pengadil tidak dijumpai.' }, 404);
   return json({ error: false, message: 'Akaun pengadil dinyahaktifkan. Semua sejarah perlawanan dikekalkan.',
     referee_name: referee.nama_penuh });
 }

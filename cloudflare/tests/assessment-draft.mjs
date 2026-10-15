@@ -11,7 +11,8 @@ const source=readFileSync(new URL('../src/assessment-draft.ts',import.meta.url),
 const linkedSource=source.replace("import {dispatchAfterSubmission,publicDispatch,submissionMessage} from './report-submission';",
   `const dispatchAfterSubmission=async()=>null;const publicDispatch=(value)=>value;
    const submissionMessage=()=>'Submitted';`)
-  .replace("import {auditMetaFrom} from './php/lantikan-audit';",'const auditMetaFrom=()=>({});');
+  .replace("import {auditMetaFrom} from './php/lantikan-audit';",'const auditMetaFrom=()=>({});')
+  .replace("import {wroteRow} from './d1-changes';",'const wroteRow=(result)=>Number(result?.meta?.changes??0)>0;');
 const compiled=ts.transpileModule(linkedSource,{
   compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext},
 }).outputText;

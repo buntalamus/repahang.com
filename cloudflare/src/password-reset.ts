@@ -4,6 +4,7 @@ import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
 import { json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { wroteRow } from './d1-changes';
 
 const genericMessage = 'Jika emel berdaftar, pautan tetapan semula kata laluan akan dihantar.';
 
@@ -49,7 +50,7 @@ export async function forgotPassword(request: Request, env: Env): Promise<Respon
            WHERE user_id=? AND COALESCE(used,0)=0
              AND created_at > datetime('now','+7 hours')) < 3
   `).bind(user.id, storedToken, user.id).run();
-  if (inserted.meta.changes !== 1) return json({ error: false, message: genericMessage });
+  if (!wroteRow(inserted)) return json({ error: false, message: genericMessage });
 
   try {
     const resetUrl = new URL('/reset-kata-laluan', env.BASE_URL);
@@ -136,7 +137,7 @@ export async function resetPassword(request: Request, env: Env): Promise<Respons
         AND EXISTS (SELECT 1 FROM users WHERE id=? AND password=?)
     `).bind(tokenRow.user_id, tokenRow.user_id, replacement),
   ]);
-  if (results[0].meta.changes !== 1) {
+  if (!wroteRow(results[0])) {
     return json({ error: true, message: 'Pautan tidak sah atau telah digunakan.' }, 400);
   }
   return json({

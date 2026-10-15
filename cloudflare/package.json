@@ -5,6 +5,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test:appointment-audit": "node --no-warnings tests/appointment-audit.mjs",
+    "test:admin-approve": "node --no-warnings tests/admin-approve.mjs",
     "test:qa-write-guard": "node --no-warnings tests/qa-write-guard.mjs",
     "test:staging-email-redirect": "node --no-warnings tests/staging-email-redirect.mjs",
     "test:assessment-token": "node --no-warnings tests/assessment-token.mjs",

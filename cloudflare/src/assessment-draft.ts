@@ -3,6 +3,7 @@ import {boundedJson} from './request';
 import {dispatchAfterSubmission,publicDispatch,submissionMessage} from './report-submission';
 import {auditMetaFrom} from './php/lantikan-audit';
 import type {Env} from './types';
+import {wroteRow} from './d1-changes';
 
 type Body = Record<string,unknown>;
 type Official = {lantikan_pengadil_id:number;jawatan:string;nama_pengadil:string};
@@ -240,8 +241,7 @@ export async function assessmentDraft(request: Request,env: Env,source:'session'
     }
     throw error;
   }
-  if (Number(results[0]?.meta?.changes)!==1 ||
-      results.slice(2).some((result) => Number(result.meta?.changes)!==1)) {
+  if (!wroteRow(results[0]) || results.slice(2).some((result) => !wroteRow(result))) {
     return json({error:true,message:'Draf telah berubah. Muat semula sebelum menyimpan.'},409);
   }
   const saved = await env.DB.prepare(`SELECT id FROM laporan_penilaian
