@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
@@ -10,7 +10,7 @@ import { environment } from '../../../../environments/environment';
 @Component({
   selector: 'app-pengadil-application',
   standalone: true,
-  imports: [FormsModule, LoadingComponent],
+  imports: [FormsModule, LoadingComponent, RouterLink],
   templateUrl: './application.component.html',
 })
 export class PengadilApplicationComponent implements OnInit {
@@ -21,6 +21,7 @@ export class PengadilApplicationComponent implements OnInit {
   currentApp: any = null;
   appSettings: any = {};
   profile: any = {};
+  profileMissing: string[] = [];
 
   form: any = { nama_waris: '', hubungan_waris: '', telefon_waris: '', saiz_baju: '' };
   declare1 = false;
@@ -94,7 +95,7 @@ export class PengadilApplicationComponent implements OnInit {
   get kelas1MinFitnessRounds(): number { return +(this.appSettings.kelas1_min_fitness_rounds || 7); }
   get showForm(): boolean {
     if (!this.applicationsOpen) return false;
-    return !this.currentApp;
+    return !this.currentApp && !(this.isBerdaftar && this.profileMissing.length > 0);
   }
 
   loadData(): void {
@@ -111,7 +112,14 @@ export class PengadilApplicationComponent implements OnInit {
         if (!settings.error) { this.appSettings = settings.settings || {}; }
         this.currentApp = this.history.find((a: any) =>
           +a.tahun_permohonan === +this.applicationYear) || null;
-        if (!profile.error)  { this.profile = profile.user || profile.data || {}; }
+        if (!profile.error) {
+          this.profile = profile.user || profile.data || {};
+          this.profileMissing = profile.profile_missing_labels || [];
+          this.form.nama_waris = this.profile.nama_waris || '';
+          this.form.hubungan_waris = this.profile.hubungan_waris || '';
+          this.form.telefon_waris = this.profile.telefon_waris || '';
+          this.form.saiz_baju = this.profile.saiz_baju || '';
+        }
         this.loading = false;
       },
       error: () => (this.loading = false),
@@ -127,6 +135,9 @@ export class PengadilApplicationComponent implements OnInit {
 
   submit(): void {
     // Validate
+    if (this.isBerdaftar && this.profileMissing.length) {
+      this.toast.error('Lengkapkan profil sebelum memohon.'); return;
+    }
     if (!this.form.nama_waris || !this.form.hubungan_waris || !this.form.telefon_waris) {
       this.toast.error('Sila lengkapkan maklumat waris.'); return;
     }

@@ -44,6 +44,7 @@ import { adminMatches } from './admin-matches';
 import { districtMatchVerification } from './district-match-verification';
 import { externalReferees } from './external-referees';
 import { register } from './register';
+import { missingRefereeProfile, profileLabels } from './referee-profile';
 import { adminApprove } from './admin-approve';
 import { telegramLinkSelf } from './telegram-link-self';
 import { ppVerify } from './pp-verify';
@@ -122,6 +123,7 @@ async function userProfile(request: Request, env: Env): Promise<Response> {
   if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   const profile = await env.DB.prepare(`
     SELECT u.id, u.email, u.nama_penuh, u.no_ic, u.no_telefon, u.jantina,
+           u.persatuan_id,
            u.alamat1, u.alamat2, u.poskod, u.daerah, u.negeri,
            u.status_kerja, u.jawatan, u.nama_majikan, u.alamat_majikan1,
            u.alamat_majikan2, u.poskod_majikan, u.daerah_majikan,
@@ -141,7 +143,9 @@ async function userProfile(request: Request, env: Env): Promise<Response> {
     WHERE u.id=? LIMIT 1
   `).bind(user.id).first();
   if (!profile) return json({ error: true, message: 'Profil tidak dijumpai.' }, 404);
-  return json({ error: false, user: profile });
+  const missing = missingRefereeProfile(profile as Record<string, unknown>);
+  return json({ error: false, user: profile, profile_missing_fields: missing,
+    profile_missing_labels: missing.map(key => profileLabels[key]) });
 }
 
 async function privateMedia(request: Request, env: Env, pathname: string): Promise<Response> {

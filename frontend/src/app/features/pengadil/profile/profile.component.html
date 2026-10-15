@@ -2,6 +2,15 @@
   @if (loading) {
     <app-loading message="Memuatkan profil..." />
   } @else {
+    @if (profileMissing.length) {
+      <div class="bg-amber-50 border border-amber-300 rounded-xl p-5" role="status">
+        <h2 class="font-semibold text-amber-900">Profil belum lengkap</h2>
+        <p class="text-sm text-amber-800 mt-1">Lengkapkan maklumat berikut sebelum memohon pendaftaran tahunan pengadil:</p>
+        <ul class="list-disc list-inside text-sm text-amber-900 mt-2">
+          @for (label of profileMissing; track label) { <li>{{ label }}</li> }
+        </ul>
+      </div>
+    }
     <!-- Profile Image -->
     <div class="bg-white rounded-xl shadow-sm p-6 text-center">
       <div class="relative inline-block">
@@ -123,7 +132,11 @@
         </div>
         <div>
           <label class="block text-xs text-gray-500 mb-1">Negeri</label>
-          <p class="font-medium">{{ profile.negeri || 'Pahang' }}</p>
+          @if (editing) {
+            <input [(ngModel)]="profile.negeri" class="w-full border rounded-lg px-3 py-2 text-sm" />
+          } @else {
+            <p class="font-medium">{{ profile.negeri || '-' }}</p>
+          }
         </div>
       </div>
     </div>

@@ -18,6 +18,7 @@ export class PengadilProfileComponent implements OnInit {
   editing = false;
   saving = false;
   profile: any = {};
+  profileMissing: string[] = [];
   profileImageUrl = '';
   notifications: any[] = [];
   unreadCount = 0;
@@ -40,7 +41,8 @@ export class PengadilProfileComponent implements OnInit {
     this.api.get<any>('get-user-profile.php').subscribe({
       next: (res) => {
         if (!res.error) {
-          this.profile = res.data || res;
+          this.profile = res.user || res.data || {};
+          this.profileMissing = res.profile_missing_labels || [];
           this.profileImageUrl = this.profile.url_gambar_profil || '';
         }
         this.loading = false;
@@ -72,6 +74,7 @@ export class PengadilProfileComponent implements OnInit {
         if (!res.error) {
           this.toast.success('Profil dikemaskini.');
           this.editing = false;
+          this.loadProfile();
         } else {
           this.toast.error(res.message);
         }
@@ -99,6 +102,7 @@ export class PengadilProfileComponent implements OnInit {
           this.toast.success('Gambar dikemaskini.');
           this.profileImageUrl = res.data?.url || '';
           this.profile.url_gambar_profil = this.profileImageUrl;
+          this.loadProfile();
         } else {
           this.toast.error(res.message);
         }

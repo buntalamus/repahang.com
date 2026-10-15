@@ -45,6 +45,12 @@ try {
   env.STAGING_WRITES_ENABLED='0';
   assert.equal((await post()).status,503);
   env.STAGING_WRITES_ENABLED='1';
+  db.prepare('UPDATE users SET alamat1=NULL WHERE id=80').run();
+  const incompleteProfile=await post();
+  assert.equal(incompleteProfile.status,400);
+  assert.ok((await incompleteProfile.json()).missing_fields.includes('alamat1'));
+  assert.equal(objects.size,0);
+  db.prepare("UPDATE users SET alamat1='Alamat Ujian' WHERE id=80").run();
   const missing=form();missing.delete('resit');
   assert.equal((await post(missing)).status,400);
   const forged=form();forged.set('resit',new File([new TextEncoder().encode('invalid')],'resit.pdf',{type:'application/pdf'}));

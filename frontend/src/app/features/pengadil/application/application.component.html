@@ -102,6 +102,17 @@
       </div>
     }
 
+    @if (isBerdaftar && applicationsOpen && !currentApp && profileMissing.length) {
+      <div class="bg-amber-50 border border-amber-300 rounded-xl p-6" role="alert">
+        <h3 class="font-semibold text-amber-900">Profil belum lengkap</h3>
+        <p class="text-sm text-amber-800 mt-1">Lengkapkan maklumat berikut sebelum memohon pendaftaran tahunan pengadil:</p>
+        <ul class="list-disc list-inside text-sm text-amber-900 mt-3 space-y-1">
+          @for (label of profileMissing; track label) { <li>{{ label }}</li> }
+        </ul>
+        <a routerLink="/pengadil/profil" class="inline-flex mt-4 px-4 py-2 rounded-lg bg-pahang-black text-pahang-yellow font-semibold text-sm">Kemaskini Profil</a>
+      </div>
+    }
+
     <!-- Application Form -->
     @if (showForm) {
       <div class="bg-white rounded-xl shadow-sm border border-slate-200">

@@ -15,7 +15,7 @@ const requiredForMembers = [
   'nama_waris', 'hubungan_waris', 'telefon_waris',
 ];
 
-function dimensions(bytes: Uint8Array): { width: number; height: number; mime: string; ext: string } | null {
+export function dimensions(bytes: Uint8Array): { width: number; height: number; mime: string; ext: string } | null {
   const sig = (at: number, values: number[]) => values.every((value, index) => bytes[at + index] === value);
   const big = (at: number) => bytes[at] * 256 + bytes[at + 1];
   if (bytes.length >= 24 && sig(0, [137, 80, 78, 71, 13, 10, 26, 10]) && sig(12, [73, 72, 68, 82])) {

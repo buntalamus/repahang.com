@@ -2,12 +2,14 @@ import { hash } from 'bcryptjs';
 
 import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
 import { json } from './auth';
-import { boundedJson } from './request';
 import type { Env } from './types';
 import { wroteRow } from './d1-changes';
+import { dimensions } from './profile-write';
+import { missingRefereeProfile, profileLabels } from './referee-profile';
 
 const allowedTypes = new Set([
-  'Pengadil Kebangsaan', 'Pengadil Negeri', 'Penilai Pengadil', 'Pegawai Pembangunan',
+  'Pengadil Baharu', 'Pengadil Kebangsaan', 'Pengadil Negeri',
+  'Penilai Pengadil', 'Pegawai Pembangunan',
 ]);
 
 function randomPassword(): string {
@@ -21,6 +23,39 @@ function tokenHex(): string {
     (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
+async function registrationForm(request: Request): Promise<FormData | Response> {
+  const max = 6 * 1024 * 1024;
+  const type = request.headers.get('Content-Type') || '';
+  if (!type.toLowerCase().startsWith('multipart/form-data;')) {
+    return json({ error: true, message: 'Borang pendaftaran dan gambar profil diperlukan.' }, 400);
+  }
+  if (Number(request.headers.get('Content-Length') || 0) > max) {
+    return json({ error: true, message: 'Saiz borang terlalu besar (maksimum 6MB).' }, 413);
+  }
+  const reader = request.body?.getReader();
+  if (!reader) return json({ error: true, message: 'Data pendaftaran tidak sah.' }, 400);
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel();
+      return json({ error: true, message: 'Saiz borang terlalu besar (maksimum 6MB).' }, 413);
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  try {
+    return await new Request(request.url, { method: 'POST', headers: { 'Content-Type': type }, body: bytes }).formData();
+  } catch {
+    return json({ error: true, message: 'Data pendaftaran tidak sah.' }, 400);
+  }
+}
+
 export async function register(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'POST') return json({ error: true, message: 'Method not allowed' }, 405);
   if (env.STAGING_AUTH_ENABLED !== '1' || env.STAGING_WRITES_ENABLED !== '1') {
@@ -32,12 +67,12 @@ export async function register(request: Request, env: Env): Promise<Response> {
   if (registration?.setting_value === '0') {
     return json({ error: true, message: 'Pendaftaran akaun baru telah ditutup buat sementara waktu.' }, 403);
   }
-  const input = await boundedJson(request, 8192);
+  const input = await registrationForm(request);
   if (input instanceof Response) return input;
-  if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    return json({ error: true, message: 'Data pendaftaran tidak sah.' }, 400);
-  }
-  const body = input as Record<string, unknown>;
+  const body: Record<string, unknown> = {};
+  input.forEach((value, key) => {
+    if (typeof value === 'string') body[key] = value.trim();
+  });
   const name = typeof body.nama_penuh === 'string' ? body.nama_penuh.trim().toUpperCase() : '';
   const ic = typeof (body.no_ic ?? body.no_kp) === 'string' ? String(body.no_ic ?? body.no_kp).trim() : '';
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
@@ -49,8 +84,45 @@ export async function register(request: Request, env: Env): Promise<Response> {
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 ||
       !/^\d{10,11}$/.test(phone) || !['LELAKI', 'PEREMPUAN'].includes(gender) ||
       !allowedTypes.has(refereeType) || !Number.isSafeInteger(associationId) || associationId < 1 ||
-      body.pengesahan_data !== true) {
+      body.pengesahan_data !== 'true') {
     return json({ error: true, message: 'Maklumat pendaftaran tidak lengkap atau tidak sah.' }, 400);
+  }
+  const picture = input.get('gambar_profil');
+  if (!(picture instanceof File) || picture.size < 1 || picture.size > 5 * 1024 * 1024) {
+    return json({ error: true, message: 'Gambar profil JPG atau PNG diperlukan (maksimum 5MB).' }, 400);
+  }
+  const image = new Uint8Array(await picture.arrayBuffer());
+  const info = dimensions(image);
+  if (!info || !['image/jpeg', 'image/png'].includes(info.mime) ||
+      info.width < 150 || info.height < 150 || info.width > 4000 || info.height > 4000) {
+    return json({ error: true, message: 'Gambar profil mesti JPG/PNG sah berukuran 150 hingga 4000 piksel.' }, 400);
+  }
+  const profileFields = [
+    'alamat1', 'alamat2', 'poskod', 'daerah', 'negeri', 'status_kerja',
+    'jawatan', 'nama_majikan', 'alamat_majikan1', 'alamat_majikan2',
+    'poskod_majikan', 'daerah_majikan', 'negeri_majikan',
+    'nama_waris', 'hubungan_waris', 'telefon_waris', 'saiz_baju', 'tahun_mula_aktif',
+  ] as const;
+  for (const key of profileFields) {
+    if (typeof body[key] === 'string' && String(body[key]).length > (key.startsWith('alamat') ? 500 : 255)) {
+      return json({ error: true, message: `${profileLabels[key] || key} terlalu panjang.` }, 400);
+    }
+  }
+  const year = Number(body.tahun_mula_aktif);
+  const currentYear = Number(new Intl.DateTimeFormat('en-CA', { year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' }).format(new Date()));
+  if (refereeType !== 'Penilai Pengadil' && refereeType !== 'Pegawai Pembangunan' &&
+      (!Number.isInteger(year) || year < 1950 || year > currentYear)) {
+    return json({ error: true, message: 'Tahun mula aktif tidak sah.' }, 400);
+  }
+  if (!/^\d{5}$/.test(String(body.poskod || '')) ||
+      !/^\d{10,11}$/.test(String(body.telefon_waris || ''))) {
+    return json({ error: true, message: 'Poskod atau no. telefon waris tidak sah.' }, 400);
+  }
+  const missing = missingRefereeProfile({ ...body, nama_penuh: name, no_ic: ic,
+    email, no_telefon: phone, jantina: gender, jenis_pengadil: refereeType,
+    persatuan_id: associationId, url_gambar_profil: 'dipilih' });
+  if (missing.length) {
+    return json({ error: true, message: `Lengkapkan profil: ${missing.map(key => profileLabels[key]).join(', ')}.`, missing_fields: missing }, 400);
   }
   const association = await env.DB.prepare(`
     SELECT p.id,p.daerah,d.id AS district_id FROM persatuan_bolasepak_daerah p
@@ -66,24 +138,36 @@ export async function register(request: Request, env: Env): Promise<Response> {
 
   const password = randomPassword();
   const token = tokenHex();
-  const role = refereeType === 'Pegawai Pembangunan' ? 'PP Daerah' : 'Pengadil';
+  const role = refereeType === 'Pegawai Pembangunan' ? 'PP Daerah'
+    : refereeType === 'Penilai Pengadil' ? 'Penilai' : 'Pengadil';
   const passwordHash = await hash(password, 12);
+  const pictureKey = `profiles/registration_${crypto.randomUUID()}.${info.ext}`;
+  const picturePath = `/uploads/${pictureKey}`;
+  await env.MEDIA.put(pictureKey, image, { httpMetadata: { contentType: info.mime } });
   let userId: number;
   try {
     const result = await env.DB.prepare(`
       INSERT INTO users(email,password,role,district_id,persatuan_id,nama_penuh,no_ic,
-        no_telefon,jantina,jenis_pengadil,aktif,password_changed,tg_link_token,
+        no_telefon,jantina,jenis_pengadil,alamat1,alamat2,poskod,daerah,negeri,
+        status_kerja,jawatan,nama_majikan,alamat_majikan1,alamat_majikan2,
+        poskod_majikan,daerah_majikan,negeri_majikan,nama_waris,hubungan_waris,
+        telefon_waris,saiz_baju,tahun_mula_aktif,url_gambar_profil,
+        aktif,password_changed,tg_link_token,
         pengadil_kebangsaan,pengadil_negeri,pengadil_daerah,created_at,updated_at)
-      SELECT ?,?,?,?,?,?,?,?,?,?,1,0,?,0,0,0,
+      SELECT ${Array.from({ length: 29 }, () => '?').join(',')},1,0,?,0,0,0,
         datetime('now','+8 hours'),datetime('now','+8 hours')
       WHERE NOT EXISTS (SELECT 1 FROM users WHERE no_ic=? OR lower(email)=?)
     `).bind(email, passwordHash, role, association.district_id, associationId,
-      name, ic, phone, gender, refereeType, token, ic, email).run();
+      name, ic, phone, gender, refereeType,
+      ...profileFields.map(key => String(body[key] || '') || null), picturePath,
+      token, ic, email).run();
     if (!wroteRow(result)) {
+      await env.MEDIA.delete(pictureKey);
       return json({ error: true, message: 'Akaun sudah didaftarkan.' }, 409);
     }
     userId = Number(result.meta.last_row_id);
   } catch (error) {
+    await env.MEDIA.delete(pictureKey);
     // Another request may have registered the same identity after the read.
     const conflict = await env.DB.prepare(
       'SELECT id FROM users WHERE no_ic=? OR lower(email)=? LIMIT 1',
@@ -94,7 +178,7 @@ export async function register(request: Request, env: Env): Promise<Response> {
   await env.DB.prepare(`
     INSERT INTO notifications(user_id,type,subject,message,created_at)
     VALUES(?,'Permohonan Diterima','Pendaftaran Berjaya',
-      'Selamat datang! Akaun anda telah berjaya didaftarkan. Sila lengkapkan profil anda di dashboard.',
+      'Selamat datang! Akaun dan profil anda telah berjaya didaftarkan. Sila semak profil anda di dashboard.',
       datetime('now','+8 hours'))
   `).bind(userId).run();
   const bot = env.TELEGRAM_BOT_USERNAME || 'refpahang_bot';

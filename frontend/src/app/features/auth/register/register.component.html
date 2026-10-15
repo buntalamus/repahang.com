@@ -9,7 +9,7 @@
       </h1>
       <p class="text-xl font-light text-white">Negeri Pahang</p>
       <p class="text-sm text-white/80 mt-2 text-center max-w-2xl mx-auto">
-        Lengkapkan borang asas ini untuk mendaftar akaun. Selepas pendaftaran, anda akan menerima email dengan kata laluan.
+        Lengkapkan profil penuh semasa membuka akaun. Selepas pendaftaran, anda akan menerima emel dengan kata laluan.
       </p>
       <div class="mt-6 flex flex-wrap gap-3 justify-center">
         <a routerLink="/login" class="px-6 py-2 bg-slate-700 text-white text-sm font-semibold rounded-lg shadow hover:bg-slate-600 transition">
@@ -45,9 +45,15 @@
     @else {
     <form (ngSubmit)="onSubmit()" novalidate class="bg-white p-6 md:p-10 rounded-xl shadow-2xl">
 
+      @if (errors['summary']) {
+        <div class="mb-8 rounded-lg border border-red-300 bg-red-50 p-4 text-red-800" role="alert">
+          {{ errors['summary'] }}
+        </div>
+      }
+
       <section class="mb-10">
         <h2 class="text-2xl font-semibold text-pahang-black mb-6 border-l-4 border-pahang-yellow pl-4">
-          Maklumat Asas Pendaftaran
+          Maklumat Peribadi
         </h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
 
@@ -123,7 +129,7 @@
           <!-- Jenis Pengadil -->
           <div class="md:col-span-2">
             <label for="jenis_pengadil" class="block text-sm font-medium text-gray-700 mb-1">
-              Jenis Pengadil <span class="text-red-600">*</span>
+              Peranan / Kategori Pengadil <span class="text-red-600">*</span>
             </label>
             <select id="jenis_pengadil" [(ngModel)]="form.jenis_pengadil" name="jenis_pengadil"
               class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-pahang-yellow focus:border-pahang-yellow">
@@ -154,12 +160,95 @@
             }
           </div>
 
-          <!-- Info Box -->
-          <div class="md:col-span-2 mt-4 p-4 bg-blue-50 border-l-4 border-blue-500 rounded">
-            <p class="text-sm text-blue-800">
-              <strong>Nota Penting:</strong> Selepas mendaftar, anda akan menerima email dengan kata laluan akaun anda.
-              Log masuk ke dashboard untuk lengkapkan profil penuh sebelum hantar permohonan rasmi.
-            </p>
+        </div>
+      </section>
+
+      <section class="mb-10">
+        <h2 class="text-2xl font-semibold text-pahang-black mb-6 border-l-4 border-pahang-yellow pl-4">Alamat Kediaman</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          @for (field of addressFields; track field.key) {
+            <div [class.md:col-span-2]="field.key === 'alamat1' || field.key === 'alamat2'">
+              <label [for]="field.key" class="block text-sm font-medium text-gray-700 mb-1">{{ field.label }} @if (field.required) {<span class="text-red-600">*</span>}</label>
+              <input [id]="field.key" [name]="field.key" [(ngModel)]="profile[field.key]" type="text"
+                [attr.inputmode]="field.key === 'poskod' ? 'numeric' : null" [attr.maxlength]="field.key === 'poskod' ? 5 : 500"
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-pahang-yellow focus:border-pahang-yellow" />
+              @if (errors[field.key]) { <p class="text-red-600 text-xs mt-1">{{ errors[field.key] }}</p> }
+            </div>
+          }
+        </div>
+      </section>
+
+      <section class="mb-10">
+        <h2 class="text-2xl font-semibold text-pahang-black mb-6 border-l-4 border-pahang-yellow pl-4">Maklumat Pekerjaan</h2>
+        <label for="status_kerja" class="block text-sm font-medium text-gray-700 mb-1">Status Pekerjaan <span class="text-red-600">*</span></label>
+        <select id="status_kerja" name="status_kerja" [(ngModel)]="profile['status_kerja']"
+          class="w-full md:w-1/2 px-4 py-2 border border-gray-300 rounded-lg mb-3">
+          <option value="">-- Sila Pilih --</option>
+          <option value="Bekerja (Kerajaan)">Bekerja (Kerajaan)</option>
+          <option value="Bekerja (Swasta)">Bekerja (Swasta)</option>
+          <option value="Bekerja Sendiri">Bekerja Sendiri</option>
+          <option value="Pelajar">Pelajar</option>
+          <option value="Tidak Bekerja">Tidak Bekerja</option>
+          <option value="Pesara">Pesara</option>
+        </select>
+        @if (errors['status_kerja']) { <p class="text-red-600 text-xs mb-3">{{ errors['status_kerja'] }}</p> }
+        @if (needsEmployer) {
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+            @for (field of employerFields; track field.key) {
+              <div [class.md:col-span-2]="field.key === 'alamat_majikan1' || field.key === 'alamat_majikan2'">
+                <label [for]="field.key" class="block text-sm font-medium text-gray-700 mb-1">{{ field.label }} @if (!field.optional) {<span class="text-red-600">*</span>}</label>
+                <input [id]="field.key" [name]="field.key" [(ngModel)]="profile[field.key]" type="text"
+                  class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-pahang-yellow focus:border-pahang-yellow" />
+                @if (errors[field.key]) { <p class="text-red-600 text-xs mt-1">{{ errors[field.key] }}</p> }
+              </div>
+            }
+          </div>
+        }
+      </section>
+
+      <section class="mb-10">
+        <h2 class="text-2xl font-semibold text-pahang-black mb-6 border-l-4 border-pahang-yellow pl-4">Waris dan Maklumat Pengadil</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="nama_waris" class="block text-sm font-medium text-gray-700 mb-1">Nama Waris <span class="text-red-600">*</span></label>
+            <input id="nama_waris" name="nama_waris" [(ngModel)]="profile['nama_waris']" type="text" class="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+            @if (errors['nama_waris']) { <p class="text-red-600 text-xs mt-1">{{ errors['nama_waris'] }}</p> }
+          </div>
+          <div>
+            <label for="hubungan_waris" class="block text-sm font-medium text-gray-700 mb-1">Hubungan Waris <span class="text-red-600">*</span></label>
+            <select id="hubungan_waris" name="hubungan_waris" [(ngModel)]="profile['hubungan_waris']" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+              <option value="">-- Sila Pilih --</option>
+              <option value="Ibu Bapa">Ibu Bapa</option><option value="Pasangan">Pasangan</option>
+              <option value="Anak">Anak</option><option value="Adik-beradik">Adik-beradik</option>
+              <option value="Lain-lain">Lain-lain</option>
+            </select>
+            @if (errors['hubungan_waris']) { <p class="text-red-600 text-xs mt-1">{{ errors['hubungan_waris'] }}</p> }
+          </div>
+          <div>
+            <label for="telefon_waris" class="block text-sm font-medium text-gray-700 mb-1">No. Telefon Waris <span class="text-red-600">*</span></label>
+            <input id="telefon_waris" name="telefon_waris" [(ngModel)]="profile['telefon_waris']" type="tel" inputmode="numeric" maxlength="11" class="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+            @if (errors['telefon_waris']) { <p class="text-red-600 text-xs mt-1">{{ errors['telefon_waris'] }}</p> }
+          </div>
+          @if (isReferee) {
+            <div>
+              <label for="saiz_baju" class="block text-sm font-medium text-gray-700 mb-1">Saiz Baju <span class="text-red-600">*</span></label>
+              <select id="saiz_baju" name="saiz_baju" [(ngModel)]="profile['saiz_baju']" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                <option value="">-- Sila Pilih --</option>
+                @for (size of ['XS','S','M','L','XL','XXL','XXXL']; track size) { <option [value]="size">{{ size }}</option> }
+              </select>
+              @if (errors['saiz_baju']) { <p class="text-red-600 text-xs mt-1">{{ errors['saiz_baju'] }}</p> }
+            </div>
+            <div>
+              <label for="tahun_mula_aktif" class="block text-sm font-medium text-gray-700 mb-1">Tahun Mula Aktif <span class="text-red-600">*</span></label>
+              <input id="tahun_mula_aktif" name="tahun_mula_aktif" [(ngModel)]="profile['tahun_mula_aktif']" type="number" min="1950" max="2100" class="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+              @if (errors['tahun_mula_aktif']) { <p class="text-red-600 text-xs mt-1">{{ errors['tahun_mula_aktif'] }}</p> }
+            </div>
+          }
+          <div>
+            <label for="gambar_profil" class="block text-sm font-medium text-gray-700 mb-1">Gambar Profil <span class="text-red-600">*</span></label>
+            <input id="gambar_profil" name="gambar_profil" type="file" accept="image/jpeg,image/png" (change)="onPictureSelected($event)" class="w-full text-sm" />
+            <p class="text-xs text-gray-500 mt-1">JPG/PNG, 150 × 150 piksel minimum, maksimum 5MB.</p>
+            @if (errors['gambar_profil']) { <p class="text-red-600 text-xs mt-1">{{ errors['gambar_profil'] }}</p> }
           </div>
         </div>
       </section>

@@ -3,6 +3,7 @@ import type { MailAttachment } from '../mail';
 import { currentUser, json } from './auth';
 import { registrationPdf } from './registration-pdf';
 import type { Env } from './types';
+import { missingRefereeProfile, profileLabels } from './referee-profile';
 
 type FormType = 'pengadil_berdaftar' | 'penilai_berdaftar' | 'kelas3_fam' | 'ujian_kelas1_fam';
 type Profile = Record<string, string | number | null>;
@@ -120,10 +121,17 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
     SELECT nama_penuh,no_ic,email,no_telefon,jantina,alamat1,alamat2,poskod,daerah,negeri,
       district_id,persatuan_id,jenis_pengadil,status_kerja,jawatan,nama_majikan,
       alamat_majikan1,alamat_majikan2,poskod_majikan,daerah_majikan,negeri_majikan,
-      saiz_baju,tahun_mula_aktif
+      saiz_baju,tahun_mula_aktif,nama_waris,hubungan_waris,telefon_waris,
+      url_gambar_profil
     FROM users WHERE id=? LIMIT 1
   `).bind(user.id).first<Profile>();
   if (!profile) return json({error: true, message: 'Profil pengguna tidak dijumpai.'}, 400);
+  if (type === 'pengadil_berdaftar') {
+    const missing = missingRefereeProfile(profile);
+    if (missing.length) return json({error: true,
+      message: `Lengkapkan profil anda sebelum memohon: ${missing.map(key => profileLabels[key]).join(', ')}.`,
+      missing_fields: missing}, 400);
+  }
 
   const ic = profileValue(profile, 'no_ic').replace(/\D/g, '');
   if (ic.length >= 6 && (type === 'kelas3_fam' || type === 'ujian_kelas1_fam')) {
