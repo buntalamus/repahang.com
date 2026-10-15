@@ -38,4 +38,4 @@ Pada 2026, terdapat 370 akaun, 488 permohonan dan 11,608 rekod perlawanan dalam 
 
 ## Integrasi pelepasan
 
-Worker produksi menggunakan `cloudflare/wrangler.production.jsonc` dan domain `refpahang.com` serta `www.refpahang.com`. Sebelum audit ini, deployment Worker menunjukkan sumber `Upload`, belum `Git`. Sambungan Git asli Cloudflare memerlukan sambungan GitHub dalam dashboard dan token Builds yang sesuai. Jangan masukkan rahsia Worker ke Git.
+Worker produksi menggunakan `cloudflare/wrangler.production.jsonc` dan domain `refpahang.com` serta `www.refpahang.com`. Cloudflare Builds kini disambungkan kepada `buntalamus/repahang.com`, cabang produksi `main`. Arahan build memasang dependensi Worker dan frontend daripada lockfile masing-masing, kemudian membina Angular; arahan deploy menjalankan Wrangler dengan konfigurasi produksi. Preview builds dimatikan. Push baharu ke `main` mencetuskan binaan automatik. Rahsia Worker kekal dalam Cloudflare dan tidak dimasukkan ke Git.
