@@ -967,9 +967,39 @@ pengesahan muat turun melalui akaun production.
 **Baki PDF/aliran permohonan:** reka letak R11 lama masih perlu semakan visual;
 `permohonan_ujian_bertulis` dalam dump tiada lajur `jenis_permohonan` bagi
 `ujian_kelas1`, maka borang itu belum boleh dijana daripada data sedia ada.
-POST `pengadil-application.php` masih 503 di Worker, maka salinan borang
-belum dilampirkan melalui emel semasa permohonan baharu. Ini perlu dipindahkan
-sebelum `api_complete` ditukar kepada `true` atau trafik production dialihkan.
+POST `pengadil-application.php` telah dipindahkan selepas semakan awal ini;
+lihat catatan berikut. Ia masih memerlukan ujian staging dengan akaun ujian,
+R2 dan penghantaran emel sebenar sebelum `api_complete` ditukar kepada `true`.
+
+### POST permohonan di Worker (15 Oktober)
+
+Worker kini menerima `multipart/form-data` untuk permohonan Pengadil tahunan,
+RA tahunan, Kelas III FAM dan Ujian Kelas I FAM. Semakan peranan, suis borang,
+umur/kelayakan, minimum perlawanan disahkan, waris, resit dan gambar dilakukan
+sebelum tulis. Fail disimpan dalam R2 peribadi, kemudian D1 menambah
+permohonan, memaut perlawanan yang disahkan pada tahun semasa dan mencipta
+notifikasi Admin. Indeks unik `0011_application_uniqueness.sql` menghalang
+permohonan berganda bagi pengguna, jenis borang dan sesi yang sama. Jika
+transaksi gagal, objek R2 yang baru dimuat naik dibersihkan.
+
+Emel menggunakan templat seragam Worker dan melampirkan R1/R2/R4 bagi Pengadil,
+R1 bagi RA, atau R4 bagi Kelas III. Kegagalan PDF/emel dilaporkan melalui
+`email_sent:false` sementara permohonan yang telah disimpan kekal tersedia
+untuk dimuat turun. Ujian pada salinan D1 mengesahkan 51 perlawanan Hanafi
+dipaut kepada permohonan ujian tanpa memadam rekod, lampiran Pengadil dan RA,
+penolakan fail rosak, penguncian staging, pendua dan pembersihan R2 pada
+kegagalan transaksi. Ini **bukan** bukti emel benar sampai atau borang dalam
+akaun production boleh dimuat turun; kedua-duanya masih memerlukan ujian
+staging yang terkawal selepas suis dibuka.
+
+Sebelum memasang indeks unik pada D1 staging, semakan jauh mendapati 0
+kumpulan permohonan berganda. Eksport sandaran peribadi disimpan di
+`output/cloudflare/refpahang_staging_before_0011_20261015.sql`; fail ini
+tidak dimasukkan ke Git. Indeks `0011` dipasang terus dengan `wrangler d1
+execute --remote` kerana ledger migrasi lama tidak sepadan dengan skema.
+Semakan selepas pemasangan: 370 pengguna, 997 lantikan, 91 laporan RA,
+51 perlawanan Hanafi 2026, dan satu indeks unik baharu. Tiada permohonan
+baharu atau emel production dihantar ketika pemasangan ini.
 
 Commit `5d5eb75` telah dipush dan Worker staging dideploy daripada worktree
 bersih (versi `3d45aed5-f364-4e60-98b8-d8bdc7dea0fe`). Semakan jauh:

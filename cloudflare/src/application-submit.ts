@@ -1,0 +1,307 @@
+import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
+import type { MailAttachment } from '../mail';
+import { currentUser, json } from './auth';
+import { registrationPdf } from './registration-pdf';
+import type { Env } from './types';
+
+type FormType = 'pengadil_berdaftar' | 'penilai_berdaftar' | 'kelas3_fam' | 'ujian_kelas1_fam';
+type Profile = Record<string, string | number | null>;
+const annual = new Set<FormType>(['pengadil_berdaftar', 'penilai_berdaftar']);
+const allowed: Record<string, FormType[]> = {
+  Pengadil: ['pengadil_berdaftar', 'kelas3_fam', 'ujian_kelas1_fam'],
+  Penilai: ['penilai_berdaftar'],
+  'PP Daerah': ['penilai_berdaftar', 'kelas3_fam', 'ujian_kelas1_fam'],
+};
+const openSetting: Record<FormType, string> = {
+  pengadil_berdaftar: 'berdaftar_open', penilai_berdaftar: 'penilai_open',
+  kelas3_fam: 'kelas3_open', ujian_kelas1_fam: 'kelas1_open',
+};
+const closedMessage: Record<FormType, string> = {
+  pengadil_berdaftar: 'Maaf, permohonan Pendaftaran Tahunan tidak dibuka pada masa ini.',
+  penilai_berdaftar: 'Maaf, permohonan Pendaftaran Tahunan Penilai Pengadil tidak dibuka pada masa ini.',
+  kelas3_fam: 'Maaf, permohonan Kelas III FAM tidak dibuka pada masa ini.',
+  ujian_kelas1_fam: 'Maaf, permohonan Ujian Kelas I FAM tidak dibuka pada masa ini.',
+};
+
+function klYear(): number {
+  return Number(new Intl.DateTimeFormat('en-CA', {year: 'numeric', timeZone: 'Asia/Kuala_Lumpur'}).format(new Date()));
+}
+function field(form: FormData, key: string): string {
+  const value = form.get(key);
+  return typeof value === 'string' ? value.trim() : '';
+}
+function profileValue(profile: Profile, key: string): string {
+  return profile[key] === null || profile[key] === undefined ? '' : String(profile[key]);
+}
+
+async function limitedForm(request: Request): Promise<FormData | Response> {
+  const max = 12 * 1024 * 1024;
+  if (Number(request.headers.get('Content-Length') || 0) > max) {
+    return json({error: true, message: 'Permintaan terlalu besar.'}, 413);
+  }
+  const contentType = request.headers.get('Content-Type') || '';
+  if (!/^(multipart\/form-data|application\/x-www-form-urlencoded)\b/i.test(contentType)) {
+    return json({error: true, message: 'Data borang tidak sah.'}, 400);
+  }
+  const reader = request.body?.getReader();
+  if (!reader) return json({error: true, message: 'Data borang tidak sah.'}, 400);
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (true) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel();
+      return json({error: true, message: 'Permintaan terlalu besar.'}, 413);
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  try {
+    return await new Request(request.url, {method: 'POST', headers: {'Content-Type': contentType}, body: bytes}).formData();
+  } catch {
+    return json({error: true, message: 'Data borang tidak sah.'}, 400);
+  }
+}
+
+async function fileInfo(file: File, kind: 'resit' | 'gambar'):
+  Promise<{bytes: Uint8Array; mime: string; ext: string} | Response> {
+  if (file.size < 1 || file.size > 5 * 1024 * 1024) {
+    return json({error: true, message: `Saiz fail ${kind} tidak sah (maksimum 5MB).`}, 400);
+  }
+  const ext = file.name.split('.').pop()?.toLowerCase() || '';
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const jpeg = bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  const png = bytes.length > 8 && [137,80,78,71,13,10,26,10].every((part, i) => bytes[i] === part);
+  const pdf = bytes.length > 5 && [37,80,68,70,45].every((part, i) => bytes[i] === part);
+  const mime = jpeg && ['jpg','jpeg'].includes(ext) ? 'image/jpeg'
+    : png && ext === 'png' ? 'image/png'
+      : kind === 'resit' && pdf && ext === 'pdf' ? 'application/pdf' : '';
+  if (!mime) return json({error: true, message: kind === 'resit'
+    ? 'Format resit tidak dibenarkan. Gunakan JPG, PNG atau PDF.'
+    : 'Format gambar tidak dibenarkan. Gunakan JPG atau PNG.'}, 400);
+  return {bytes, mime, ext};
+}
+
+function isResponse(value: unknown): value is Response { return value instanceof Response; }
+
+export async function submitRefereeApplication(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') return json({error: true, message: 'Method not allowed'}, 405);
+  const user = await currentUser(request, env);
+  if (!user) return json({error: true, message: 'Sesi tidak sah. Sila log masuk semula.'}, 401);
+  if (env.STAGING_WRITES_ENABLED !== '1') {
+    return json({error: true, message: 'Tindakan tulis belum tersedia di staging.'}, 503);
+  }
+  if (!allowed[user.role] && !(user.role === 'Admin' && user.jenis_pengadil === 'Penilai Pengadil')) {
+    return json({error: true, message: 'Akses ditolak.'}, 403);
+  }
+  const input = await limitedForm(request);
+  if (isResponse(input)) return input;
+  const type = (field(input, 'jenis_borang') || 'pengadil_berdaftar') as FormType;
+  const canSubmit = allowed[user.role]?.includes(type)
+    || (user.role === 'Admin' && user.jenis_pengadil === 'Penilai Pengadil' && type === 'penilai_berdaftar');
+  if (!canSubmit) return json({error: true, message: 'Jenis borang tidak dibenarkan untuk peranan anda.'}, 403);
+
+  const settingsRows = await env.DB.prepare('SELECT setting_key,setting_value FROM application_settings')
+    .all<{setting_key: string; setting_value: string}>();
+  const settings = Object.fromEntries(settingsRows.results.map(row => [row.setting_key, row.setting_value]));
+  if (settings[openSetting[type]] !== '1') return json({error: true, message: closedMessage[type]}, 400);
+  const year = Number(settings.application_year || klYear());
+  if (!Number.isSafeInteger(year) || year < 2020 || year > 2100) {
+    return json({error: true, message: 'Tahun permohonan tidak sah.'}, 500);
+  }
+  const profile = await env.DB.prepare(`
+    SELECT nama_penuh,no_ic,email,no_telefon,jantina,alamat1,alamat2,poskod,daerah,negeri,
+      district_id,persatuan_id,jenis_pengadil,status_kerja,jawatan,nama_majikan,
+      alamat_majikan1,alamat_majikan2,poskod_majikan,daerah_majikan,negeri_majikan,
+      saiz_baju,tahun_mula_aktif
+    FROM users WHERE id=? LIMIT 1
+  `).bind(user.id).first<Profile>();
+  if (!profile) return json({error: true, message: 'Profil pengguna tidak dijumpai.'}, 400);
+
+  const ic = profileValue(profile, 'no_ic').replace(/\D/g, '');
+  if (ic.length >= 6 && (type === 'kelas3_fam' || type === 'ujian_kelas1_fam')) {
+    const yy = Number(ic.slice(0, 2));
+    const birthYear = yy <= klYear() % 100 ? 2000 + yy : 1900 + yy;
+    const age = year - birthYear;
+    const minAge = Number(settings.kelas3_min_age || 15);
+    const maxAge = Number(settings.kelas3_max_age || 40);
+    const classOneMax = Number(settings.kelas1_max_age || 32);
+    if (type === 'kelas3_fam' && (age < minAge || age > maxAge)) {
+      return json({error: true, message: `Anda tidak memenuhi syarat umur untuk Kelas III FAM. Calon mesti berumur antara ${minAge} hingga ${maxAge} tahun pada tahun ${year}.`}, 400);
+    }
+    if (type === 'ujian_kelas1_fam' && age > classOneMax) {
+      return json({error: true, message: `Anda tidak memenuhi syarat umur untuk Ujian Kelas I FAM. Calon mesti berumur ${classOneMax} tahun ke bawah pada tahun ${year}.`}, 400);
+    }
+  }
+  if (type === 'ujian_kelas1_fam') {
+    const deadline = year - 2;
+    const classThree = await env.DB.prepare(`
+      SELECT 1 FROM permohonan WHERE user_id=? AND jenis_borang='kelas3_fam'
+        AND status_workflow IN ('Lengkap','Admin Diluluskan','Bayaran Diterima')
+        AND tahun_permohonan<=? LIMIT 1
+    `).bind(user.id, deadline).first();
+    if (!classThree) return json({error: true, message:
+      `Anda tidak layak memohon Ujian Kelas I FAM. Sijil Kelas III FAM mesti diperoleh pada tahun ${deadline} atau sebelumnya (sekurang-kurangnya 2 tahun).`}, 400);
+  }
+  const existing = await env.DB.prepare(`
+    SELECT id FROM permohonan WHERE user_id=? AND jenis_borang=? AND tahun_permohonan=? LIMIT 1
+  `).bind(user.id, type, year).first();
+  if (existing) return json({error: true, message:
+    `Anda sudah mempunyai permohonan untuk tahun ${year}. Sila semak sejarah permohonan anda.`}, 400);
+  if (type === 'pengadil_berdaftar' && user.role !== 'PP Daerah') {
+    const count = await env.DB.prepare(`
+      SELECT COUNT(*) AS n FROM perlawanan WHERE user_id=? AND status_pp='Disahkan'
+        AND substr(tarikh,1,4)=?
+    `).bind(user.id, String(klYear())).first<{n: number}>();
+    const minimum = Number(settings.min_verified_matches || 20);
+    if (Number(count?.n || 0) < minimum) return json({error: true,
+      message: `Anda tidak layak memohon. Minimum ${minimum} perlawanan yang disahkan diperlukan.`,
+      verified_count: Number(count?.n || 0)}, 400);
+  }
+  const waris = ['nama_waris','hubungan_waris','telefon_waris'] as const;
+  for (const key of waris) {
+    if (!field(input, key)) return json({error: true, message: `Sila lengkapkan maklumat '${key}'.`}, 400);
+  }
+  const shirt = field(input, 'saiz_baju') || profileValue(profile, 'saiz_baju');
+  if (annual.has(type) && !shirt) return json({error: true, message: "Sila lengkapkan maklumat 'saiz_baju'."}, 400);
+  for (const key of [...waris, 'saiz_baju']) {
+    if (field(input, key).length > 255) return json({error: true, message: `Maklumat '${key}' terlalu panjang.`}, 400);
+  }
+  const receipt = input.get('resit');
+  const picture = input.get('gambar');
+  if (annual.has(type) && !(receipt instanceof File)) return json({error: true, message: 'Resit bayaran diperlukan.'}, 400);
+  if (annual.has(type) && !(picture instanceof File)) return json({error: true, message: 'Gambar profil diperlukan.'}, 400);
+  const receiptInfo = receipt instanceof File ? await fileInfo(receipt, 'resit') : null;
+  if (isResponse(receiptInfo)) return receiptInfo;
+  const pictureInfo = picture instanceof File ? await fileInfo(picture, 'gambar') : null;
+  if (isResponse(pictureInfo)) return pictureInfo;
+
+  const uploaded: string[] = [];
+  const suffix = `${user.id}_${Date.now()}_${crypto.randomUUID()}`;
+  const receiptKey = receiptInfo ? `applications/resit_${suffix}.${receiptInfo.ext}` : '';
+  const pictureKey = pictureInfo && annual.has(type) ? `applications/gambar_${suffix}.${pictureInfo.ext}` : '';
+  try {
+    if (receiptInfo) {
+      await env.MEDIA.put(receiptKey, receiptInfo.bytes, {httpMetadata: {contentType: receiptInfo.mime}});
+      uploaded.push(receiptKey);
+    }
+    if (pictureInfo && pictureKey) {
+      await env.MEDIA.put(pictureKey, pictureInfo.bytes, {httpMetadata: {contentType: pictureInfo.mime}});
+      uploaded.push(pictureKey);
+    }
+    const columns = [
+      'user_id','district_id','persatuan_id','tahun_permohonan','jenis_borang',
+      'nama_penuh','no_kp','emel','no_telefon','jantina','jenis_pengadil',
+      'alamat1','alamat2','poskod','daerah','negeri','status_kerja','jawatan',
+      'nama_majikan','alamat_majikan1','alamat_majikan2','poskod_majikan',
+      'daerah_majikan','negeri_majikan','nama_waris','hubungan_waris','telefon_waris',
+      'url_resit','url_gambar_profil','saiz_baju','payment_amount','mohon_r1',
+      'mohon_ujian_kecergasan','status','status_workflow','tarikh_hantar',
+    ];
+    const fromProfile = (key: string) => profileValue(profile, key);
+    const values: Array<string | number | null> = [
+      user.id, profile.district_id === null ? null : Number(profile.district_id),
+      profile.persatuan_id === null ? null : Number(profile.persatuan_id), year, type,
+      fromProfile('nama_penuh'), fromProfile('no_ic'), fromProfile('email'),
+      fromProfile('no_telefon'), fromProfile('jantina'), fromProfile('jenis_pengadil'),
+      fromProfile('alamat1'), fromProfile('alamat2') || null, fromProfile('poskod'),
+      fromProfile('daerah'), fromProfile('negeri'), fromProfile('status_kerja'),
+      fromProfile('jawatan') || null, fromProfile('nama_majikan') || null,
+      fromProfile('alamat_majikan1') || null, fromProfile('alamat_majikan2') || null,
+      fromProfile('poskod_majikan') || null, fromProfile('daerah_majikan') || null,
+      fromProfile('negeri_majikan') || null, ...waris.map(key => field(input, key)),
+      receiptKey ? `/uploads/${receiptKey}` : null,
+      pictureKey ? `/uploads/${pictureKey}` : null, shirt || null,
+      Number(settings.payment_amount || 80), annual.has(type) ? 1 : 0,
+      type === 'pengadil_berdaftar' ? 1 : 0,
+      'Pending', 'Menunggu PP Daerah',
+    ];
+    const insert = env.DB.prepare(`INSERT INTO permohonan(${columns.join(',')})
+      VALUES(${values.map(() => '?').join(',')},datetime('now','+8 hours'))`).bind(...values);
+    const statements = [insert];
+    if (pictureKey) statements.push(env.DB.prepare(`
+      UPDATE users SET url_gambar_profil=? WHERE id=?
+    `).bind(`/uploads/${pictureKey}`, user.id));
+    statements.push(env.DB.prepare(`
+      UPDATE perlawanan SET permohonan_id=(
+        SELECT id FROM permohonan WHERE user_id=? AND jenis_borang=? AND tahun_permohonan=?
+      ) WHERE user_id=? AND status_pp='Disahkan' AND substr(tarikh,1,4)=?
+        AND (permohonan_id IS NULL OR permohonan_id=0)
+    `).bind(user.id, type, year, user.id, String(klYear())));
+    statements.push(env.DB.prepare(`
+      INSERT INTO notifications(user_id,type,subject,message,created_at)
+      SELECT id,'Permohonan Baru','Permohonan & Bayaran Pengadil Baru',
+        ?,datetime('now','+8 hours') FROM users WHERE role='Admin'
+    `).bind(`Permohonan dan bayaran daripada ${fromProfile('nama_penuh')} (${fromProfile('jenis_pengadil')}) telah dihantar. Sila semak dan sahkan.`));
+    const results = await env.DB.batch(statements);
+    const linkedMatches = Number(results[pictureKey ? 2 : 1]?.meta.changes || 0);
+    const saved = await env.DB.prepare(`
+      SELECT id FROM permohonan WHERE user_id=? AND jenis_borang=? AND tahun_permohonan=?
+    `).bind(user.id, type, year).first<{id: number}>();
+    if (!saved) throw new Error('Application insert was not visible after transaction');
+    const applicationId = Number(saved.id);
+
+    let emailSent = false;
+    try {
+      const attachments: MailAttachment[] = [];
+      if (annual.has(type) || type === 'kelas3_fam') {
+        const pdfUrl = new URL('/api/download-borang-pendaftaran.php', request.url);
+        pdfUrl.searchParams.set('type', type);
+        pdfUrl.searchParams.set('application_id', String(applicationId));
+        const pdf = await registrationPdf(new Request(pdfUrl, {
+          headers: {Cookie: request.headers.get('Cookie') || ''},
+        }), env);
+        if (!pdf.ok || !pdf.headers.get('Content-Type')?.includes('application/pdf')) {
+          throw new Error('Registration PDF unavailable');
+        }
+        attachments.push({filename: type === 'penilai_berdaftar'
+          ? `Borang_Pendaftaran_RA_R1_${applicationId}.pdf`
+          : type === 'kelas3_fam' ? `Borang_Perakuan_Kesihatan_R4_${applicationId}.pdf`
+            : `Borang_Pendaftaran_R1_R2_R4_${applicationId}.pdf`,
+        type: 'application/pdf', content: await pdf.arrayBuffer(), disposition: 'attachment'});
+      }
+      const title = type === 'kelas3_fam' ? 'Permohonan Kelas III FAM Berjaya Dihantar'
+        : type === 'penilai_berdaftar' ? 'Permohonan Pendaftaran Tahunan Penilai Pengadil Berjaya Dihantar'
+          : 'Permohonan Pendaftaran Pengadil Berjaya Dihantar';
+      const paragraphs = [
+        `Permohonan anda telah diterima. No. Rujukan: REF-${String(applicationId).padStart(6,'0')}.`,
+        `Jenis Pengadil: ${fromProfile('jenis_pengadil') || '-'}. Sesi: ${year}. Yuran permohonan: RM ${Number(settings.payment_amount || 80).toFixed(2)}.`,
+        'Status: Menunggu Kelulusan Admin. Semak status di dashboard anda.',
+        ...(type === 'pengadil_berdaftar' ? [
+          'Salinan R1, R2 dan R4 dilampirkan. Cetak dan tandatangani perakuan kesihatan R4 sebelum ujian kecergasan.',
+          ...(year >= 2027 ? ['Pendaftaran akhir bergantung pada keputusan lulus ujian kecergasan.'] : []),
+        ] : type === 'penilai_berdaftar' ? [
+          'Salinan R1 Pendaftaran Tahunan Penilai Pengadil dilampirkan untuk simpanan dan tandatangan anda.',
+        ] : type === 'kelas3_fam' ? [
+          'Borang R4 perakuan kesihatan dilampirkan. Cetak dan tandatangan sebelum ujian kecergasan.',
+        ] : []),
+      ];
+      const dashboard = type === 'penilai_berdaftar' ? user.role === 'Admin' ? '/admin/daftar/ra'
+        : user.role === 'PP Daerah' ? '/pp-daerah/daftar/tahunan' : '/penilai/permohonan/tahunan'
+        : '/pengadil';
+      const {html,text} = buildRefpahangEmail(title, fromProfile('nama_penuh'), paragraphs,
+        {label: 'Semak Status Permohonan', url: new URL(dashboard, env.BASE_URL).toString()});
+      await sendRefpahangEmail(env, 'daftar', fromProfile('email'), fromProfile('nama_penuh'),
+        `${title} - PBNP`, html, text, attachments);
+      emailSent = true;
+    } catch {
+      console.error('Application copy email or PDF attachment could not be sent');
+    }
+    return json({error: false, message: 'Permohonan berjaya dihantar!',
+      application_id: applicationId, linked_matches: linkedMatches, email_sent: emailSent,
+      email_message: emailSent ? 'Salinan dihantar melalui emel.'
+        : 'Emel salinan belum berjaya dihantar; borang boleh dimuat turun dari dashboard.'});
+  } catch (error) {
+    await Promise.allSettled(uploaded.map(key => env.MEDIA.delete(key)));
+    const duplicate = await env.DB.prepare(`
+      SELECT 1 FROM permohonan WHERE user_id=? AND jenis_borang=? AND tahun_permohonan=? LIMIT 1
+    `).bind(user.id, type, year).first();
+    if (duplicate) return json({error: true, message:
+      `Anda sudah mempunyai permohonan untuk tahun ${year}. Sila semak sejarah permohonan anda.`}, 400);
+    throw error;
+  }
+}

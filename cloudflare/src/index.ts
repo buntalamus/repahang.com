@@ -31,6 +31,7 @@ import { printSchedule } from './print-schedule';
 import { fitnessForm } from './fitness-form';
 import { futsalForm } from './futsal-form';
 import { registrationPdf } from './registration-pdf';
+import { submitRefereeApplication } from './application-submit';
 import { chairConfig } from './chair-config';
 import { printAssessment } from './print-assessment';
 import { chairApprovalLink } from './chair-approval-link';
@@ -252,6 +253,9 @@ async function api(request: Request, env: Env, pathname: string): Promise<Respon
   if (pathname === '/api/upload-profile-image.php') return uploadProfileImage(request, env);
   if (pathname === '/api/admin-applications.php' && request.method === 'POST') {
     return deleteApplication(request, env);
+  }
+  if (pathname === '/api/pengadil-application.php' && request.method === 'POST') {
+    return submitRefereeApplication(request, env);
   }
   if (pathname === '/api/notifications.php' && request.method === 'POST') {
     return notifications(request, env);

@@ -17,6 +17,7 @@
     "test:print-assessment": "node --no-warnings tests/print-assessment.mjs",
     "test:futsal-form": "node --no-warnings tests/futsal-form.mjs",
     "test:registration-pdf": "node --no-warnings tests/registration-pdf.mjs",
+    "test:application-submit": "node --no-warnings tests/application-submit.mjs",
     "test:chair-config": "node --no-warnings tests/chair-config.mjs",
     "build:frontend": "npm --prefix ../frontend run build:prod",
     "dev": "wrangler dev",
