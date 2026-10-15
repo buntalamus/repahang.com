@@ -634,6 +634,13 @@ butang sahkan sehingga transaksi pengesahan, audit serta notifikasi kepada
 pegawai dipindahkan. Ujian token sah/salah, status menunggu/sudah diproses
 dan POST tanpa mutasi lulus pada salinan D1 import. Laluan awam kini 5/6
 berroute; endpoint Pengerusi ini masih separa.
+Commit `81365ad` telah dipush dan dideploy ke staging versi
+`bcee9e2e-9fa2-4bcc-9168-a2fdf320c519` daripada worktree bersih.
+Health jauh 200 dengan `api_complete:false`; kedua-dua laluan cetakan dan
+pautan Pengerusi memulangkan 503 kerana suis auth staging masih `0`.
+Semakan D1 jauh mengekalkan 91 laporan RA, 997 lantikan dan 51 perlawanan
+Hanafi 2026. Domain production masih PHP LiteSpeed. Tiada pengesahan laporan
+atau penghantaran emel dilakukan.
 
 ## Semua tetapan emel semasa
 
