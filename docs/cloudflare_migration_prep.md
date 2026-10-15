@@ -663,6 +663,13 @@ Migrasi jauh selesai dengan tiga arahan; semakan selepasnya menunjukkan
 370 pengguna, 997 lantikan, 91 laporan RA, sifar pengesahan/penghantaran
 Worker baharu dan **51** rekod `perlawanan` Hanafi bagi 2026. Dump sandaran
 dan data peribadi tidak dimasukkan ke Git.
+Commit `e906fea` dipush dan dideploy daripada worktree bersih ke staging versi
+`a5b29bef-663b-4265-ae7a-48e9372648fe`. Build frontend berjaya dengan
+amaran bajet awal 511.80 kB berbanding 500 kB. Health jauh 200 dengan
+`api_complete:false`; GET/POST Pengerusi masing-masing 503 kerana auth,
+writes dan `REPORT_DELIVERY_ENABLED` masih `0`. Semakan D1 selepas deploy
+mendapati 91 laporan, sifar pengesahan/penghantaran Worker dan 51 perlawanan
+Hanafi 2026. Tiada emel/Telegram dihantar atau laporan disahkan di staging.
 
 ## Semua tetapan emel semasa
 
