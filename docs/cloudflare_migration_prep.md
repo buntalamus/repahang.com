@@ -971,6 +971,14 @@ POST `pengadil-application.php` masih 503 di Worker, maka salinan borang
 belum dilampirkan melalui emel semasa permohonan baharu. Ini perlu dipindahkan
 sebelum `api_complete` ditukar kepada `true` atau trafik production dialihkan.
 
+Commit `5d5eb75` telah dipush dan Worker staging dideploy daripada worktree
+bersih (versi `3d45aed5-f364-4e60-98b8-d8bdc7dea0fe`). Semakan jauh:
+health 200 dengan `api_complete:false`, muat turun PDF tanpa sesi 401,
+keempat-empat suis auth/tulis/penghantaran kekal `0`, dan D1 jauh kekal
+370 pengguna, 997 lantikan, 91 laporan RA serta **51** perlawanan Hanafi 2026.
+Domain `refpahang.com` masih dijawab oleh LiteSpeed PHP. Tiada permohonan,
+emel atau rekod production diubah oleh deploy ini.
+
 Deployment staging 14 Oktober daripada commit `edbc69a`, versi Worker
 `437e71ab-2360-420c-80cf-58069c2bd9b1`, disahkan pada URL staging:
 `/api/__migration-health` masih 200 dengan `api_complete:false`, laluan cetak
