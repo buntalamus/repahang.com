@@ -571,6 +571,13 @@ memulangkan 503 seperti suis tulis `0`; health masih `api_complete:false`.
 D1 jauh mengekalkan 370 pengguna, 91 laporan asal, 51 perlawanan Hanafi 2026
 dan sifar draf Worker. Tiada penghantaran emel, tindakan Pengerusi atau
 pertukaran domain production dilakukan.
+Commit `a492da4` menambah GET `lantikan.php` khusus Admin dan mengemas kini
+inventori kepada 63/67 laluan frontend berroute, dengan 9 laluan separa.
+Deployment staging versi `b50f0398-afac-4f59-acce-244d360d3a8d` dibina
+daripada worktree bersih. GET lantikan tanpa sesi memulangkan 401; health
+memulangkan 200 dengan `api_complete:false`. Semakan D1 jauh menunjukkan
+370 pengguna, 91 laporan RA dan 51 perlawanan Hanafi 2026. Empat suis staging
+kekal `0`; domain production masih melalui LiteSpeed.
 
 ## Semua tetapan emel semasa
 
