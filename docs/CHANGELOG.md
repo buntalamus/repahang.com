@@ -13,6 +13,11 @@ Semua perubahan penting sejak **11 Julai 2026**.
 - Salinan makluman kepada PP aktif daerah dan Admin aktif melalui barisan SMTP dengan retry dan kawalan claim. Butiran peristiwa dibekukan; token jawapan/penilaian tidak disalin.
 - Migrasi `0022_district_appointments.sql`; panduan `docs/district_appointments.md`.
 
+### Tiga Paparan Jadual Lantikan
+
+- Tambah pilihan Admin sahaja, PP sahaja dan Kedua-dua lantikan, bersama pilihan kejohanan terus dalam tab Jadual Lantikan.
+- Kelolaan kekal mengikut kejohanan. Penggantian atau override oleh Admin dalam kejohanan PP tetap dipaparkan di bawah PP; cetakan/PDF mengikut pilihan yang sama.
+
 ### Penapis Rekod Perlawanan Admin
 
 - Carian global sebelum pagination SQL, penapis tahun/julat tarikh/kejohanan/jenis/daerah/status dan pilihan 10/25/50/100 rekod. Carian pegawai mengekalkan semua krew perlawanan.

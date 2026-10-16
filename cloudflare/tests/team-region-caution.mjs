@@ -27,7 +27,7 @@ assert.equal(teamRegionCaution(null,match,'Negeri'),'');
 assert.equal(teamRegionCaution(local,match,'Asia'),'','No invented rule for other levels');
 assert.match(teamRegionCaution({daerah:'Temerloh',negeri:'Pahang'},match,'Negeri'),/Kelab B/);
 
-const {db,DB,close}=openDatabase(['0001_worker_sessions','0009_mysql_on_update_triggers','0020_match_team_regions']);
+const {db,DB,close}=openDatabase(['0001_worker_sessions','0009_mysql_on_update_triggers','0020_match_team_regions','0022_district_appointments']);
 const env={DB,STAGING_AUTH_ENABLED:'1',STAGING_WRITES_ENABLED:'1',APPOINTMENT_DELIVERY_ENABLED:'0'};
 const admin=db.prepare("SELECT id FROM users WHERE role='Admin' AND aktif=1 LIMIT 1").get();
 const referee=db.prepare("SELECT id,daerah,negeri FROM users WHERE role='Pengadil' AND aktif=1 AND trim(daerah)<>'' LIMIT 1").get();

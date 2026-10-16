@@ -82,6 +82,35 @@ try {
  r=await assign(officials[3].id,'Pengadil',mid,'admin');assert.equal(r.status,200,JSON.stringify(r));
  assert.equal(one('SELECT pengadil_id FROM lantikan_pengadil WHERE id=?',aid).pengadil_id,officials[3].id);
  assert.equal(one("SELECT actor_user_id FROM lantikan_audit_log WHERE jadual_id=? AND event_type='appointment_reassigned' ORDER BY id DESC LIMIT 1",mid).actor_user_id,admin.id);
+ // Ownership, rather than the last actor, determines the three report views.
+ const report=(source,actor='admin',id=tid)=>call('scheduleReport',`jadual-lantikan-report.php?kejohanan_id=${id}&appointment_source=${source}`,'GET',undefined,actor);
+ for(const actor of ['admin','pp']) {
+   let view=await report('pp',actor);assert.equal(view.status,200);assert.equal(view.body.owner_source,'pp');
+   assert.equal(view.body.jadual.length,2);assert.equal(view.body.stats.jumlah_lantikan,3);
+   assert.equal(view.body.jadual.find(x=>x.id===mid).assignments.Pengadil.pengadil_id,officials[3].id,'Admin replacement stays in PP schedule');
+   const ppView=view.body;
+   view=await report('all',actor);assert.deepEqual(view.body.jadual,ppView.jadual);assert.deepEqual(view.body.stats,ppView.stats);
+   view=await report('admin',actor);assert.equal(view.body.jadual.length,0);assert.equal(view.body.stats.jumlah_lantikan,0);
+   assert.equal(view.body.pengesahan,null);
+ }
+ assert.equal((await report('pp','pp',foreignTid)).status,403,'view cannot widen district authorization');
+ assert.equal((await report('unknown')).status,422);
+ // A creator role change cannot reclassify an owned district competition.
+ db.prepare("UPDATE users SET role='Pengadil' WHERE id=?").run(pp.id);
+ assert.equal((await report('pp')).body.stats.jumlah_lantikan,3);
+ db.prepare("UPDATE users SET role='PP Daerah' WHERE id=?").run(pp.id);
+ const adminTournament=await call('tournaments','kejohanan.php','POST',tournament,'admin');
+ const adminTid=adminTournament.body.id;
+ const adminMatch=await call('schedule','jadual-perlawanan.php','POST',{...fixture,tarikh:'2099-01-02',kejohanan_id:adminTid},'admin');
+ assert.equal(adminMatch.status,200);
+ let adminView=await report('admin','admin',adminTid);assert.equal(adminView.body.owner_source,'admin');assert.equal(adminView.body.jadual.length,1,'Admin view keeps unassigned Admin schedules');
+ assert.equal((await report('pp','admin',adminTid)).body.jadual.length,0);
+ assert.equal((await report('all','admin',adminTid)).body.jadual.length,1);
+ const printed=await w.printSchedule(new Request(`https://refpahang.com/api/download-jadual-lantikan.php?kejohanan_id=${tid}&appointment_source=pp`,{headers:{Cookie:cookies.admin}}),env);
+ assert.equal(printed.status,200);const html=await printed.text();
+ assert.match(html,/Lantikan PP sahaja/);
+ const replacementName=one('SELECT nama_penuh FROM users WHERE id=?',officials[3].id).nama_penuh;
+ assert.ok(html.includes(replacementName),'PP print includes Admin replacement');
  // A real referee response also queues copies via the same transactional audit trigger.
  const ar1=one("SELECT id FROM lantikan_pengadil WHERE jadual_id=? AND jawatan='Penolong Pengadil 1'",mid).id;
  cookies.responding=await sessionCookie(db,officials[1].id);
@@ -115,5 +144,5 @@ try {
  r=await call('refereePool','pool-pengadil.php','POST',{kejohanan_id:tid,items:[{pengadil_id:raceRef}]});assert.equal(r.status,409);assert.equal(n('SELECT COUNT(*) FROM pool_pengadil WHERE id=?',poolId),0);
  // Admin-only competitions never start a new district email fanout.
  assert.equal(n('SELECT COUNT(*) FROM worker_district_appointment_mail WHERE audit_id IN (SELECT id FROM lantikan_audit_log WHERE kejohanan_id IS NULL)'),0);
- console.log('district appointments: real sessions, immutable ownership, cross-district/bulk denial, local picker, external denial, Admin override, response copies, retry/idempotent claims and transaction guard passed');
+ console.log('district appointments: real sessions, immutable ownership, cross-district/bulk denial, local picker, external denial, Admin override, three ownership views/PDF after Admin override, response copies, retry/idempotent claims and transaction guard passed');
 } finally {close();}

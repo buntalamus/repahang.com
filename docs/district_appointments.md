@@ -17,6 +17,12 @@ Kelolaan menggunakan `COALESCE(NULLIF(users.persatuan_id,0),users.district_id)`,
 
 Kejohanan lama kekal milik Admin. Tiada pemindahan kelolaan secara automatik apabila seseorang pencipta ditukar peranan. Daerah kejohanan PP ditetapkan semasa penciptaan dan tidak boleh dipindahkan melalui payload API. Semua PP aktif di bawah persatuan yang sama boleh mengurus kejohanan daerah itu.
 
+## Tiga paparan Jadual Lantikan
+
+Tab **Jadual Lantikan** mempunyai pilihan **Admin sahaja**, **PP sahaja** dan **Kedua-dua lantikan**. Senarai pilihan kejohanan mengikut kelolaan yang dipilih; jadual dan cetakan/PDF menggunakan pilihan yang sama. Pilih kejohanan terus dalam tab ini.
+
+Kelolaan ditentukan oleh `kejohanan.lantikan_persatuan_id`, bukan pengguna yang terakhir mengedit. Semua lantikan kejohanan PP kekal dalam paparan PP walaupun Admin mengganti pengadil atau membuat override. Perubahan peranan pencipta juga tidak memindahkan kelolaan. Admin membetulkan kesilapan lantikan daerah melalui tindakan **Override**; pengurusan daerah kekal pada PP. Tiada pengadil disembunyikan daripada krew kejohanan yang sepadan, dan pengesahan dokumen sedia ada kekal merujuk jadual penuh kejohanan itu.
+
 ## Salinan emel
 
 Peristiwa lantikan daerah (lantikan baharu, penggantian, penghantaran notifikasi, pembuangan/pembatalan, jawapan/penolakan automatik dan override penerimaan Admin) mewujudkan salinan makluman untuk **semua PP aktif daerah berkenaan dan semua Admin aktif** yang mempunyai emel. Setiap alamat menerima satu salinan bagi setiap peristiwa. Salinan mengandungi butiran perlawanan, pegawai, tindakan dan pautan portal; ia tidak mengandungi token Terima/Tolak atau token borang penilai.

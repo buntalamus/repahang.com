@@ -44,14 +44,18 @@ export async function scheduleReport(request: Request, env: Env): Promise<Respon
   const access=await authorizeAppointmentResource(request,env,user,'report');
   if (access) return access;
   if (request.method === 'GET') {
-    const tournamentId = positiveId(new URL(request.url).searchParams.get('kejohanan_id'));
+    const query=new URL(request.url).searchParams;
+    const source=query.get('appointment_source') ?? 'all';
+    if (!['all','admin','pp'].includes(source)) return json({error:true,message:'Paparan lantikan tidak sah.'},422);
+    const sourceLabel=source==='admin' ? 'Lantikan Admin sahaja' : source==='pp' ? 'Lantikan PP sahaja' : 'Kedua-dua lantikan';
+    const tournamentId = positiveId(query.get('kejohanan_id'));
     if (!tournamentId) return json({ error: true, message: 'kejohanan_id diperlukan.' }, 400);
     // Like PHP, viewing the report expires overdue answers first.
     if (appointmentWritesEnabled(env)) {
       await autoTolakLantikanTertunggak(env, { kejohanan_id: tournamentId }, auditMetaFrom(request));
     }
     const tournament = await env.DB.prepare(`SELECT id,nama,tarikh_mula,tarikh_akhir,tempat,anjuran,
-      logo_kiri,logo_kanan,status,COALESCE(peringkat_kejohanan,'Daerah') AS peringkat_kejohanan
+      logo_kiri,logo_kanan,status,lantikan_persatuan_id,COALESCE(peringkat_kejohanan,'Daerah') AS peringkat_kejohanan
       FROM kejohanan WHERE id=?`).bind(tournamentId).first<Record<string, unknown>>();
     if (!tournament) return json({ error: true, message: 'Kejohanan tidak dijumpai.' }, 404);
     const confirmation = await env.DB.prepare('SELECT * FROM jadual_lantikan_pengesahan WHERE kejohanan_id=?')
@@ -62,11 +66,14 @@ export async function scheduleReport(request: Request, env: Env): Promise<Respon
       confirmation.kod_verifikasi = Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, '0'))
         .join('').slice(0, 12).toUpperCase();
     }
+    const ownerSource=tournament.lantikan_persatuan_id==null ? 'admin' : 'pp';
+    const matchesSource=source==='all' || source===ownerSource;
+    const visibleTournamentId=matchesSource ? tournamentId : -1;
     const schedules = await env.DB.prepare(`SELECT id,no_perlawanan,tarikh,hari,masa,kategori,peringkat,kumpulan,
       pasukan_home,pasukan_away,pasukan_home_daerah,pasukan_home_negeri,
       pasukan_away_daerah,pasukan_away_negeri,tempat,status FROM jadual_perlawanan WHERE kejohanan_id=?
       ORDER BY kategori,tarikh,masa,CAST(SUBSTR(no_perlawanan,INSTR(no_perlawanan,'-')+1) AS INTEGER),no_perlawanan`)
-      .bind(tournamentId).all<Record<string, unknown>>();
+      .bind(visibleTournamentId).all<Record<string, unknown>>();
     const assigned = await env.DB.prepare(`SELECT lp.jadual_id,lp.jawatan,lp.status AS status_lantikan,
       lp.pengadil_id,COALESCE(u.nama_penuh,pl.nama) AS nama_penuh,
       COALESCE(u.jenis_pengadil,pl.jenis_pengadil) AS jenis_pengadil,
@@ -77,7 +84,7 @@ export async function scheduleReport(request: Request, env: Env): Promise<Respon
       FROM lantikan_pengadil lp LEFT JOIN users u ON u.id=lp.pengadil_id
       LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
       JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id WHERE jp.kejohanan_id=?`)
-      .bind(autoRejectComment, tournamentId).all<Record<string, unknown>>();
+      .bind(autoRejectComment, visibleTournamentId).all<Record<string, unknown>>();
     const regionLabel = tournament.peringkat_kejohanan === 'Negeri' ? 'Daerah' : 'Negeri';
     const bySchedule = new Map<number, Record<string, unknown>>();
     let totalAppointments = 0;
@@ -116,7 +123,8 @@ export async function scheduleReport(request: Request, env: Env): Promise<Respon
         assignments, jumlah_lantikan: count, is_lengkap: isComplete };
     });
     return json({ error: false, kejohanan: tournament, region_label: regionLabel,
-      pengesahan: confirmation, jadual: schedule,
+      pengesahan:matchesSource ? confirmation : null, jadual: schedule,
+      appointment_source:source,source_label:sourceLabel,owner_source:ownerSource,
       stats: { total_perlawanan: schedule.length, lantikan_lengkap: complete,
         lantikan_separa: partial, tiada_lantikan: empty,
         jumlah_lantikan: totalAppointments, jumlah_terima: accepted,

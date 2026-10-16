@@ -11,6 +11,7 @@ interface ScheduleDocument {
   pengesahan: Row | null;
   jadual: Array<Row & { assignments: Record<string, Row | null> }>;
   stats: Row;
+  source_label?: string;
 }
 
 const positions = [
@@ -142,6 +143,7 @@ export function renderScheduleDocument(document: ScheduleDocument, printedBy: st
       <h1>Jadual Lantikan Pengadil Kejohanan</h1><strong>${esc(tournament.nama)}</strong>
       <p>${esc(date(tournament.tarikh_mula))} – ${esc(date(tournament.tarikh_akhir))}${tournament.tempat ? ` · ${esc(tournament.tempat)}` : ''}</p></div>
       ${logoRight ? `<img src="${esc(logoRight)}" alt="Logo kanan">` : ''}</header>
+    ${document.source_label ? `<p><strong>Paparan: ${esc(document.source_label)}</strong></p>` : ''}
     <div class="stats">
       ${[['Jumlah Perlawanan', stats.total_perlawanan, ''], ['Lantikan Lengkap', stats.lantikan_lengkap, 'green'],
         ['Belum / Separa', Number(stats.total_perlawanan) - Number(stats.lantikan_lengkap), 'amber'],

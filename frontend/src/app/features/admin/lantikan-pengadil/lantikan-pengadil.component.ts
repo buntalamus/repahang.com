@@ -1,5 +1,6 @@
+import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { environment } from '../../../../environments/environment';
 import { DatePipe, SlicePipe } from '@angular/common';
@@ -133,7 +134,7 @@ interface PengerusiCandidate {
     tr.region-caution:hover > td:not([rowspan]) { background-color: #fecaca; }
   `],
 })
-export class LantikanPengadilComponent implements OnInit {
+export class LantikanPengadilComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   readonly isDistrict = this.auth.currentUser?.role === 'PP Daerah';
   readonly districtName = this.auth.currentUser?.persatuan_nama || 'daerah anda';
@@ -361,6 +362,40 @@ export class LantikanPengadilComponent implements OnInit {
   }
 
   // Jadual Lantikan (report + pengesahan)
+  readonly appointmentSource = signal<'all' | 'admin' | 'pp'>('all');
+  readonly appointmentViews = [
+    {id:'admin',label:'Admin sahaja'}, {id:'pp',label:'PP sahaja'}, {id:'all',label:'Kedua-dua lantikan'},
+  ] as const;
+  private jadualLantikanRequest?: Subscription;
+  ngOnDestroy(): void { this.jadualLantikanRequest?.unsubscribe(); }
+  changeAppointmentSource(source:'all' | 'admin' | 'pp'): void {
+    if (this.appointmentSource()===source) return;
+    this.appointmentSource.set(source);
+    this.selectedMatchIds.clear();
+    const available=this.reportTournaments;
+    if (available.some(item=>item.id===this.selectedKejohananId)) this.loadJadualLantikan();
+    else if (available.length) this.selectReportTournament(available[0].id);
+    else {
+      this.jadualLantikanRequest?.unsubscribe();
+      this.loadingJadualLantikan=false;
+      this.selectedKejohanan=null;
+      this.selectedKejohananId=null;
+      this.jadualLantikanData=null;
+      this.poolList=[];this.jadualList=[];
+      this.resetPengerusiState();
+      this.closeTelegramOnboardingModal();
+    }
+  }
+  get reportTournaments(): typeof this.kejohananList {
+    const source=this.appointmentSource();
+    return this.kejohananList.filter(tournament=>source==='all'
+      || (tournament.lantikan_persatuan_id==null ? 'admin' : 'pp')===source);
+  }
+  selectReportTournament(id:number): void {
+    if (this.selectedKejohananId===id) return;
+    const tournament=this.kejohananList.find(item=>item.id===id);
+    if (tournament) this.selectKejohanan(tournament);
+  }
   loadingJadualLantikan = false;
   jadualLantikanData: any = null;
   jadualLantikanSearch = '';
@@ -411,10 +446,13 @@ export class LantikanPengadilComponent implements OnInit {
 
   loadJadualLantikan(): void {
     if (!this.selectedKejohananId) return;
+    this.jadualLantikanRequest?.unsubscribe();
     this.loadingJadualLantikan = true;
     this.jadualLantikanData = null;
     this.selectedMatchIds.clear();
-    this.api.get<any>('jadual-lantikan-report.php', { kejohanan_id: this.selectedKejohananId.toString() }).subscribe({
+    this.jadualLantikanRequest = this.api.get<ScheduleReportResponse>('jadual-lantikan-report.php', {
+      kejohanan_id: this.selectedKejohananId.toString(), appointment_source:this.appointmentSource(),
+    }).subscribe({
       next: (res) => {
         this.loadingJadualLantikan = false;
         if (!res.error) {
@@ -491,7 +529,7 @@ export class LantikanPengadilComponent implements OnInit {
 
   downloadJadualLantikanPDF(): void {
     if (!this.selectedKejohananId) return;
-    window.open(`${environment.apiUrl}/download-jadual-lantikan.php?kejohanan_id=${this.selectedKejohananId}`, '_blank');
+    window.open(`${environment.apiUrl}/download-jadual-lantikan.php?kejohanan_id=${this.selectedKejohananId}&appointment_source=${this.appointmentSource()}`, '_blank');
   }
 
   renumberJadual(): void {
@@ -668,6 +706,8 @@ export class LantikanPengadilComponent implements OnInit {
       this.resetPengerusiState();
       return;
     }
+    const ownerSource=k.lantikan_persatuan_id==null ? 'admin' : 'pp';
+    if (this.appointmentSource()!=='all' && this.appointmentSource()!==ownerSource) this.appointmentSource.set(ownerSource);
     this.selectedKejohanan = k;
     this.selectedKejohananId = k.id;
     this.jadualLantikanSearch = '';
@@ -2120,4 +2160,11 @@ export class LantikanPengadilComponent implements OnInit {
     this.confirmFn?.();
     this.confirmFn = null;
   }
+}
+
+interface ScheduleReportResponse {
+  error:boolean;
+  message?:string;
+  jadual:LantikanPengadilComponent['jadualList'];
+  [key:string]:unknown;
 }
