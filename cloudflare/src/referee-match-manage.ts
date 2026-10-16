@@ -12,6 +12,16 @@ const scoreFields = [
 const textFields = ['jenis', 'tempat', 'jawatan', 'home_team', 'away_team', 'cuaca'] as const;
 
 type Official = { user_id: number; jawatan: string };
+
+// Match records count towards the referees' minimum matches, so only the four
+// match officials are recorded; the RA (Penilai Pengadil) records none.
+const POSITIONS = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pengadil Ke-4'];
+const POSITIONS_MESSAGE = 'Jawatan mesti Pengadil, Penolong Pengadil 1, Penolong Pengadil 2 atau Pengadil Ke-4.';
+function matchPosition(value: unknown): string | null {
+  const text = typeof value === 'string' ? value.trim().toLowerCase().replace(/\s+/g, ' ') : '';
+  if (text === 'pegawai ke4' || text === 'pegawai keempat') return 'Pengadil Ke-4';
+  return POSITIONS.find((item) => item.toLowerCase() === text) ?? null;
+}
 type Recipient = { id: number; nama_penuh: string; email: string | null };
 
 function positiveId(value: unknown): number | null {
@@ -79,8 +89,8 @@ async function addMatch(input: Record<string, unknown>, env: Env,
   const districtId = positiveId(input.daerah_perlawanan_id);
   if (!districtId) return json({ error: true, message: 'Sila pilih daerah perlawanan.' }, 400);
   const rawOfficials = input.officials;
-  if (!Array.isArray(rawOfficials) || rawOfficials.length < 1 || rawOfficials.length > 5) {
-    return json({ error: true, message: 'Bilangan pegawai mestilah antara 1 hingga 5.' }, 400);
+  if (!Array.isArray(rawOfficials) || rawOfficials.length < 1 || rawOfficials.length > POSITIONS.length) {
+    return json({ error: true, message: `Bilangan pegawai mestilah antara 1 hingga ${POSITIONS.length}.` }, 400);
   }
   const officials: Official[] = [];
   for (const entry of rawOfficials) {
@@ -89,8 +99,9 @@ async function addMatch(input: Record<string, unknown>, env: Env,
     }
     const item = entry as Record<string, unknown>;
     const id = positiveId(item.user_id);
-    const position = requiredText(item.jawatan, 100);
-    if (!id || !position) return json({ error: true, message: 'Pengadil dan jawatan diperlukan.' }, 400);
+    if (!id || !requiredText(item.jawatan, 100)) return json({ error: true, message: 'Pengadil dan jawatan diperlukan.' }, 400);
+    const position = matchPosition(item.jawatan);
+    if (!position) return json({ error: true, message: POSITIONS_MESSAGE }, 400);
     officials.push({ user_id: id, jawatan: position });
   }
   if (new Set(officials.map((item) => item.user_id)).size !== officials.length ||
@@ -221,6 +232,12 @@ async function editMatch(input: Record<string, unknown>, env: Env, userId: numbe
   }
   for (const field of textFields) {
     if (!Object.hasOwn(input, field)) continue;
+    if (field === 'jawatan') {
+      const position = matchPosition(input.jawatan);
+      if (!position) return json({ error: true, message: POSITIONS_MESSAGE }, 400);
+      fields.push('jawatan=?'); values.push(position);
+      continue;
+    }
     const value = optionalText(input[field]);
     if (value === false || (field !== 'cuaca' && !value)) {
       return json({ error: true, message: `Medan ${field} tidak sah.` }, 400);

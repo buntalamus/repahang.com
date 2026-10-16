@@ -87,6 +87,23 @@ try {
   assert.equal(reversed.pertindihan.length,1);
   assert.equal(reversed.pertindihan[0].jenis,'berganda');
   assert.equal((await flagged(opening.match_group_id)).length,1);
+  // Only the four match officials are recorded: no RA position and no fifth official.
+  const attempt=async(officials)=>(await refereeMatchManage(new Request(url+'pengadil-match-manage.php',{method:'POST',
+    headers:{Cookie:cookies[a],'Content-Type':'application/json'},
+    body:JSON.stringify({action:'add',tarikh:today,masa:'20:00',jenis:'Liga',tempat:'Padang Uji',home_team:'Uji A',
+      away_team:'Uji B',daerah_perlawanan_id:district,officials:officials.map(([user_id,jawatan])=>({user_id,jawatan}))})}),env));
+  for (const jawatan of ['Penilai Pengadil','Pengadil Ke-5']) {
+    const refused=await attempt([[a,jawatan]]);
+    assert.equal(refused.status,400);
+    assert.match((await refused.json()).message,/Jawatan mesti Pengadil/);
+  }
+  const fourth=await attempt([[a,'Pengadil'],[b,'pegawai ke4']]);
+  assert.equal(fourth.status,200);
+  const saved=(await fourth.json()).match_group_id;
+  assert.deepEqual(db.prepare('SELECT jawatan FROM perlawanan WHERE match_group_id=? ORDER BY jawatan').all(saved)
+    .map(row=>row.jawatan),['Pengadil','Pengadil Ke-4']);
+  const five=await attempt([[a,'Pengadil'],[b,'Penolong Pengadil 1'],[c,'Penolong Pengadil 2'],[96,'Pengadil Ke-4'],[97,'Pengadil']]);
+  assert.equal(five.status,400);
   console.log('match conflicts: duplicates and clashes flagged; PP verifies only after a noted review');
 } finally {
   close();

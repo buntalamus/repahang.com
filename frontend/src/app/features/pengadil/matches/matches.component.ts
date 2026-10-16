@@ -31,7 +31,8 @@ export class PengadilMatchesComponent implements OnInit {
   districts: any[] = [];
   officials: OfficialSlot[] = [];
 
-  readonly jawatanOptions = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pengadil Ke-4', 'Pengadil Ke-5'];
+  // Only the four match officials are recorded (no RA, no fifth official).
+  readonly jawatanOptions = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pengadil Ke-4'];
   readonly jenisOptions = ['Liga', 'Piala', 'Persahabatan', 'Lain-lain'];
   readonly cuacaOptions = ['Cerah', 'Mendung', 'Hujan Renyai', 'Hujan Lebat', 'Panas Terik', 'Berangin'];
 
@@ -115,7 +116,7 @@ export class PengadilMatchesComponent implements OnInit {
   }
 
   addOfficialSlot(): void {
-    if (this.officials.length < 5) {
+    if (this.officials.length < this.jawatanOptions.length) {
       this.officials.push({ jawatan: '', referee: null });
     }
   }
