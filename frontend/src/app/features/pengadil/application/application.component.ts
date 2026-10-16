@@ -21,6 +21,8 @@ export class PengadilApplicationComponent implements OnInit {
   history: any[] = [];
   currentApp: any = null;
   appSettings: any = {};
+  /** Opening windows computed by the server in Malaysia time. */
+  windows: Record<string, { state: string; open_date: string; close_date: string }> = {};
   profile: any = {};
   profileMissing: string[] = [];
 
@@ -67,12 +69,25 @@ export class PengadilApplicationComponent implements OnInit {
   }
 
   get typeLabel(): string { return this.typeLabels[this.type] || this.type; }
-  get applicationsOpen(): boolean {
-    if (this.isBerdaftar || this.isPpBerdaftar) return this.appSettings.berdaftar_open === '1';
-    if (this.isPenilai) return this.appSettings.penilai_open === '1';
-    if (this.isKelas3)  return this.appSettings.bertulis_open === '1';
-    if (this.isKelas1)  return this.appSettings.kelas1_open  === '1';
-    return false;
+  get formWindow(): { state: string; open_date: string; close_date: string } | null {
+    const name = this.isBerdaftar || this.isPpBerdaftar ? 'berdaftar' : this.isPenilai ? 'penilai'
+      : this.isKelas3 ? 'bertulis' : this.isKelas1 ? 'kelas1' : '';
+    return this.windows[name] || null;
+  }
+  get applicationsOpen(): boolean { return this.formWindow?.state === 'open'; }
+  get closedTitle(): string {
+    return this.formWindow?.state === 'closed' ? 'Permohonan Telah Ditutup' : 'Permohonan Belum Dibuka';
+  }
+  get closedText(): string {
+    const w = this.formWindow;
+    const base = `Permohonan ${this.typeLabel} untuk sesi ${this.applicationYear}`;
+    if (w?.state === 'not_yet') return `${base} akan dibuka pada ${this.displayDate(w.open_date)}.`;
+    if (w?.state === 'closed') return `${base} telah ditutup pada ${this.displayDate(w.close_date)}.`;
+    return `${base} belum dibuka. Sila semak semula kemudian.`;
+  }
+  private displayDate(value: string): string {
+    const [year, month, day] = value.split('-');
+    return `${day}/${month}/${year}`;
   }
   get applicationYear(): string { return this.appSettings.application_year || String(new Date().getFullYear()); }
   get paymentAmount(): string { return this.appSettings.payment_amount || '80.00'; }
@@ -112,7 +127,7 @@ export class PengadilApplicationComponent implements OnInit {
         if (!history.error) {
           this.history = history.data || [];
         }
-        if (!settings.error) { this.appSettings = settings.settings || {}; }
+        if (!settings.error) { this.appSettings = settings.settings || {}; this.windows = settings.windows || {}; }
         this.currentApp = this.history.find((a: any) =>
           +a.tahun_permohonan === +this.applicationYear) || null;
         if (!profile.error) {

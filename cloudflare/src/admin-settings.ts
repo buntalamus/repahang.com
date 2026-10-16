@@ -1,6 +1,7 @@
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { WINDOWS, displayDate, isSettingDate } from './application-window';
 
 function defaultSettings(): Record<string, string> {
   const year = new Intl.DateTimeFormat('en-US', {
@@ -91,6 +92,26 @@ export async function adminSettings(request: Request, env: Env): Promise<Respons
       return json({ error: true, message: 'Nilai tetapan tidak sah.' }, 422);
     }
     changes.push([key, value]);
+  }
+  // Dates being saved must be real dates, and a form's close date not before its open date.
+  const current = await env.DB.prepare('SELECT setting_key, setting_value FROM application_settings')
+    .all<{ setting_key: string; setting_value: string }>();
+  const merged: Record<string, string> = {
+    ...Object.fromEntries(current.results.map((row) => [row.setting_key, row.setting_value])),
+    ...Object.fromEntries(changes),
+  };
+  const changed = new Set(changes.map(([key]) => key));
+  for (const form of Object.values(WINDOWS)) {
+    if (!changed.has(form.from) && !changed.has(form.to)) continue;
+    const from = (merged[form.from] ?? '').trim();
+    const to = (merged[form.to] ?? '').trim();
+    if ((from && !isSettingDate(from)) || (to && !isSettingDate(to))) {
+      return json({ error: true, message: `${form.label}: tarikh tidak sah.` }, 422);
+    }
+    if (from && to && to < from) {
+      return json({ error: true,
+        message: `${form.label}: tarikh tutup (${displayDate(to)}) tidak boleh sebelum tarikh buka (${displayDate(from)}).` }, 422);
+    }
   }
   await env.DB.batch(changes.map(([key, value]) => env.DB.prepare(`
     INSERT INTO application_settings(setting_key, setting_value, updated_at)

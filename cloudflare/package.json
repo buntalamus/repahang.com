@@ -35,6 +35,7 @@
     "test:kelas3-settings": "node --no-warnings tests/kelas3-settings.mjs",
     "test:statistics-breakdown": "node --no-warnings tests/statistics-breakdown.mjs",
     "test:annual-match-year": "node --no-warnings tests/annual-match-year.mjs",
+    "test:application-window": "node --no-warnings tests/application-window.mjs",
     "test:chair-config": "node --no-warnings tests/chair-config.mjs",
     "build:frontend": "npm --prefix ../frontend run build:prod",
     "dev": "wrangler dev",

@@ -44,6 +44,9 @@ const saved=(type)=>db.prepare(`SELECT payment_amount FROM permohonan
   WHERE user_id=? AND jenis_borang=? AND tahun_permohonan=2027`).get(userId,type);
 
 try {
+  // These tests are about other rules; the snapshot's past open/close dates would close the forms.
+  db.prepare(`UPDATE application_settings SET setting_value='' WHERE setting_key LIKE '%\\_open\\_date' ESCAPE '\\'
+    OR setting_key LIKE '%\\_close\\_date' ESCAPE '\\'`).run();
   for (const [key,value] of Object.entries({application_year:'2027',bertulis_open:'0',
     bertulis_min_age:'15',bertulis_max_age:'30',bertulis_fee:'180',kelas1_open:'0',kelas1_fee:'300.00'})) {
     setting(key,value);

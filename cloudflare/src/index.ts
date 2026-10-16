@@ -46,7 +46,8 @@ import { registeredReferees, deactivateReferee } from './registered-referees';
 import { adminMatches } from './admin-matches';
 import { districtMatchVerification } from './district-match-verification';
 import { externalReferees } from './external-referees';
-import { register } from './register';
+import { register, registrationWindow } from './register';
+import { windowClosedMessage } from './application-window';
 import { missingRefereeProfile, profileLabels } from './referee-profile';
 import { adminApprove } from './admin-approve';
 import { telegramLinkSelf } from './telegram-link-self';
@@ -97,12 +98,13 @@ async function publicAnnouncements(env: Env): Promise<Response> {
 }
 
 async function registrationStatus(env: Env): Promise<Response> {
-  const record = await env.DB.prepare("SELECT setting_value FROM application_settings WHERE setting_key='registration_open'")
-    .first<{ setting_value: string }>();
+  const registration = await registrationWindow(env);
   return json({
     error: false,
     registration_open: env.STAGING_AUTH_ENABLED === '1' && env.STAGING_WRITES_ENABLED === '1'
-      && (record ? record.setting_value === '1' : true),
+      && registration.state === 'open',
+    registration_message: registration.state === 'open' ? null
+      : windowClosedMessage('registration', registration, 'Pendaftaran akaun baru telah ditutup buat sementara waktu.'),
   });
 }
 

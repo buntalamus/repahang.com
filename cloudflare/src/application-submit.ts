@@ -6,6 +6,7 @@ import type { Env } from './types';
 import { missingRefereeProfile, profileLabels } from './referee-profile';
 import { dimensions } from './profile-write';
 import { applicationSettingDefaults } from './applications';
+import { applicationWindow, windowClosedMessage, type WindowName } from './application-window';
 
 type FormType = 'pengadil_berdaftar' | 'penilai_berdaftar' | 'kelas3_fam' | 'ujian_kelas1_fam';
 type Profile = Record<string, string | number | null>;
@@ -15,9 +16,9 @@ const allowed: Record<string, FormType[]> = {
   Penilai: ['penilai_berdaftar'],
   'PP Daerah': ['pengadil_berdaftar', 'penilai_berdaftar', 'kelas3_fam', 'ujian_kelas1_fam'],
 };
-const openSetting: Record<FormType, string> = {
-  pengadil_berdaftar: 'berdaftar_open', penilai_berdaftar: 'penilai_open',
-  kelas3_fam: 'bertulis_open', ujian_kelas1_fam: 'kelas1_open',
+const formWindow: Record<FormType, WindowName> = {
+  pengadil_berdaftar: 'berdaftar', penilai_berdaftar: 'penilai',
+  kelas3_fam: 'bertulis', ujian_kelas1_fam: 'kelas1',
 };
 // The Admin Settings fee for each form; the annual forms share payment_amount.
 const feeSetting: Record<FormType, string> = {
@@ -131,7 +132,10 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
     .all<{setting_key: string; setting_value: string}>();
   const settings: Record<string, string> = {...applicationSettingDefaults(),
     ...Object.fromEntries(settingsRows.results.map(row => [row.setting_key, row.setting_value]))};
-  if (settings[openSetting[type]] !== '1') return json({error: true, message: closedMessage[type]}, 400);
+  const formStatus = applicationWindow(settings, formWindow[type]);
+  if (formStatus.state !== 'open') {
+    return json({error: true, message: windowClosedMessage(formWindow[type], formStatus, closedMessage[type])}, 400);
+  }
   const year = Number(settings.application_year || klYear());
   if (!Number.isSafeInteger(year) || year < 2020 || year > 2100) {
     return json({error: true, message: 'Tahun permohonan tidak sah.'}, 500);

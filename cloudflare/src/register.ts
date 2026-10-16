@@ -1,4 +1,5 @@
 import { hash } from 'bcryptjs';
+import { applicationWindow, klToday, windowClosedMessage, type ApplicationWindow } from './application-window';
 
 import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
 import { json } from './auth';
@@ -55,16 +56,24 @@ async function registrationForm(request: Request): Promise<FormData | Response> 
   }
 }
 
+/** The account sign-up window; a missing switch row has always meant open. */
+export async function registrationWindow(env: Env): Promise<ApplicationWindow> {
+  const rows = await env.DB.prepare(`SELECT setting_key,setting_value FROM application_settings
+    WHERE setting_key IN ('registration_open','registration_open_date','registration_close_date')`)
+    .all<{ setting_key: string; setting_value: string }>();
+  const settings = Object.fromEntries(rows.results.map((row) => [row.setting_key, row.setting_value]));
+  return applicationWindow(settings, 'registration', klToday(), '1');
+}
+
 export async function register(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'POST') return json({ error: true, message: 'Method not allowed' }, 405);
   if (env.STAGING_AUTH_ENABLED !== '1' || env.STAGING_WRITES_ENABLED !== '1') {
     return json({ error: true, message: 'Pendaftaran belum tersedia di staging.' }, 503);
   }
-  const registration = await env.DB.prepare(
-    "SELECT setting_value FROM application_settings WHERE setting_key='registration_open'",
-  ).first<{ setting_value: string }>();
-  if (registration?.setting_value === '0') {
-    return json({ error: true, message: 'Pendaftaran akaun baru telah ditutup buat sementara waktu.' }, 403);
+  const registration = await registrationWindow(env);
+  if (registration.state !== 'open') {
+    return json({ error: true, message: windowClosedMessage('registration', registration,
+      'Pendaftaran akaun baru telah ditutup buat sementara waktu.') }, 403);
   }
   const input = await registrationForm(request);
   if (input instanceof Response) return input;

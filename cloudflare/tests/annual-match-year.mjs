@@ -58,6 +58,9 @@ const verified=(year)=>db.prepare(`SELECT COUNT(*) n FROM perlawanan WHERE user_
   AND substr(tarikh,1,4)=?`).get(userId,String(year)).n;
 
 try {
+  // These tests are about other rules; the snapshot's past open/close dates would close the forms.
+  db.prepare(`UPDATE application_settings SET setting_value='' WHERE setting_key LIKE '%\\_open\\_date' ESCAPE '\\'
+    OR setting_key LIKE '%\\_close\\_date' ESCAPE '\\'`).run();
   setting('berdaftar_open','1');
   setting('min_verified_matches','20');
   db.prepare("UPDATE users SET alamat1=COALESCE(NULLIF(alamat1,''),'Alamat Ujian') WHERE id=?").run(userId);

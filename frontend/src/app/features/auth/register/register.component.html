@@ -32,7 +32,7 @@
         <span class="material-icons text-6xl text-amber-500">block</span>
         <h2 class="text-2xl font-bold text-slate-800">Pendaftaran Ditutup</h2>
         <p class="text-slate-600 max-w-lg mx-auto">
-          Pendaftaran akaun baru telah ditutup buat sementara waktu. Sila hubungi pentadbir untuk maklumat lanjut.
+          {{ registrationMessage || 'Pendaftaran akaun baru telah ditutup buat sementara waktu.' }} Sila hubungi pentadbir untuk maklumat lanjut.
         </p>
         <a routerLink="/login" class="inline-flex items-center gap-2 px-6 py-2.5 bg-pahang-black text-pahang-yellow font-bold rounded-lg hover:bg-gray-800 transition text-sm mt-4">
           <span class="material-icons text-sm">arrow_back</span>

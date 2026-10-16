@@ -54,6 +54,7 @@ export class RegisterComponent {
   loading = false;
   checkingStatus = true;
   registrationClosed = false;
+  registrationMessage = '';
   showModal = false;
   modalSuccess = false;
   modalTitle = '';
@@ -111,6 +112,7 @@ export class RegisterComponent {
         this.checkingStatus = false;
         if (!res.error) {
           this.registrationClosed = !res.registration_open;
+          this.registrationMessage = res.registration_message || '';
         }
       },
       error: () => {

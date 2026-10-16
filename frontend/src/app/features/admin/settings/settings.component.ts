@@ -53,9 +53,9 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
               </div>
               <div class="text-center py-1">
                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
-                  [class]="settings.registration_open ? 'bg-teal-100 text-teal-700' : 'bg-red-100 text-red-700'">
-                  <span class="w-1.5 h-1.5 rounded-full inline-block" [class]="settings.registration_open ? 'bg-teal-500 animate-pulse' : 'bg-red-500'"></span>
-                  {{ settings.registration_open ? 'DIBUKA' : 'DITUTUP' }}
+                  [class]="isWindowOpen('registration') ? 'bg-teal-100 text-teal-700' : 'bg-red-100 text-red-700'">
+                  <span class="w-1.5 h-1.5 rounded-full inline-block" [class]="isWindowOpen('registration') ? 'bg-teal-500 animate-pulse' : 'bg-red-500'"></span>
+                  {{ windowBadge('registration') }}
                 </span>
               </div>
               <div class="space-y-2">
@@ -87,9 +87,9 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
               </div>
               <div class="text-center py-1">
                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
-                  [class]="settings.berdaftar_open ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'">
-                  <span class="w-1.5 h-1.5 rounded-full inline-block" [class]="settings.berdaftar_open ? 'bg-green-500 animate-pulse' : 'bg-red-500'"></span>
-                  {{ settings.berdaftar_open ? 'DIBUKA' : 'DITUTUP' }}
+                  [class]="isWindowOpen('berdaftar') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'">
+                  <span class="w-1.5 h-1.5 rounded-full inline-block" [class]="isWindowOpen('berdaftar') ? 'bg-green-500 animate-pulse' : 'bg-red-500'"></span>
+                  {{ windowBadge('berdaftar') }}
                 </span>
               </div>
               <div class="space-y-2">
@@ -121,9 +121,9 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
               </div>
               <div class="text-center py-1">
                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
-                  [class]="settings.bertulis_open ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'">
-                  <span class="w-1.5 h-1.5 rounded-full inline-block" [class]="settings.bertulis_open ? 'bg-blue-500 animate-pulse' : 'bg-red-500'"></span>
-                  {{ settings.bertulis_open ? 'DIBUKA' : 'DITUTUP' }}
+                  [class]="isWindowOpen('bertulis') ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'">
+                  <span class="w-1.5 h-1.5 rounded-full inline-block" [class]="isWindowOpen('bertulis') ? 'bg-blue-500 animate-pulse' : 'bg-red-500'"></span>
+                  {{ windowBadge('bertulis') }}
                 </span>
               </div>
               <div class="space-y-2">
@@ -155,9 +155,9 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
               </div>
               <div class="text-center py-1">
                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
-                  [class]="settings.kelas1_open ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-700'">
-                  <span class="w-1.5 h-1.5 rounded-full inline-block" [class]="settings.kelas1_open ? 'bg-purple-500 animate-pulse' : 'bg-red-500'"></span>
-                  {{ settings.kelas1_open ? 'DIBUKA' : 'DITUTUP' }}
+                  [class]="isWindowOpen('kelas1') ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-700'">
+                  <span class="w-1.5 h-1.5 rounded-full inline-block" [class]="isWindowOpen('kelas1') ? 'bg-purple-500 animate-pulse' : 'bg-red-500'"></span>
+                  {{ windowBadge('kelas1') }}
                 </span>
               </div>
               <div class="space-y-2">
@@ -189,9 +189,9 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
               </div>
               <div class="text-center py-1">
                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
-                  [class]="settings.penilai_open ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'">
-                  <span class="w-1.5 h-1.5 rounded-full inline-block" [class]="settings.penilai_open ? 'bg-amber-500 animate-pulse' : 'bg-red-500'"></span>
-                  {{ settings.penilai_open ? 'DIBUKA' : 'DITUTUP' }}
+                  [class]="isWindowOpen('penilai') ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'">
+                  <span class="w-1.5 h-1.5 rounded-full inline-block" [class]="isWindowOpen('penilai') ? 'bg-amber-500 animate-pulse' : 'bg-red-500'"></span>
+                  {{ windowBadge('penilai') }}
                 </span>
               </div>
               <div class="space-y-2">
@@ -544,6 +544,29 @@ export class AdminSettingsComponent implements OnInit {
   ngOnInit(): void { this.loadSettings(); }
 
   private bool(v: any): boolean { return v === '1' || v === true; }
+
+  /** Effective status from the switch and the open/close dates, as the server enforces it. */
+  private windowState(prefix: string): { state: 'open' | 'off' | 'not_yet' | 'closed'; date: string } {
+    if (!this.settings[`${prefix}_open`]) return { state: 'off', date: '' };
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur',
+      year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const from = String(this.settings[`${prefix}_open_date`] || '');
+    const to = String(this.settings[`${prefix}_close_date`] || '');
+    if (from && today < from) return { state: 'not_yet', date: from };
+    if (to && today > to) return { state: 'closed', date: to };
+    return { state: 'open', date: '' };
+  }
+
+  isWindowOpen(prefix: string): boolean {
+    return this.windowState(prefix).state === 'open';
+  }
+
+  windowBadge(prefix: string): string {
+    const { state, date } = this.windowState(prefix);
+    const shown = date ? date.split('-').reverse().join('/') : '';
+    return state === 'open' ? 'DIBUKA' : state === 'not_yet' ? `AKAN DIBUKA ${shown}`
+      : state === 'closed' ? `TAMAT ${shown}` : 'DITUTUP';
+  }
 
   private loadSettings(): void {
     this.loading = true;

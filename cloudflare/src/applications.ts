@@ -5,6 +5,7 @@ import type { Env } from './types';
 import { blastKelas3Welcome } from './kelas3-welcome';
 import { wroteRow } from './d1-changes';
 import { APPLICATION_CATEGORY_SQL } from './application-category';
+import { applicationWindow, klToday } from './application-window';
 
 const APPLICATION_TYPES: Record<string, string> = {
   berdaftar: 'pengadil_berdaftar',
@@ -36,7 +37,11 @@ export async function applicationSettings(request: Request, env: Env): Promise<R
   const all = Object.fromEntries(rows.results.map((row) => [row.setting_key, row.setting_value]));
   const defaults = applicationSettingDefaults();
   const settings = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, all[key] ?? fallback]));
-  return json({ error: false, settings });
+  // Computed here in Malaysia time so every form shows what the submission enforces.
+  const today = klToday();
+  const windows = Object.fromEntries((['berdaftar', 'penilai', 'bertulis', 'kelas1'] as const)
+    .map((name) => [name, applicationWindow(settings, name, today)]));
+  return json({ error: false, settings, windows });
 }
 
 /**
@@ -48,7 +53,7 @@ export function applicationSettingDefaults(): Record<string, string> {
     applications_open: '0', berdaftar_open: '0', bertulis_open: '0', kelas1_open: '0',
     penilai_open: '0', berdaftar_open_date: '', berdaftar_close_date: '',
     bertulis_open_date: '', bertulis_close_date: '', kelas1_open_date: '',
-    kelas1_close_date: '', application_year: String(new Date().getUTCFullYear()),
+    kelas1_close_date: '', penilai_open_date: '', penilai_close_date: '', application_year: String(new Date().getUTCFullYear()),
     payment_amount: '80.00', payment_bank_name: '', payment_account_name: '',
     payment_account_no: '', min_verified_matches: '20',
     fam_bank_name: 'Bank Islam Persatuan Bolasepak Malaysia',

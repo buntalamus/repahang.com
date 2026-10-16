@@ -15,6 +15,8 @@ const env = {
     delete: async key => objects.delete(key) },
 };
 db.prepare("UPDATE application_settings SET setting_value='1' WHERE setting_key='registration_open'").run();
+// The snapshot's sign-up close date would close registration once it passes.
+db.prepare("UPDATE application_settings SET setting_value='' WHERE setting_key IN ('registration_open_date','registration_close_date')").run();
 
 function crc32(bytes) {
   let crc = 0xffffffff;
