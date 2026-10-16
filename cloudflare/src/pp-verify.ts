@@ -70,13 +70,15 @@ export async function ppVerify(request: Request, env: Env): Promise<Response> {
         VALUES(?,'Semakan Permohonan','Permohonan Menunggu Admin',?,datetime('now','+8 hours'))`)
         .bind(admin.id, `Permohonan #${id} telah disahkan oleh ${actor.nama_penuh}.`).run();
     }
-    await Promise.allSettled(admins.results.map(async (admin) => {
+    const adminEmails = await Promise.allSettled(admins.results.map(async (admin) => {
       const { html, text } = buildRefpahangEmail('Permohonan Menunggu Kelulusan Admin',
         admin.nama_penuh, [`Permohonan #${id} oleh ${application.nama_penuh} telah disahkan oleh ${actor.nama_penuh}.`],
         { label: 'Semak Permohonan', url: new URL('/admin/permohonan', env.BASE_URL).toString() });
       await sendRefpahangEmail(env, 'admin', admin.email, admin.nama_penuh,
         'Permohonan Menunggu Kelulusan Admin - PBNP', html, text);
     }));
+    const failedAdminEmails = adminEmails.filter((item) => item.status === 'rejected').length;
+    if (failedAdminEmails) console.error(`PP verification: ${failedAdminEmails} Admin email(s) could not be sent`);
   }
   if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(application.emel)) {
     try {

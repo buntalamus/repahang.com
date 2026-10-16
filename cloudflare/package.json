@@ -39,6 +39,7 @@
     "test:pp-own-application": "node --no-warnings tests/pp-own-application.mjs",
     "test:match-conflicts": "node --no-warnings tests/match-conflicts.mjs",
     "test:eligibility-lists": "node --no-warnings tests/eligibility-lists.mjs",
+    "test:appointment-deadline": "node --no-warnings tests/appointment-deadline.mjs",
     "test:chair-config": "node --no-warnings tests/chair-config.mjs",
     "build:frontend": "npm --prefix ../frontend run build:prod",
     "dev": "wrangler dev",

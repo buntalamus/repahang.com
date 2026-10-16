@@ -26,6 +26,16 @@ const feeSetting: Record<FormType, string> = {
   pengadil_berdaftar: 'payment_amount', penilai_berdaftar: 'payment_amount',
   kelas3_fam: 'bertulis_fee', ujian_kelas1_fam: 'kelas1_fee',
 };
+const formLabel: Record<FormType, string> = {
+  pengadil_berdaftar: 'Pendaftaran Tahunan Pengadil', penilai_berdaftar: 'Pendaftaran Tahunan Penilai Pengadil',
+  kelas3_fam: 'Kelas III FAM', ujian_kelas1_fam: 'Ujian Kelas I FAM',
+};
+// Where each reviewer verifies the form.
+const ppPage: Record<FormType, string> = {
+  pengadil_berdaftar: '/pp-daerah/permohonan/pengadil', penilai_berdaftar: '/pp-daerah/permohonan/berdaftar',
+  kelas3_fam: '/pp-daerah/permohonan/kelas3', ujian_kelas1_fam: '/pp-daerah/permohonan/kelas1',
+};
+const adminPage = (type: FormType) => type === 'penilai_berdaftar' ? '/admin/permohonan-ra' : '/admin/permohonan';
 const closedMessage: Record<FormType, string> = {
   pengadil_berdaftar: 'Maaf, permohonan Pendaftaran Tahunan tidak dibuka pada masa ini.',
   penilai_berdaftar: 'Maaf, permohonan Pendaftaran Tahunan Penilai Pengadil tidak dibuka pada masa ini.',
@@ -218,7 +228,16 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
   if (isResponse(pictureInfo)) return pictureInfo;
 
   // A PP Daerah cannot verify their own application, so it goes straight to Admin.
+  // The first reviewer is told: the applicant's PP Daerah, or Admin when there is none.
+  const districtReviewers = user.role === 'PP Daerah' ? [] : (await env.DB.prepare(`
+    SELECT id,nama_penuh,email FROM users WHERE role='PP Daerah' AND aktif=1
+      AND COALESCE(NULLIF(persatuan_id,0),district_id)=?`)
+    .bind(Number(profile.persatuan_id ?? 0)).all<{id: number; nama_penuh: string; email: string | null}>()).results;
   const initialWorkflow = user.role === 'PP Daerah' ? 'Menunggu Admin' : 'Menunggu PP Daerah';
+  const reviewers = districtReviewers.length ? districtReviewers : (await env.DB.prepare(`
+    SELECT id,nama_penuh,email FROM users WHERE role='Admin' AND aktif=1`)
+    .all<{id: number; nama_penuh: string; email: string | null}>()).results;
+  const reviewerPage = districtReviewers.length ? ppPage[type] : adminPage(type);
   const uploaded: string[] = [];
   const suffix = `${user.id}_${Date.now()}_${crypto.randomUUID()}`;
   const receiptKey = receiptInfo ? `applications/resit_${suffix}.${receiptInfo.ext}` : '';
@@ -271,11 +290,12 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
       ) WHERE user_id=? AND status_pp='Disahkan' AND substr(tarikh,1,4)=?
         AND (permohonan_id IS NULL OR permohonan_id=0)
     `).bind(user.id, type, year, user.id, matchYear));
-    statements.push(env.DB.prepare(`
-      INSERT INTO notifications(user_id,type,subject,message,created_at)
-      SELECT id,'Permohonan Baru','Permohonan & Bayaran Pengadil Baru',
-        ?,datetime('now','+8 hours') FROM users WHERE role='Admin'
-    `).bind(`Permohonan dan bayaran daripada ${fromProfile('nama_penuh')} (${fromProfile('jenis_pengadil')}) telah dihantar. Sila semak dan sahkan.`));
+    const reviewMessage = `Permohonan ${formLabel[type]} ${year} daripada ${fromProfile('nama_penuh')} (${fromProfile('jenis_pengadil') || '-'}) menunggu semakan anda.`;
+    for (const reviewer of reviewers) {
+      statements.push(env.DB.prepare(`INSERT INTO notifications(user_id,type,subject,message,created_at)
+        VALUES(?,'Permohonan Baru','Permohonan Baharu Menunggu Semakan',?,datetime('now','+8 hours'))`)
+        .bind(reviewer.id, reviewMessage));
+    }
     const results = await env.DB.batch(statements);
     const linkedMatches = Number(results[pictureKey ? 2 : 1]?.meta.changes || 0);
     const saved = await env.DB.prepare(`
@@ -284,6 +304,17 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
     if (!saved) throw new Error('Application insert was not visible after transaction');
     const applicationId = Number(saved.id);
 
+    await Promise.allSettled(reviewers.filter((reviewer) => reviewer.email).map(async (reviewer) => {
+      const {html, text} = buildRefpahangEmail('Permohonan Baharu Menunggu Semakan', reviewer.nama_penuh,
+        [reviewMessage, `No. Rujukan: REF-${String(applicationId).padStart(6, '0')}. Sesi: ${year}.`],
+        {label: 'Semak Permohonan', url: new URL(reviewerPage, env.BASE_URL).toString()});
+      try {
+        await sendRefpahangEmail(env, 'daftar', reviewer.email!, reviewer.nama_penuh,
+          `Permohonan Baharu Menunggu Semakan: ${fromProfile('nama_penuh')} - PBNP`, html, text);
+      } catch {
+        console.error('Reviewer email for a new application could not be sent');
+      }
+    }));
     let emailSent = false;
     try {
       const attachments: MailAttachment[] = [];

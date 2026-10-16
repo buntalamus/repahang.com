@@ -493,6 +493,7 @@ async function dispatchMatch(env: Env, jadualId: number, assignments: PendingAss
   const logoHome = assignments[0]?.logo_home ?? '';
   const logoAway = assignments[0]?.logo_away ?? '';
   const botUsername = env.TELEGRAM_BOT_USERNAME || 'refpahang_bot';
+  const ppOfficials = new Map<number, Array<{ nama: string; jawatan: string }>>();
   for (const a of assignments) {
     // Reuse tokens so earlier email/Telegram links stay valid when re-sent.
     const tgToken = a.tg_token ? a.tg_token : randomHex(16);
@@ -568,16 +569,22 @@ async function dispatchMatch(env: Env, jadualId: number, assignments: PendingAss
         telegram_success: false, email_success: false, deadline_started: false,
       }, links.accept_url);
     }
+    // PP Daerah of state tournaments hear once per match, with all their officials listed.
     const pid = Number(a.persatuan_id ?? 0);
-    const ppKey = `${jadualId}:${pid}:${a.lantikan_id}`;
-    if (deliveryRecorded && !a.lantikan_persatuan_id && pid && !ppNotified.has(ppKey)) {
-      try {
-        await notifyPPDaerahLantikan(env, pid, a.nama, a.jawatan, a.kejohanan, a.tarikh, a.masa ?? '',
-          a.tempat ?? '', a.pasukan_home, a.pasukan_away);
-        ppNotified.add(ppKey);
-      } catch (error) {
-        console.error('[lantikan.php notify] PP Daerah notification error', error instanceof Error ? error.message : error);
-      }
+    if (deliveryRecorded && !a.lantikan_persatuan_id && pid && !ppNotified.has(`${jadualId}:${pid}`)) {
+      const district = ppOfficials.get(pid) ?? [];
+      district.push({ nama: a.nama, jawatan: a.jawatan });
+      ppOfficials.set(pid, district);
+    }
+  }
+  const first = assignments[0];
+  for (const [pid, officials] of ppOfficials) {
+    try {
+      await notifyPPDaerahLantikan(env, pid, officials, first.kejohanan, first.tarikh, first.masa ?? '',
+        first.tempat ?? '', first.pasukan_home, first.pasukan_away);
+      ppNotified.add(`${jadualId}:${pid}`);
+    } catch (error) {
+      console.error('[lantikan.php notify] PP Daerah notification error', error instanceof Error ? error.message : error);
     }
   }
 }
@@ -665,7 +672,13 @@ async function notifyAll(env: Env, input: Record<string, unknown>, user: User, m
   let incompleteMatchCount = 0;
   let telegramPendingMatchCount = 0;
   const ppNotified = new Set<string>();
-  for (const jadualId of jadualIds) {
+  // Each official costs about a dozen D1 queries plus an SMTP session, and a
+  // Worker request allows 1,000 D1 queries: send in batches and return the rest.
+  const OFFICIALS_PER_REQUEST = 40;
+  let officialsDispatched = 0;
+  let remaining: number[] = [];
+  for (const [index, jadualId] of jadualIds.entries()) {
+    if (officialsDispatched >= OFFICIALS_PER_REQUEST) { remaining = jadualIds.slice(index); break; }
     if (!(await getAppointmentSlotValidation(env, jadualId)).valid) { incompleteMatchCount++; continue; }
     const renotify = await env.DB.prepare(`SELECT COUNT(*) AS n FROM lantikan_pengadil
       WHERE jadual_id=? AND notif_hantar=1 AND status='Belum Jawab'`).bind(jadualId).first<{ n: number }>();
@@ -674,6 +687,7 @@ async function notifyAll(env: Env, input: Record<string, unknown>, user: User, m
     if (assignments.length === 0) continue;
     if (awaitingTelegram(assignments).length) { telegramPendingMatchCount++; continue; }
     await dispatchMatch(env, jadualId, assignments, user.id, meta, totals, ppNotified, user.role==='PP Daerah' ? 'pp_daerah' : 'admin');
+    officialsDispatched += assignments.length;
     if (!(await markMatchDispatchedIfComplete(env, jadualId))) {
       await env.DB.prepare("UPDATE jadual_perlawanan SET status='Menunggu Pengesahan' WHERE id=?").bind(jadualId).run();
     }
@@ -688,8 +702,10 @@ async function notifyAll(env: Env, input: Record<string, unknown>, user: User, m
   if (incompleteMatchCount > 0) parts.push(`${incompleteMatchCount} perlawanan tanpa Pengadil, AR1 dan AR2 lengkap dilangkau.`);
   if (telegramPendingMatchCount > 0) parts.push(`${telegramPendingMatchCount} perlawanan dilangkau kerana pengadil belum menghubungkan Telegram.`);
   if (totals.failed > 0) parts.push(`${totals.failed} lantikan gagal dihantar dan tempoh jawapannya belum bermula.`);
+  if (remaining.length > 0) parts.push(`${remaining.length} perlawanan lagi sedang dihantar.`);
   return json({
     error: false, message: parts.join(' '), total_assignments: totals.delivered,
+    remaining_jadual_ids: remaining,
     matches_processed: matchesProcessed, email_sent: totals.emailSent, tg_sent: totals.tgSent,
     tg_skipped: totals.tgSkipped, delivery_failed: totals.failed,
     matches_skipped_incomplete: incompleteMatchCount, matches_skipped_started: startedMatchCount,

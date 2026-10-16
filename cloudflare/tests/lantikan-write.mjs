@@ -115,6 +115,18 @@ try {
   assert.ok(firstEmail.html.includes('src="cid:logo_home"'));
   assert.equal(firstEmail.images[0].cid,'logo_home');
   assert.match(firstEmail.html,/Krew KUP Perlawanan/);
+  // The answer window ends long before kick-off, so the auto-reject rule is shown.
+  assert.match(firstEmail.html,/jam selepas notifikasi ini dihantar/);
+  assert.match(firstEmail.html,/Peraturan Auto-Tolak/);
+  // Each PP Daerah hears once per match, with all their district's officials listed.
+  const ppMails=emails.filter((mail)=>/^Lantikan Pengadil Daerah: Home FC lwn Away FC/.test(mail.subject));
+  const districts=db.prepare(`SELECT DISTINCT persatuan_id FROM users WHERE id IN (?,?,?) AND persatuan_id IS NOT NULL`)
+    .all(kup[0].id,kup[1].id,kup[2].id).map((row)=>row.persatuan_id);
+  const statewide=!one('SELECT lantikan_persatuan_id FROM kejohanan WHERE id=?',tournament).lantikan_persatuan_id;
+  const ppCount=statewide&&districts.length ? db.prepare(`SELECT COUNT(*) n FROM users WHERE role='PP Daerah' AND aktif=1
+    AND email IS NOT NULL AND email<>'' AND persatuan_id IN (SELECT value FROM json_each(?))`).get(JSON.stringify(districts)).n : 0;
+  assert.equal(ppMails.length,ppCount);
+  assert.ok(ppMails.every((mail)=>mail.type==='lantikan'));
   const firstTelegram=telegrams.find((message)=>Number(message.chatId)===Number(kup[0].telegram_chat_id));
   assert.match(firstTelegram.text,/^<b>🏟 Lantikan Pengadil<\/b>/);
   assert.equal(firstTelegram.markup.inline_keyboard[0][0].callback_data,`act:accept:token:${rows[0].tg_token}`);

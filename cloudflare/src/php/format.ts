@@ -101,3 +101,16 @@ function wordwrap(text: string, width = 76): string {
 export function plainTextFromHtml(html: string): string {
   return wordwrap(decodeEntities(html).replace(/<[^>]*>/g, ''));
 }
+
+/** Strict '!Y-m-d H:i:s' parse in Asia/Kuala_Lumpur; HH:MM gains :00. */
+export function getMatchKickoffTimestamp(tarikh: string, masa: string): number | null {
+  let time = masa.trim();
+  if (/^\d{2}:\d{2}$/.test(time)) time += ':00';
+  const match = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(`${tarikh.trim()} ${time}`);
+  if (!match) return null;
+  const [, y, m, d, hh, mm, ss] = match.map(Number);
+  if (m < 1 || m > 12 || d < 1 || hh > 23 || mm > 59 || ss > 59) return null;
+  const utc = Date.UTC(y, m - 1, d, hh, mm, ss);
+  if (new Date(utc).getUTCDate() !== d) return null;
+  return utc - 8 * 3600_000;
+}

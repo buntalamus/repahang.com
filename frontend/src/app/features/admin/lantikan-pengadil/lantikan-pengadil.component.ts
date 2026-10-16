@@ -1828,24 +1828,53 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
     this.confirmBtnText = 'Hantar';
     this.confirmFn = () => {
       this.sendingNotif = true;
-      this.api.post<any>('lantikan.php', {
-        action: 'notify_all',
-        kejohanan_id: this.selectedKejohananId,
-        jadual_ids: ids,
-      }).subscribe({
-        next: (res) => {
-          this.toast.show(res.message, 'success');
-          this.sendingNotif = false;
-          this.selectedMatchIds.clear();
-          this.loadJadualLantikan();
-        },
-        error: (err) => {
-          this.toast.show(err?.error?.message || 'Ralat menghantar notifikasi.', 'error');
-          this.sendingNotif = false;
-        },
-      });
+      this.sendNotificationBatch(ids, {});
     };
     this.showConfirmModal = true;
+  }
+
+  /** The server sends a limited number of officials per request and returns the rest. */
+  private sendNotificationBatch(ids: number[], totals: Record<string, number>): void {
+    this.api.post<any>('lantikan.php', {
+      action: 'notify_all',
+      kejohanan_id: this.selectedKejohananId,
+      jadual_ids: ids,
+    }).subscribe({
+      next: (res) => {
+        for (const key of ['total_assignments', 'matches_processed', 'email_sent', 'tg_sent', 'tg_skipped',
+          'delivery_failed', 'matches_skipped_incomplete', 'matches_skipped_started', 'matches_skipped_telegram']) {
+          totals[key] = (totals[key] || 0) + Number(res[key] || 0);
+        }
+        const remaining: number[] = res.remaining_jadual_ids || [];
+        if (remaining.length) {
+          this.toast.show(`Menghantar notifikasi... ${remaining.length} perlawanan lagi.`, 'info');
+          this.sendNotificationBatch(remaining, totals);
+          return;
+        }
+        this.toast.show(this.notificationSummary(totals), totals['delivery_failed'] ? 'warning' : 'success');
+        this.sendingNotif = false;
+        this.selectedMatchIds.clear();
+        this.loadJadualLantikan();
+      },
+      error: (err) => {
+        const sent = totals['total_assignments'] || 0;
+        this.toast.show((err?.error?.message || 'Ralat menghantar notifikasi.')
+          + (sent ? ` ${sent} notifikasi telah dihantar sebelum ralat.` : ''), 'error');
+        this.sendingNotif = false;
+        this.loadJadualLantikan();
+      },
+    });
+  }
+
+  private notificationSummary(t: Record<string, number>): string {
+    const parts = [`${t['total_assignments'] || 0} notifikasi dihantar untuk ${t['matches_processed'] || 0} perlawanan.`];
+    if (t['email_sent']) parts.push(`${t['email_sent']} emel dihantar.`);
+    if (t['tg_sent']) parts.push(`${t['tg_sent']} Telegram dihantar.`);
+    if (t['matches_skipped_started']) parts.push(`${t['matches_skipped_started']} perlawanan yang telah bermula dilangkau.`);
+    if (t['matches_skipped_incomplete']) parts.push(`${t['matches_skipped_incomplete']} perlawanan tanpa Pengadil, AR1 dan AR2 lengkap dilangkau.`);
+    if (t['matches_skipped_telegram']) parts.push(`${t['matches_skipped_telegram']} perlawanan dilangkau kerana pengadil belum menghubungkan Telegram.`);
+    if (t['delivery_failed']) parts.push(`${t['delivery_failed']} lantikan gagal dihantar dan tempoh jawapannya belum bermula.`);
+    return parts.join(' ');
   }
 
   hasUnnotified(j: any): boolean {

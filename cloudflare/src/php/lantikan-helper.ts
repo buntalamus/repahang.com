@@ -3,7 +3,9 @@ import type { Env } from '../types';
 import type { KupOfficial } from './email';
 import { buildEmailTemplate, emailButton, emailGreeting, emailInfoTable, emailPara,
   sendEmail, sendKupCrewCompleteEmail, baseUrl } from './email';
-import { h, klTimestamp, masaFmt, phpDate, tarikhFmt } from './format';
+import { getMatchKickoffTimestamp, h, klTimestamp, masaFmt, phpDate, tarikhFmt } from './format';
+
+export { getMatchKickoffTimestamp };
 import type { AuditMeta } from './lantikan-audit';
 import type { LantikanSnapshot } from './lantikan-audit';
 import { NOW, getLantikanAuditSnapshot, recordLantikanAudit } from './lantikan-audit';
@@ -30,18 +32,6 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-/** Strict '!Y-m-d H:i:s' parse in Asia/Kuala_Lumpur; HH:MM gains :00. */
-export function getMatchKickoffTimestamp(tarikh: string, masa: string): number | null {
-  let time = masa.trim();
-  if (/^\d{2}:\d{2}$/.test(time)) time += ':00';
-  const match = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(`${tarikh.trim()} ${time}`);
-  if (!match) return null;
-  const [, y, m, d, hh, mm, ss] = match.map(Number);
-  if (m < 1 || m > 12 || d < 1 || hh > 23 || mm > 59 || ss > 59) return null;
-  const utc = Date.UTC(y, m - 1, d, hh, mm, ss);
-  if (new Date(utc).getUTCDate() !== d) return null;
-  return utc - 8 * 3600_000;
-}
 
 export function hasMatchStarted(tarikh: string, masa: string, nowMs = Date.now()): boolean {
   const kickoff = getMatchKickoffTimestamp(tarikh, masa);
@@ -199,10 +189,14 @@ export async function notifyLantikanPortal(env: Env, userId: number, jawatan: st
   await createPortalNotification(env, userId, 'Lantikan', subject, message);
 }
 
-export async function notifyPPDaerahLantikan(env: Env, persatuanId: number, namaPengadil: string,
-  jawatan: string, kejohanan: string, tarikh: string, masa: string, tempat: string,
-  pasukanHome: string, pasukanAway: string): Promise<void> {
-  if (!persatuanId) return;
+/**
+ * One portal notice, Telegram message and email per match to each PP Daerah,
+ * listing every official from their district appointed to it.
+ */
+export async function notifyPPDaerahLantikan(env: Env, persatuanId: number,
+  officials: Array<{ nama: string; jawatan: string }>, kejohanan: string, tarikh: string, masa: string,
+  tempat: string, pasukanHome: string, pasukanAway: string): Promise<void> {
+  if (!persatuanId || officials.length === 0) return;
   const users = await env.DB.prepare(`SELECT id,nama_penuh,email,telegram_chat_id FROM users
     WHERE role='PP Daerah' AND persatuan_id=? AND aktif=1`).bind(persatuanId)
     .all<{ id: number; nama_penuh: string; email: string | null; telegram_chat_id: number | null }>();
@@ -210,14 +204,14 @@ export async function notifyPPDaerahLantikan(env: Env, persatuanId: number, nama
   const tarikhText = tarikhFmt(tarikh);
   const masaText = masaFmt(masa);
   const pasukan = `${pasukanHome} lwn ${pasukanAway}`;
+  const names = officials.map((item) => `${item.nama} (${item.jawatan})`).join(', ');
   for (const pp of users.results) {
     await createPortalNotification(env, pp.id, 'Lantikan Pegawai Pembangunan Daerah', `Lantikan Pengadil Daerah: ${pasukan}`,
-      `${namaPengadil} telah dilantik sebagai ${jawatan} untuk perlawanan ${pasukan} (${kejohanan}) pada ${tarikhText}.`);
+      `${officials.length} pengadil daerah anda dilantik untuk ${pasukan} (${kejohanan}) pada ${tarikhText}: ${names}.`);
     if (pp.telegram_chat_id) {
       const message = '<b>📋 Makluman Lantikan Pengadil</b>\n\n'
-        + 'Pengadil daerah anda telah dilantik:\n\n'
-        + `<b>Pengadil:</b> ${h(namaPengadil)}\n`
-        + `<b>Jawatan:</b> ${h(jawatan)}\n`
+        + 'Pengadil daerah anda telah dilantik:\n'
+        + officials.map((item) => `• <b>${h(item.nama)}</b> — ${h(item.jawatan)}`).join('\n') + '\n\n'
         + `<b>Kejohanan:</b> ${h(kejohanan)}\n`
         + `<b>Perlawanan:</b> ${h(pasukan)}\n`
         + `<b>Tarikh:</b> ${tarikhText}\n`
@@ -229,12 +223,13 @@ export async function notifyPPDaerahLantikan(env: Env, persatuanId: number, nama
       const body = emailGreeting(pp.nama_penuh)
         + emailPara('Pengadil dari daerah anda telah dilantik untuk bertugas:')
         + emailInfoTable([
-          ['Pengadil', h(namaPengadil)], ['Jawatan', h(jawatan)], ['Kejohanan', h(kejohanan)],
-          ['Perlawanan', h(pasukan)], ['Tarikh', tarikhText], ['Masa', masaText], ['Tempat', h(tempat)],
+          ...officials.map((item): [string, string] => [item.jawatan, h(item.nama)]),
+          ['Kejohanan', h(kejohanan)], ['Perlawanan', h(pasukan)], ['Tarikh', tarikhText],
+          ['Masa', masaText], ['Tempat', h(tempat)],
         ])
         + emailPara('Sila log masuk ke portal untuk maklumat lanjut.');
-      await sendEmail(env, pp.email, `Lantikan Pengadil: ${namaPengadil} — ${pasukan}`,
-        buildEmailTemplate('Makluman Lantikan Pengadil', '#1e293b', '📋', body), pp.nama_penuh);
+      await sendEmail(env, pp.email, `Lantikan Pengadil Daerah: ${pasukan} — ${tarikhText}`,
+        buildEmailTemplate('Makluman Lantikan Pengadil', '#1e293b', '📋', body), pp.nama_penuh, 'lantikan');
     }
   }
 }

@@ -4,6 +4,7 @@
  * only POST records the answer.
  */
 import { appointmentWritesEnabled } from './lantikan-write';
+import { EMAIL_LOGO_URL } from '../mail';
 import { calcDeadlineFromNotif, getDeadlineHours } from './php/email';
 import { h, klTimestamp, phpDate, tarikhFmt } from './php/format';
 import { auditMetaFrom } from './php/lantikan-audit';
@@ -59,7 +60,7 @@ function renderPage(title: string, icon: string, color: string, heading: string,
   <div class="card">
     <div class="top"></div>
     <div class="hdr">
-      <img src="https://upload.wikimedia.org/wikipedia/en/b/b3/Pahang_FA_logo.png" alt="PBNP">
+      <img src="${EMAIL_LOGO_URL}" alt="PBNP">
       <div class="org">PERSATUAN BOLA SEPAK NEGERI PAHANG</div>
       <div class="sub">Sistem Pengurusan Pengadil</div>
     </div>

@@ -3,10 +3,10 @@
  * PHP source is deterministic so recipients see the same messages after the
  * move to the Worker.
  */
-import { sendRefpahangEmail } from '../../mail';
+import { renderEmailLayout, sendRefpahangEmail } from '../../mail';
 import type { MailAttachment, MailType } from '../../mail';
 import type { Env } from '../types';
-import { h, klTimestamp, masaFmt, noMatchFmt, phpDate, plainTextFromHtml, tarikhFmt } from './format';
+import { getMatchKickoffTimestamp, h, klTimestamp, masaFmt, noMatchFmt, phpDate, plainTextFromHtml, tarikhFmt } from './format';
 
 export interface InlineImage { cid: string; mime: string; data: ArrayBuffer }
 
@@ -30,91 +30,9 @@ export function baseUrl(env: Env): string {
   return env.BASE_URL || 'https://refpahang.com';
 }
 
+/** Official PBNP letterhead; shared with every Worker email through mail.ts. */
 export function buildEmailTemplate(title: string, accent: string, _icon: string, body: string): string {
-  const year = phpDate('Y', Date.now());
-  return `<!DOCTYPE html>
-<html lang="ms">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="margin:0;padding:0;background:#E8EAED;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#E8EAED;">
-    <tr><td align="center" style="padding:40px 16px 48px;">
-      <table width="600" cellpadding="0" cellspacing="0" border="0"
-             style="max-width:600px;width:100%;background:#ffffff;
-                    box-shadow:0 1px 4px rgba(0,0,0,0.10);">
-
-        <!-- TOP ACCENT LINE -->
-        <tr>
-          <td style="background:${accent};height:4px;font-size:0;line-height:0;">&nbsp;</td>
-        </tr>
-
-        <!-- HEADER -->
-        <tr>
-          <td style="background:#111827;padding:28px 36px 24px;text-align:center;">
-            <img src="https://upload.wikimedia.org/wikipedia/en/b/b3/Pahang_FA_logo.png"
-                 alt="PBNP" width="60" height="60"
-                 style="width:60px;height:60px;border-radius:50%;
-                        display:block;margin:0 auto 14px;">
-            <div style="color:#F9FAFB;font-size:14px;font-weight:700;
-                        letter-spacing:0.8px;margin-bottom:4px;">
-              PERSATUAN BOLA SEPAK NEGERI PAHANG
-            </div>
-            <div style="color:#6B7280;font-size:10px;font-weight:600;
-                        letter-spacing:2.5px;text-transform:uppercase;">
-              Sistem Pengurusan Pengadil
-            </div>
-          </td>
-        </tr>
-
-        <!-- TITLE -->
-        <tr>
-          <td style="background:#F9FAFB;padding:22px 36px;
-                     border-bottom:1px solid #E5E7EB;">
-            <div style="border-left:3px solid ${accent};padding-left:14px;">
-              <div style="color:#9CA3AF;font-size:10px;font-weight:700;
-                          text-transform:uppercase;letter-spacing:2px;
-                          margin-bottom:5px;">Pemberitahuan Rasmi</div>
-              <div style="color:#111827;font-size:20px;font-weight:700;
-                          line-height:1.3;">${title}</div>
-            </div>
-          </td>
-        </tr>
-
-        <!-- BODY -->
-        <tr>
-          <td style="padding:32px 36px 36px;">
-            ${body}
-          </td>
-        </tr>
-
-        <!-- FOOTER -->
-        <tr>
-          <td style="background:#111827;padding:24px 36px;text-align:center;">
-            <div style="color:#F9FAFB;font-size:12px;font-weight:600;
-                        margin-bottom:10px;letter-spacing:0.3px;">
-              Unit Pengadil &mdash; Persatuan Bola Sepak Negeri Pahang
-            </div>
-            <div style="color:#9CA3AF;font-size:12px;margin-bottom:14px;">
-              <a href="mailto:admin@refpahang.com"
-                 style="color:#FADA00;text-decoration:none;">admin@refpahang.com</a>
-              &nbsp;&nbsp;&bull;&nbsp;&nbsp;
-              <a href="mailto:support@refpahang.com"
-                 style="color:#FADA00;text-decoration:none;">support@refpahang.com</a>
-            </div>
-            <div style="color:#4B5563;font-size:10px;
-                        border-top:1px solid #374151;padding-top:14px;">
-              &copy; ${year} Persatuan Bola Sepak Negeri Pahang. Hak Cipta Terpelihara.
-            </div>
-          </td>
-        </tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+  return renderEmailLayout(title, accent, body);
 }
 
 export function emailGreeting(nama: string): string {
@@ -347,6 +265,34 @@ export function calcDeadlineFromNotif(jenisKejohanan: string, notifMs = Date.now
   return phpDate('d M Y, H:i', notifMs + getDeadlineHours(jenisKejohanan) * 3600_000);
 }
 
+/**
+ * The answer deadline shown to an official. Auto-reject applies only when the
+ * answer window ends before kick-off; when the match starts first, the official
+ * is asked to answer before kick-off instead, without an auto-reject warning.
+ */
+export function appointmentDeadline(jenisKejohanan: string, tarikh: string, masa: string,
+  notifMs = Date.now()): { sentence: string; rule: string; html: string; label: string } {
+  const hours = getDeadlineHours(jenisKejohanan);
+  const windowEnd = notifMs + hours * 3600_000;
+  const kickoff = getMatchKickoffTimestamp(tarikh, masa);
+  if (kickoff !== null && kickoff <= windowEnd) {
+    const at = phpDate('d M Y, H:i', kickoff);
+    return {
+      sentence: `sebelum perlawanan bermula (${at})`,
+      rule: `Perlawanan ini bermula sebelum tempoh menjawab ${hours} jam tamat, jadi sila jawab sebelum perlawanan bermula.`,
+      html: `sebelum perlawanan bermula (<strong>${at}</strong>)`,
+      label: 'Tempoh Menjawab',
+    };
+  }
+  const at = phpDate('d M Y, H:i', windowEnd);
+  return {
+    sentence: `sebelum ${at} (${hours} jam selepas notifikasi ini dihantar)`,
+    rule: getDeadlineRuleText(jenisKejohanan),
+    html: `<strong>sebelum ${at}</strong> (${hours} jam selepas notifikasi ini dihantar)`,
+    label: 'Peraturan Auto-Tolak',
+  };
+}
+
 export async function sendLantikanEmail(env: Env, to: string, nama: string, jawatan: string,
   kejohanan: string, tarikh: string, masa: string, tempat: string, pasukanHome: string,
   pasukanAway: string, emailToken: string, tgLinkUrl: string | null = null, isDashboard = false,
@@ -419,17 +365,16 @@ export async function sendLantikanEmail(env: Env, to: string, nama: string, jawa
       </div>
     </div>`;
   const officialsHtml = buildKupOfficialsEmailSection(allOfficials, jawatan, regionLabel);
-  const deadlineHours = getDeadlineHours(jenisKejohanan);
-  const deadlineDt = calcDeadlineFromNotif(jenisKejohanan);
-  const ruleText = getDeadlineRuleText(jenisKejohanan);
+  const deadline = appointmentDeadline(jenisKejohanan, tarikh, masa);
+  const ruleText = deadline.rule;
   const buttonsHtml = `
     <div style="margin:28px 0 0;">
       <p style="color:#374151;font-size:13px;line-height:1.8;margin:0 0 10px 0;">
-        Sila maklumkan penerimaan atau penolakan tugasan ini <strong>sebelum ${deadlineDt}</strong> (${deadlineHours} jam selepas notifikasi ini dihantar).
+        Sila maklumkan penerimaan atau penolakan tugasan ini ${deadline.html}.
       </p>
       <div style="background:#FEF3C7;border:1px solid #F59E0B;border-left:3px solid #F59E0B;
                    padding:12px 16px;margin-bottom:16px;">
-        <span style="font-size:12px;font-weight:700;color:#92400E;">⚠ Peraturan Auto-Tolak:</span>
+        <span style="font-size:12px;font-weight:700;color:#92400E;">⚠ ${deadline.label}:</span>
         <p style="font-size:12px;color:#78350F;line-height:1.6;margin:4px 0 0;">${ruleText}</p>
       </div>
       <table width="100%" cellpadding="0" cellspacing="0">

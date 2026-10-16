@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {bundle,openDatabase,sessionCookie} from './_harness.mjs';
+import {bundle,openDatabase,sessionCookie,testPng} from './_harness.mjs';
 
 const {submitRefereeApplication,deleteApplication}=await bundle(
   "export {submitRefereeApplication} from '../src/application-submit'; export {deleteApplication} from '../src/applications';"
@@ -7,6 +7,10 @@ const {submitRefereeApplication,deleteApplication}=await bundle(
 const {db,DB,hooks,close}=openDatabase(['0001_worker_sessions','0011_application_uniqueness']);
 const objects=new Map();
 const emails=[];
+// The applicant's copy carries the PDF; reviewers get a "Menunggu Semakan" notice.
+const reviewSubject=/^Permohonan Baharu Menunggu Semakan/;
+const applicantEmails=()=>emails.filter(message=>!reviewSubject.test(message.subject));
+const reviewerEmails=()=>emails.filter(message=>reviewSubject.test(message.subject));
 const pdf=new TextEncoder().encode('%PDF-1.7\n% test');
 const env={DB,STAGING_AUTH_ENABLED:'1',STAGING_WRITES_ENABLED:'1',
   BASE_URL:'https://staging.refpahang.example',
@@ -20,10 +24,11 @@ const env={DB,STAGING_AUTH_ENABLED:'1',STAGING_WRITES_ENABLED:'1',
   ASSETS:{fetch:async()=>new Response('missing',{status:404})},
   BROWSER:{quickAction:async()=>new Response(pdf,{headers:{'Content-Type':'application/pdf'}})},
 };
-const png=Uint8Array.from(Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlU5YQAAAAASUVORK5CYII=',
-  'base64'));
+const png=testPng();
 const cookie=await sessionCookie(db,80);
+// These checks are about the submission itself; the snapshot's past open/close dates would close the form.
+db.prepare(`UPDATE application_settings SET setting_value='' WHERE setting_key LIKE '%\\_open\\_date' ESCAPE '\\'
+  OR setting_key LIKE '%\\_close\\_date' ESCAPE '\\'`).run();
 function form(type='pengadil_berdaftar') {
   const data=new FormData();
   data.set('jenis_borang',type);
@@ -68,13 +73,25 @@ try {
   assert.equal(result.email_sent,true);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM perlawanan WHERE user_id=80 AND permohonan_id=?").get(result.application_id).n,51);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM perlawanan WHERE user_id=80 AND status_pp='Disahkan' AND substr(tarikh,1,4)='2026'").get().n,51);
-  assert.equal(emails.length,1);
-  assert.equal(emails[0].attachments.length,1);
-  assert.match(emails[0].attachments[0].filename,/R1_R2_R4/);
-  assert.equal(emails[0].attachments[0].type,'application/pdf');
+  assert.equal(applicantEmails().length,1);
+  const copy=applicantEmails()[0];
+  assert.equal(copy.attachments.length,1);
+  assert.match(copy.attachments[0].filename,/R1_R2_R4/);
+  assert.equal(copy.attachments[0].type,'application/pdf');
+  assert.match(copy.text,/Status: Menunggu Semakan PP Daerah/);
+  // The applicant's PP Daerah review it first, so they (not Admin) are told.
+  const districtPp=db.prepare(`SELECT id,email FROM users WHERE role='PP Daerah' AND aktif=1
+    AND COALESCE(NULLIF(persatuan_id,0),district_id)=(SELECT persatuan_id FROM users WHERE id=80)`).all();
+  assert.ok(districtPp.length>0);
+  assert.deepEqual(reviewerEmails().map(message=>message.to.email).sort(),districtPp.map(pp=>pp.email).sort());
+  assert.match(reviewerEmails()[0].html,/pp-daerah\/permohonan\/pengadil/);
+  assert.equal(db.prepare(`SELECT COUNT(*) n FROM notifications WHERE subject='Permohonan Baharu Menunggu Semakan'
+    AND user_id IN (SELECT id FROM users WHERE role='Admin')`).get().n,0);
+  assert.equal(db.prepare(`SELECT COUNT(*) n FROM notifications WHERE subject='Permohonan Baharu Menunggu Semakan'
+    AND user_id IN (${districtPp.map(pp=>pp.id).join(',')})`).get().n,districtPp.length);
   assert.equal((await post()).status,400);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM permohonan WHERE user_id=80 AND tahun_permohonan=2027").get().n,1);
-  assert.equal(emails.length,1);
+  assert.equal(applicantEmails().length,1);
   assert.equal(objects.size,2);
   const ra=db.prepare("SELECT id FROM users WHERE role='Penilai' AND aktif=1 AND id NOT IN (SELECT user_id FROM permohonan WHERE jenis_borang='penilai_berdaftar' AND tahun_permohonan=2027) LIMIT 1").get();
   assert.ok(ra);
@@ -84,8 +101,8 @@ try {
   const raResult=await raResponse.json();
   assert.equal(raResult.error,false);
   assert.equal(raResult.email_sent,true);
-  assert.match(emails.at(-1).attachments[0].filename,/RA_R1/);
-  assert.equal(emails.at(-1).attachments.length,1);
+  assert.match(applicantEmails().at(-1).attachments[0].filename,/RA_R1/);
+  assert.equal(applicantEmails().at(-1).attachments.length,1);
   const admin=db.prepare("SELECT id FROM users WHERE role='Admin' AND aktif=1 LIMIT 1").get();
   const adminCookie=await sessionCookie(db,admin.id);
   const allMatchesBefore=db.prepare('SELECT COUNT(*) n FROM perlawanan WHERE user_id=80').get().n;

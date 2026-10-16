@@ -1,7 +1,7 @@
 /** Port of config/telegram.php: same payloads, same false-on-failure contract. */
 import type { Env } from '../types';
 import type { KupOfficial } from './email';
-import { calcDeadlineFromNotif, getDeadlineHours, getDeadlineRuleText } from './email';
+import { appointmentDeadline } from './email';
 import { h, masaFmt, noMatchFmt, tarikhFmt } from './format';
 
 export type TelegramSender = (chatId: number | string, text: string,
@@ -139,9 +139,7 @@ export function tgLantikanMessage(nama: string, jawatan: string, kejohanan: stri
   const noFmt = noMatchFmt(noMatch, '');
   const matchLine = `${h(pasukanHome)} lwn ${h(pasukanAway)}`;
   const noLine = noFmt ? `<b>No. Perlawanan:</b> ${noFmt}\n` : '';
-  const deadlineHours = getDeadlineHours(jenisKejohanan);
-  const deadlineDt = calcDeadlineFromNotif(jenisKejohanan);
-  const ruleText = getDeadlineRuleText(jenisKejohanan);
+  const deadline = appointmentDeadline(jenisKejohanan, tarikh, masa);
   return '<b>\u{1F3DF} Lantikan Pengadil</b>\n\n'
     + `Assalamualaikum <b>${h(nama)}</b>,\n\n`
     + `Anda telah dilantik sebagai <b>${h(jawatan)}</b> `
@@ -154,6 +152,6 @@ export function tgLantikanMessage(nama: string, jawatan: string, kejohanan: stri
     + `<b>Tempat:</b> ${h(tempat)}`
     + `${tgKupOfficialsSection(kupOfficials, regionLabel)}\n\n`
     + '⚠️ <b>Garis Masa Jawapan:</b>\n'
-    + `Sila <b>terima atau tolak</b> tugasan ini <b>sebelum ${deadlineDt}</b> (${deadlineHours} jam selepas notifikasi ini).\n\n`
-    + `ℹ️ <i>${ruleText}</i>`;
+    + `Sila <b>terima atau tolak</b> tugasan ini <b>${deadline.sentence}</b>.\n\n`
+    + `ℹ️ <i>${deadline.rule}</i>`;
 }
