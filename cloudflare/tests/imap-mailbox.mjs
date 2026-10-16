@@ -138,6 +138,11 @@ try {
   const disabled={...env,MAILBOX_IMAP_ENABLED:'0'};
   assert.equal((await (await adminMailbox(get('?mailbox=admin@refpahang.com&folder=inbox'),disabled)).json()).total,26);
   assert.equal((await (await adminMailbox(get('?mailbox=admin@refpahang.com&folder=imap:INBOX.Drafts'),disabled)).json()).total,1);
+  // Old Cloudflare-indexed messages can retain RFC 2047 words in D1. Decode only at presentation.
+  db.prepare('UPDATE mailbox_messages SET subject=? WHERE id=?').run('=?UTF-8?B?VWppYW4g4pq9?=',seen.id);
+  const decodedList=await (await adminMailbox(get('?mailbox=admin@refpahang.com&folder=inbox'),env)).json();
+  assert.equal(decodedList.data.find(row=>row.id===seen.id).subject,'Ujian ⚽');
+  const decodedDetail=await (await adminMailbox(get(`?id=${seen.id}`),env)).json();assert.equal(decodedDetail.data.subject,'Ujian ⚽');
   const detail=await (await adminMailbox(get(`?id=${list.data[0].id}`),env)).json();
   assert.equal(detail.data.attachments[0].size,4);assert.ok(detail.data.text.includes('Salam ⚽'));
   assert.equal((await adminMailbox(get('?view=contacts',''),env)).status,401);

@@ -198,7 +198,7 @@ export class AdminMailboxComponent implements OnInit {
     const folder = this.serverFolders().find((item) => 'imap:' + item.name === this.folder);
     return folder ? this.folderName(folder) : 'Folder';
   }
-  selectMailbox(): void { this.page = 1; this.folder = 'inbox'; this.serverFolders.set([]); this.refresh(); }
+  selectMailbox(): void { this.notice = ''; this.page = 1; this.folder = 'inbox'; this.serverFolders.set([]); this.refresh(); }
   formatDate(value: string): string { return value ? new Date(value.replace(' ', 'T') + (value.includes('Z') ? '' : 'Z')).toLocaleString('ms-MY') : ''; }
   downloadUrl(id: string): string { return `/api/admin-mailbox.php?id=${encodeURIComponent(id)}&download=1`; }
   refresh(): void {

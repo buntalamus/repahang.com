@@ -1,4 +1,4 @@
-import PostalMime from 'postal-mime';
+import PostalMime, { decodeWords } from 'postal-mime';
 import { buildRefpahangEmail, sendRefpahangEmail, type MailType } from '../mail';
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
@@ -109,9 +109,9 @@ export async function adminMailbox(request: Request, env: Env): Promise<Response
       if (!row.read_at) await env.DB.prepare("UPDATE mailbox_messages SET read_at=CURRENT_TIMESTAMP WHERE id=?")
         .bind(id).run();
       return json({ error: false, data: {
-        id: row.id, mailbox: row.mailbox, folder: row.folder, sender: row.sender,
+        id: row.id, mailbox: row.mailbox, folder: row.folder, sender: decodeWords(row.sender),
         reply_address: parsed.replyTo?.[0]?.address || parsed.from?.address || '',
-        recipient: row.recipient, subject: row.subject, received_at: row.received_at,
+        recipient: decodeWords(row.recipient), subject: decodeWords(row.subject), received_at: row.received_at,
         delivery_status: row.delivery_status, text: parsed.text || '',
         attachments: parsed.attachments.map((attachment) => ({
           filename: attachment.filename || 'lampiran',
@@ -145,7 +145,7 @@ export async function adminMailbox(request: Request, env: Env): Promise<Response
              m.received_at, m.read_at, m.delivery_status
       FROM mailbox_messages m WHERE m.mailbox=? AND ${filter}
       ORDER BY m.received_at DESC, m.id DESC LIMIT 50 OFFSET ?
-    `).bind(mailbox, filterValue, (page - 1) * 50).all();
+    `).bind(mailbox, filterValue, (page - 1) * 50).all<MailRow>();
     const folders = imapIndexAvailable ? await env.DB.prepare(`SELECT name,label,kind FROM mailbox_imap_folders WHERE mailbox=? ORDER BY label`)
       .bind(mailbox).all() : { results: [] };
     const sync = imapIndexAvailable ? await env.DB.prepare(`SELECT MAX(last_sync_at) AS last_sync_at,
@@ -154,7 +154,9 @@ export async function adminMailbox(request: Request, env: Env): Promise<Response
       .bind(mailbox).first() : null;
     const skipped = imapIndexAvailable ? await env.DB.prepare("SELECT COUNT(*) AS total FROM mailbox_imap_items WHERE mailbox=? AND status='oversized'")
       .bind(mailbox).first<{ total: number }>() : null;
-    return json({ error: false, data: rows.results, total: count?.total ?? 0, page,
+    const messages = rows.results.map((row) => ({ ...row, sender: decodeWords(row.sender),
+      recipient: decodeWords(row.recipient), subject: decodeWords(row.subject) }));
+    return json({ error: false, data: messages, total: count?.total ?? 0, page,
       folders: folders.results, imap_enabled: imapEnabled(env), sync, oversized: skipped?.total || 0 });
   }
   if (request.method !== 'POST') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
