@@ -70,7 +70,7 @@ export class PengadilApplicationComponent implements OnInit {
   get applicationsOpen(): boolean {
     if (this.isBerdaftar || this.isPpBerdaftar) return this.appSettings.berdaftar_open === '1';
     if (this.isPenilai) return this.appSettings.penilai_open === '1';
-    if (this.isKelas3)  return this.appSettings.kelas3_open  === '1';
+    if (this.isKelas3)  return this.appSettings.bertulis_open === '1';
     if (this.isKelas1)  return this.appSettings.kelas1_open  === '1';
     return false;
   }

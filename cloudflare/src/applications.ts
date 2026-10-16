@@ -34,7 +34,17 @@ export async function applicationSettings(request: Request, env: Env): Promise<R
   const rows = await env.DB.prepare('SELECT setting_key, setting_value FROM application_settings')
     .all<{ setting_key: string; setting_value: string }>();
   const all = Object.fromEntries(rows.results.map((row) => [row.setting_key, row.setting_value]));
-  const defaults: Record<string, string> = {
+  const defaults = applicationSettingDefaults();
+  const settings = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, all[key] ?? fallback]));
+  return json({ error: false, settings });
+}
+
+/**
+ * Fallbacks for the application settings the forms show and the submission
+ * enforces, so both always read the same keys and values.
+ */
+export function applicationSettingDefaults(): Record<string, string> {
+  return {
     applications_open: '0', berdaftar_open: '0', bertulis_open: '0', kelas1_open: '0',
     penilai_open: '0', berdaftar_open_date: '', berdaftar_close_date: '',
     bertulis_open_date: '', bertulis_close_date: '', kelas1_open_date: '',
@@ -46,8 +56,6 @@ export async function applicationSettings(request: Request, env: Env): Promise<R
     bertulis_min_age: '15', bertulis_max_age: '40', kelas1_fee: '300.00',
     kelas1_max_age: '32', kelas1_min_fitness_rounds: '7',
   };
-  const settings = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => [key, all[key] ?? fallback]));
-  return json({ error: false, settings });
 }
 
 export async function applicationHistory(request: Request, env: Env): Promise<Response> {

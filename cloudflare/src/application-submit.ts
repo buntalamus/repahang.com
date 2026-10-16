@@ -5,6 +5,7 @@ import { registrationPdf } from './registration-pdf';
 import type { Env } from './types';
 import { missingRefereeProfile, profileLabels } from './referee-profile';
 import { dimensions } from './profile-write';
+import { applicationSettingDefaults } from './applications';
 
 type FormType = 'pengadil_berdaftar' | 'penilai_berdaftar' | 'kelas3_fam' | 'ujian_kelas1_fam';
 type Profile = Record<string, string | number | null>;
@@ -16,7 +17,12 @@ const allowed: Record<string, FormType[]> = {
 };
 const openSetting: Record<FormType, string> = {
   pengadil_berdaftar: 'berdaftar_open', penilai_berdaftar: 'penilai_open',
-  kelas3_fam: 'kelas3_open', ujian_kelas1_fam: 'kelas1_open',
+  kelas3_fam: 'bertulis_open', ujian_kelas1_fam: 'kelas1_open',
+};
+// The Admin Settings fee for each form; the annual forms share payment_amount.
+const feeSetting: Record<FormType, string> = {
+  pengadil_berdaftar: 'payment_amount', penilai_berdaftar: 'payment_amount',
+  kelas3_fam: 'bertulis_fee', ujian_kelas1_fam: 'kelas1_fee',
 };
 const closedMessage: Record<FormType, string> = {
   pengadil_berdaftar: 'Maaf, permohonan Pendaftaran Tahunan tidak dibuka pada masa ini.',
@@ -31,6 +37,10 @@ function klYear(): number {
 function field(form: FormData, key: string): string {
   const value = form.get(key);
   return typeof value === 'string' ? value.trim() : '';
+}
+/** A numeric Admin setting; blank or non-numeric values are NaN, never 0. */
+function settingNumber(value: string | undefined): number {
+  return value === undefined || value.trim() === '' ? NaN : Number(value);
 }
 function profileValue(profile: Profile, key: string): string {
   return profile[key] === null || profile[key] === undefined ? '' : String(profile[key]);
@@ -119,11 +129,16 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
 
   const settingsRows = await env.DB.prepare('SELECT setting_key,setting_value FROM application_settings')
     .all<{setting_key: string; setting_value: string}>();
-  const settings = Object.fromEntries(settingsRows.results.map(row => [row.setting_key, row.setting_value]));
+  const settings: Record<string, string> = {...applicationSettingDefaults(),
+    ...Object.fromEntries(settingsRows.results.map(row => [row.setting_key, row.setting_value]))};
   if (settings[openSetting[type]] !== '1') return json({error: true, message: closedMessage[type]}, 400);
   const year = Number(settings.application_year || klYear());
   if (!Number.isSafeInteger(year) || year < 2020 || year > 2100) {
     return json({error: true, message: 'Tahun permohonan tidak sah.'}, 500);
+  }
+  const fee = settingNumber(settings[feeSetting[type]]);
+  if (!Number.isFinite(fee) || fee < 0) {
+    return json({error: true, message: 'Tetapan yuran permohonan tidak sah. Sila hubungi pentadbir.'}, 500);
   }
   const profile = await env.DB.prepare(`
     SELECT nama_penuh,no_ic,email,no_telefon,jantina,alamat1,alamat2,poskod,daerah,negeri,
@@ -146,9 +161,12 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
     const yy = Number(ic.slice(0, 2));
     const birthYear = yy <= klYear() % 100 ? 2000 + yy : 1900 + yy;
     const age = year - birthYear;
-    const minAge = Number(settings.kelas3_min_age || 15);
-    const maxAge = Number(settings.kelas3_max_age || 40);
-    const classOneMax = Number(settings.kelas1_max_age || 32);
+    const minAge = settingNumber(settings.bertulis_min_age);
+    const maxAge = settingNumber(settings.bertulis_max_age);
+    const classOneMax = settingNumber(settings.kelas1_max_age);
+    if (![minAge, maxAge, classOneMax].every(Number.isFinite)) {
+      return json({error: true, message: 'Tetapan had umur tidak sah. Sila hubungi pentadbir.'}, 500);
+    }
     if (type === 'kelas3_fam' && (age < minAge || age > maxAge)) {
       return json({error: true, message: `Anda tidak memenuhi syarat umur untuk Kelas III FAM. Calon mesti berumur antara ${minAge} hingga ${maxAge} tahun pada tahun ${year}.`}, 400);
     }
@@ -238,7 +256,7 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
       fromProfile('negeri_majikan') || null, ...waris.map(key => field(input, key)),
       receiptKey ? `/uploads/${receiptKey}` : null,
       pictureKey ? `/uploads/${pictureKey}` : null, shirt || null,
-      Number(settings.payment_amount || 80), annual.has(type) ? 1 : 0,
+      fee.toFixed(2), annual.has(type) ? 1 : 0,
       type === 'pengadil_berdaftar' ? 1 : 0,
       'Pending', 'Menunggu PP Daerah',
     ];
@@ -291,7 +309,7 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
           : 'Permohonan Pendaftaran Pengadil Berjaya Dihantar';
       const paragraphs = [
         `Permohonan anda telah diterima. No. Rujukan: REF-${String(applicationId).padStart(6,'0')}.`,
-        `Jenis Pengadil: ${fromProfile('jenis_pengadil') || '-'}. Sesi: ${year}. Yuran permohonan: RM ${Number(settings.payment_amount || 80).toFixed(2)}.`,
+        `Jenis Pengadil: ${fromProfile('jenis_pengadil') || '-'}. Sesi: ${year}. Yuran permohonan: RM ${fee.toFixed(2)}.`,
         'Status: Menunggu Kelulusan Admin. Semak status di dashboard anda.',
         ...(type === 'pengadil_berdaftar' ? [
           'Salinan R1, R2 dan R4 dilampirkan. Cetak dan tandatangani perakuan kesihatan R4 sebelum ujian kecergasan.',

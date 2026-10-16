@@ -26,7 +26,11 @@
         <ul class="space-y-2 text-sm text-slate-700">
           <li class="flex items-start gap-2">
             <span class="material-icons text-sm text-pahang-yellow mt-0.5">check</span>
-            Yuran peperiksaan: <strong>RM {{ kelas1Fee }}</strong>
+            Umur: <strong>{{ bertulisMinAge }} hingga {{ bertulisMaxAge }} tahun</strong> pada tahun {{ applicationYear }}
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="material-icons text-sm text-pahang-yellow mt-0.5">check</span>
+            Yuran peperiksaan: <strong>RM {{ bertulisFee }}</strong>
           </li>
           <li class="flex items-start gap-2">
             <span class="material-icons text-sm text-pahang-yellow mt-0.5">check</span>
@@ -173,7 +177,7 @@
                   </div>
                   <div>
                     <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Jumlah Bayaran</p>
-                    <p class="font-bold text-pahang-yellow text-xl">RM {{ kelas1Fee }}</p>
+                    <p class="font-bold text-pahang-yellow text-xl">RM {{ isKelas3 ? bertulisFee : kelas1Fee }}</p>
                   </div>
                   <div class="sm:col-span-3">
                     <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">No. Akaun FAM</p>
