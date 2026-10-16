@@ -203,10 +203,11 @@ import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/
     <!-- Modal Padam -->
     @if (showDeleteModal && deleteTarget) {
       <app-confirm-modal
+        [show]="showDeleteModal"
         title="Padam Pengumuman"
         [message]="'Adakah anda pasti mahu memadam pengumuman &quot;' + deleteTarget.title + '&quot;? Tindakan ini tidak boleh dibatalkan.'"
-        confirmLabel="Ya, Padam"
-        confirmClass="bg-red-600 text-white hover:bg-red-700"
+        confirmText="Ya, Padam"
+        type="danger"
         (confirmed)="executeDelete()"
         (cancelled)="showDeleteModal = false" />
     }
