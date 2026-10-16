@@ -19,6 +19,10 @@ export interface SmtpSocket {
 export type SmtpConnector = (address: { hostname: string; port: number },
   options: { secureTransport: 'on'; allowHalfOpen: false }) => SmtpSocket;
 
+export class SmtpRejection extends Error {
+  constructor(stage: string, readonly code: number) { super(`SMTP rejected ${stage} (${code})`); this.name='SmtpRejection'; }
+}
+
 const encoder = new TextEncoder();
 
 function base64(bytes: Uint8Array): string {
@@ -151,7 +155,11 @@ async function session(account: SmtpAccount, connect: SmtpConnector, message?: E
       }
       firstCode = match[1];
       if (match[2] === '-') continue;
-      if (!expected.includes(Number(match[1]))) throw new Error(`SMTP rejected ${stage} (${match[1]})`);
+      if (!expected.includes(Number(match[1]))) {
+        const code=Number(match[1]);
+        if (code>=400 && code<=599) throw new SmtpRejection(stage,code);
+        throw new Error(`SMTP rejected ${stage} (${match[1]})`);
+      }
       return;
     }
   }

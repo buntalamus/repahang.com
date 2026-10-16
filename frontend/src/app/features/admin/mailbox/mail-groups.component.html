@@ -1,0 +1,112 @@
+<section aria-labelledby="system-address-title" class="space-y-5">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h3 id="system-address-title" class="text-lg font-bold text-slate-900">Buku alamat sistem &amp; blast emel</h3>
+      <p class="mt-1 text-sm text-slate-600">Alamat dibaca terus daripada pengguna dan kenalan yang disimpan. Pilih kumpulan, semak penerima, kemudian sahkan penghantaran.</p>
+    </div>
+    <button type="button" (click)="loadJobs()" class="rounded-lg border px-3 py-2 text-sm">Muat semula status blast</button>
+  </div>
+  @if (error()) { <p role="alert" class="rounded-lg bg-red-50 p-3 text-sm text-red-800">{{ error() }}</p> }
+  @if (notice()) { <p role="status" class="rounded-lg bg-green-50 p-3 text-sm text-green-800">{{ notice() }}</p> }
+  @if (!jobsEnabled()) { <p class="text-sm text-amber-900">Penghantaran blast belum diaktifkan pada pelayan.</p> }
+  @if (!review()) {
+    <fieldset [disabled]="busy()" class="min-w-0 space-y-4 disabled:opacity-60">
+      <legend class="sr-only">Pilihan penerima blast</legend>
+      <div class="flex flex-wrap items-end gap-3">
+        <label class="text-sm font-medium">Tahun pendaftaran
+          <input type="number" min="2000" max="2100" [value]="year()" (change)="changeYear($event)" class="mt-1 block w-28 rounded-lg border px-3 py-2" />
+        </label>
+        <label class="min-w-0 max-w-full text-sm font-medium">Daerah / persatuan
+          <select [value]="district()" (change)="district.set(value($event)); filterChanged()" class="mt-1 block w-full min-w-0 max-w-full rounded-lg border px-3 py-2">
+            <option value="">Semua daerah / persatuan</option>
+            @for (item of directory()?.districts || []; track item.id) { <option [value]="item.id">{{ item.name }}</option> }
+          </select>
+        </label>
+        <label class="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" [checked]="includeInactive()" (change)="includeInactive.set(checked($event)); filterChanged()" /> Sertakan akaun dinyahaktif</label>
+        <button type="button" (click)="loadDirectory()" [disabled]="loading()" class="rounded-lg border px-3 py-2 text-sm">Imbas semula alamat</button>
+      </div>
+      @if (loading()) { <p role="status" class="text-sm text-slate-600">Mengimbas alamat pengguna...</p> }
+      @if (directory(); as data) {
+        <fieldset class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <legend class="mb-2 text-sm font-semibold">Kumpulan penerima — boleh pilih lebih daripada satu</legend>
+          @for (group of data.groups; track group.id) {
+            <label class="flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm hover:bg-slate-50" [class.bg-yellow-50]="groups().includes(group.id)">
+              <input type="checkbox" [checked]="groups().includes(group.id)" (change)="toggleGroup(group.id,checked($event))" />
+              <span class="flex-1">{{ group.label }}</span><span class="font-bold tabular-nums">{{ groupCounts()[group.id] || 0 }}</span>
+            </label>
+          }
+        </fieldset>
+        <p class="text-xs text-slate-600">Kumpulan digabungkan; emel yang sama menerima satu salinan sahaja. Pengadil berdaftar mengikut kelulusan tahun {{ year() }}. Kelas pengadil mengikut profil; kumpulan lulus ujian disenaraikan berasingan. Akaun dinyahaktif berbeza daripada pendaftaran pengadil tidak aktif.</p>
+        @if (data.invalid) { <p class="text-sm text-amber-900">{{ data.invalid }} rekod tanpa alamat emel sah diketepikan.</p> }
+        <div class="rounded-lg border">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b p-3">
+            <p role="status" class="text-sm font-semibold">{{ recipients().length }} penerima unik dipilih <span class="font-normal text-slate-600">daripada {{ matching().length }} alamat kumpulan</span></p>
+            <label class="text-sm">Cari dalam senarai <input type="search" [value]="search()" (input)="search.set(value($event)); page.set(1)" placeholder="Nama, emel atau daerah" class="mt-1 block w-full max-w-full rounded-lg border px-3 py-2 sm:ml-2 sm:mt-0 sm:inline-block sm:w-auto" /></label>
+          </div>
+          <div class="max-h-80 overflow-auto">
+            <table class="w-full text-left text-sm"><caption class="sr-only">Penerima kumpulan; nyahpilih alamat untuk mengecualikannya</caption>
+              <thead class="sticky top-0 bg-slate-100"><tr><th class="p-3">Pilih</th><th class="p-3">Nama &amp; emel</th><th class="p-3">Peranan / daerah</th><th class="p-3">Tindakan</th></tr></thead>
+              <tbody>
+                @for (contact of contactPage(); track contact.email) {
+                  <tr class="border-t"><td class="p-3"><input type="checkbox" class="h-6 w-6" [checked]="!excluded().includes(contact.email)" (change)="toggleRecipient(contact.email,checked($event))" [attr.aria-label]="'Sertakan ' + contact.name + ', ' + contact.email" /></td>
+                    <td class="p-3"><span class="block font-medium">{{ contact.name }}</span><span class="break-all text-slate-600">{{ contact.email }}</span></td>
+                    <td class="p-3">{{ contact.role }}<span class="block text-slate-600">{{ contact.district || 'Tiada daerah' }} @if (!contact.active) { · Akaun dinyahaktif }</span></td>
+                    <td class="p-3"><button type="button" (click)="writeTo.emit(contact)" class="rounded border px-3 py-2 text-xs">Tulis emel<span class="sr-only"> kepada {{ contact.name }}</span></button></td>
+                  </tr>
+                } @empty { <tr><td colspan="4" class="p-4 text-slate-600">{{ groups().length ? 'Tiada penerima sepadan.' : 'Pilih kumpulan untuk melihat penerima.' }}</td></tr> }
+              </tbody>
+            </table>
+          </div>
+          <div class="flex items-center justify-between gap-3 border-t p-3 text-sm">
+            <button type="button" (click)="page.update(previousPage)" [disabled]="page() <= 1" class="rounded border px-3 py-2 disabled:opacity-50">Sebelum</button>
+            <span>Halaman {{ page() }} / {{ contactPages() }}</span>
+            <button type="button" (click)="page.update(nextPage)" [disabled]="page() >= contactPages()" class="rounded border px-3 py-2 disabled:opacity-50">Seterusnya</button>
+          </div>
+        </div>
+      }
+      <form [formGroup]="form" (ngSubmit)="preview()" class="space-y-3 rounded-xl bg-slate-50 p-4">
+        <h4 class="font-semibold">Kandungan blast</h4>
+        <label class="block text-sm font-medium">Dari <select formControlName="from" class="mt-1 block max-w-full rounded-lg border bg-white px-3 py-2">@for (address of mailboxes; track address) { <option [value]="address">{{ address }}</option> }</select></label>
+        <label class="block text-sm font-medium">Tajuk <input formControlName="subject" required maxlength="250" class="mt-1 block w-full rounded-lg border px-3 py-2" /></label>
+        <label class="block text-sm font-medium">Mesej <textarea formControlName="text" required maxlength="12000" rows="7" class="mt-1 block w-full rounded-lg border px-3 py-2"></textarea></label>
+        <p class="text-xs text-slate-600">Setiap penerima mendapat emel berasingan. Alamat penerima lain tidak dipaparkan. Giliran blast memproses sehingga 10 emel setiap 5 minit, berkongsi had antara semua blast.</p>
+        <button type="submit" [disabled]="form.invalid || loading() || busy() || !jobsEnabled() || !recipients().length" class="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white disabled:opacity-50">{{ busy() ? 'Menyediakan semakan...' : 'Semak blast · ' + recipients().length + ' penerima' }}</button>
+      </form>
+    </fieldset>
+  }
+  @if (review() || job(); as snapshot) {
+    <section aria-labelledby="blast-review-title" class="space-y-3 rounded-xl border-2 border-slate-300 p-4">
+      <h4 #reviewHeading tabindex="-1" id="blast-review-title" class="text-lg font-bold">{{ review() ? 'Semak & sahkan blast' : 'Butiran blast' }} · {{ snapshot.total }} penerima</h4>
+      <dl class="space-y-1 text-sm"><div><dt class="inline font-semibold">Dari: </dt><dd class="inline break-all">{{ snapshot.mailbox }}</dd></div><div><dt class="inline font-semibold">Tajuk: </dt><dd class="inline">{{ snapshot.subject }}</dd></div><div><dt class="inline font-semibold">Status: </dt><dd class="inline">{{ status(snapshot.status) }}</dd></div></dl>
+      <pre tabindex="0" aria-label="Kandungan emel blast" class="max-h-60 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-3 font-sans text-sm">{{ snapshot.content }}</pre>
+      @if (review()) { <p class="text-sm text-slate-700">Semakan ini menyimpan senarai dan mesej yang dipaparkan. Tiada emel dihantar sehingga anda mengesahkan di bawah.</p> }
+      <div tabindex="0" role="region" aria-label="Senarai penerima blast" class="max-h-72 overflow-auto"><table class="w-full text-left text-sm"><caption class="sr-only">Senarai penerima yang disimpan untuk blast ini</caption><thead><tr><th class="p-2">Penerima</th><th class="p-2">Status</th></tr></thead><tbody>
+        @for (recipient of snapshotContacts(); track recipient.email) { <tr class="border-t"><td class="p-2">{{ recipient.name }}<span class="block break-all text-slate-600">{{ recipient.email }}</span></td><td class="p-2">{{ status(recipient.status) }} @if (recipient.error) { <span class="block text-xs text-red-800">{{ recipient.error }}</span> }</td></tr> }
+      </tbody></table></div>
+      <div class="flex items-center justify-between text-sm"><button type="button" (click)="snapshotPage.update(previousPage)" [disabled]="snapshotPage() <= 1" class="rounded border px-3 py-2 disabled:opacity-50">Sebelum</button><span>{{ snapshotPage() }} / {{ snapshotPages() }}</span><button type="button" (click)="snapshotPage.update(nextPage)" [disabled]="snapshotPage() >= snapshotPages()" class="rounded border px-3 py-2 disabled:opacity-50">Seterusnya</button></div>
+      @if (review()) {
+        <div class="flex flex-wrap gap-3"><button type="button" (click)="confirm()" [disabled]="busy()" class="rounded-lg bg-slate-900 px-4 py-3 font-semibold text-white disabled:opacity-50">Sahkan &amp; jadualkan {{ snapshot.total }} emel</button><button type="button" (click)="edit()" [disabled]="busy()" class="rounded-lg border px-4 py-3 disabled:opacity-50">Ubah pilihan / kandungan</button></div>
+      } @else { <button type="button" (click)="job.set(null)" class="rounded border px-3 py-2 text-sm">Tutup butiran</button> }
+    </section>
+  }
+  <section aria-labelledby="blast-history-title" class="space-y-3 border-t pt-4">
+    <h4 id="blast-history-title" class="font-bold">Sejarah &amp; giliran blast</h4>
+    <p class="text-xs text-slate-600">“Diterima SMTP” bermakna pelayan menerima emel; ia bukan pengesahan emel dibaca. Status belum pasti perlu disemak sebelum dihantar semula. Pembatalan menghentikan penerima yang masih menunggu; emel yang sedang diproses mungkin selesai dihantar.</p>
+    <div class="overflow-x-auto"><table class="w-full text-left text-sm"><caption class="sr-only">Blast semua admin dan kemajuan penghantaran</caption><thead class="bg-slate-100"><tr><th class="p-3">Blast</th><th class="p-3">Status / kemajuan</th><th class="p-3">Tindakan</th></tr></thead><tbody>
+      @for (item of jobs(); track item.id) {
+        <tr class="border-t"><td class="p-3"><p class="font-semibold">{{ item.subject }}</p><p class="text-xs text-slate-600">{{ item.created_by_name }} · {{ date(item.created_at) }}</p></td>
+          <td class="p-3"><p>{{ status(item.status) }}</p><p class="text-xs">{{ item.sent }} / {{ item.total }} diterima SMTP · {{ item.pending }} menunggu · {{ item.processing }} diproses @if(item.cancelled) { · {{ item.cancelled }} dibatalkan }</p>@if (item.failed || item.uncertain) { <p class="text-xs text-red-800">{{ item.failed }} gagal · {{ item.uncertain }} belum pasti</p> }</td>
+          <td class="p-3"><div class="flex flex-wrap gap-2">
+            <button type="button" (click)="openJob(item.id)" [disabled]="busy() || !!review()" class="rounded border px-3 py-2 disabled:opacity-50">{{ item.status === 'draft' ? 'Semak draf' : 'Butiran' }}</button>
+            @if (item.status === 'queued' || item.status === 'draft') {
+              @if (confirmCancel() === item.id) { <button type="button" (click)="action(item.id,'cancel')" [disabled]="busy()" class="rounded border px-3 py-2 font-semibold text-red-800">Sahkan batal blast</button><button type="button" (click)="confirmCancel.set('')" class="rounded border px-3 py-2">Kembali</button> }
+              @else { <button type="button" (click)="confirmCancel.set(item.id)" [disabled]="busy()" class="rounded border px-3 py-2 text-red-800">Batal</button> }
+            }
+            @if (item.failed && item.status !== 'cancelled') { <button type="button" (click)="action(item.id,'retry-failed')" [disabled]="busy()" class="rounded border px-3 py-2">Cuba semula {{ item.failed }} yang gagal</button> }
+          </div></td>
+        </tr>
+      } @empty { <tr><td colspan="3" class="p-4 text-slate-600">Belum ada blast.</td></tr> }
+    </tbody></table></div>
+    <div class="flex items-center justify-between text-sm"><button type="button" (click)="jobsPage.update(previousPage); loadJobs()" [disabled]="jobsPage() <= 1" class="rounded border px-3 py-2 disabled:opacity-50">Sebelum</button><span>Halaman {{ jobsPage() }}</span><button type="button" (click)="jobsPage.update(nextPage); loadJobs()" [disabled]="jobsPage()*20 >= jobsTotal()" class="rounded border px-3 py-2 disabled:opacity-50">Seterusnya</button></div>
+  </section>
+</section>

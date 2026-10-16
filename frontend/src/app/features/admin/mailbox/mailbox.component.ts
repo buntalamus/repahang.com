@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MailGroupsComponent } from './mail-groups.component';
 import { ApiService } from '../../../core/services/api.service';
 
 type MailSummary = {
@@ -21,7 +22,7 @@ type ApiResult<T> = {
 @Component({
   selector: 'app-admin-mailbox',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, ReactiveFormsModule],
+  imports: [FormsModule, ReactiveFormsModule, MailGroupsComponent],
   template: `
     <section class="max-w-6xl mx-auto space-y-5">
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -30,7 +31,7 @@ type ApiResult<T> = {
           <p class="text-sm text-slate-600">Urus emel dan kenalan untuk lima alamat rasmi RefPahang.</p>
         </div>
         <div class="flex gap-2">
-          <button type="button" (click)="showContacts.set(!showContacts())" [attr.aria-expanded]="showContacts()" aria-controls="mail-address-book" class="rounded-lg border bg-white px-4 py-2 text-sm font-semibold">Buku alamat</button>
+          <button type="button" (click)="showContacts.set(!showContacts())" [attr.aria-expanded]="showContacts()" aria-controls="mail-address-book" class="rounded-lg border bg-white px-4 py-2 text-sm font-semibold">Buku alamat &amp; blast</button>
           <button type="button" (click)="newMessage()" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Tulis emel</button>
         </div>
       </div>
@@ -56,7 +57,10 @@ type ApiResult<T> = {
       }
       @if (showContacts()) {
         <section id="mail-address-book" aria-labelledby="address-book-title" class="rounded-xl border bg-white p-4 space-y-4">
-          <h2 id="address-book-title" class="text-lg font-semibold">Buku alamat</h2>
+          <h2 id="address-book-title" class="sr-only">Buku alamat</h2>
+          <app-mail-groups (writeTo)="writeTo($event)" />
+          <details #manualBook [open]="manualContactsOpen()" (toggle)="manualContactsOpen.set(manualBook.open)" class="border-t pt-4"><summary class="cursor-pointer font-semibold">Kenalan manual — tambah, sunting atau padam</summary>
+          <div class="space-y-4 pt-4">
           <form [formGroup]="contactForm" (ngSubmit)="saveContact()" class="flex flex-wrap items-end gap-3">
             <label class="text-sm font-medium">Nama <input formControlName="name" required maxlength="150" class="mt-1 block rounded-lg border px-3 py-2" /></label>
             <label class="text-sm font-medium">Alamat emel <input formControlName="email" type="email" required maxlength="254" class="mt-1 block rounded-lg border px-3 py-2" /></label>
@@ -80,6 +84,7 @@ type ApiResult<T> = {
               </li>
             } @empty { <li class="py-3 text-sm text-slate-600">Tiada kenalan ditemui.</li> }
           </ul>
+          </div></details>
         </section>
       }
       @if (error) { <p role="alert" class="rounded-lg bg-red-50 p-3 text-sm text-red-700">{{ error }}</p> }
@@ -160,6 +165,7 @@ export class AdminMailboxComponent implements OnInit {
   readonly syncStatus = signal('Menunggu penyegerakan pertama.');
   readonly contacts = signal<MailContact[]>([]);
   readonly showContacts = signal(false);
+  readonly manualContactsOpen = signal(false);
   readonly savingContact = signal(false);
   readonly contactError = signal('');
   readonly contactSearch = signal('');
@@ -237,11 +243,11 @@ export class AdminMailboxComponent implements OnInit {
   searchContacts(event: Event): void { this.contactSearch.set((event.target as HTMLInputElement).value); }
   resetContact(): void { this.contactForm.reset(); this.contactError.set(''); }
   editContact(contact: MailContact): void { this.contactForm.setValue(contact); this.contactError.set(''); }
-  writeTo(contact: MailContact): void { this.newMessage(); this.draft.to = contact.email; this.showContacts.set(false); }
-  saveRecipient(): void { this.resetContact(); this.contactForm.controls.email.setValue(this.draft.to); this.showContacts.set(true); }
+  writeTo(contact: { name:string; email:string }): void { this.newMessage(); this.draft.to = contact.email; this.showContacts.set(false); }
+  saveRecipient(): void { this.manualContactsOpen.set(true); this.resetContact(); this.contactForm.controls.email.setValue(this.draft.to); this.showContacts.set(true); }
   saveSender(): void {
     if (!this.selected) return;
-    this.resetContact(); this.contactForm.controls.email.setValue(this.selected.reply_address);
+    this.manualContactsOpen.set(true); this.resetContact(); this.contactForm.controls.email.setValue(this.selected.reply_address);
     this.contactForm.controls.name.setValue(this.selected.sender.replace(/\s*<[^>]*>\s*$/, ''));
     this.showContacts.set(true);
   }

@@ -35,7 +35,8 @@
     "test:chair-config": "node --no-warnings tests/chair-config.mjs",
     "build:frontend": "npm --prefix ../frontend run build:prod",
     "dev": "wrangler dev",
-    "deploy:staging": "npm run typecheck && npm run build:frontend && wrangler deploy"
+    "deploy:staging": "npm run typecheck && npm run build:frontend && wrangler deploy",
+    "test:mailbox-campaigns": "node --no-warnings tests/mailbox-campaigns.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -1,3 +1,4 @@
+import { adminMailboxCampaigns, processMailboxCampaigns } from './mailbox-campaigns';
 import { processDistrictAppointmentMail } from './district-appointment-mail';
 import { currentUser, json, login, logout, session } from './auth';
 import { adminUsers } from './admin-users';
@@ -251,6 +252,7 @@ async function api(request: Request, env: Env, pathname: string, ctx: ExecutionC
     if (denied) return denied;
   }
   if (pathname === '/api/login.php') return login(request, env);
+  if (pathname === '/api/admin-mail-campaigns.php') return adminMailboxCampaigns(request, env);
   if (pathname === '/api/admin-mailbox.php') return adminMailbox(request, env);
   if (pathname === '/api/register.php') return register(request, env);
   if (pathname === '/api/admin-approve.php') return adminApprove(request, env);
@@ -394,7 +396,8 @@ export default {
         finally { await processDistrictAppointmentMail(env); }
       }
     } finally {
-      await syncAllShinjiruMailboxes(env);
+      try { await processMailboxCampaigns(env); }
+      finally { await syncAllShinjiruMailboxes(env); }
     }
   },
 } satisfies ExportedHandler<Env>;
