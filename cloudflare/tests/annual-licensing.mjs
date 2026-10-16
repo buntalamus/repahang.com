@@ -24,6 +24,7 @@ assert.ok(annual);
 const original={...annual};
 const endpoint='https://staging.refpahang.example/api/admin-applications.php';
 const get=(path)=>new Request(`https://staging.refpahang.example/api/${path}`,{headers:{Cookie:cookie}});
+let createdLegacyId=null,existingLegacy=null;
 const post=(body)=>deleteApplication(new Request(endpoint,{method:'POST',headers:{Cookie:cookie},body:JSON.stringify(body)}),env);
 
 try {
@@ -89,7 +90,66 @@ try {
     status_seminar:null,final_approved_at:row.final_approved_at});
   assert.ok(row.final_approved_at);
   console.log('annual licensing: seminar attendance is independent; fitness alone controls patch/license');
+
+  // Before 2027 the result lives on a separate 'ujian_kecergasan' row; the
+  // Admin button records it there, creating the row when the referee has none.
+  const legacyRow=(userId)=>db.prepare(`SELECT id,status,status_workflow,workflow_status,status_ujian,
+      nama_penuh,tahun_permohonan FROM permohonan
+    WHERE user_id=? AND tahun_permohonan=2026 AND jenis_borang='ujian_kecergasan' ORDER BY id DESC`).all(userId);
+  const annual2026=`SELECT b.id,b.user_id,b.nama_penuh FROM permohonan b JOIN users u ON u.id=b.user_id
+    WHERE b.jenis_borang='pengadil_berdaftar' AND b.tahun_permohonan=2026 AND b.status='Approved'
+      AND b.status_workflow='Lengkap' AND u.aktif=1 AND b.id<>?
+      AND UPPER(TRIM(COALESCE(b.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')`;
+  const missing=db.prepare(`${annual2026} AND NOT EXISTS (SELECT 1 FROM permohonan f WHERE f.user_id=b.user_id
+    AND f.tahun_permohonan=2026 AND f.jenis_borang='ujian_kecergasan') ORDER BY b.id LIMIT 1`).get(annual.id);
+  const existing=db.prepare(`${annual2026} AND EXISTS (SELECT 1 FROM permohonan f WHERE f.user_id=b.user_id
+    AND f.tahun_permohonan=2026 AND f.jenis_borang='ujian_kecergasan') ORDER BY b.id LIMIT 1`).get(annual.id);
+  assert.ok(missing&&existing);
+  const emailCount=emails.length;
+  const notificationCount=()=>db.prepare('SELECT COUNT(*) AS n FROM notifications').get().n;
+  const notificationsBefore=notificationCount();
+
+  const created=await post({action:'update_status_ujian',id:missing.id,status_ujian:'Lulus'});
+  assert.equal(created.status,200);
+  let legacy=legacyRow(missing.user_id);
+  assert.equal(legacy.length,1);
+  createdLegacyId=legacy[0].id;
+  assert.deepEqual({...legacy[0],id:0},{id:0,status:'Approved',status_workflow:'Lengkap',
+    workflow_status:'Approved',status_ujian:'Lulus',nama_penuh:missing.nama_penuh,tahun_permohonan:2026});
+  roster=(await (await registeredReferees(get('registered-referees.php?year=2026'),env)).json()).data;
+  registration=roster.find(item=>item.id===missing.id);
+  assert.equal(registration.fitness_status,'Lulus');
+  assert.equal(registration.patch_eligible,1);
+  const list2026=(await (await adminApplications(get('admin-applications.php?type=berdaftar&year=2026'),env)).json()).applications;
+  assert.equal(list2026.find(item=>item.id===missing.id).status_ujian,'Lulus');
+
+  const failed=await post({action:'update_status_ujian',id:missing.id,status_ujian:'Tidak Lulus'});
+  assert.equal(failed.status,200);
+  legacy=legacyRow(missing.user_id);
+  assert.equal(legacy.length,1);
+  assert.equal(legacy[0].id,createdLegacyId);
+  assert.equal(legacy[0].status_ujian,'Tidak Lulus');
+  roster=(await (await registeredReferees(get('registered-referees.php?year=2026'),env)).json()).data;
+  assert.equal(roster.find(item=>item.id===missing.id).patch_eligible,0);
+  const same=await (await post({action:'update_status_ujian',id:missing.id,status_ujian:'Tidak Lulus'})).json();
+  assert.equal(same.message,'Keputusan ujian tidak berubah.');
+
+  const before=legacyRow(existing.user_id);
+  const next=before[0].status_ujian==='Tidak Hadir'?'Lulus':'Tidak Hadir';
+  existingLegacy={id:before[0].id,status_ujian:before[0].status_ujian};
+  assert.equal((await post({action:'update_status_ujian',id:existing.id,status_ujian:next})).status,200);
+  const after=legacyRow(existing.user_id);
+  assert.equal(after.length,before.length);
+  assert.equal(after[0].id,before[0].id);
+  assert.equal(after[0].status_ujian,next);
+
+  assert.equal(emails.length,emailCount);
+  assert.equal(notificationCount(),notificationsBefore);
+  console.log('annual licensing: pre-2027 fitness results are recorded on the legacy row without email');
 } finally {
+  if (createdLegacyId) db.prepare('DELETE FROM permohonan WHERE id=?').run(createdLegacyId);
+  if (existingLegacy) db.prepare('UPDATE permohonan SET status_ujian=? WHERE id=?')
+    .run(existingLegacy.status_ujian,existingLegacy.id);
   db.prepare(`UPDATE permohonan SET tahun_permohonan=?,status=?,status_workflow=?,status_ujian=?,
     status_seminar=?,final_approved_at=?,status_kemaskini=?,updated_at=? WHERE id=?`)
     .run(original.tahun_permohonan,original.status,original.status_workflow,original.status_ujian,

@@ -131,7 +131,12 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
                WHEN 'Approved' THEN 'Lengkap' WHEN 'Rejected' THEN 'Ditolak'
                ELSE p.workflow_status END
              ELSE p.status_workflow END AS status,
-           p.status_ujian, p.tarikh_hantar, p.emel, p.no_telefon,
+           CASE WHEN p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan<2027
+             THEN COALESCE(p.status_ujian,(SELECT f.status_ujian FROM permohonan f
+               WHERE f.user_id=p.user_id AND f.tahun_permohonan=p.tahun_permohonan
+                 AND f.jenis_borang='ujian_kecergasan' ORDER BY f.id DESC LIMIT 1))
+             ELSE p.status_ujian END AS status_ujian,
+           p.tarikh_hantar, p.emel, p.no_telefon,
            p.jenis_pengadil, p.tahun_permohonan,
            p.status_seminar,
            COALESCE(NULLIF(p.url_gambar_profil,''),u.url_gambar_profil) AS url_gambar_profil,
@@ -206,7 +211,7 @@ export async function deleteApplication(request: Request, env: Env): Promise<Res
   }
   const body = input as Record<string, unknown>;
   if (body.action === 'blast_kelas3_welcome') return blastKelas3Welcome(env, user.id);
-  if (body.action === 'update_status_ujian') return updateFitnessResult(body, env);
+  if (body.action === 'update_status_ujian') return updateFitnessResult(body, env, user.id);
   if (body.action === 'update_status_seminar') return updateSeminarAttendance(body, env);
   if (body.action !== 'delete_application') {
     return json({ error: true, message: 'Tindakan belum tersedia di staging.' }, 503);
@@ -254,7 +259,7 @@ async function updateSeminarAttendance(body: Record<string, unknown>, env: Env):
     status_seminar: status });
 }
 
-async function updateFitnessResult(body: Record<string, unknown>, env: Env): Promise<Response> {
+async function updateFitnessResult(body: Record<string, unknown>, env: Env, adminId: number): Promise<Response> {
   const id = positiveId(String(body.id ?? ''));
   const decision = body.status_ujian;
   if (!id || !['Lulus', 'Tidak Lulus', 'Tidak Hadir'].includes(String(decision))) {
@@ -271,6 +276,12 @@ async function updateFitnessResult(body: Record<string, unknown>, env: Env): Pro
       status_ujian: string | null; user_email: string | null;
     }>();
   if (!application) return json({ error: true, message: 'Permohonan tidak dijumpai.' }, 404);
+  const legacyAnnual = application.jenis_borang === 'pengadil_berdaftar' &&
+    application.user_id !== null && application.tahun_permohonan !== null &&
+    Number(application.tahun_permohonan) < 2027 &&
+    !['PENILAI PENGADIL', 'PEGAWAI PEMBANGUNAN']
+      .includes((application.jenis_pengadil ?? '').trim().toUpperCase());
+  if (legacyAnnual) return updateLegacyFitnessResult(application, decision as string, env, adminId);
   const gated = application.jenis_borang === 'pengadil_berdaftar' &&
     Number(application.tahun_permohonan) >= 2027 &&
     !['Penilai Pengadil', 'Pegawai Pembangunan'].includes(application.jenis_pengadil ?? '');
@@ -343,4 +354,55 @@ async function updateFitnessResult(body: Record<string, unknown>, env: Env): Pro
   const results = await env.DB.batch(statements);
   return json({ error: false, message: 'Status ujian berjaya dikemaskini.',
     affected_rows: results[0].meta.changes });
+}
+
+/**
+ * Before 2027 the fitness result lives on a separate 'ujian_kecergasan' row
+ * (the one every reader looks up by user and year), so record it there and
+ * create that row from the annual application when it is missing.
+ */
+async function updateLegacyFitnessResult(
+  application: { id: number; user_id: number | null; tahun_permohonan: number | null;
+    status_workflow: string | null },
+  decision: string, env: Env, adminId: number,
+): Promise<Response> {
+  if (!['Admin Diluluskan', 'Lengkap'].includes(application.status_workflow ?? '')) {
+    return json({ error: true,
+      message: 'Sahkan dokumen permohonan dahulu sebelum merekod keputusan ujian.' }, 409);
+  }
+  const fitness = await env.DB.prepare(`SELECT id,status_ujian FROM permohonan
+    WHERE user_id=? AND tahun_permohonan=? AND jenis_borang='ujian_kecergasan'
+    ORDER BY id DESC LIMIT 1`)
+    .bind(application.user_id, application.tahun_permohonan)
+    .first<{ id: number; status_ujian: string | null }>();
+  if (fitness?.status_ujian === decision) {
+    return json({ error: false, message: 'Keputusan ujian tidak berubah.' });
+  }
+  const result = fitness
+    ? await env.DB.prepare(`UPDATE permohonan
+        SET status_ujian=?,status_kemaskini=datetime('now','+8 hours')
+        WHERE id=? AND COALESCE(status_ujian,'')<>?`)
+      .bind(decision, fitness.id, decision).run()
+    // Mirror the imported legacy rows: approved, complete, personal details
+    // copied from the annual application it belongs to.
+    : await env.DB.prepare(`INSERT INTO permohonan(user_id,district_id,persatuan_id,
+        tahun_permohonan,jenis_permohonan,jenis_borang,nama_penuh,no_kp,emel,no_telefon,
+        jantina,alamat1,alamat2,poskod,daerah,negeri,status_kerja,nama_waris,
+        hubungan_waris,telefon_waris,status,status_workflow,workflow_status,
+        admin_approved_at,admin_approved_by,final_approved_at,tarikh_hantar,
+        status_kemaskini,status_ujian)
+      SELECT b.user_id,b.district_id,b.persatuan_id,b.tahun_permohonan,
+        'ujian_kecergasan','ujian_kecergasan',b.nama_penuh,b.no_kp,b.emel,b.no_telefon,
+        b.jantina,b.alamat1,b.alamat2,b.poskod,b.daerah,b.negeri,b.status_kerja,
+        b.nama_waris,b.hubungan_waris,b.telefon_waris,'Approved','Lengkap','Approved',
+        datetime('now','+8 hours'),?,datetime('now','+8 hours'),b.tarikh_hantar,
+        datetime('now','+8 hours'),?
+      FROM permohonan b WHERE b.id=? AND NOT EXISTS (SELECT 1 FROM permohonan f
+        WHERE f.user_id=b.user_id AND f.tahun_permohonan=b.tahun_permohonan
+          AND f.jenis_borang='ujian_kecergasan')`)
+      .bind(adminId, decision, application.id).run();
+  if (!wroteRow(result)) {
+    return json({ error: true, message: 'Keputusan berubah semasa semakan. Sila muat semula.' }, 409);
+  }
+  return json({ error: false, message: 'Keputusan ujian berjaya dikemaskini.' });
 }

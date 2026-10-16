@@ -276,7 +276,7 @@ export class AdminApplicationsComponent implements OnInit {
   }
 
   canRecordAnnualFitness(app: any): boolean {
-    return this.isAnnualFitnessApp(app) && ['Admin Diluluskan', 'Lengkap'].includes(app.status);
+    return this.isAnnualRefereeApp(app) && ['Admin Diluluskan', 'Lengkap'].includes(app.status);
   }
 
   get isUjianButtonAlwaysEnabled(): boolean {
