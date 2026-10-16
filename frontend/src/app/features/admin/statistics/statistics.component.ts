@@ -83,7 +83,11 @@ declare const Chart: any;
                       [class]="selectedApplicationType === kind.key ? 'bg-amber-50 border-pahang-yellow' : 'bg-white border-slate-200'">
                       <p class="text-xs font-semibold text-slate-600">{{ kind.label }}</p>
                       <p class="text-xl font-bold text-slate-900 mt-2">{{ s.applications?.byType?.[kind.key]?.total || 0 }}</p>
-                      <p class="text-xs text-amber-700 mt-1">Menunggu {{ s.applications?.byType?.[kind.key]?.pending || 0 }}</p>
+                      <p class="text-xs mt-1 flex flex-wrap gap-x-3">
+                        <span class="text-green-700">Lulus {{ s.applications?.byType?.[kind.key]?.approved || 0 }}</span>
+                        <span class="text-red-700">Ditolak {{ s.applications?.byType?.[kind.key]?.rejected || 0 }}</span>
+                        <span class="text-amber-700">Menunggu {{ s.applications?.byType?.[kind.key]?.pending || 0 }}</span>
+                      </p>
                     </button>
                   }
                 </div>
@@ -96,6 +100,66 @@ declare const Chart: any;
                   <div class="rounded-lg bg-green-50 border border-green-200 p-3"><p class="text-xs text-green-700">Diluluskan</p><p class="text-lg font-bold text-green-800">{{ selectedApplicationStats.approved || 0 }}</p></div>
                   <div class="rounded-lg bg-red-50 border border-red-200 p-3"><p class="text-xs text-red-700">Ditolak</p><p class="text-lg font-bold text-red-800">{{ selectedApplicationStats.rejected || 0 }}</p></div>
                 </div>
+                @if (selectedApplicationType === 'pengadil_berdaftar') {
+                  <div class="rounded-lg border border-slate-200 p-4 space-y-4">
+                    <div class="flex items-center justify-between gap-3">
+                      <h4 class="text-sm font-semibold text-slate-800">Pengadil Berdaftar Diluluskan · {{ selectedApplicationStats.approved || 0 }}</h4>
+                      <span class="text-xs font-semibold text-green-800 bg-green-50 border border-green-200 rounded-full px-3 py-1">Layak patch {{ annual.patch_eligible || 0 }}</span>
+                    </div>
+                    <div>
+                      <p class="text-xs font-semibold text-slate-600 mb-2">Ujian Kecergasan</p>
+                      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div class="rounded-lg bg-green-50 border border-green-200 p-2.5"><p class="text-xs text-green-700">Lulus</p><p class="text-lg font-bold text-green-800">{{ annual.fitness?.lulus || 0 }}</p></div>
+                        <div class="rounded-lg bg-red-50 border border-red-200 p-2.5"><p class="text-xs text-red-700">Tidak Lulus</p><p class="text-lg font-bold text-red-800">{{ annual.fitness?.tidak_lulus || 0 }}</p></div>
+                        <div class="rounded-lg bg-slate-50 border border-slate-200 p-2.5"><p class="text-xs text-slate-600">Tidak Hadir</p><p class="text-lg font-bold text-slate-800">{{ annual.fitness?.tidak_hadir || 0 }}</p></div>
+                        <div class="rounded-lg bg-amber-50 border border-amber-200 p-2.5"><p class="text-xs text-amber-700">Belum Direkod</p><p class="text-lg font-bold text-amber-800">{{ annual.fitness?.belum || 0 }}</p></div>
+                      </div>
+                    </div>
+                    <div>
+                      <p class="text-xs font-semibold text-slate-600 mb-2">Seminar</p>
+                      <div class="grid grid-cols-3 gap-2">
+                        <div class="rounded-lg bg-green-50 border border-green-200 p-2.5"><p class="text-xs text-green-700">Hadir</p><p class="text-lg font-bold text-green-800">{{ annual.seminar?.hadir || 0 }}</p></div>
+                        <div class="rounded-lg bg-slate-50 border border-slate-200 p-2.5"><p class="text-xs text-slate-600">Tidak Hadir</p><p class="text-lg font-bold text-slate-800">{{ annual.seminar?.tidak_hadir || 0 }}</p></div>
+                        <div class="rounded-lg bg-amber-50 border border-amber-200 p-2.5"><p class="text-xs text-amber-700">Belum Direkod</p><p class="text-lg font-bold text-amber-800">{{ annual.seminar?.belum || 0 }}</p></div>
+                      </div>
+                    </div>
+                  </div>
+                }
+                @if (selectedApplicationStats.byDistrict?.length) {
+                  <div>
+                    <h4 class="text-sm font-semibold text-slate-700 mb-2">Pecahan Ikut Daerah</h4>
+                    <div class="overflow-x-auto rounded-lg border border-slate-200">
+                      <table class="w-full text-sm">
+                        <thead class="bg-slate-50 text-xs text-slate-600">
+                          <tr>
+                            <th scope="col" class="text-left px-3 py-2 font-medium">Daerah</th>
+                            <th scope="col" class="text-right px-3 py-2 font-medium">Mohon</th>
+                            <th scope="col" class="text-right px-3 py-2 font-medium">Lulus</th>
+                            <th scope="col" class="text-right px-3 py-2 font-medium">Ditolak</th>
+                            <th scope="col" class="text-right px-3 py-2 font-medium">Menunggu</th>
+                            @if (selectedApplicationType === 'pengadil_berdaftar') {
+                              <th scope="col" class="text-right px-3 py-2 font-medium">Lulus Ujian</th>
+                            }
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                          @for (row of selectedApplicationStats.byDistrict; track row.daerah) {
+                            <tr>
+                              <td class="px-3 py-2 text-slate-800">{{ row.daerah }}</td>
+                              <td class="px-3 py-2 text-right font-semibold text-slate-900">{{ row.total }}</td>
+                              <td class="px-3 py-2 text-right text-green-700">{{ row.approved }}</td>
+                              <td class="px-3 py-2 text-right text-red-700">{{ row.rejected }}</td>
+                              <td class="px-3 py-2 text-right text-amber-700">{{ row.pending }}</td>
+                              @if (selectedApplicationType === 'pengadil_berdaftar') {
+                                <td class="px-3 py-2 text-right text-green-700">{{ row.lulus_ujian }}</td>
+                              }
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                }
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
                   <div>
                     <h4 class="text-sm font-semibold text-slate-700 mb-3">Status {{ selectedApplicationLabel }}</h4>
@@ -538,6 +602,13 @@ declare const Chart: any;
                           <div class="h-full bg-red-500 rounded-full" [style.width.%]="exam.total ? (exam.tidakLulus / exam.total * 100) : 0"></div>
                         </div>
                         <div class="flex items-center justify-between text-xs">
+                          <span class="text-slate-600 font-medium">Tidak Hadir</span>
+                          <span class="font-bold text-slate-700">{{ exam.tidakHadir }}</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div class="h-full bg-slate-500 rounded-full" [style.width.%]="exam.total ? (exam.tidakHadir / exam.total * 100) : 0"></div>
+                        </div>
+                        <div class="flex items-center justify-between text-xs">
                           <span class="text-slate-500 font-medium">Belum Diproses</span>
                           <span class="font-bold text-slate-600">{{ exam.belum }}</span>
                         </div>
@@ -588,6 +659,10 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
     return this.s.applications?.byType?.[this.selectedApplicationType] || {};
   }
 
+  get annual(): any {
+    return this.s.annualRegistration || {};
+  }
+
   get selectedApplicationLabel(): string {
     return this.applicationTypes.find(item => item.key === this.selectedApplicationType)?.label || '';
   }
@@ -612,7 +687,7 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
 
   summaryCards: { label: string; value: string | number; icon: string; color: string; sub?: string; tab?: string; route?: string; applicationType?: string }[] = [];
   employmentItems: { label: string; value: number; pct: number }[] = [];
-  examCards: { key: string; label: string; icon: string; color: string; total: number; lulus: number; tidakLulus: number; belum: number; passRate: number | null }[] = [];
+  examCards: { key: string; label: string; icon: string; color: string; total: number; lulus: number; tidakLulus: number; tidakHadir: number; belum: number; passRate: number | null }[] = [];
 
   constructor(private api: ApiService, private toast: ToastService, public router: Router, public profileModal: ProfileModalService) {}
 
@@ -682,15 +757,15 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
     this.examCards = [
       { key: 'ujian_kecergasan', label: 'Ujian Kecergasan', icon: 'fitness_center', color: '#10b981',
         total: exams.ujian_kecergasan?.total || 0, lulus: exams.ujian_kecergasan?.lulus || 0,
-        tidakLulus: exams.ujian_kecergasan?.tidak_lulus || 0, belum: exams.ujian_kecergasan?.belum_diproses || 0,
+        tidakLulus: exams.ujian_kecergasan?.tidak_lulus || 0, tidakHadir: exams.ujian_kecergasan?.tidak_hadir || 0, belum: exams.ujian_kecergasan?.belum_diproses || 0,
         passRate: this.calcPassRate(exams.ujian_kecergasan) },
       { key: 'ujian_bertulis', label: 'Ujian Kelas III FAM', icon: 'history_edu', color: '#3b82f6',
         total: exams.ujian_bertulis?.total || 0, lulus: exams.ujian_bertulis?.lulus || 0,
-        tidakLulus: exams.ujian_bertulis?.tidak_lulus || 0, belum: exams.ujian_bertulis?.belum_diproses || 0,
+        tidakLulus: exams.ujian_bertulis?.tidak_lulus || 0, tidakHadir: exams.ujian_bertulis?.tidak_hadir || 0, belum: exams.ujian_bertulis?.belum_diproses || 0,
         passRate: this.calcPassRate(exams.ujian_bertulis) },
       { key: 'ujian_kelas1_fam', label: 'Ujian Kelas I FAM', icon: 'workspace_premium', color: '#8b5cf6',
         total: exams.ujian_kelas1_fam?.total || 0, lulus: exams.ujian_kelas1_fam?.lulus || 0,
-        tidakLulus: exams.ujian_kelas1_fam?.tidak_lulus || 0, belum: exams.ujian_kelas1_fam?.belum_diproses || 0,
+        tidakLulus: exams.ujian_kelas1_fam?.tidak_lulus || 0, tidakHadir: exams.ujian_kelas1_fam?.tidak_hadir || 0, belum: exams.ujian_kelas1_fam?.belum_diproses || 0,
         passRate: this.calcPassRate(exams.ujian_kelas1_fam) },
     ];
   }

@@ -81,9 +81,18 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
           WHERE p2.user_id=a.user_id AND p2.jenis_borang='pengadil_berdaftar'
             AND p2.tahun_permohonan=a.tahun_permohonan AND p2.status='Approved')`)
       .bind(year).all<Row>(),
+    // Fitness and seminar are part of the annual registration. Before 2027 the
+    // fitness result lives on the separate 'ujian_kecergasan' row of that year.
     env.DB.prepare(`SELECT p.status,p.status_workflow,p.workflow_status,p.tarikh_hantar,
-      ${APPLICATION_CATEGORY_SQL} AS application_category
-      FROM permohonan p WHERE p.tahun_permohonan=?`).bind(year).all<Row>(),
+      ${APPLICATION_CATEGORY_SQL} AS application_category,
+      COALESCE(NULLIF(trim(pb.daerah),''),'Tanpa Daerah') AS daerah,p.status_seminar,
+      CASE WHEN p.jenis_borang<>'pengadil_berdaftar' THEN NULL
+        WHEN p.tahun_permohonan>=2027 THEN p.status_ujian
+        ELSE (SELECT f.status_ujian FROM permohonan f WHERE f.user_id=p.user_id
+          AND f.tahun_permohonan=p.tahun_permohonan AND f.jenis_borang='ujian_kecergasan'
+          ORDER BY f.id DESC LIMIT 1) END AS fitness_status
+      FROM permohonan p LEFT JOIN persatuan_bolasepak_daerah pb ON pb.id=p.persatuan_id
+      WHERE p.tahun_permohonan=?`).bind(year).all<Row>(),
     env.DB.prepare(`SELECT p.id,p.match_group_id,p.user_id,p.jawatan,p.tarikh,p.masa,
         p.tempat,p.jenis,p.nama_kejohanan,p.home_team,p.away_team,u.nama_penuh
       FROM perlawanan p JOIN users u ON u.id=p.user_id
@@ -191,6 +200,43 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
   }
   applicationStats.approved = applicationStats.statusBreakdown.Lengkap;
 
+  // Per-district counts for every application type, and the fitness, seminar
+  // and patch breakdown of approved annual registrations.
+  type DistrictRow = { daerah: string; total: number; approved: number; rejected: number;
+    pending: number; lulus_ujian: number };
+  const districtsByType = new Map<string, Map<string, DistrictRow>>();
+  const annual = {
+    fitness: { lulus: 0, tidak_lulus: 0, tidak_hadir: 0, belum: 0 },
+    seminar: { hadir: 0, tidak_hadir: 0, belum: 0 },
+    patch_eligible: 0,
+  };
+  for (const application of applications.results) {
+    const type = String(application.application_category ?? 'lain_lain');
+    const status = applicationStatus(application);
+    const name = String(application.daerah);
+    const districts = districtsByType.get(type) ?? new Map<string, DistrictRow>();
+    districtsByType.set(type, districts);
+    const district = districts.get(name) ?? { daerah: name, total: 0, approved: 0, rejected: 0,
+      pending: 0, lulus_ujian: 0 };
+    districts.set(name, district);
+    district.total++;
+    district[status]++;
+    if (type !== 'pengadil_berdaftar' || status !== 'approved') continue;
+    const fitness = application.fitness_status;
+    if (fitness === 'Lulus') { annual.fitness.lulus++; annual.patch_eligible++; district.lulus_ujian++; }
+    else if (fitness === 'Tidak Lulus') annual.fitness.tidak_lulus++;
+    else if (fitness === 'Tidak Hadir') annual.fitness.tidak_hadir++;
+    else annual.fitness.belum++;
+    const seminar = application.status_seminar;
+    if (seminar === 'Hadir') annual.seminar.hadir++;
+    else if (seminar === 'Tidak Hadir') annual.seminar.tidak_hadir++;
+    else annual.seminar.belum++;
+  }
+  for (const [type, stats] of Object.entries(applicationStats.byType)) {
+    Object.assign(stats, { byDistrict: [...(districtsByType.get(type)?.values() ?? [])]
+      .sort((a, b) => b.total - a.total || a.daerah.localeCompare(b.daerah)) });
+  }
+
   const uniqueMatches = new Set<string>();
   const leadMatchCount = new Map<number, { name: string; count: number }>();
   for (const match of matches.results) {
@@ -273,7 +319,7 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
     districtBreakdown: sorted(districtBreakdown),
     districtAddressBreakdown: sorted(districtAddressBreakdown),
     employmentBreakdown: sorted(employmentBreakdown), monthlyTrend,
-    applications: applicationStats, matches: matchStats, exams: examStats, ratings: ratingStats,
+    applications: applicationStats, annualRegistration: annual, matches: matchStats, exams: examStats, ratings: ratingStats,
     telegram: { total: number(telegram?.total), linked: number(telegram?.linked) },
     lantikan: { total: number(appointmentStatus?.total), diterima: number(appointmentStatus?.diterima),
       ditolak: number(appointmentStatus?.ditolak), belum: number(appointmentStatus?.belum),
