@@ -228,6 +228,8 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
   const pictureInfo = picture instanceof File ? await fileInfo(picture, 'gambar') : null;
   if (isResponse(pictureInfo)) return pictureInfo;
 
+  // A PP Daerah cannot verify their own application, so it goes straight to Admin.
+  const initialWorkflow = user.role === 'PP Daerah' ? 'Menunggu Admin' : 'Menunggu PP Daerah';
   const uploaded: string[] = [];
   const suffix = `${user.id}_${Date.now()}_${crypto.randomUUID()}`;
   const receiptKey = receiptInfo ? `applications/resit_${suffix}.${receiptInfo.ext}` : '';
@@ -266,7 +268,7 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
       pictureKey ? `/uploads/${pictureKey}` : null, shirt || null,
       fee.toFixed(2), annual.has(type) ? 1 : 0,
       type === 'pengadil_berdaftar' ? 1 : 0,
-      'Pending', 'Menunggu PP Daerah',
+      'Pending', initialWorkflow,
     ];
     const insert = env.DB.prepare(`INSERT INTO permohonan(${columns.join(',')})
       VALUES(${values.map(() => '?').join(',')},datetime('now','+8 hours'))`).bind(...values);
@@ -318,7 +320,7 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
       const paragraphs = [
         `Permohonan anda telah diterima. No. Rujukan: REF-${String(applicationId).padStart(6,'0')}.`,
         `Jenis Pengadil: ${fromProfile('jenis_pengadil') || '-'}. Sesi: ${year}. Yuran permohonan: RM ${fee.toFixed(2)}.`,
-        'Status: Menunggu Kelulusan Admin. Semak status di dashboard anda.',
+        `Status: ${initialWorkflow === 'Menunggu Admin' ? 'Menunggu Kelulusan Admin' : 'Menunggu Semakan PP Daerah'}. Semak status di dashboard anda.`,
         ...(type === 'pengadil_berdaftar' ? [
           'Salinan R1, R2 dan R4 dilampirkan. Cetak dan tandatangani perakuan kesihatan R4 sebelum ujian kecergasan.',
           'Kehadiran seminar dan keputusan ujian kecergasan direkod secara berasingan. Kelulusan permohonan menjadikan anda Pengadil Berdaftar; ujian kecergasan sahaja menentukan kelayakan patch dan lesen Pengadil Negeri.',

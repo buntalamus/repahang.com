@@ -36,8 +36,9 @@ export async function ppVerify(request: Request, env: Env): Promise<Response> {
   if (action === 'reject' && !notes) return json({ error: true, message: 'Sebab penolakan diperlukan.' }, 422);
   const application = await env.DB.prepare(`
     SELECT id,user_id,nama_penuh,emel,jenis_pengadil FROM permohonan
-    WHERE id=? AND persatuan_id=? AND status_workflow='Menunggu PP Daerah' LIMIT 1
-  `).bind(id, actor.persatuan_id).first<DistrictApplication>();
+    WHERE id=? AND persatuan_id=? AND status_workflow='Menunggu PP Daerah'
+      AND (user_id IS NULL OR user_id<>?) LIMIT 1
+  `).bind(id, actor.persatuan_id, actor.id).first<DistrictApplication>();
   if (!application) return json({ error: true, message: 'Permohonan tidak dijumpai atau sudah diproses.' }, 404);
   const approved = action === 'approve';
   const decisionMessage = approved
@@ -48,9 +49,10 @@ export async function ppVerify(request: Request, env: Env): Promise<Response> {
       status=CASE WHEN ? THEN status ELSE 'Rejected' END,
       pp_verified_at=datetime('now','+8 hours'),pp_verified_by=?,pp_notes=?,
       status_kemaskini=datetime('now','+8 hours')
-      WHERE id=? AND persatuan_id=? AND status_workflow='Menunggu PP Daerah'`)
+      WHERE id=? AND persatuan_id=? AND status_workflow='Menunggu PP Daerah'
+        AND (user_id IS NULL OR user_id<>?)`)
       .bind(approved ? 'Menunggu Admin' : 'Ditolak', approved ? 1 : 0,
-        actor.id, notes, id, actor.persatuan_id),
+        actor.id, notes, id, actor.persatuan_id, actor.id),
     env.DB.prepare(`INSERT INTO notifications(user_id,type,subject,message,created_at)
       SELECT ?,'Semakan Permohonan',?,?,datetime('now','+8 hours')
       WHERE ? IS NOT NULL AND changes()=1`)

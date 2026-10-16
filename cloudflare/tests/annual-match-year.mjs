@@ -1,17 +1,17 @@
 import assert from 'node:assert/strict';
-import {deflateSync,crc32} from 'node:zlib';
-import {bundle,openDatabase,sessionCookie} from './_harness.mjs';
+import {bundle,openDatabase,sessionCookie,testPng} from './_harness.mjs';
 
 // The minimum verified matches for a session are counted, and linked, from the
 // season before it (session 2027 -> matches of 2026), whatever the send date.
 const {submitRefereeApplication}=await bundle("export {submitRefereeApplication} from '../src/application-submit';");
 const {db,DB,close}=openDatabase(['0001_worker_sessions','0011_application_uniqueness']);
 const objects=new Map();
+const emails=[];
 const pdf=new TextEncoder().encode('%PDF-1.7\n% test');
 const env={DB,STAGING_AUTH_ENABLED:'1',STAGING_WRITES_ENABLED:'1',
   BASE_URL:'https://staging.refpahang.example',
   MAIL_DAFTAR_USER:'daftar@refpahang.example',MAIL_DAFTAR_NAME:'PBNP',
-  EMAIL:{send:async()=>({messageId:'test'})},
+  EMAIL:{send:async message=>{emails.push(message);return {messageId:'test'};}},
   MEDIA:{put:async(key,bytes,options)=>objects.set(key,{bytes,options}),
     get:async key=>objects.has(key)?{
       httpMetadata:{contentType:objects.get(key).options.httpMetadata.contentType},
@@ -21,22 +21,7 @@ const env={DB,STAGING_AUTH_ENABLED:'1',STAGING_WRITES_ENABLED:'1',
   BROWSER:{quickAction:async()=>new Response(pdf,{headers:{'Content-Type':'application/pdf'}})},
 };
 
-// A 150x150 grey PNG: the smallest profile picture the form accepts.
-function png(size=150) {
-  const chunk=(type,data)=>{
-    const body=Buffer.concat([Buffer.from(type),data]);
-    const length=Buffer.alloc(4);length.writeUInt32BE(data.length);
-    const crc=Buffer.alloc(4);crc.writeUInt32BE(crc32(body));
-    return Buffer.concat([length,body,crc]);
-  };
-  const header=Buffer.alloc(13);
-  header.writeUInt32BE(size,0);header.writeUInt32BE(size,4);header[8]=8;header[9]=0;
-  const rows=Buffer.alloc(size*(size+1),0x80);
-  for (let row=0;row<size;row++) rows[row*(size+1)]=0;
-  return new Uint8Array(Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),
-    chunk('IHDR',header),chunk('IDAT',deflateSync(rows)),chunk('IEND',Buffer.alloc(0))]));
-}
-const picture=png();
+const picture=testPng();
 const userId=80;
 const cookie=await sessionCookie(db,userId);
 const setting=(key,value)=>db.prepare(`INSERT INTO application_settings(setting_key,setting_value) VALUES(?,?)
@@ -86,6 +71,8 @@ try {
   assert.equal(db.prepare(`SELECT COUNT(*) n FROM perlawanan WHERE permohonan_id=?
     AND substr(tarikh,1,4)<>'2026'`).get(body.application_id).n,0);
   assert.ok(body.linked_matches>0);
+  // A referee's application waits for the district PP first.
+  assert.match(emails.at(-1).text,/Status: Menunggu Semakan PP Daerah/);
   console.log('annual match year: session N counts and links verified matches of year N-1');
 } finally {
   close();

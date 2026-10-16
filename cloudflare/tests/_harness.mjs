@@ -4,6 +4,7 @@ import {copyFileSync,mkdtempSync,readFileSync,rmSync,writeFileSync} from 'node:f
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
+import {crc32,deflateSync} from 'node:zlib';
 import {build} from 'esbuild';
 
 export async function bundle(contents) {
@@ -75,4 +76,20 @@ export async function sessionCookie(db,userId,cookieName='refpahang_session') {
   const now=Math.floor(Date.now()/1000);
   db.prepare('INSERT INTO worker_sessions VALUES (?,?,?,?)').run(hash,userId,now,now+3600);
   return `${cookieName}=${token}`;
+}
+
+// A 150x150 grey PNG: the smallest profile picture the form accepts.
+export function testPng(size=150) {
+  const chunk=(type,data)=>{
+    const body=Buffer.concat([Buffer.from(type),data]);
+    const length=Buffer.alloc(4);length.writeUInt32BE(data.length);
+    const crc=Buffer.alloc(4);crc.writeUInt32BE(crc32(body));
+    return Buffer.concat([length,body,crc]);
+  };
+  const header=Buffer.alloc(13);
+  header.writeUInt32BE(size,0);header.writeUInt32BE(size,4);header[8]=8;header[9]=0;
+  const rows=Buffer.alloc(size*(size+1),0x80);
+  for (let row=0;row<size;row++) rows[row*(size+1)]=0;
+  return new Uint8Array(Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),
+    chunk('IHDR',header),chunk('IDAT',deflateSync(rows)),chunk('IEND',Buffer.alloc(0))]));
 }
