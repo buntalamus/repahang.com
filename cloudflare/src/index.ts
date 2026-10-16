@@ -1,5 +1,6 @@
 import { currentUser, json, login, logout, session } from './auth';
 import { adminUsers } from './admin-users';
+import { adminUserMasterData } from './user-master-data';
 import { adminSettings, maintenanceEnabled } from './admin-settings';
 import { changePassword } from './change-password';
 import { adminDashboardStats, adminDashboardTasks, adminProfile } from './admin-dashboard';
@@ -307,6 +308,7 @@ async function api(request: Request, env: Env, pathname: string, ctx: ExecutionC
   if (pathname === '/api/notifications.php' && request.method === 'POST') {
     return notifications(request, env);
   }
+  if (pathname === '/api/admin-users-master-data.php') return adminUserMasterData(request, env);
   if (pathname === '/api/admin-users.php' && request.method !== 'GET') return adminUsersWrite(request, env);
   if (pathname === '/api/announcements.php' && request.method !== 'GET') return announcementsWrite(request, env, ctx);
   if (pathname === '/api/profil-pengadil.php' && request.method !== 'GET') {

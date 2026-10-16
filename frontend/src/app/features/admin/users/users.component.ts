@@ -6,11 +6,12 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
 import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
 import { ProfileModalService } from '../../../core/services/profile-modal.service';
+import { UserMasterDataExportComponent } from './master-data-export.component';
 
 @Component({
   selector: 'app-admin-users',
   standalone: true,
-  imports: [FormsModule, LoadingComponent, PaginationComponent, ConfirmModalComponent],
+  imports: [FormsModule, LoadingComponent, PaginationComponent, ConfirmModalComponent, UserMasterDataExportComponent],
   templateUrl: './users.component.html',
 })
 export class AdminUsersComponent implements OnInit {

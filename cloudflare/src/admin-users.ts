@@ -48,7 +48,18 @@ export async function adminUsers(request: Request, env: Env): Promise<Response> 
     return json({ error: true, message: 'Tahun tidak sah.' }, 400);
   }
   const [users, persatuan] = await Promise.all([
+    usersOverviewStatement(env, year).all(),
     env.DB.prepare(`
+      SELECT id, nama_persatuan FROM persatuan_bolasepak_daerah
+      ORDER BY nama_persatuan
+    `).all(),
+  ]);
+  return json({ error: false, year, users: users.results, persatuan: persatuan.results });
+}
+
+/** Shared annual classification for the screen and the full master export. */
+export function usersOverviewStatement(env: Env, year: number): D1PreparedStatement {
+  return env.DB.prepare(`
       WITH annual AS (
         SELECT p.user_id,
           MAX(CASE WHEN p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan=?
@@ -113,11 +124,5 @@ export async function adminUsers(request: Request, env: Env): Promise<Response> 
       LEFT JOIN annual a ON a.user_id=u.id
       LEFT JOIN persatuan_bolasepak_daerah p ON p.id=u.persatuan_id
       ORDER BY u.created_at DESC
-    `).bind(year, year, year, year, year).all(),
-    env.DB.prepare(`
-      SELECT id, nama_persatuan FROM persatuan_bolasepak_daerah
-      ORDER BY nama_persatuan
-    `).all(),
-  ]);
-  return json({ error: false, year, users: users.results, persatuan: persatuan.results });
+    `).bind(year, year, year, year, year);
 }

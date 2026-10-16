@@ -45,7 +45,17 @@ export function openDatabase(migrations) {
     async first(){return db.prepare(this.sql).get(...this.values)??null;}
     async all(){return {results:db.prepare(this.sql).all(...this.values)};}
     async run(){return runCounted(this.sql,this.values);}
-    runSync(){return runCounted(this.sql,this.values);}
+    runSync(){
+      const statement=db.prepare(this.sql);
+      // D1 batch returns result rows for reads (and RETURNING), alongside write metadata.
+      if(statement.columns().length){
+        const before=totalChanges();
+        const results=statement.all(...this.values);
+        return {results,meta:{changes:totalChanges()-before,
+          last_row_id:Number(db.prepare('SELECT last_insert_rowid() AS id').get().id)}};
+      }
+      return runCounted(this.sql,this.values);
+    }
   }
   const DB={prepare:(sql)=>new Statement(sql),batch:async(statements)=>{
     if (hooks.beforeBatch) {const callback=hooks.beforeBatch;hooks.beforeBatch=null;callback();}
