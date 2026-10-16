@@ -7,6 +7,7 @@ import { PaginationComponent } from '../../../shared/components/pagination/pagin
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
 import { ProfileModalService } from '../../../core/services/profile-modal.service';
 import { UserMasterDataExportComponent } from './master-data-export.component';
+import { jenisPengadilOptions } from '../../../shared/data/jenis-pengadil';
 
 @Component({
   selector: 'app-admin-users',
@@ -15,6 +16,7 @@ import { UserMasterDataExportComponent } from './master-data-export.component';
   templateUrl: './users.component.html',
 })
 export class AdminUsersComponent implements OnInit {
+  readonly jenisPengadilOptions = jenisPengadilOptions;
   loading = true;
   users: any[] = [];
   filtered: any[] = [];

@@ -8,6 +8,7 @@ import { PaginationComponent } from '../../../shared/components/pagination/pagin
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
 import { ProfileModalService } from '../../../core/services/profile-modal.service';
 import { environment } from '../../../../environments/environment';
+import { jenisPengadilOptions } from '../../../shared/data/jenis-pengadil';
 
 @Component({
   selector: 'app-pengadil-berdaftar',
@@ -16,6 +17,7 @@ import { environment } from '../../../../environments/environment';
   templateUrl: './pengadil-berdaftar.component.html',
 })
 export class PengadilBerdaftarComponent implements OnInit {
+  readonly jenisPengadilOptions = jenisPengadilOptions;
   loading = true;
   referees: any[] = [];
   filtered: any[] = [];

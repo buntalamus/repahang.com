@@ -5,6 +5,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { ProfileModalService } from '../../../core/services/profile-modal.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { environment } from '../../../../environments/environment';
+import { jenisPengadilOptions } from '../../data/jenis-pengadil';
 
 interface ProfilPengadil {
   id: number;
@@ -592,7 +593,7 @@ interface EditForm {
                       <label class="block text-xs text-slate-500 mb-1">Jenis Pengadil</label>
                       <select [(ngModel)]="editForm.jenis_pengadil" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white">
                         <option value="">—</option>
-                        @for (j of jenisPengadilList; track j) {
+                        @for (j of jenisPengadilOptions(editForm.jenis_pengadil); track j) {
                           <option [value]="j">{{ j }}</option>
                         }
                       </select>
@@ -695,13 +696,7 @@ export class ProfilPengadilModalComponent {
     { key: 'kelayakan', label: 'Kelayakan' },
   ];
 
-  readonly jenisPengadilList = [
-    'Kelas III FAM',
-    'Pengadil Negeri',
-    'Pengadil Kebangsaan',
-    'Penilai Pengadil',
-    'Pegawai Pembangunan',
-  ];
+  readonly jenisPengadilOptions = jenisPengadilOptions;
 
   get isAdmin(): boolean {
     return this.auth.currentUser?.role === 'Admin';
