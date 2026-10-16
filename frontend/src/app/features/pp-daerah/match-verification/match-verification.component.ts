@@ -88,6 +88,11 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" [class]="getStatusClass(match.status_pp)">
                       {{ getStatusLabel(match.status_pp) }}
                     </span>
+                    @if (match.pertindihan?.length) {
+                      <span class="ml-1 inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
+                        <span class="material-icons text-[12px]" aria-hidden="true">warning</span>Meragukan
+                      </span>
+                    }
                   </td>
                 </tr>
               } @empty {
@@ -219,11 +224,35 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
               <p class="text-xs text-slate-500 italic border-l-2 border-amber-300 pl-2">{{ selectedMatch.catatan_pp }}</p>
             }
 
+            <!-- Doubtful record: other records at the same date and time -->
+            @if (isPending(selectedMatch) && selectedMatch.pertindihan?.length) {
+              <div class="rounded-lg border border-orange-300 bg-orange-50 p-3 space-y-2" role="alert">
+                <p class="text-xs font-bold text-orange-900 flex items-center gap-1">
+                  <span class="material-icons text-sm" aria-hidden="true">warning</span>
+                  {{ hasDuplicate(selectedMatch) ? 'Kemungkinan rekod berganda' : 'Pegawai bertembung' }}
+                </p>
+                <p class="text-xs text-orange-900">Rekod berikut mempunyai tarikh dan masa yang sama dengan pegawai yang sama. Semak sebelum mengesahkan.</p>
+                @for (c of selectedMatch.pertindihan; track $index) {
+                  <div class="rounded border border-orange-200 bg-white px-2.5 py-2 text-xs text-slate-700">
+                    <p class="font-semibold text-slate-900">{{ c.home_team }} vs {{ c.away_team }}
+                      <span class="font-normal text-orange-800">· {{ c.jenis === 'berganda' ? 'Berganda' : 'Bertembung' }}</span></p>
+                    <p>{{ c.tarikh | date:'d MMM yyyy' }}@if (c.masa) { · {{ c.masa }}} · {{ c.tempat }}</p>
+                    <p>{{ c.sumber }} · {{ c.status_pp }}</p>
+                    <p>Pegawai: {{ c.pegawai.join(', ') }}</p>
+                  </div>
+                }
+                <label class="flex items-start gap-2 text-xs text-orange-900 font-medium">
+                  <input type="checkbox" [(ngModel)]="conflictReviewed" class="mt-0.5" />
+                  Saya telah menyemak rekod di atas dan perlawanan ini sah.
+                </label>
+              </div>
+            }
+
             <!-- Action area -->
             @if (!selectedMatch.status_pp || selectedMatch.status_pp === 'Belum Disahkan') {
               <div class="border-t border-slate-100 pt-3">
                 <textarea [(ngModel)]="actionNotes" rows="2"
-                  placeholder="Catatan Pegawai Pembangunan (pilihan)..."
+                  [placeholder]="selectedMatch.pertindihan?.length ? 'Catatan semakan (wajib untuk mengesahkan)...' : 'Catatan Pegawai Pembangunan (pilihan)...'"
                   class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs resize-none focus:ring-1 focus:ring-pahang-yellow outline-none mb-2"></textarea>
                 <div class="flex justify-between items-center">
                   <button (click)="showDeleteConfirm = !showDeleteConfirm"
@@ -233,7 +262,7 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
                       class="px-3 py-1.5 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg disabled:opacity-50">
                       {{ processing ? '...' : 'Tolak' }}
                     </button>
-                    <button (click)="submitAction('verify')" [disabled]="processing"
+                    <button (click)="submitAction('verify')" [disabled]="processing || !canVerify(selectedMatch)"
                       class="px-4 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50">
                       {{ processing ? 'Memproses...' : (selectedMatch.is_grouped ? 'Sahkan Semua' : 'Sahkan') }}
                     </button>
@@ -343,8 +372,24 @@ export class PpMatchVerificationComponent implements OnInit {
     return match.match_group_id || ('s_' + match.id);
   }
 
+  conflictReviewed = false;
+
+  isPending(match: any): boolean {
+    return !match.status_pp || match.status_pp === 'Belum Disahkan';
+  }
+
+  hasDuplicate(match: any): boolean {
+    return (match.pertindihan || []).some((item: any) => item.jenis === 'berganda');
+  }
+
+  /** A doubtful record needs the review box ticked and a note before it can be verified. */
+  canVerify(match: any): boolean {
+    return !match.pertindihan?.length || (this.conflictReviewed && !!this.actionNotes.trim());
+  }
+
   openModal(match: any): void {
     this.selectedMatch = match;
+    this.conflictReviewed = false;
     this.showActionForm = false;
     this.actionNotes = '';
     this.showDeleteConfirm = false;
@@ -378,6 +423,7 @@ export class PpMatchVerificationComponent implements OnInit {
     if (!this.selectedMatch) return;
     this.processing = true;
     const payload: any = { action, notes: this.actionNotes };
+    if (action === 'verify' && this.selectedMatch.pertindihan?.length) payload.sahkan_pertindihan = this.conflictReviewed;
     if (this.selectedMatch.is_grouped && this.selectedMatch.match_group_id) {
       payload.match_group_id = this.selectedMatch.match_group_id;
     } else {
@@ -397,6 +443,11 @@ export class PpMatchVerificationComponent implements OnInit {
       },
       error: (err: any) => {
         this.processing = false;
+        // The server found other records since the list loaded: show them for review.
+        if (err?.error?.pertindihan?.length && this.selectedMatch) {
+          this.selectedMatch.pertindihan = err.error.pertindihan;
+          this.conflictReviewed = false;
+        }
         this.toast.error(err?.error?.message || 'Gagal memproses pengesahan.');
       },
     });

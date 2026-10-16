@@ -1,6 +1,7 @@
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { conflictSummary, findMatchConflicts, recordKey, type MatchRecord } from './match-conflicts';
 
 function idOf(value: unknown): number | null {
   if (typeof value !== 'number' && typeof value !== 'string') return null;
@@ -9,8 +10,8 @@ function idOf(value: unknown): number | null {
   return Number.isSafeInteger(number) ? number : null;
 }
 
-type ScopedMatch = { id: number; user_id: number; tarikh: string; jenis: string | null;
-  home_team: string | null; away_team: string | null; daerah_perlawanan_id: number | null };
+type ScopedMatch = MatchRecord & { jenis: string | null; daerah_perlawanan_id: number | null };
+const pending = (status: unknown) => !status || status === 'Belum Disahkan';
 
 function scope(persatuanId: number, districtId: number): { sql: string; params: number[] } {
   return {
@@ -68,6 +69,14 @@ async function list(request: Request, env: Env, persatuanId: number, districtId:
     COUNT(DISTINCT CASE WHEN p.status_pp='Tidak Disahkan' THEN COALESCE(p.match_group_id,'single_' || p.id) END) AS rejected
     FROM perlawanan p JOIN users u ON u.id=p.user_id WHERE ${access.sql}`)
     .bind(...access.params).first();
+  // Doubtful records are flagged while they wait for verification.
+  const waiting: MatchRecord[] = rows.results.filter((row) => pending(row.status_pp)).map((row) => ({
+    id: Number(row.id), user_id: Number(row.pengadil_id), tarikh: String(row.tarikh),
+    masa: row.masa as string | null, tempat: row.tempat as string | null,
+    home_team: row.home_team as string | null, away_team: row.away_team as string | null,
+    match_group_id: row.match_group_id as string | null }));
+  const conflicts = await findMatchConflicts(env, waiting);
+  for (const [key, group] of grouped) group.pertindihan = conflicts.get(key) ?? [];
   const all = [...grouped.values()];
   return json({ error: false, matches: all.slice((page - 1) * perPage, page * perPage),
     statistics: stats,pagination: { page,per_page: perPage,
@@ -102,8 +111,8 @@ async function change(request: Request, env: Env, userId: number,
   let params: (string | number)[];
   if (grouped) {
     const groupId = input.match_group_id as string;
-    const found = await env.DB.prepare(`SELECT id,user_id,tarikh,jenis,home_team,away_team,daerah_perlawanan_id
-      FROM perlawanan WHERE match_group_id=?`).bind(groupId).all<ScopedMatch>();
+    const found = await env.DB.prepare(`SELECT id,user_id,tarikh,masa,tempat,jenis,home_team,away_team,
+      daerah_perlawanan_id,match_group_id FROM perlawanan WHERE match_group_id=?`).bind(groupId).all<ScopedMatch>();
     rows = found.results;
     // A group must be wholly within the PP's district. This prevents an
     // accidental partial decision or a guessed group ID crossing a boundary.
@@ -113,7 +122,8 @@ async function change(request: Request, env: Env, userId: number,
     where = 'match_group_id=? AND daerah_perlawanan_id=?';
     params = [groupId, districtId];
   } else {
-    const found = await env.DB.prepare(`SELECT p.id,p.user_id,p.tarikh,p.jenis,p.home_team,p.away_team,p.daerah_perlawanan_id
+    const found = await env.DB.prepare(`SELECT p.id,p.user_id,p.tarikh,p.masa,p.tempat,p.jenis,p.home_team,p.away_team,
+      p.daerah_perlawanan_id,p.match_group_id
       FROM perlawanan p JOIN users u ON u.id=p.user_id
       WHERE p.id=? AND p.match_group_id IS NULL AND u.persatuan_id=? AND u.role='Pengadil'`)
       .bind(matchId, persatuanId).all<ScopedMatch>();
@@ -140,6 +150,18 @@ async function change(request: Request, env: Env, userId: number,
     return json({ error: false, message: grouped
       ? `Perlawanan berjaya dipadam (${rows.length} rekod).` : 'Perlawanan berjaya dipadam.' });
   }
+  // A doubtful record is verified only after the PP confirms the review with a note.
+  let reviewed = '';
+  if (action === 'verify') {
+    const conflicts = (await findMatchConflicts(env, rows)).get(recordKey(first)) ?? [];
+    if (conflicts.length) {
+      if (input.sahkan_pertindihan !== true || !notes) {
+        return json({ error: true, pertindihan: conflicts, message:
+          `${conflictSummary(conflicts)} Semak rekod tersebut, kemudian sahkan dengan catatan semakan.` }, 409);
+      }
+      reviewed = ` (pertindihan disemak: ${conflicts.length} rekod)`;
+    }
+  }
   const status = action === 'verify' ? 'Disahkan' : action === 'reject' ? 'Tidak Disahkan' : 'Belum Disahkan';
   const subject = action === 'verify' ? 'Perlawanan Disahkan'
     : action === 'reject' ? 'Perlawanan Tidak Disahkan' : 'Perlawanan Dikembalikan';
@@ -151,12 +173,12 @@ async function change(request: Request, env: Env, userId: number,
   const recipients = [...new Set(rows.map((row) => row.user_id))];
   const results = await env.DB.batch([
     env.DB.prepare(`UPDATE perlawanan SET status_pp=?,catatan_pp=?,verified_at=datetime('now','+8 hours'),verified_by=?
-      WHERE ${where}`).bind(status, notes, userId, ...params),
+      WHERE ${where}`).bind(status, reviewed ? `Semakan pertindihan: ${notes}` : notes, userId, ...params),
     ...recipients.map((recipient) => env.DB.prepare(`INSERT INTO notifications(user_id,type,subject,message,is_read,created_at)
       VALUES(?,'Pengesahan Perlawanan',?,?,0,datetime('now','+8 hours'))`).bind(recipient, subject, message)),
     env.DB.prepare(`INSERT INTO activity_log(user_id,action,table_name,record_id,description,created_at)
       VALUES(?,?,'perlawanan',?,?,datetime('now','+8 hours'))`)
-      .bind(userId, grouped ? 'verify_match_group' : 'verify_match', first.id, `${description} - Status: ${status}`),
+      .bind(userId, grouped ? 'verify_match_group' : 'verify_match', first.id, `${description} - Status: ${status}${reviewed}`),
   ]);
   if (results[0].meta.changes < rows.length) {
     return json({ error: true, message: 'Perlawanan berubah semasa semakan. Sila muat semula.' }, 409);

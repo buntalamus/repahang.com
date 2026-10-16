@@ -3,6 +3,7 @@ import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
 import { wroteRow } from './d1-changes';
+import { conflictSummary, findMatchConflicts } from './match-conflicts';
 
 const scoreFields = [
   'skor_ht_home', 'skor_ht_away', 'skor_ft_home', 'skor_ft_away',
@@ -133,6 +134,11 @@ async function addMatch(input: Record<string, unknown>, env: Env,
     return json({ error: true, message: 'Semua pegawai perlawanan mesti mempunyai akaun pengadil yang aktif.' }, 422);
   }
   const groupId = crypto.randomUUID();
+  // Doubtful records are still saved; the PP Daerah must review them before verifying.
+  const conflicts = (await findMatchConflicts(env, officials.map((item, index) => ({
+    id: -1 - index, user_id: item.user_id, tarikh: date, masa: time, tempat: venue,
+    home_team: home, away_team: away, match_group_id: groupId,
+  })))).get(`g:${groupId}`) ?? [];
   const formattedDate = date.split('-').reverse().join('/');
   const message = `${actorName} telah merekod perlawanan ${home} vs ${away} pada ${formattedDate} di ${venue} (${district.nama}). ${officials.length} pegawai perlawanan. Sila semak dan sahkan.`;
   const statements: D1PreparedStatement[] = officials.map((item, index) => env.DB.prepare(`
@@ -186,7 +192,9 @@ async function addMatch(input: Record<string, unknown>, env: Env,
     }
   }
   return json({ error: false,
-    message: `Rekod perlawanan berjaya ditambah untuk ${officials.length} pegawai.`,
+    message: `Rekod perlawanan berjaya ditambah untuk ${officials.length} pegawai.${conflicts.length
+      ? ` Perhatian: ${conflictSummary(conflicts)} PP Daerah akan menyemak rekod ini sebelum disahkan.` : ''}`,
+    pertindihan: conflicts,
     match_group_id: groupId, match_ids: matchIds, emails_sent: emailsSent });
 }
 
