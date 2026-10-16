@@ -1,5 +1,6 @@
 import { currentUser, json } from './auth';
 import type { Env } from './types';
+import { eligibilityLists } from './application-eligibility';
 import { APPLICATION_CATEGORY_SQL, applicationStatus, countApplicationRows } from './application-category';
 
 type Row = Record<string, unknown>;
@@ -327,6 +328,8 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
     lantikanDaerah: byDistrict([...districtAppointments.results, ...externalAppointments.results], false),
     perlawananDaerah: byDistrict(districtMatches.results, true),
     kejohanan: tournaments.results.map((row) => ({ ...row, jum_perlawanan: number(row.jum_perlawanan) })),
+    // For the session being applied for (application_year), independent of the year filter.
+    kelayakan: await eligibilityLists(env),
   };
   return json({ error: false, data });
 }

@@ -575,6 +575,82 @@ declare const Chart: any;
               </div>
             }
 
+            <!-- ── TAB: KELAYAKAN ── -->
+            @if (activeTab === 'kelayakan') {
+              <div class="space-y-5">
+                <p class="text-sm text-slate-600">Pengadil yang layak memohon untuk sesi <strong>{{ eligibility.year }}</strong>, mengikut syarat yang sama dikuatkuasakan semasa permohonan dihantar.</p>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  @for (list of eligibilityLists; track list.key) {
+                    <button type="button" (click)="selectedEligibility = list.key; eligibilitySearch = ''" [attr.aria-pressed]="selectedEligibility === list.key"
+                      class="rounded-lg border p-4 text-left hover:shadow-md transition"
+                      [class]="selectedEligibility === list.key ? 'bg-amber-50 border-pahang-yellow' : 'bg-white border-slate-200'">
+                      <p class="text-xs font-semibold text-slate-600">{{ list.label }}</p>
+                      <p class="text-2xl font-bold text-slate-900 mt-1">{{ eligibility[list.key]?.length || 0 }}</p>
+                      <p class="text-xs text-slate-500 mt-1">{{ list.rule }}</p>
+                    </button>
+                  }
+                </div>
+                @if (selectedEligibility === 'kelas1' && eligibility.kelas1_missing_kelas3_year) {
+                  <p class="text-xs rounded-lg border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2" role="note">
+                    {{ eligibility.kelas1_missing_kelas3_year }} Pengadil Negeri/Kebangsaan dalam had umur tiada rekod tahun lulus Kelas III FAM, jadi tidak dapat dinilai. Isi tahun lulus Kelas III dalam profil pengadil supaya kelayakan mereka dikira.
+                  </p>
+                }
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <h4 class="text-sm font-semibold text-slate-800">{{ selectedEligibilityLabel }} · {{ filteredEligibility.length }} orang</h4>
+                  <input type="search" [(ngModel)]="eligibilitySearch" placeholder="Cari nama atau daerah..." aria-label="Cari nama atau daerah"
+                    class="px-3 py-2 border border-slate-300 rounded-lg text-sm w-full sm:w-64" />
+                </div>
+                <div class="overflow-x-auto rounded-lg border border-slate-200">
+                  <table class="w-full text-sm">
+                    <thead class="bg-slate-50 text-xs text-slate-600">
+                      <tr>
+                        <th scope="col" class="text-left px-3 py-2 font-medium">Nama</th>
+                        <th scope="col" class="text-left px-3 py-2 font-medium">Daerah</th>
+                        <th scope="col" class="text-left px-3 py-2 font-medium">Jenis</th>
+                        <th scope="col" class="text-right px-3 py-2 font-medium">Umur</th>
+                        @if (selectedEligibility === 'berdaftar') {
+                          <th scope="col" class="text-right px-3 py-2 font-medium">Perlawanan {{ eligibility.rules?.match_year }}</th>
+                        }
+                        @if (selectedEligibility === 'kelas1') {
+                          <th scope="col" class="text-right px-3 py-2 font-medium">Lulus Kelas III</th>
+                        }
+                        <th scope="col" class="text-left px-3 py-2 font-medium">Permohonan {{ eligibility.year }}</th>
+                        <th scope="col" class="text-left px-3 py-2 font-medium">Profil</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                      @for (row of filteredEligibility; track row.id) {
+                        <tr class="hover:bg-slate-50 cursor-pointer" (click)="profileModal.open(row.id)">
+                          <td class="px-3 py-2 font-medium text-slate-800">{{ row.nama }}</td>
+                          <td class="px-3 py-2 text-slate-600">{{ row.daerah }}</td>
+                          <td class="px-3 py-2 text-slate-600">{{ row.jenis || '-' }}</td>
+                          <td class="px-3 py-2 text-right text-slate-700">{{ row.umur ?? '-' }}</td>
+                          @if (selectedEligibility === 'berdaftar') {
+                            <td class="px-3 py-2 text-right font-semibold text-slate-900">{{ row.perlawanan }}</td>
+                          }
+                          @if (selectedEligibility === 'kelas1') {
+                            <td class="px-3 py-2 text-right text-slate-700">{{ row.tahun_lulus_kelas3 }}</td>
+                          }
+                          <td class="px-3 py-2">
+                            @if (row.permohonan) {
+                              <span class="text-xs font-semibold text-green-700">{{ row.permohonan }}</span>
+                            } @else {
+                              <span class="text-xs text-slate-500">Belum memohon</span>
+                            }
+                          </td>
+                          <td class="px-3 py-2">
+                            <span class="text-xs font-semibold" [class]="row.profil_lengkap ? 'text-green-700' : 'text-amber-700'">{{ row.profil_lengkap ? 'Lengkap' : 'Belum lengkap' }}</span>
+                          </td>
+                        </tr>
+                      } @empty {
+                        <tr><td colspan="8" class="px-3 py-8 text-center text-slate-400">Tiada pengadil layak.</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            }
+
             <!-- ── TAB: PEPERIKSAAN ── -->
             @if (activeTab === 'peperiksaan') {
               <div class="space-y-6">
@@ -683,7 +759,37 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
     { key: 'perlawanan', label: 'Perlawanan', icon: 'sports_soccer' },
     { key: 'penilaian', label: 'Penilaian & Merit', icon: 'military_tech' },
     { key: 'peperiksaan', label: 'Peperiksaan', icon: 'school' },
+    { key: 'kelayakan', label: 'Kelayakan', icon: 'how_to_reg' },
   ];
+
+  selectedEligibility: 'berdaftar' | 'kelas3' | 'kelas1' = 'berdaftar';
+  eligibilitySearch = '';
+
+  get eligibility(): any {
+    return this.s.kelayakan || {};
+  }
+
+  get eligibilityLists(): { key: 'berdaftar' | 'kelas3' | 'kelas1'; label: string; rule: string }[] {
+    const r = this.eligibility.rules || {};
+    return [
+      { key: 'berdaftar', label: 'Layak Memohon Pengadil Berdaftar Tahunan',
+        rule: `Minimum ${r.min_matches ?? '-'} perlawanan disahkan pada ${r.match_year ?? '-'} (PP Daerah dikecualikan)` },
+      { key: 'kelas3', label: 'Layak Memohon Kelas III FAM',
+        rule: `Umur ${r.kelas3_min_age ?? '-'}–${r.kelas3_max_age ?? '-'} tahun pada ${this.eligibility.year ?? '-'}; belum lulus Kelas III` },
+      { key: 'kelas1', label: 'Layak Memohon Ujian Kelas I FAM',
+        rule: `Umur ${r.kelas1_max_age ?? '-'} tahun ke bawah; lulus Kelas III pada ${r.kelas3_deadline ?? '-'} atau sebelumnya` },
+    ];
+  }
+
+  get selectedEligibilityLabel(): string {
+    return this.eligibilityLists.find(item => item.key === this.selectedEligibility)?.label || '';
+  }
+
+  get filteredEligibility(): any[] {
+    const term = this.eligibilitySearch.trim().toLowerCase();
+    const rows: any[] = this.eligibility[this.selectedEligibility] || [];
+    return term ? rows.filter(row => `${row.nama} ${row.daerah}`.toLowerCase().includes(term)) : rows;
+  }
 
   summaryCards: { label: string; value: string | number; icon: string; color: string; sub?: string; tab?: string; route?: string; applicationType?: string }[] = [];
   employmentItems: { label: string; value: number; pct: number }[] = [];

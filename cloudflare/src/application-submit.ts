@@ -7,6 +7,7 @@ import { missingRefereeProfile, profileLabels } from './referee-profile';
 import { dimensions } from './profile-write';
 import { applicationSettingDefaults } from './applications';
 import { applicationWindow, windowClosedMessage, type WindowName } from './application-window';
+import { CLASS_THREE_YEAR_SQL, ageInYear, classThreeDeadline, klYear, qualifyingMatchYear } from './application-eligibility';
 
 type FormType = 'pengadil_berdaftar' | 'penilai_berdaftar' | 'kelas3_fam' | 'ujian_kelas1_fam';
 type Profile = Record<string, string | number | null>;
@@ -32,9 +33,6 @@ const closedMessage: Record<FormType, string> = {
   ujian_kelas1_fam: 'Maaf, permohonan Ujian Kelas I FAM tidak dibuka pada masa ini.',
 };
 
-function klYear(): number {
-  return Number(new Intl.DateTimeFormat('en-CA', {year: 'numeric', timeZone: 'Asia/Kuala_Lumpur'}).format(new Date()));
-}
 function field(form: FormData, key: string): string {
   const value = form.get(key);
   return typeof value === 'string' ? value.trim() : '';
@@ -160,11 +158,8 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
       missing_fields: missing}, 400);
   }
 
-  const ic = profileValue(profile, 'no_ic').replace(/\D/g, '');
-  if (ic.length >= 6 && (type === 'kelas3_fam' || type === 'ujian_kelas1_fam')) {
-    const yy = Number(ic.slice(0, 2));
-    const birthYear = yy <= klYear() % 100 ? 2000 + yy : 1900 + yy;
-    const age = year - birthYear;
+  const age = ageInYear(profileValue(profile, 'no_ic'), year);
+  if (age !== null && (type === 'kelas3_fam' || type === 'ujian_kelas1_fam')) {
     const minAge = settingNumber(settings.bertulis_min_age);
     const maxAge = settingNumber(settings.bertulis_max_age);
     const classOneMax = settingNumber(settings.kelas1_max_age);
@@ -179,15 +174,9 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
     }
   }
   if (type === 'ujian_kelas1_fam') {
-    const deadline = year - 2;
-    const classThree = await env.DB.prepare(`
-      SELECT 1 FROM users u WHERE u.id=? AND (
-        (u.tahun_lulus_kelas3 GLOB '20[0-9][0-9]'
-          AND CAST(u.tahun_lulus_kelas3 AS INTEGER)<=?)
-        OR EXISTS (SELECT 1 FROM permohonan p WHERE p.user_id=u.id
-          AND p.jenis_borang IN ('kelas3_fam','ujian_bertulis')
-          AND p.status_ujian='Lulus' AND p.tahun_permohonan<=?)) LIMIT 1
-    `).bind(user.id, deadline, deadline).first();
+    const deadline = classThreeDeadline(year);
+    const classThree = await env.DB.prepare(`SELECT 1 FROM users u WHERE u.id=? AND ${CLASS_THREE_YEAR_SQL('u')}<=?`)
+      .bind(user.id, deadline).first();
     if (!classThree) return json({error: true, message:
       `Anda tidak layak memohon Ujian Kelas I FAM. Sijil Kelas III FAM mesti diperoleh pada tahun ${deadline} atau sebelumnya (sekurang-kurangnya 2 tahun).`}, 400);
   }
@@ -199,7 +188,7 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
   // Registration for a session opens in the December before it, so the
   // qualifying matches are always those of the preceding season, whether the
   // form is sent in December or in January of the session year.
-  const matchYear = String(year - 1);
+  const matchYear = String(qualifyingMatchYear(year));
   if (type === 'pengadil_berdaftar' && user.role !== 'PP Daerah') {
     const count = await env.DB.prepare(`
       SELECT COUNT(*) AS n FROM perlawanan WHERE user_id=? AND status_pp='Disahkan'
