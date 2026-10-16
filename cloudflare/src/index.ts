@@ -59,6 +59,7 @@ import { forgotPassword, resetPassword } from './password-reset';
 import { assessorDashboard, districtAnnouncements, districtOverview } from './role-dashboards';
 import { tournaments } from './tournaments';
 import { adminMailbox, receiveMailboxEmail } from './mailbox';
+import { syncAllShinjiruMailboxes } from './mailbox-imap';
 import type { Env } from './types';
 
 function isSameOrigin(request: Request): boolean {
@@ -376,6 +377,10 @@ export default {
   },
   async scheduled(_event: ScheduledController, env: Env): Promise<void> {
     // api/kup-crew-notification-retry.php ran from the system cron in PHP.
-    if (appointmentWritesEnabled(env)) await processQueuedKupCrewNotifications(env);
+    try {
+      if (appointmentWritesEnabled(env)) await processQueuedKupCrewNotifications(env);
+    } finally {
+      await syncAllShinjiruMailboxes(env);
+    }
   },
 } satisfies ExportedHandler<Env>;

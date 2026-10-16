@@ -63,7 +63,8 @@
     "APPOINTMENT_DELIVERY_ENABLED": "1",
     "REPORT_DELIVERY_ENABLED": "1",
     "BULK_EMAIL_ENABLED": "1",
-    "MAILBOX_SEND_ENABLED": "1"
+    "MAILBOX_SEND_ENABLED": "1",
+    "MAILBOX_IMAP_ENABLED": "1"
   },
   "triggers": {
     "crons": ["*/5 * * * *"]

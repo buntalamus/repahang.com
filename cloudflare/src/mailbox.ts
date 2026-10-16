@@ -4,6 +4,7 @@ import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
 import { wroteRow } from './d1-changes';
+import { imapEnabled, syncShinjiruMailbox } from './mailbox-imap';
 
 const ALIASES = ['admin', 'daftar', 'lantikan', 'support', 'pengesahan'] as const;
 const MAILBOXES = new Set(ALIASES.map((alias) => `${alias}@refpahang.com`));
@@ -87,7 +88,13 @@ export async function adminMailbox(request: Request, env: Env): Promise<Response
   const denied = await admin(request, env);
   if (denied) return denied;
   const url = new URL(request.url);
+  // Disabling network sync must not mix cached Drafts/Spam into the Inbox.
+  const imapIndexAvailable = env.MAILBOX_IMAP_ENABLED !== undefined;
   if (request.method === 'GET') {
+    if (url.searchParams.get('view') === 'contacts') {
+      const contacts = await env.DB.prepare('SELECT id,name,email FROM mailbox_contacts ORDER BY name COLLATE NOCASE,email LIMIT 2000').all();
+      return json({ error: false, data: contacts.results });
+    }
     const id = url.searchParams.get('id');
     if (id) {
       if (!/^[0-9a-f-]{36}$/.test(id)) return json({ error: true, message: 'ID emel tidak sah.' }, 400);
@@ -117,30 +124,79 @@ export async function adminMailbox(request: Request, env: Env): Promise<Response
     }
     const mailbox = url.searchParams.get('mailbox') ?? 'daftar@refpahang.com';
     const folder = url.searchParams.get('folder') ?? 'inbox';
-    if (!mailboxAddress(mailbox) || !['inbox', 'sent'].includes(folder)) {
+    const customFolder = folder.startsWith('imap:') ? folder.slice(5) : null;
+    const knownFolder = customFolder && imapIndexAvailable ? await env.DB.prepare('SELECT name FROM mailbox_imap_folders WHERE mailbox=? AND name=?')
+      .bind(mailbox, customFolder).first() : null;
+    if (!mailboxAddress(mailbox) || (!['inbox', 'sent'].includes(folder) && !knownFolder)) {
       return json({ error: true, message: 'Peti masuk atau folder tidak sah.' }, 400);
     }
     const page = Math.max(1, Math.min(10000, Number(url.searchParams.get('page') || 1) || 1));
-    const count = await env.DB.prepare('SELECT COUNT(*) AS total FROM mailbox_messages WHERE mailbox=? AND folder=?')
-      .bind(mailbox, folder).first<{ total: number }>();
+    const filter = !imapIndexAvailable ? 'm.folder=?'
+      : customFolder ? 'EXISTS (SELECT 1 FROM mailbox_imap_items i WHERE i.portal_id=m.id AND i.mailbox=m.mailbox AND i.folder=?)'
+      : folder === 'sent' ? 'm.folder=?'
+      : `m.folder=? AND (NOT EXISTS (SELECT 1 FROM mailbox_imap_items i WHERE i.portal_id=m.id)
+          OR EXISTS (SELECT 1 FROM mailbox_imap_items i JOIN mailbox_imap_folders f ON f.mailbox=i.mailbox AND f.name=i.folder
+            WHERE i.portal_id=m.id AND f.kind='inbox'))`;
+    const filterValue = customFolder || folder;
+    const count = await env.DB.prepare(`SELECT COUNT(*) AS total FROM mailbox_messages m WHERE m.mailbox=? AND ${filter}`)
+      .bind(mailbox, filterValue).first<{ total: number }>();
     const rows = await env.DB.prepare(`
-      SELECT id, mailbox, folder, sender, recipient, subject, size_bytes,
-             received_at, read_at, delivery_status
-      FROM mailbox_messages WHERE mailbox=? AND folder=?
-      ORDER BY received_at DESC, id DESC LIMIT 50 OFFSET ?
-    `).bind(mailbox, folder, (page - 1) * 50).all();
-    return json({ error: false, data: rows.results, total: count?.total ?? 0, page });
+      SELECT m.id, m.mailbox, m.folder, m.sender, m.recipient, m.subject, m.size_bytes,
+             m.received_at, m.read_at, m.delivery_status
+      FROM mailbox_messages m WHERE m.mailbox=? AND ${filter}
+      ORDER BY m.received_at DESC, m.id DESC LIMIT 50 OFFSET ?
+    `).bind(mailbox, filterValue, (page - 1) * 50).all();
+    const folders = imapIndexAvailable ? await env.DB.prepare(`SELECT name,label,kind FROM mailbox_imap_folders WHERE mailbox=? ORDER BY label`)
+      .bind(mailbox).all() : { results: [] };
+    const sync = imapIndexAvailable ? await env.DB.prepare(`SELECT MAX(last_sync_at) AS last_sync_at,
+      MAX(CASE WHEN backfill_before>1 THEN 1 ELSE 0 END) AS pending,
+      MAX(CASE WHEN last_error IS NOT NULL THEN 1 ELSE 0 END) AS failed FROM mailbox_imap_state WHERE mailbox=?`)
+      .bind(mailbox).first() : null;
+    const skipped = imapIndexAvailable ? await env.DB.prepare("SELECT COUNT(*) AS total FROM mailbox_imap_items WHERE mailbox=? AND status='oversized'")
+      .bind(mailbox).first<{ total: number }>() : null;
+    return json({ error: false, data: rows.results, total: count?.total ?? 0, page,
+      folders: folders.results, imap_enabled: imapEnabled(env), sync, oversized: skipped?.total || 0 });
   }
   if (request.method !== 'POST') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
-  if (env.STAGING_WRITES_ENABLED !== '1' || env.MAILBOX_SEND_ENABLED !== '1') {
-    return json({ error: true, message: 'Penghantaran emel belum diaktifkan.' }, 503);
-  }
   const input = await boundedJson(request);
   if (input instanceof Response) return input;
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
     return json({ error: true, message: 'Data emel tidak sah.' }, 422);
   }
   const body = input as Record<string, unknown>;
+  if (env.STAGING_WRITES_ENABLED !== '1') return json({ error: true, message: 'Perubahan peti emel belum diaktifkan.' }, 503);
+  if (body.action === 'sync') {
+    const mailbox = typeof body.mailbox === 'string' ? mailboxAddress(body.mailbox) : null;
+    const folder = typeof body.folder === 'string' ? body.folder : 'inbox';
+    if (!mailbox || folder.length > 505) return json({ error: true, message: 'Peti emel tidak sah.' }, 422);
+    if (!imapEnabled(env)) return json({ error: true, message: 'Sambungan Shinjiru belum diaktifkan.' }, 503);
+    try { return json({ error: false, data: await syncShinjiruMailbox(env, mailbox, folder) }); }
+    catch { return json({ error: true, message: 'Penyegerakan Shinjiru gagal. Emel sedia ada masih boleh dibaca. Cuba lagi kemudian.' }, 502); }
+  }
+  if (body.action === 'save-contact') {
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    if (!name || name.length > 150 || /[\r\n\0]/.test(name) || email.length > 254 ||
+      !/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(email)) return json({ error: true, message: 'Nama atau alamat emel tidak sah.' }, 422);
+    if (body.id && (typeof body.id !== 'string' || !/^[0-9a-f-]{36}$/.test(body.id))) return json({ error: true, message: 'ID kenalan tidak sah.' }, 422);
+    const id = typeof body.id === 'string' && body.id ? body.id : crypto.randomUUID();
+    const existing = await env.DB.prepare('SELECT id FROM mailbox_contacts WHERE id=?').bind(id).first();
+    const count = await env.DB.prepare('SELECT COUNT(*) AS total FROM mailbox_contacts').first<{ total: number }>();
+    if (!existing && (count?.total || 0) >= 2000) return json({ error: true, message: 'Buku alamat telah mencapai 2,000 kenalan.' }, 422);
+    const duplicate = await env.DB.prepare('SELECT id FROM mailbox_contacts WHERE email=? AND id!=?').bind(email, id).first();
+    if (duplicate) return json({ error: true, message: 'Alamat emel ini sudah ada dalam buku alamat.' }, 409);
+    try {
+      await env.DB.prepare(`INSERT INTO mailbox_contacts (id,name,email) VALUES (?,?,?)
+        ON CONFLICT(id) DO UPDATE SET name=excluded.name,email=excluded.email,updated_at=CURRENT_TIMESTAMP`).bind(id, name, email).run();
+    } catch { return json({ error: true, message: 'Kenalan tidak dapat disimpan. Semak jika alamat emel sudah wujud.' }, 409); }
+    return json({ error: false, data: { id, name, email } });
+  }
+  if (body.action === 'delete-contact') {
+    if (typeof body.id !== 'string' || !/^[0-9a-f-]{36}$/.test(body.id)) return json({ error: true, message: 'ID kenalan tidak sah.' }, 422);
+    await env.DB.prepare('DELETE FROM mailbox_contacts WHERE id=?').bind(body.id).run();
+    return json({ error: false, data: { deleted: true } });
+  }
+  if (env.MAILBOX_SEND_ENABLED !== '1') return json({ error: true, message: 'Penghantaran emel belum diaktifkan.' }, 503);
   const from = typeof body.from === 'string' ? mailboxAddress(body.from) : null;
   const to = typeof body.to === 'string' ? body.to.trim().toLowerCase() : '';
   const subject = typeof body.subject === 'string' ? cleanHeader(body.subject, 250) : '';
