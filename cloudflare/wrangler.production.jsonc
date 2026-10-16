@@ -1,6 +1,6 @@
 // Production Worker for refpahang.com. Deploy only during cutover, after the
 // final dump is imported: see "Langkah cutover" in docs/cloudflare_migration_prep.md.
-// Secrets (never in this file): MAIL_*_USER/NAME via prepare_email.py, and
+// Secrets (never in this file): SMTP_HOST/PORT, MAIL_*_USER/NAME/PASS, and
 // TELEGRAM_BOT_TOKEN. Do NOT set STAGING_QA_WRITE_TOKEN or STAGING_EMAIL_REDIRECT here.
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
@@ -56,6 +56,7 @@
   // on in production. STAGING_LOGIN_EMAILS is left unset so every user can log in.
   "vars": {
     "BASE_URL": "https://refpahang.com",
+    "EMAIL_TRANSPORT": "legacy-smtp",
     "TELEGRAM_BOT_USERNAME": "refpahang_bot",
     "STAGING_AUTH_ENABLED": "1",
     "STAGING_WRITES_ENABLED": "1",

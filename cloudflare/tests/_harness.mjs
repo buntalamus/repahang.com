@@ -11,6 +11,7 @@ export async function bundle(contents) {
   const file=join(directory,'bundle.mjs');
   const result=await build({stdin:{contents,resolveDir:new URL('.',import.meta.url).pathname,
     loader:'ts'},bundle:true,format:'esm',platform:'node',write:false,logLevel:'silent',
+    external:['cloudflare:sockets'],
   });
   writeFileSync(file,result.outputFiles[0].text);
   try {return await import(file);} finally {rmSync(directory,{recursive:true,force:true});}

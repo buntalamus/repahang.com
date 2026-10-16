@@ -1,4 +1,5 @@
-/** Sender mapping for the future Worker API. No mail is sent at module load. */
+/** Shared sender mapping and outbound transport for every Worker email flow. */
+import { sendSmtpEmail } from './smtp';
 
 export type MailType = 'admin' | 'daftar' | 'lantikan' | 'support' | 'pengesahan';
 
@@ -10,7 +11,7 @@ export interface MailAttachment {
   contentId?: string;
 }
 
-interface EmailMessage {
+export interface EmailMessage {
   to: string | { email: string; name: string };
   from: { email: string; name: string };
   subject: string;
@@ -20,7 +21,15 @@ interface EmailMessage {
 }
 
 export interface EmailEnv {
-  EMAIL: { send(message: EmailMessage): Promise<{ messageId: string }> };
+  EMAIL?: { send(message: EmailMessage): Promise<{ messageId: string }> };
+  EMAIL_TRANSPORT?: 'legacy-smtp' | 'cloudflare-email';
+  SMTP_HOST?: string;
+  SMTP_PORT?: string;
+  MAIL_ADMIN_PASS?: string;
+  MAIL_DAFTAR_PASS?: string;
+  MAIL_LANTIKAN_PASS?: string;
+  MAIL_SUPPORT_PASS?: string;
+  MAIL_PENGESAHAN_PASS?: string;
   MAIL_ADMIN_USER: string;
   MAIL_ADMIN_NAME: string;
   MAIL_DAFTAR_USER: string;
@@ -89,7 +98,7 @@ export async function sendRefpahangEmail(
   }
   // Staging D1 holds copies of real users; never let a test reach them.
   const redirect = env.STAGING_EMAIL_REDIRECT?.trim();
-  const result = await env.EMAIL.send({
+  const message: EmailMessage = {
     // The binding rejects an EmailAddress whose name is not a string, so a
     // recipient without a name is passed as a bare address.
     to: redirect ? redirect : toName ? { email: to, name: toName } : to,
@@ -98,6 +107,15 @@ export async function sendRefpahangEmail(
     html,
     text,
     ...(attachments.length ? { attachments } : {}),
-  });
+  };
+  if (env.EMAIL_TRANSPORT === 'legacy-smtp') {
+    const password = env[`MAIL_${type.toUpperCase()}_PASS` as keyof EmailEnv];
+    if (typeof password !== 'string' || !password) throw new Error(`Missing SMTP credentials for ${type}`);
+    return sendSmtpEmail({ hostname: env.SMTP_HOST ?? '', port: Number(env.SMTP_PORT),
+      username: address, password }, message);
+  }
+  if (env.EMAIL_TRANSPORT && env.EMAIL_TRANSPORT !== 'cloudflare-email') throw new Error('Unknown email transport');
+  if (!env.EMAIL) throw new Error('Cloudflare email binding unavailable');
+  const result = await env.EMAIL.send(message);
   return result.messageId;
 }
