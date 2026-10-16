@@ -192,14 +192,18 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
   `).bind(user.id, type, year).first();
   if (existing) return json({error: true, message:
     `Anda sudah mempunyai permohonan untuk tahun ${year}. Sila semak sejarah permohonan anda.`}, 400);
+  // Registration for a session opens in the December before it, so the
+  // qualifying matches are always those of the preceding season, whether the
+  // form is sent in December or in January of the session year.
+  const matchYear = String(year - 1);
   if (type === 'pengadil_berdaftar' && user.role !== 'PP Daerah') {
     const count = await env.DB.prepare(`
       SELECT COUNT(*) AS n FROM perlawanan WHERE user_id=? AND status_pp='Disahkan'
         AND substr(tarikh,1,4)=?
-    `).bind(user.id, String(klYear())).first<{n: number}>();
+    `).bind(user.id, matchYear).first<{n: number}>();
     const minimum = Number(settings.min_verified_matches || 20);
     if (Number(count?.n || 0) < minimum) return json({error: true,
-      message: `Anda tidak layak memohon. Minimum ${minimum} perlawanan yang disahkan diperlukan.`,
+      message: `Anda tidak layak memohon. Minimum ${minimum} perlawanan yang disahkan pada tahun ${matchYear} diperlukan untuk sesi ${year}.`,
       verified_count: Number(count?.n || 0)}, 400);
   }
   const waris = ['nama_waris','hubungan_waris','telefon_waris'] as const;
@@ -271,7 +275,7 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
         SELECT id FROM permohonan WHERE user_id=? AND jenis_borang=? AND tahun_permohonan=?
       ) WHERE user_id=? AND status_pp='Disahkan' AND substr(tarikh,1,4)=?
         AND (permohonan_id IS NULL OR permohonan_id=0)
-    `).bind(user.id, type, year, user.id, String(klYear())));
+    `).bind(user.id, type, year, user.id, matchYear));
     statements.push(env.DB.prepare(`
       INSERT INTO notifications(user_id,type,subject,message,created_at)
       SELECT id,'Permohonan Baru','Permohonan & Bayaran Pengadil Baru',
