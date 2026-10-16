@@ -9,7 +9,7 @@ const worker=await bundle(`
   export {setEmailSenderForTests} from '../src/php/email';
   export {setTelegramSenderForTests} from '../src/php/telegram';
 `);
-const {db,DB,close}=openDatabase(['0009_mysql_on_update_triggers','0010_worker_write_guards']);
+const {db,DB,close}=openDatabase(['0009_mysql_on_update_triggers','0010_worker_write_guards','0022_district_appointments']);
 const emails=[];
 const telegrams=[];
 worker.setEmailSenderForTests(async(to,subject,html,name,type)=>{emails.push({to,subject,html,name,type});return true;});

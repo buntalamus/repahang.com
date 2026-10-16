@@ -4,6 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import ts from 'typescript';
 
 const source=readFileSync(new URL('../src/admin-appointments.ts',import.meta.url),'utf8')
+  .replace("import { authorizeAppointmentResource, districtOf, localOfficialSql } from './appointment-access';", `const authorizeAppointmentResource=async(_r,_e,u)=>u.role==='Admin'?null:Response.json({error:true},{status:403}); const districtOf=()=>0; const localOfficialSql=()=>'';`)
   .replace("import {currentUser,json} from './auth';",`
     const currentUser=async()=>globalThis.appointmentUser;
     const json=(body,status=200)=>Response.json(body,{status});`)
@@ -66,6 +67,10 @@ assert.equal(payload.region_label,'Daerah');
 assert.deepEqual(payload.data.map((item)=>item.id),[4,5]);
 assert.equal(payload.data[0].email_available,1);
 assert.equal(payload.data[1].telegram_linked,1);
+assert.equal(payload.data[0].daerah,'Bera');
+assert.equal(payload.data[0].negeri,'Pahang');
+assert.equal(payload.data[1].daerah,'Kuantan');
+assert.equal(payload.data[1].negeri,'Pahang');
 assert.equal(payload.referees.length,2);
 assert.equal(payload.referees.find((item)=>item.pengadil_id===3).jumlah_lantikan_kejohanan,2);
 assert.equal(payload.referees.find((item)=>item.pengadil_luar_id===8).wilayah,'Kuantan');

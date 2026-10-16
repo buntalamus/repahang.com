@@ -1,3 +1,4 @@
+import { authorizeAppointmentResource } from './appointment-access';
 import { currentUser, json } from './auth';
 import { appointmentWritesEnabled } from './lantikan-write';
 import { auditMetaFrom } from './php/lantikan-audit';
@@ -40,7 +41,8 @@ export async function scheduleReport(request: Request, env: Env): Promise<Respon
   }
   const user = await currentUser(request, env);
   if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
-  if (user.role !== 'Admin') return json({ error: true, message: 'Akses ditolak.' }, 403);
+  const access=await authorizeAppointmentResource(request,env,user,'report');
+  if (access) return access;
   if (request.method === 'GET') {
     const tournamentId = positiveId(new URL(request.url).searchParams.get('kejohanan_id'));
     if (!tournamentId) return json({ error: true, message: 'kejohanan_id diperlukan.' }, 400);
@@ -61,7 +63,8 @@ export async function scheduleReport(request: Request, env: Env): Promise<Respon
         .join('').slice(0, 12).toUpperCase();
     }
     const schedules = await env.DB.prepare(`SELECT id,no_perlawanan,tarikh,hari,masa,kategori,peringkat,kumpulan,
-      pasukan_home,pasukan_away,tempat,status FROM jadual_perlawanan WHERE kejohanan_id=?
+      pasukan_home,pasukan_away,pasukan_home_daerah,pasukan_home_negeri,
+      pasukan_away_daerah,pasukan_away_negeri,tempat,status FROM jadual_perlawanan WHERE kejohanan_id=?
       ORDER BY kategori,tarikh,masa,CAST(SUBSTR(no_perlawanan,INSTR(no_perlawanan,'-')+1) AS INTEGER),no_perlawanan`)
       .bind(tournamentId).all<Record<string, unknown>>();
     const assigned = await env.DB.prepare(`SELECT lp.jadual_id,lp.jawatan,lp.status AS status_lantikan,

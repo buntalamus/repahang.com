@@ -1,10 +1,12 @@
+import { authorizeAppointmentResource } from './appointment-access';
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
 
 const days = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
 const textFields = ['kategori', 'peringkat', 'kumpulan', 'pasukan_home',
-  'pasukan_away', 'tempat', 'no_perlawanan'] as const;
+  'pasukan_away', 'tempat', 'no_perlawanan', 'pasukan_home_daerah', 'pasukan_home_negeri',
+  'pasukan_away_daerah', 'pasukan_away_negeri'] as const;
 
 function positiveId(value: unknown): number | null {
   const text = String(value ?? '');
@@ -26,7 +28,8 @@ export async function scheduleUpload(request: Request, env: Env): Promise<Respon
   if (request.method !== 'POST') return json({ error: true, message: 'Kaedah tidak disokong.' }, 405);
   const user = await currentUser(request, env);
   if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
-  if (user.role !== 'Admin') return json({ error: true, message: 'Akses ditolak.' }, 403);
+  const access=await authorizeAppointmentResource(request,env,user,'upload');
+  if (access) return access;
   if (env.STAGING_WRITES_ENABLED !== '1') {
     return json({ error: true, message: 'Tindakan tulis belum tersedia di staging.' }, 503);
   }
@@ -61,12 +64,19 @@ export async function scheduleUpload(request: Request, env: Env): Promise<Respon
     const source = raw as Record<string, unknown>;
     const row = {} as Row;
     let tooLong = false;
+    let invalidField = false;
     for (const field of textFields) {
+      if (field.startsWith('pasukan_') && (field.endsWith('_daerah') || field.endsWith('_negeri'))
+        && source[field] != null && typeof source[field] !== 'string') invalidField = true;
       row[field] = String(source[field] ?? '').trim();
       if (row[field].length > 255) tooLong = true;
     }
     row.tarikh = String(source.tarikh ?? '').trim();
     row.masa = String(source.masa ?? '').trim().replace(/[^\d:]/g, '');
+    if (invalidField) {
+      errors.push(`Baris ${line}: Daerah atau negeri pasukan tidak sah.`);
+      continue;
+    }
     if (row.masa.length === 4 && !row.masa.includes(':')) {
       row.masa = `${row.masa.slice(0, 2)}:${row.masa.slice(2)}`;
     }
@@ -113,10 +123,12 @@ export async function scheduleUpload(request: Request, env: Env): Promise<Respon
   const statements = rows.map((row) => env.DB.prepare(`
     INSERT INTO jadual_perlawanan
       (kejohanan_id,no_perlawanan,tarikh,masa,hari,kategori,peringkat,kumpulan,
-       pasukan_home,pasukan_away,tempat,status,created_at,updated_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,'Belum Lantik',datetime('now','+8 hours'),datetime('now','+8 hours'))
+       pasukan_home,pasukan_away,tempat,pasukan_home_daerah,pasukan_home_negeri,
+       pasukan_away_daerah,pasukan_away_negeri,status,created_at,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Belum Lantik',datetime('now','+8 hours'),datetime('now','+8 hours'))
   `).bind(tournamentId, row.no_perlawanan, row.tarikh, row.masa, row.hari,
-    row.kategori, row.peringkat, row.kumpulan, row.pasukan_home, row.pasukan_away, row.tempat));
+    row.kategori, row.peringkat, row.kumpulan, row.pasukan_home, row.pasukan_away, row.tempat,
+    row.pasukan_home_daerah, row.pasukan_home_negeri, row.pasukan_away_daerah, row.pasukan_away_negeri));
   // Match the PHP registry fill for the whole tournament. The two updates
   // share the import transaction, so logo failures cannot leave half an import.
   statements.push(env.DB.prepare(`

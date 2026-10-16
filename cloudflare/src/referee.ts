@@ -1,3 +1,4 @@
+import { districtOf, localOfficialSql } from './appointment-access';
 import { currentUser, json } from './auth';
 import type { Env } from './types';
 
@@ -29,9 +30,9 @@ export async function activeReferees(request: Request, env: Env): Promise<Respon
     LEFT JOIN persatuan_bolasepak_daerah p ON p.id=u.persatuan_id
     WHERE (u.role IN ('Pengadil','PP Daerah','Penilai')
            OR u.jenis_pengadil='Penilai Pengadil')
-      AND u.aktif=1
+      AND u.aktif=1 ${user.role==='PP Daerah' ? `AND ${localOfficialSql('u')}` : ''}
     ORDER BY u.nama_penuh ASC
-  `).all();
+  `).bind(...(user.role==='PP Daerah' ? [districtOf(user)] : [])).all();
   return json({ error: false, data: referees.results });
 }
 

@@ -1,3 +1,4 @@
+import { districtOf, localOfficialSql } from './appointment-access';
 /**
  * Write side of api/lantikan.php: assign (new, replacement, after kickoff),
  * notify, notify_all, batal_jadual, batal_bulk and DELETE. PHP serialised
@@ -92,7 +93,7 @@ export async function lantikanWrite(request: Request, env: Env, user: User): Pro
     if (!['Dibatalkan', 'Ditangguhkan'].includes(status) || sebab === '' || Array.from(sebab).length > 500) {
       return json({ error: true, message: 'Status dan sebab (maksimum 500 aksara) diperlukan.' }, 400);
     }
-    return batalLantikanByJadual(env, ids, status, sebab, user.id, meta);
+    return batalLantikanByJadual(env, ids, status, sebab, user.id, meta, user.role==='PP Daerah' ? 'pp_daerah' : 'admin');
   }
   return assign(env, input, user, meta);
 }
@@ -180,11 +181,14 @@ async function assign(env: Env, input: Record<string, unknown>, user: User, meta
     : [jadualId, jawatan];
   const freshChecks = requiresFreshResponse
     ? ` AND NOT EXISTS(${conflictSql}) AND NOT EXISTS(${reportSql}) AND NOT EXISTS(${legacySql})` : '';
+  const districtGuard = user.role==='PP Daerah'
+    ? ` AND EXISTS(SELECT 1 FROM users u WHERE u.id=? AND ${localOfficialSql('u')})` : '';
   const statements: D1PreparedStatement[] = [
     guardStatement(env, 'lantikan_assign',
       `${slotUnchanged} AND EXISTS(SELECT 1 FROM jadual_perlawanan WHERE id=?
-        AND status NOT IN ('Dibatalkan','Ditangguhkan'))${freshChecks}`,
-      [...slotBinds, jadualId, ...(requiresFreshResponse ? [...conflictBinds, jadualId, jadualId] : [])]),
+        AND status NOT IN ('Dibatalkan','Ditangguhkan'))${freshChecks}${districtGuard}`,
+      [...slotBinds, jadualId, ...(requiresFreshResponse ? [...conflictBinds, jadualId, jadualId] : []),
+        ...(user.role==='PP Daerah' ? [pengadilId,districtOf(user)] : [])]),
   ];
   let shouldNotifyRa = false;
   if (existing) {
@@ -229,7 +233,7 @@ async function assign(env: Env, input: Record<string, unknown>, user: User, meta
       previous_status: existing?.status ?? null,
       match_started: matchStarted,
       notification_sent: false,
-    }, null, 'admin', user.id, meta));
+    }, null, user.role==='PP Daerah' ? 'pp_daerah' : 'admin', user.id, meta));
   statements.push(...historySyncStatements(env, jadualId));
   if (matchStarted) {
     statements.push(env.DB.prepare(`UPDATE jadual_perlawanan SET status=CASE
@@ -314,7 +318,7 @@ async function deleteAppointment(env: Env, request: Request, user: User, meta: A
     env.DB.prepare('DELETE FROM perlawanan WHERE lantikan_id=?').bind(id),
     lantikanAuditStatement(env, id, 'appointment_deleted', 'admin', 'success', {
       previous_status: record.status, notification_was_sent: Boolean(record.notif_hantar),
-    }, null, 'admin', user.id, snapshot, meta),
+    }, null, user.role==='PP Daerah' ? 'pp_daerah' : 'admin', user.id, snapshot, meta),
     env.DB.prepare('DELETE FROM lantikan_pengadil WHERE id=?').bind(id),
     ...historySyncStatements(env, jadualId),
   ]);
@@ -340,7 +344,7 @@ async function deleteAppointment(env: Env, request: Request, user: User, meta: A
         s('pasukan_away'), s('no_perlawanan')));
       await recordLantikanAudit(env, id, 'cancellation_notification', 'telegram',
         delivered ? 'success' : 'failed', { reason: 'Lantikan dibuang oleh pentadbir', error: null },
-        null, 'admin', user.id, snapshot, meta);
+        null, user.role==='PP Daerah' ? 'pp_daerah' : 'admin', user.id, snapshot, meta);
     }
     if (record.email) {
       const delivered = await sendBatalEmail(env, s('email'), s('nama'), s('jawatan'), s('kejohanan'),
@@ -348,14 +352,14 @@ async function deleteAppointment(env: Env, request: Request, user: User, meta: A
         s('logo_home'), s('logo_away'), Boolean(record.pengadil_id));
       await recordLantikanAudit(env, id, 'cancellation_notification', 'email',
         delivered ? 'success' : 'failed', { reason: 'Lantikan dibuang oleh pentadbir',
-          recipient: record.email, error: null }, null, 'admin', user.id, snapshot, meta);
+          recipient: record.email, error: null }, null, user.role==='PP Daerah' ? 'pp_daerah' : 'admin', user.id, snapshot, meta);
     }
   }
   return json({ error: false, message: 'Lantikan dibuang.' });
 }
 
 async function batalLantikanByJadual(env: Env, rawIds: number[], status: string, sebab: string,
-  actorUserId: number, meta: AuditMeta): Promise<Response> {
+  actorUserId: number, meta: AuditMeta, actorType: string): Promise<Response> {
   const jadualIds = [...new Set(rawIds.filter((id) => id > 0))];
   if (jadualIds.length === 0) return json({ error: false, message: 'Tiada perlawanan.' });
   const idsJson = JSON.stringify(jadualIds);
@@ -400,7 +404,7 @@ async function batalLantikanByJadual(env: Env, rawIds: number[], status: string,
         tg_token=NULL,email_token=NULL,penilaian_token=NULL WHERE jadual_id IN ${inIds}`)
       .bind(status, sebab, idsJson),
     lantikanAuditSelectStatement(env, `lp.id IN ${inIds}`, [recordIds], 'appointment_status_changed',
-      'admin', 'success', { new_status: status, reason: sebab }, null, 'admin', actorUserId, meta),
+      'admin', 'success', { new_status: status, reason: sebab }, null, actorType, actorUserId, meta),
     ...jadualIds.flatMap((jadualId) => historySyncStatements(env, jadualId)),
     env.DB.prepare(`UPDATE jadual_perlawanan SET status=?,sebab_status=?,status_dikemaskini_at=${NOW}
       WHERE id IN ${inIds}`).bind(status, sebab, idsJson),
@@ -419,7 +423,7 @@ async function batalLantikanByJadual(env: Env, rawIds: number[], status: string,
       delivered = telegramDelivered || delivered;
       await recordLantikanAudit(env, r.id, 'cancellation_notification', 'telegram',
         telegramDelivered ? 'success' : 'failed', { new_status: status, reason: sebab, error: null },
-        null, 'admin', actorUserId, null, meta);
+        null, actorType, actorUserId, null, meta);
     }
     if (r.email) {
       const emailDelivered = await sendBatalEmail(env, s('email'), s('nama'), s('jawatan'), s('kejohanan'),
@@ -429,7 +433,7 @@ async function batalLantikanByJadual(env: Env, rawIds: number[], status: string,
       await recordLantikanAudit(env, r.id, 'cancellation_notification', 'email',
         emailDelivered ? 'success' : 'failed',
         { new_status: status, reason: sebab, recipient: r.email, error: null },
-        null, 'admin', actorUserId, null, meta);
+        null, actorType, actorUserId, null, meta);
     }
     if (r.pengadil_id) {
       await createPortalNotification(env, Number(r.pengadil_id), 'Status Perlawanan',
@@ -448,7 +452,7 @@ type PendingAssignment = {
   lantikan_id: number; jawatan: string; tg_token: string | null; email_token: string | null;
   telegram_chat_id: number | string | null; tg_link_token: string | null; user_id: number | null;
   luar_id: number | null; nama: string; email: string | null; pengadil_id: number | null;
-  persatuan_id: number | null; no_perlawanan: string | null; tarikh: string; masa: string | null;
+  persatuan_id: number | null; lantikan_persatuan_id: number | null; no_perlawanan: string | null; tarikh: string; masa: string | null;
   tempat: string | null; pasukan_home: string; pasukan_away: string; logo_home: string | null;
   logo_away: string | null; kejohanan: string; jenis_kejohanan: string;
 };
@@ -460,7 +464,7 @@ async function pendingAssignments(env: Env, jadualId: number): Promise<PendingAs
       COALESCE(u.tg_link_token,pl.tg_link_token) AS tg_link_token,
       u.id AS user_id, pl.id AS luar_id,
       COALESCE(u.nama_penuh,pl.nama) AS nama, COALESCE(u.email,pl.emel) AS email,
-      lp.pengadil_id,u.persatuan_id,jp.no_perlawanan,jp.tarikh,jp.masa,jp.tempat,
+      lp.pengadil_id,u.persatuan_id,kj.lantikan_persatuan_id,jp.no_perlawanan,jp.tarikh,jp.masa,jp.tempat,
       jp.pasukan_home,jp.pasukan_away,jp.kejohanan_id,jp.logo_home,jp.logo_away,
       COALESCE(kj.nama,'') AS kejohanan,
       COALESCE(kj.jenis_kejohanan,'Persahabatan') AS jenis_kejohanan
@@ -482,7 +486,7 @@ type DispatchTotals = { tgSent: number; tgSkipped: number; emailSent: number; de
 
 /** Body of the per-assignment loop shared by notify and notify_all. */
 async function dispatchMatch(env: Env, jadualId: number, assignments: PendingAssignment[],
-  actorId: number, meta: AuditMeta, totals: DispatchTotals, ppNotified: Set<string>): Promise<void> {
+  actorId: number, meta: AuditMeta, totals: DispatchTotals, ppNotified: Set<string>, actorType: string): Promise<void> {
   const roster = await getMatchKupOfficials(env, jadualId);
   const allOfficials = roster.officials;
   const regionLabel = roster.region_label;
@@ -509,7 +513,7 @@ async function dispatchMatch(env: Env, jadualId: number, assignments: PendingAss
     const links = buildAppointmentDirectLinks(env, emailToken);
     const audit = (eventType: string, channel: string, status: string, details: Record<string, unknown>,
       linkUrl: string | null) => recordLantikanAudit(env, a.lantikan_id, eventType, channel, status,
-      details, linkUrl, 'admin', actorId, snapshot, meta);
+      details, linkUrl, actorType, actorId, snapshot, meta);
     await audit('appointment_links_prepared', 'system', 'success', links, links.accept_url);
 
     let tgDelivered = false;
@@ -566,7 +570,7 @@ async function dispatchMatch(env: Env, jadualId: number, assignments: PendingAss
     }
     const pid = Number(a.persatuan_id ?? 0);
     const ppKey = `${jadualId}:${pid}:${a.lantikan_id}`;
-    if (deliveryRecorded && pid && !ppNotified.has(ppKey)) {
+    if (deliveryRecorded && !a.lantikan_persatuan_id && pid && !ppNotified.has(ppKey)) {
       try {
         await notifyPPDaerahLantikan(env, pid, a.nama, a.jawatan, a.kejohanan, a.tarikh, a.masa ?? '',
           a.tempat ?? '', a.pasukan_home, a.pasukan_away);
@@ -608,7 +612,7 @@ async function notifyMatch(env: Env, input: Record<string, unknown>, user: User,
   if (unlinked.length) return json({ error: true, telegram_link_required: true,
     message: `Notifikasi belum boleh dihantar. Pegawai perlu menghubungkan Telegram: ${unlinked.join(', ')}.` }, 409);
   const totals: DispatchTotals = { tgSent: 0, tgSkipped: 0, emailSent: 0, delivered: 0, failed: 0 };
-  await dispatchMatch(env, jadualId, assignments, user.id, meta, totals, new Set());
+  await dispatchMatch(env, jadualId, assignments, user.id, meta, totals, new Set(), user.role==='PP Daerah' ? 'pp_daerah' : 'admin');
   const dispatchComplete = await markMatchDispatchedIfComplete(env, jadualId);
   if (!dispatchComplete) {
     await env.DB.prepare("UPDATE jadual_perlawanan SET status='Menunggu Pengesahan' WHERE id=?").bind(jadualId).run();
@@ -669,7 +673,7 @@ async function notifyAll(env: Env, input: Record<string, unknown>, user: User, m
     const assignments = await pendingAssignments(env, jadualId);
     if (assignments.length === 0) continue;
     if (awaitingTelegram(assignments).length) { telegramPendingMatchCount++; continue; }
-    await dispatchMatch(env, jadualId, assignments, user.id, meta, totals, ppNotified);
+    await dispatchMatch(env, jadualId, assignments, user.id, meta, totals, ppNotified, user.role==='PP Daerah' ? 'pp_daerah' : 'admin');
     if (!(await markMatchDispatchedIfComplete(env, jadualId))) {
       await env.DB.prepare("UPDATE jadual_perlawanan SET status='Menunggu Pengesahan' WHERE id=?").bind(jadualId).run();
     }

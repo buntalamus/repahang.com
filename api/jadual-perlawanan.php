@@ -15,6 +15,23 @@ require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/../config/lantikan-helper.php';
 require_once __DIR__ . '/../config/pasukan-logo-helper.php';
 
+/** Preserve new metadata when an older client omits these fields on update. */
+function parseTeamRegions(array $input, bool $preserveMissing = false): array
+{
+    $regions = [];
+    foreach (['pasukan_home_daerah', 'pasukan_home_negeri', 'pasukan_away_daerah', 'pasukan_away_negeri'] as $field) {
+        if (isset($input[$field]) && !is_string($input[$field])) {
+            jsonResponse(['error' => true, 'message' => "Medan {$field} tidak sah."], 400);
+        }
+        $value = trim($input[$field] ?? '');
+        if (mb_strlen($value) > 255) {
+            jsonResponse(['error' => true, 'message' => "Medan {$field} terlalu panjang."], 400);
+        }
+        $regions[$field] = $preserveMissing && !array_key_exists($field, $input) ? null : $value;
+    }
+    return $regions;
+}
+
 $currentUser = requireRole(['Admin']);
 
 $JAWATAN_LIST = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4', 'Penilai Pengadil'];
@@ -198,6 +215,7 @@ try {
     /* ── Renumber no_perlawanan per kategori (ikut masa) ── */
     if ($method === 'POST' && ($_GET['action'] ?? '') === 'renumber') {
         $input = getJsonInput();
+        $regions = parseTeamRegions($input);
         $kejohanan_id = (int) ($input['kejohanan_id'] ?? 0);
         if (!$kejohanan_id) {
             jsonResponse(['error' => true, 'message' => 'kejohanan_id diperlukan.'], 400);
@@ -227,8 +245,8 @@ try {
         }
 
         $stmt = $pdo->prepare("
-            INSERT INTO jadual_perlawanan (kejohanan_id, no_perlawanan, tarikh, masa, hari, kategori, peringkat, kumpulan, pasukan_home, pasukan_away, tempat)
-            VALUES (:kejohanan_id, :no_perlawanan, :tarikh, :masa, :hari, :kategori, :peringkat, :kumpulan, :pasukan_home, :pasukan_away, :tempat)
+            INSERT INTO jadual_perlawanan (kejohanan_id, no_perlawanan, tarikh, masa, hari, kategori, peringkat, kumpulan, pasukan_home, pasukan_away, tempat, pasukan_home_daerah, pasukan_home_negeri, pasukan_away_daerah, pasukan_away_negeri)
+            VALUES (:kejohanan_id, :no_perlawanan, :tarikh, :masa, :hari, :kategori, :peringkat, :kumpulan, :pasukan_home, :pasukan_away, :tempat, :pasukan_home_daerah, :pasukan_home_negeri, :pasukan_away_daerah, :pasukan_away_negeri)
         ");
         $stmt->execute([
             ':kejohanan_id'   => $kejohanan_id,
@@ -242,6 +260,10 @@ try {
             ':pasukan_home'   => trim($input['pasukan_home'] ?? ''),
             ':pasukan_away'   => trim($input['pasukan_away'] ?? ''),
             ':tempat'         => trim($input['tempat'] ?? ''),
+            ':pasukan_home_daerah' => $regions['pasukan_home_daerah'],
+            ':pasukan_home_negeri' => $regions['pasukan_home_negeri'],
+            ':pasukan_away_daerah' => $regions['pasukan_away_daerah'],
+            ':pasukan_away_negeri' => $regions['pasukan_away_negeri'],
         ]);
         $id = (int) $pdo->lastInsertId();
 
@@ -253,6 +275,7 @@ try {
 
     if ($method === 'PUT') {
         $input = getJsonInput();
+        $regions = parseTeamRegions($input, true);
         $id = (int) ($input['id'] ?? 0);
         if (!$id) {
             jsonResponse(['error' => true, 'message' => 'ID diperlukan.'], 400);
@@ -280,6 +303,10 @@ try {
                 UPDATE jadual_perlawanan
                 SET no_perlawanan = :no_perlawanan, tarikh = :tarikh, masa = :masa, hari = :hari,
                     kategori = :kategori, peringkat = :peringkat, kumpulan = :kumpulan,
+                    pasukan_home_daerah = COALESCE(:pasukan_home_daerah, CASE WHEN pasukan_home = :pasukan_home_daerah_nama THEN pasukan_home_daerah ELSE '' END),
+                    pasukan_home_negeri = COALESCE(:pasukan_home_negeri, CASE WHEN pasukan_home = :pasukan_home_negeri_nama THEN pasukan_home_negeri ELSE '' END),
+                    pasukan_away_daerah = COALESCE(:pasukan_away_daerah, CASE WHEN pasukan_away = :pasukan_away_daerah_nama THEN pasukan_away_daerah ELSE '' END),
+                    pasukan_away_negeri = COALESCE(:pasukan_away_negeri, CASE WHEN pasukan_away = :pasukan_away_negeri_nama THEN pasukan_away_negeri ELSE '' END),
                     pasukan_home = :pasukan_home, pasukan_away = :pasukan_away, tempat = :tempat
                 WHERE id = :id
             ");
@@ -294,6 +321,14 @@ try {
                 ':pasukan_home'   => trim($input['pasukan_home'] ?? ''),
                 ':pasukan_away'   => trim($input['pasukan_away'] ?? ''),
                 ':tempat'         => trim($input['tempat'] ?? ''),
+                ':pasukan_home_daerah' => $regions['pasukan_home_daerah'],
+                ':pasukan_home_daerah_nama' => trim($input['pasukan_home'] ?? ''),
+                ':pasukan_home_negeri' => $regions['pasukan_home_negeri'],
+                ':pasukan_home_negeri_nama' => trim($input['pasukan_home'] ?? ''),
+                ':pasukan_away_daerah' => $regions['pasukan_away_daerah'],
+                ':pasukan_away_daerah_nama' => trim($input['pasukan_away'] ?? ''),
+                ':pasukan_away_negeri' => $regions['pasukan_away_negeri'],
+                ':pasukan_away_negeri_nama' => trim($input['pasukan_away'] ?? ''),
                 ':id'             => $id,
             ]);
 

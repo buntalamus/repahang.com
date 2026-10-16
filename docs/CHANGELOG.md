@@ -4,6 +4,34 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [16 Oktober 2026] — Lantikan daerah, penapis dan master data
+
+### Lantikan PP Daerah
+
+- PP mempunyai menu Lantikan Pengadil Daerah untuk kejohanan, jadual, pool dan lantikan pengadil aktif di bawah persatuan kelolaannya. API menyemak semua ID termasuk tindakan pukal dan menolak pengadil luar/daerah lain.
+- Admin melihat semua kejohanan, menapis pemilik daerah, memantau dan mengubah lantikan. Identiti pelaku disimpan dalam audit; override penerimaan kekal khusus Admin.
+- Salinan makluman kepada PP aktif daerah dan Admin aktif melalui barisan SMTP dengan retry dan kawalan claim. Butiran peristiwa dibekukan; token jawapan/penilaian tidak disalin.
+- Migrasi `0022_district_appointments.sql`; panduan `docs/district_appointments.md`.
+
+### Penapis Rekod Perlawanan Admin
+
+- Carian global sebelum pagination SQL, penapis tahun/julat tarikh/kejohanan/jenis/daerah/status dan pilihan 10/25/50/100 rekod. Carian pegawai mengekalkan semua krew perlawanan.
+
+### Master Data Pengguna
+
+- Muat turun XLSX semua pengguna dan sejarah berkaitan, termasuk akaun tidak aktif; format jadual, panduan dan kamus medan. Eksport tidak mengikut carian/pagination skrin dan tidak membawa kata laluan atau token. Disahkan di portal untuk 370 pengguna dan 11,622 rekod perlawanan.
+
+### Tanda berjaga-jaga asal pengadil dan pasukan
+
+- Tambah daerah dan negeri bagi pasukan tuan rumah serta pelawat pada borang Jadual Perlawanan, template Excel dan pratonton import.
+- Baris calon dalam pool, tugasan individu dan Jadual Lantikan diwarnakan merah dengan sebab padanan. Peringkat Negeri/Daerah membandingkan daerah; Kebangsaan membandingkan negeri. Lantikan masih dibenarkan dan status penerimaan dikekalkan.
+- Padanan menggunakan medan asal yang diisi Admin, tanpa meneka daripada nama kelab atau venue. Daerah senama di negeri yang diketahui berbeza tidak dianggap sepadan. Peringkat Asia belum mempunyai aturan padanan.
+- Data lama dibiarkan kosong. Isi asal pasukan sebelum semakan boleh mengesan padanan. Nilai yang tidak disertakan oleh klien lama semasa kemas kini dikekalkan jika nama pasukan sama; penggantian pasukan tanpa asal baharu mengosongkan asal pasukan lama.
+- Sebelum release Worker, jalankan migrasi D1 `0020_match_team_regions.sql`. Untuk pemasangan PHP/MySQL, jalankan `php docs/migration_pasukan_wilayah.php` terlebih dahulu.
+- Pengesahan: ujian padanan mengikut peringkat, simpan/baca/kemas kini/import pada salinan D1, ujian asal pengadil berdaftar/luar, dan ujian auto-tolak sedia ada.
+
+---
+
 ## [30 Ogos 2026]
 
 ### Override Admin bagi Penerimaan Lantikan Lewat atau Penolakan KUP Tersilap

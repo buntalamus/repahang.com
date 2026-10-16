@@ -321,6 +321,8 @@ try {
                     WHEN lp.pengadil_id IS NOT NULL THEN u.jenis_pengadil
                     WHEN lp.pengadil_luar_id IS NOT NULL THEN pl.jenis_pengadil
                 END AS jenis_pengadil,
+                CASE WHEN lp.pengadil_id IS NOT NULL THEN u.daerah ELSE pl.daerah END AS daerah,
+                CASE WHEN lp.pengadil_id IS NOT NULL THEN u.negeri ELSE pl.negeri END AS negeri,
                 CASE
                     WHEN lp.pengadil_id IS NOT NULL THEN 'Berdaftar'
                     WHEN lp.pengadil_luar_id IS NOT NULL THEN 'Luar'

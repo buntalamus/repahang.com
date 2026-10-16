@@ -1,3 +1,5 @@
+import { guardStatement, runGuarded } from './php/guard';
+import { authorizeAppointmentResource, districtOf, localOfficialSql } from './appointment-access';
 import { currentUser, json } from './auth';
 import { mysqlTextOrder } from './php/mysql-order';
 import { boundedJson } from './request';
@@ -39,7 +41,8 @@ export async function refereePool(request: Request, env: Env): Promise<Response>
   }
   const user = await currentUser(request, env);
   if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
-  if (user.role !== 'Admin') return json({ error: true, message: 'Akses ditolak.' }, 403);
+  const access=await authorizeAppointmentResource(request,env,user,'pool');
+  if (access) return access;
   const url = new URL(request.url);
 
   if (request.method === 'GET') {
@@ -61,8 +64,8 @@ export async function refereePool(request: Request, env: Env): Promise<Response>
       JOIN kejohanan k ON k.id=pp.kejohanan_id
       LEFT JOIN users u ON u.id=pp.pengadil_id
       LEFT JOIN pengadil_luar pl ON pl.id=pp.pengadil_luar_id
-      WHERE pp.kejohanan_id=? ORDER BY nama COLLATE NOCASE ASC
-    `).bind(tournamentId).all();
+      WHERE pp.kejohanan_id=? ${user.role==='PP Daerah' ? `AND pp.pengadil_luar_id IS NULL AND ${localOfficialSql('u')}` : ''} ORDER BY nama COLLATE NOCASE ASC
+    `).bind(tournamentId,...(user.role==='PP Daerah' ? [districtOf(user)] : [])).all();
     return json({ error: false, data: rows.results.sort((a, b) =>
       mysqlTextOrder(a.nama, b.nama)).map((item) => ({
       ...item,
@@ -101,11 +104,22 @@ export async function refereePool(request: Request, env: Env): Promise<Response>
         }
       }
     }
-    const results = await env.DB.batch(items.map((item) => env.DB.prepare(`
+    const statements=items.map((item) => env.DB.prepare(`
       INSERT OR IGNORE INTO pool_pengadil(kejohanan_id,pengadil_id,pengadil_luar_id,created_at)
       VALUES(?,?,?,datetime('now','+8 hours'))
-    `).bind(tournamentId, item.pengadil_id, item.pengadil_luar_id)));
-    const added = results.filter((result) => result.meta.changes > 0).length;
+    `).bind(tournamentId, item.pengadil_id, item.pengadil_luar_id));
+    let added=0;
+    if (user.role==='PP Daerah') {
+      const ids=[...new Set(items.map(item=>item.pengadil_id))];
+      const done=await runGuarded(env,[guardStatement(env,'district_pool',
+        `(SELECT COUNT(*) FROM users u WHERE u.id IN (SELECT value FROM json_each(?)) AND ${localOfficialSql('u')})=?`,
+        [JSON.stringify(ids),districtOf(user),ids.length]),...statements]);
+      if (!done) return json({error:true,message:'Kelolaan pengadil telah berubah. Muat semula dan cuba lagi.'},409);
+      added=done.slice(1).filter(result=>result.meta.changes>0).length;
+    } else {
+      const results=await env.DB.batch(statements);
+      added=results.filter(result=>result.meta.changes>0).length;
+    }
     const skipped = items.length - added;
     const message = `${added} pengadil ditambah ke pool.${skipped ? ` ${skipped} sudah ada dalam pool.` : ''}`;
     return json({ error: false, message, added, skipped });

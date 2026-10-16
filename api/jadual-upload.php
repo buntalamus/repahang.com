@@ -46,8 +46,8 @@ try {
     $hariList = ['Ahad', 'Isnin', 'Selasa', 'Rabu', 'Khamis', 'Jumaat', 'Sabtu'];
 
     $stmt = $pdo->prepare("
-        INSERT INTO jadual_perlawanan (kejohanan_id, no_perlawanan, tarikh, masa, hari, kategori, peringkat, kumpulan, pasukan_home, pasukan_away, tempat)
-        VALUES (:kejohanan_id, :no_perlawanan, :tarikh, :masa, :hari, :kategori, :peringkat, :kumpulan, :pasukan_home, :pasukan_away, :tempat)
+        INSERT INTO jadual_perlawanan (kejohanan_id, no_perlawanan, tarikh, masa, hari, kategori, peringkat, kumpulan, pasukan_home, pasukan_away, tempat, pasukan_home_daerah, pasukan_home_negeri, pasukan_away_daerah, pasukan_away_negeri)
+        VALUES (:kejohanan_id, :no_perlawanan, :tarikh, :masa, :hari, :kategori, :peringkat, :kumpulan, :pasukan_home, :pasukan_away, :tempat, :pasukan_home_daerah, :pasukan_home_negeri, :pasukan_away_daerah, :pasukan_away_negeri)
     ");
 
     $inserted = 0;
@@ -67,6 +67,21 @@ try {
         $kumpulan     = trim((string) ($row['kumpulan'] ?? ''));
         $tempat       = trim((string) ($row['tempat'] ?? ''));
         $no_per       = trim((string) ($row['no_perlawanan'] ?? ''));
+
+        $regions = [];
+        foreach (['pasukan_home_daerah', 'pasukan_home_negeri', 'pasukan_away_daerah', 'pasukan_away_negeri'] as $field) {
+            if (isset($row[$field]) && !is_string($row[$field])) {
+                $errors[] = "Baris $rowNum: Medan $field tidak sah.";
+                $skipped++;
+                continue 2;
+            }
+            $regions[$field] = trim($row[$field] ?? '');
+            if (mb_strlen($regions[$field]) > 255) {
+                $errors[] = "Baris $rowNum: Medan $field terlalu panjang.";
+                $skipped++;
+                continue 2;
+            }
+        }
 
         // Validate required
         if ($tarikh === '' || $masa === '') {
@@ -117,6 +132,10 @@ try {
                 ':pasukan_home'   => $pasukan_home,
                 ':pasukan_away'   => $pasukan_away,
                 ':tempat'         => $tempat,
+                ':pasukan_home_daerah' => $regions['pasukan_home_daerah'],
+                ':pasukan_home_negeri' => $regions['pasukan_home_negeri'],
+                ':pasukan_away_daerah' => $regions['pasukan_away_daerah'],
+                ':pasukan_away_negeri' => $regions['pasukan_away_negeri'],
             ]);
             $inserted++;
         } catch (Throwable $e) {

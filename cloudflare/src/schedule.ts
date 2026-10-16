@@ -1,3 +1,4 @@
+import { authorizeAppointmentResource } from './appointment-access';
 import { currentUser, json } from './auth';
 import { appointmentWritesEnabled } from './lantikan-write';
 import { auditMetaFrom } from './php/lantikan-audit';
@@ -7,7 +8,8 @@ import type { Env } from './types';
 import { wroteRow } from './d1-changes';
 
 const fields = ['no_perlawanan', 'tarikh', 'masa', 'kategori', 'peringkat', 'kumpulan',
-  'pasukan_home', 'pasukan_away', 'tempat'] as const;
+  'pasukan_home', 'pasukan_away', 'tempat', 'pasukan_home_daerah', 'pasukan_home_negeri',
+  'pasukan_away_daerah', 'pasukan_away_negeri'] as const;
 type ScheduleFields = Record<(typeof fields)[number], string>;
 
 function idOf(value: unknown): number | null {
@@ -168,7 +170,8 @@ export async function schedule(request: Request, env: Env): Promise<Response> {
   }
   const user = await currentUser(request, env);
   if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
-  if (user.role !== 'Admin') return json({ error: true, message: 'Akses ditolak.' }, 403);
+  const access=await authorizeAppointmentResource(request,env,user,'schedule');
+  if (access) return access;
   const url = new URL(request.url);
 
   if (request.method === 'GET') {
@@ -296,10 +299,13 @@ export async function schedule(request: Request, env: Env): Promise<Response> {
     }
     const result = await env.DB.prepare(`INSERT INTO jadual_perlawanan
       (kejohanan_id,no_perlawanan,tarikh,masa,hari,kategori,peringkat,kumpulan,
-       pasukan_home,pasukan_away,tempat,status,created_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,'Belum Lantik',datetime('now','+8 hours'),datetime('now','+8 hours'))`)
+       pasukan_home,pasukan_away,tempat,pasukan_home_daerah,pasukan_home_negeri,
+       pasukan_away_daerah,pasukan_away_negeri,status,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'Belum Lantik',datetime('now','+8 hours'),datetime('now','+8 hours'))`)
       .bind(tournamentId, number, values.tarikh, values.masa, dayName(values.tarikh), values.kategori,
-        values.peringkat, values.kumpulan, values.pasukan_home, values.pasukan_away, values.tempat).run();
+        values.peringkat, values.kumpulan, values.pasukan_home, values.pasukan_away, values.tempat,
+        values.pasukan_home_daerah, values.pasukan_home_negeri, values.pasukan_away_daerah,
+        values.pasukan_away_negeri).run();
     const id = result.meta.last_row_id;
     await logoFromRegistry(env, id);
     return json({ error: false, message: 'Perlawanan berjaya ditambah.', id, no_perlawanan: number });
@@ -312,10 +318,17 @@ export async function schedule(request: Request, env: Env): Promise<Response> {
   const results = await env.DB.batch([
     env.DB.prepare(`UPDATE jadual_perlawanan SET no_perlawanan=?,tarikh=?,masa=?,hari=?,
       kategori=?,peringkat=?,kumpulan=?,pasukan_home=?,pasukan_away=?,tempat=?,
+      pasukan_home_daerah=COALESCE(?,CASE WHEN pasukan_home=? THEN pasukan_home_daerah ELSE '' END),
+      pasukan_home_negeri=COALESCE(?,CASE WHEN pasukan_home=? THEN pasukan_home_negeri ELSE '' END),
+      pasukan_away_daerah=COALESCE(?,CASE WHEN pasukan_away=? THEN pasukan_away_daerah ELSE '' END),
+      pasukan_away_negeri=COALESCE(?,CASE WHEN pasukan_away=? THEN pasukan_away_negeri ELSE '' END),
       updated_at=datetime('now','+8 hours')
       WHERE id=? AND NOT EXISTS(SELECT 1 FROM laporan_penilaian WHERE jadual_id=?)`)
       .bind(values.no_perlawanan, values.tarikh, values.masa, dayName(values.tarikh), values.kategori,
-        values.peringkat, values.kumpulan, values.pasukan_home, values.pasukan_away, values.tempat, id, id),
+        values.peringkat, values.kumpulan, values.pasukan_home, values.pasukan_away, values.tempat,
+        ...(['pasukan_home_daerah', 'pasukan_home_negeri', 'pasukan_away_daerah', 'pasukan_away_negeri'] as const)
+          .flatMap((field) => [input[field] === undefined ? null : values[field],
+            field.startsWith('pasukan_home_') ? values.pasukan_home : values.pasukan_away]), id, id),
     ...history,
   ]);
   if (!wroteRow(results[0])) {

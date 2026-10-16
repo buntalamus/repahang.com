@@ -19,16 +19,58 @@ async function listMatches(request: Request, env: Env): Promise<Response> {
   const query = new URL(request.url).searchParams;
   const status = query.get('status') ?? '';
   const districtId = query.get('daerah_id') === '0' ? null : idOf(query.get('daerah_id'));
-  const page = Math.max(1, Math.min(100_000, Number(query.get('page')) || 1));
-  const perPage = Math.max(1, Math.min(100, Number(query.get('per_page')) || 50));
+  const page = Math.max(1, Math.min(100_000, Math.trunc(Number(query.get('page')) || 1)));
+  const perPage = Math.max(1, Math.min(100, Math.trunc(Number(query.get('per_page')) || 25)));
   const where: string[] = [];
   const params: (string | number)[] = [];
+  const key = (alias: string) => `CASE WHEN ${alias}.match_group_id IS NOT NULL
+    THEN 'g:' || ${alias}.match_group_id ELSE 's:' || ${alias}.id END`;
+  if (districtId) { where.push('p.daerah_perlawanan_id=?'); params.push(districtId); }
+  const year = query.get('year') ?? '';
+  if (year && !/^(19|20|21)\d{2}$/.test(year)) return json({error:true,message:'Tahun tidak sah.'},422);
+  if (year) { where.push("p.tarikh>=? AND p.tarikh<?"); params.push(`${year}-01-01`,`${Number(year)+1}-01-01`); }
+  const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value)
+    && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0,10) === value;
+  const from = query.get('date_from') ?? '';
+  const until = query.get('date_to') ?? '';
+  if ((from && !validDate(from)) || (until && !validDate(until)) || (from && until && from>until)) {
+    return json({error:true,message:'Julat tarikh tidak sah.'},422);
+  }
+  if (from) { where.push('p.tarikh>=?'); params.push(from); }
+  if (until) { where.push('p.tarikh<=?'); params.push(until); }
+  for (const field of ['jenis','nama_kejohanan'] as const) {
+    const value = (query.get(field) ?? '').trim();
+    if (value.length>255) return json({error:true,message:'Penapis terlalu panjang.'},422);
+    if (value) { where.push(`p.${field}=?`); params.push(value); }
+  }
+  const search = (query.get('search') ?? '').trim();
+  if (search.length>200) return json({error:true,message:'Carian maksimum 200 aksara.'},422);
+  if (search) {
+    // Match the entire group, then return every crew member in that match.
+    where.push(`${key('p')} IN (SELECT ${key('sx')} FROM perlawanan sx
+      LEFT JOIN users su ON su.id=sx.user_id LEFT JOIN users sb ON sb.id=sx.submitted_by
+      LEFT JOIN districts sd ON sd.id=sx.daerah_perlawanan_id
+      WHERE (
+        instr(lower(COALESCE(sx.home_team,'')),lower(?))>0 OR instr(lower(COALESCE(sx.away_team,'')),lower(?))>0
+        OR instr(lower(COALESCE(sx.tempat,'')),lower(?))>0 OR instr(lower(COALESCE(sx.nama_kejohanan,'')),lower(?))>0
+        OR instr(lower(COALESCE(sx.jenis,'')),lower(?))>0 OR instr(lower(COALESCE(su.nama_penuh,'')),lower(?))>0
+        OR instr(lower(COALESCE(su.no_ic,'')),lower(?))>0 OR instr(lower(COALESCE(sb.nama_penuh,'')),lower(?))>0
+        OR instr(lower(COALESCE(sd.nama,'')),lower(?))>0))`);
+    params.push(...Array<string>(9).fill(search));
+  }
+  const basePredicate = where.length ? `WHERE ${where.join(' AND ')}` : '';
   if (status === 'pending') where.push("(p.status_pp IS NULL OR p.status_pp='' OR p.status_pp='Belum Disahkan')");
   else if (status === 'verified') where.push("p.status_pp='Disahkan'");
   else if (status === 'rejected') where.push("p.status_pp='Tidak Disahkan'");
-  if (districtId) { where.push('p.daerah_perlawanan_id=?'); params.push(districtId); }
   const predicate = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  const rows = await env.DB.prepare(`SELECT p.id,p.match_group_id,p.tarikh,p.masa,p.jenis,p.nama_kejohanan,
+  const total = await env.DB.prepare(`SELECT COUNT(DISTINCT ${key('p')}) AS n FROM perlawanan p ${predicate}`)
+    .bind(...params).first<{n:number}>();
+  const totalItems = total?.n ?? 0;
+  const currentPage = Math.min(page, Math.max(1,Math.ceil(totalItems/perPage)));
+  const rows = await env.DB.prepare(`WITH selected_groups AS (
+      SELECT ${key('p')} AS group_key,MAX(p.tarikh) AS day,MIN(p.id) AS first_id FROM perlawanan p
+      ${predicate} GROUP BY group_key ORDER BY day DESC,first_id DESC LIMIT ? OFFSET ?
+    ) SELECT p.id,p.match_group_id,p.tarikh,p.masa,p.jenis,p.nama_kejohanan,
     p.tempat,p.jawatan,p.home_team,p.away_team,p.status_pp,p.catatan_pp,p.verified_at,p.created_at,
     p.lantikan_id,p.submitted_by,p.daerah_perlawanan_id,
     p.skor_ht_home,p.skor_ht_away,p.skor_ft_home,p.skor_ft_away,
@@ -36,12 +78,13 @@ async function listMatches(request: Request, env: Env): Promise<Response> {
     d.nama AS daerah_perlawanan_nama,
     u.id AS pengadil_id,u.nama_penuh AS pengadil_nama,u.no_ic AS pengadil_ic,u.jenis_pengadil,
     sub.nama_penuh AS submitter_name,ver.nama_penuh AS verified_by_name
-    FROM perlawanan p JOIN users u ON u.id=p.user_id
+    FROM perlawanan p JOIN selected_groups sg ON sg.group_key=${key('p')}
+    LEFT JOIN users u ON u.id=p.user_id
     LEFT JOIN users sub ON sub.id=p.submitted_by
     LEFT JOIN users ver ON ver.id=p.verified_by
     LEFT JOIN districts d ON d.id=p.daerah_perlawanan_id
-    ${predicate} ORDER BY p.tarikh DESC,p.match_group_id,p.id`)
-    .bind(...params).all<MatchRow>();
+    ORDER BY sg.day DESC,sg.first_id DESC,p.id`)
+    .bind(...params,perPage,(currentPage-1)*perPage).all<MatchRow>();
   const groups = new Map<string, Record<string, unknown>>();
   for (const row of rows.results) {
     const key = matchKey(row);
@@ -69,22 +112,26 @@ async function listMatches(request: Request, env: Env): Promise<Response> {
       no_ic: row.pengadil_ic,jenis_pengadil: row.jenis_pengadil,jawatan: row.jawatan,
     });
   }
-  const districtFilter = districtId ? 'WHERE p.daerah_perlawanan_id=?' : '';
-  const [stats, districts] = await Promise.all([
+  const [stats, districts, options] = await Promise.all([
     env.DB.prepare(`SELECT
-      COUNT(DISTINCT COALESCE(p.match_group_id,'single_' || p.id)) AS total,
+      COUNT(DISTINCT ${key('p')}) AS total,
       COUNT(DISTINCT CASE WHEN p.status_pp IS NULL OR p.status_pp='' OR p.status_pp='Belum Disahkan'
-        THEN COALESCE(p.match_group_id,'single_' || p.id) END) AS pending,
-      COUNT(DISTINCT CASE WHEN p.status_pp='Disahkan' THEN COALESCE(p.match_group_id,'single_' || p.id) END) AS verified,
-      COUNT(DISTINCT CASE WHEN p.status_pp='Tidak Disahkan' THEN COALESCE(p.match_group_id,'single_' || p.id) END) AS rejected
-      FROM perlawanan p ${districtFilter}`).bind(...(districtId ? [districtId] : [])).first(),
+        THEN ${key('p')} END) AS pending,
+      COUNT(DISTINCT CASE WHEN p.status_pp='Disahkan' THEN ${key('p')} END) AS verified,
+      COUNT(DISTINCT CASE WHEN p.status_pp='Tidak Disahkan' THEN ${key('p')} END) AS rejected
+      FROM perlawanan p ${basePredicate}`).bind(...params).first(),
     env.DB.prepare('SELECT id,nama FROM districts ORDER BY nama').all(),
+    env.DB.prepare(`SELECT DISTINCT substr(tarikh,1,4) AS year,jenis,nama_kejohanan
+      FROM perlawanan ORDER BY year DESC`).all<{year:string;jenis:string;nama_kejohanan:string}>(),
   ]);
-  const all = [...groups.values()];
   return json({ error: false,
-    matches: all.slice((page - 1) * perPage, page * perPage),
-    statistics: stats, districts: districts.results,
-    pagination: { page,per_page: perPage,total_pages: Math.ceil(all.length / perPage),total_items: all.length },
+    matches: [...groups.values()], statistics: stats, districts: districts.results,
+    filters: {
+      years:[...new Set(options.results.map(r=>r.year).filter(v=>/^\d{4}$/.test(v)))],
+      kinds:[...new Set(options.results.map(r=>r.jenis).filter(Boolean))].sort(),
+      tournaments:[...new Set(options.results.map(r=>r.nama_kejohanan).filter(Boolean))].sort(),
+    },
+    pagination: { page:currentPage,per_page:perPage,total_pages:Math.ceil(totalItems/perPage),total_items:totalItems },
   });
 }
 

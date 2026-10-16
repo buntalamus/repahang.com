@@ -60,7 +60,7 @@ try {
         // 3. All jadual for this kejohanan
         $stmt = $pdo->prepare("
             SELECT id, no_perlawanan, tarikh, hari, masa, kategori, peringkat, kumpulan,
-                   pasukan_home, pasukan_away, tempat, status
+                   pasukan_home, pasukan_away, pasukan_home_daerah, pasukan_home_negeri, pasukan_away_daerah, pasukan_away_negeri, tempat, status
             FROM jadual_perlawanan
             WHERE kejohanan_id = ?
             ORDER BY kategori ASC, tarikh ASC, masa ASC,

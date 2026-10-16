@@ -7,7 +7,7 @@ const worker=await bundle(`
   export {setTelegramSenderForTests} from '../src/php/telegram';
   export {autoTolakLantikanTertunggak,processQueuedKupCrewNotifications} from '../src/php/lantikan-helper';
 `);
-const {db,DB,hooks,close}=openDatabase(['0009_mysql_on_update_triggers','0010_worker_write_guards']);
+const {db,DB,hooks,close}=openDatabase(['0009_mysql_on_update_triggers','0010_worker_write_guards','0022_district_appointments']);
 const emails=[];
 const telegrams=[];
 worker.setEmailSenderForTests(async(to,subject,html,name,type,images)=>{

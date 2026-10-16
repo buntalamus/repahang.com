@@ -7,7 +7,7 @@ const {appointments,schedule,scheduleReport}=await bundle(`
   export {scheduleReport} from '../src/schedule-report';
 `);
 const {db,DB,close}=openDatabase(['0001_worker_sessions','0002_appointment_outbox','0009_mysql_on_update_triggers',
-  '0010_worker_write_guards']);
+  '0010_worker_write_guards','0020_match_team_regions']);
 const env={DB,BASE_URL:'https://refpahang.com',STAGING_AUTH_ENABLED:'1',STAGING_WRITES_ENABLED:'1',
   APPOINTMENT_DELIVERY_ENABLED:'1',EMAIL:{send:async()=>({messageId:'ok'})}};
 const admin=db.prepare("SELECT id FROM users WHERE role='Admin' AND aktif=1 LIMIT 1").get();

@@ -49,6 +49,7 @@ export const PP_DAERAH_NAV: NavItem[] = [
   { label: 'Pengadil Berdaftar', icon: 'people', route: '/pp-daerah/pengadil' },
   { label: 'Penilai Pengadil Berdaftar', icon: 'rate_review', route: '/pp-daerah/ra-berdaftar' },
   { label: 'Laporan Penilaian', icon: 'assessment', route: '/pp-daerah/laporan-penilaian' },
+  { label: 'Lantikan Pengadil Daerah', icon: 'assignment_ind', route: '/pp-daerah/lantikan' },
   { label: 'Tugasan Lantikan', icon: 'assignment_ind', route: '/pp-daerah/tugasan' },
   { label: 'Profil', icon: 'person', route: '/pp-daerah/profil' },
 ];

@@ -1,3 +1,4 @@
+import { authorizeAppointmentResource, districtOf } from './appointment-access';
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
@@ -7,9 +8,10 @@ const statuses = ['Draf', 'Aktif', 'Selesai', 'Dibatalkan'];
 const kinds = ['Karnival', 'Liga', 'Persahabatan'];
 const levels = ['Daerah', 'Negeri', 'Kebangsaan', 'Asia'];
 const listing = `
-  SELECT k.*,u.nama_penuh AS created_by_nama,
+  SELECT k.*,u.nama_penuh AS created_by_nama,p.nama_persatuan AS lantikan_daerah_nama,
     (SELECT COUNT(*) FROM jadual_perlawanan jp WHERE jp.kejohanan_id=k.id) AS jumlah_perlawanan
   FROM kejohanan k LEFT JOIN users u ON u.id=k.created_by
+  LEFT JOIN persatuan_bolasepak_daerah p ON p.id=k.lantikan_persatuan_id
 `;
 
 function idOf(raw: string | null): number | null {
@@ -133,7 +135,8 @@ export async function tournaments(request: Request, env: Env): Promise<Response>
   }
   const user = await currentUser(request, env);
   if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
-  if (user.role !== 'Admin') return json({ error: true, message: 'Akses ditolak.' }, 403);
+  const access=await authorizeAppointmentResource(request,env,user,'tournament');
+  if (access) return access;
   const url = new URL(request.url);
   if (request.method === 'GET') {
     if (url.searchParams.has('id')) {
@@ -143,7 +146,7 @@ export async function tournaments(request: Request, env: Env): Promise<Response>
       if (!tournament) return json({ error: true, message: 'Kejohanan tidak dijumpai.' }, 404);
       return json({ error: false, kejohanan: tournament });
     }
-    const rows = await env.DB.prepare(`${listing} ORDER BY k.tarikh_mula DESC`).all();
+    const rows = await env.DB.prepare(`${listing} ${user.role==='Admin' ? '' : 'WHERE k.lantikan_persatuan_id=?'} ORDER BY k.tarikh_mula DESC`).bind(...(user.role==='Admin' ? [] : [districtOf(user)])).all();
     return json({ error: false, data: rows.results });
   }
   if (env.STAGING_WRITES_ENABLED !== '1') {
@@ -193,14 +196,17 @@ export async function tournaments(request: Request, env: Env): Promise<Response>
   if (input instanceof Response) return input;
   const parsed = fields(input);
   if (parsed instanceof Response) return parsed;
+  if (user.role==='PP Daerah' && parsed.peringkat_kejohanan!=='Daerah') {
+    return json({error:true,message:'PP Daerah hanya boleh mengurus kejohanan peringkat Daerah.'},422);
+  }
   if (request.method === 'POST') {
     const result = await env.DB.prepare(`
       INSERT INTO kejohanan(nama,jenis_kejohanan,peringkat_kejohanan,tarikh_mula,
-        tarikh_akhir,tempat,anjuran,status,created_by,created_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?,datetime('now','+8 hours'),datetime('now','+8 hours'))
+        tarikh_akhir,tempat,anjuran,status,created_by,lantikan_persatuan_id,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,datetime('now','+8 hours'),datetime('now','+8 hours'))
     `).bind(parsed.nama, parsed.jenis_kejohanan, parsed.peringkat_kejohanan,
       parsed.tarikh_mula, parsed.tarikh_akhir, parsed.tempat, parsed.anjuran,
-      parsed.status, user.id).run();
+      parsed.status, user.id, user.role==='PP Daerah' ? districtOf(user) : null).run();
     return json({ error: false, message: 'Kejohanan berjaya dicipta.', id: result.meta.last_row_id });
   }
   const raw = input as Record<string, unknown>;

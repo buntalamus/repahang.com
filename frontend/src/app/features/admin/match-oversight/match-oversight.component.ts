@@ -1,4 +1,5 @@
-import { Component, OnInit, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
@@ -8,10 +9,10 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
 
 @Component({
   selector: 'app-admin-match-oversight',
-  standalone: true,
+  host: { '(document:keydown.escape)': 'onEscape()' },
   imports: [FormsModule, DatePipe, LoadingComponent],
   template: `
-    @if (loading) {
+    @if (loading && !loaded) {
       <app-loading message="Memuatkan rekod perlawanan..." />
     } @else {
       <!-- Stats -->
@@ -37,24 +38,57 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
         </button>
       </div>
 
-      <!-- Filter Bar -->
-      <div class="flex flex-col sm:flex-row gap-3 mb-4">
-        <input type="text" [(ngModel)]="searchQuery" (ngModelChange)="applySearch()"
-          placeholder="Cari pasukan, pengadil, tempat, daerah..."
-          class="px-4 py-2 border border-slate-300 rounded-lg text-sm flex-1 focus:ring-2 focus:ring-pahang-yellow/30 focus:border-pahang-yellow outline-none" />
-        <select [(ngModel)]="filterDaerahId" (ngModelChange)="setDaerahFilter($event)"
-          class="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pahang-yellow/30 focus:border-pahang-yellow outline-none">
-          <option value="0">Semua Daerah</option>
-          @for (d of districts; track d.id) {
-            <option [value]="d.id">{{ d.nama }}</option>
-          }
-        </select>
-        <button (click)="setFilter('')"
-          class="px-4 py-2 text-sm font-medium rounded-lg border transition"
-          [class]="!filterStatus ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'">
-          Semua Status
-        </button>
-      </div>
+      <form (ngSubmit)="applySearch()" class="bg-white rounded-xl border border-slate-200 p-4 mb-4 space-y-3">
+        <div class="flex items-center justify-between gap-3">
+          <h2 class="font-semibold text-sm text-slate-900">Tapis Rekod Perlawanan</h2>
+          <button type="button" (click)="resetFilters()" class="text-sm underline text-slate-700">Set semula</button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <label class="text-xs text-slate-600 sm:col-span-2">Carian semua rekod
+            <input type="search" name="search" [(ngModel)]="searchQuery" placeholder="Pasukan, pengadil, no. IC, tempat atau kejohanan"
+              class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+          </label>
+          <label class="text-xs text-slate-600">Daerah
+            <select name="district" [(ngModel)]="filterDaerahId" (ngModelChange)="applySearch()" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+              <option value="0">Semua Daerah</option>
+              @for (d of districts; track d.id) { <option [value]="d.id">{{ d.nama }}</option> }
+            </select>
+          </label>
+          <label class="text-xs text-slate-600">Status
+            <select name="status" [(ngModel)]="filterStatus" (ngModelChange)="applySearch()" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+              <option value="">Semua Status</option><option value="pending">Menunggu</option><option value="verified">Disahkan</option><option value="rejected">Ditolak</option>
+            </select>
+          </label>
+          <label class="text-xs text-slate-600">Tahun
+            <select name="year" [(ngModel)]="filterYear" (ngModelChange)="applySearch()" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+              <option value="">Semua Tahun</option>@for (year of filterOptions.years; track year) { <option [value]="year">{{ year }}</option> }
+            </select>
+          </label>
+          <label class="text-xs text-slate-600">Jenis
+            <select name="kind" [(ngModel)]="filterKind" (ngModelChange)="applySearch()" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+              <option value="">Semua Jenis</option>@for (kind of filterOptions.kinds; track kind) { <option [value]="kind">{{ kind }}</option> }
+            </select>
+          </label>
+          <label class="text-xs text-slate-600 sm:col-span-2">Kejohanan
+            <select name="tournament" [(ngModel)]="filterTournament" (ngModelChange)="applySearch()" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+              <option value="">Semua Kejohanan</option>@for (name of filterOptions.tournaments; track name) { <option [value]="name">{{ name }}</option> }
+            </select>
+          </label>
+          <label class="text-xs text-slate-600">Dari Tarikh
+            <input type="date" name="from" [(ngModel)]="dateFrom" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+          </label>
+          <label class="text-xs text-slate-600">Hingga Tarikh
+            <input type="date" name="until" [(ngModel)]="dateTo" [min]="dateFrom" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+          </label>
+          <label class="text-xs text-slate-600">Rekod setiap halaman
+            <select name="size" [(ngModel)]="perPage" (ngModelChange)="applySearch()" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+              <option [ngValue]="10">10</option><option [ngValue]="25">25</option><option [ngValue]="50">50</option><option [ngValue]="100">100</option>
+            </select>
+          </label>
+          <button type="submit" [disabled]="loading" class="self-end px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-semibold disabled:opacity-50">{{ loading ? 'Mencari...' : 'Cari / Tapis' }}</button>
+        </div>
+        <p role="status" class="text-xs text-slate-600">{{ pagination.total_items || 0 }} perlawanan ditemui · Halaman {{ pagination.page }} / {{ pagination.total_pages || 1 }}. Jumlah status di atas mengikut penapis semasa.</p>
+      </form>
 
       <!-- Table -->
       <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -73,7 +107,7 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
             <tbody class="divide-y divide-slate-100">
               @for (match of filtered; track trackMatch(match); let i = $index) {
                 <tr class="hover:bg-slate-50 cursor-pointer transition" (click)="openModal(match)">
-                  <td class="px-4 py-3 text-slate-400 text-xs">{{ i + 1 }}</td>
+                  <td class="px-4 py-3 text-slate-400 text-xs">{{ (pagination.page - 1) * perPage + i + 1 }}</td>
                   <td class="px-4 py-3">
                     <p class="font-semibold text-slate-900 text-sm">{{ match.home_team }} vs {{ match.away_team }}</p>
                     <p class="text-xs text-slate-400 mt-0.5">{{ match.tempat }}</p>
@@ -295,8 +329,10 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
     }
   `,
 })
-export class AdminMatchOversightComponent implements OnInit {
+export class AdminMatchOversightComponent implements OnInit, OnDestroy {
   loading = true;
+  loaded = false;
+  private request?: Subscription;
   processing = false;
   deleting = false;
 
@@ -309,6 +345,13 @@ export class AdminMatchOversightComponent implements OnInit {
   searchQuery = '';
   filterStatus = '';
   filterDaerahId = 0;
+  filterYear = '';
+  filterKind = '';
+  filterTournament = '';
+  dateFrom = '';
+  dateTo = '';
+  perPage = 25;
+  filterOptions: {years:string[];kinds:string[];tournaments:string[]} = {years:[],kinds:[],tournaments:[]};
 
   selectedMatch: any = null;
   showDeleteConfirm = false;
@@ -325,7 +368,6 @@ export class AdminMatchOversightComponent implements OnInit {
     this.loadMatches();
   }
 
-  @HostListener('document:keydown.escape')
   onEscape(): void { this.closeModal(); }
 
   setFilter(status: string): void {
@@ -340,37 +382,41 @@ export class AdminMatchOversightComponent implements OnInit {
     this.loadMatches();
   }
 
+  ngOnDestroy(): void { this.request?.unsubscribe(); }
+
+  resetFilters(): void {
+    this.searchQuery = this.filterStatus = this.filterYear = this.filterKind = this.filterTournament = this.dateFrom = this.dateTo = '';
+    this.filterDaerahId = 0;
+    this.applySearch();
+  }
+
   loadMatches(): void {
+    if (this.dateFrom && this.dateTo && this.dateFrom > this.dateTo) {
+      this.toast.error('Tarikh mula mesti sebelum atau sama dengan tarikh akhir.'); return;
+    }
+    this.request?.unsubscribe();
     this.loading = true;
-    const params = `?status=${this.filterStatus}&daerah_id=${this.filterDaerahId}&page=${this.pagination.page}&per_page=50`;
-    this.api.get<any>(`admin-matches.php${params}`).subscribe({
+    const params = new URLSearchParams({status:this.filterStatus,daerah_id:String(this.filterDaerahId),
+      page:String(this.pagination.page),per_page:String(this.perPage),search:this.searchQuery.trim(),
+      year:this.filterYear,jenis:this.filterKind,nama_kejohanan:this.filterTournament,
+      date_from:this.dateFrom,date_to:this.dateTo});
+    this.request = this.api.get<MatchListResponse>(`admin-matches.php?${params}`).subscribe({
       next: (res) => {
         if (!res.error) {
           this.matches   = res.matches   || [];
           this.filtered  = [...this.matches];
           this.stats     = res.statistics || {};
           this.districts = res.districts  || [];
+          this.filterOptions = res.filters;
           this.pagination = res.pagination || { page: 1, total_pages: 1 };
         }
-        this.loading = false;
+        this.loading = false; this.loaded = true;
       },
-      error: () => (this.loading = false),
+      error: () => { this.loading = false; this.loaded = true; this.toast.error('Gagal memuatkan rekod perlawanan.'); },
     });
   }
 
-  applySearch(): void {
-    if (!this.searchQuery) { this.filtered = [...this.matches]; return; }
-    const q = this.searchQuery.toLowerCase();
-    this.filtered = this.matches.filter((m) =>
-      (m.home_team || '').toLowerCase().includes(q) ||
-      (m.away_team || '').toLowerCase().includes(q) ||
-      (m.tempat || '').toLowerCase().includes(q) ||
-      (m.jenis || '').toLowerCase().includes(q) ||
-      (m.daerah_perlawanan_nama || '').toLowerCase().includes(q) ||
-      (m.submitter_name || '').toLowerCase().includes(q) ||
-      m.officials?.some((o: any) => (o.nama || '').toLowerCase().includes(q)),
-    );
-  }
+  applySearch(): void { this.pagination.page = 1; this.loadMatches(); }
 
   trackMatch(match: any): string { return match.match_group_id || ('s_' + match.id); }
 
@@ -478,4 +524,13 @@ export class AdminMatchOversightComponent implements OnInit {
     this.pagination.page = page;
     this.loadMatches();
   }
+}
+
+interface MatchListResponse {
+  error:boolean;
+  matches:AdminMatchOversightComponent['matches'];
+  statistics:AdminMatchOversightComponent['stats'];
+  districts:AdminMatchOversightComponent['districts'];
+  pagination:AdminMatchOversightComponent['pagination'];
+  filters:{years:string[];kinds:string[];tournaments:string[]};
 }

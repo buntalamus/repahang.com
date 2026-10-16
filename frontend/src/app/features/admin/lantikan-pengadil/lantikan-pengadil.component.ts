@@ -1,4 +1,5 @@
-import { Component, OnInit } from '@angular/core';
+import { AuthService } from '../../../core/services/auth.service';
+import { Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { environment } from '../../../../environments/environment';
 import { DatePipe, SlicePipe } from '@angular/common';
@@ -8,6 +9,7 @@ import { ProfileModalService } from '../../../core/services/profile-modal.servic
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
 import { matchesJadualSearch } from './jadual-search';
+import { teamRegionCaution, type RefereeOrigin, type MatchTeamOrigins } from './team-region-caution';
 import * as XLSX from 'xlsx';
 
 type DirectLinkType = 'accept_url' | 'reject_url' | 'ra_form_url' | 'telegram_link_url';
@@ -122,11 +124,24 @@ interface PengerusiCandidate {
 
 @Component({
   selector: 'app-lantikan-pengadil',
-  standalone: true,
   imports: [FormsModule, DatePipe, SlicePipe, LoadingComponent, ConfirmModalComponent],
   templateUrl: './lantikan-pengadil.component.html',
+  styles: [`
+    .region-caution { background-color: #fee2e2; }
+    .region-caution:hover { background-color: #fecaca; }
+    tr.region-caution > td:not([rowspan]) { background-color: #fee2e2; }
+    tr.region-caution:hover > td:not([rowspan]) { background-color: #fecaca; }
+  `],
 })
 export class LantikanPengadilComponent implements OnInit {
+  private readonly auth = inject(AuthService);
+  readonly isDistrict = this.auth.currentUser?.role === 'PP Daerah';
+  readonly districtName = this.auth.currentUser?.persatuan_nama || 'daerah anda';
+  ownerFilter = '';
+  get appointmentOwners(): string[] {
+    return [...new Set<string>(this.kejohananList.map(k=>String(k.lantikan_daerah_nama || 'Admin Negeri'))) ].sort();
+  }
+
 
   tabs = [
     { id: 'kejohanan',       label: 'Kejohanan' },
@@ -134,7 +149,7 @@ export class LantikanPengadilComponent implements OnInit {
     { id: 'lantikan',        label: 'Lantikan Pengadil' },
     { id: 'jadual-lantikan', label: 'Jadual Lantikan' },
     { id: 'penilaian',       label: 'Laporan Penilaian' },
-  ];
+  ].filter(tab=>!this.isDistrict || tab.id!=='penilaian');
   activeTab = 'kejohanan';
 
   jawatanList = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4', 'Penilai Pengadil'];
@@ -197,7 +212,7 @@ export class LantikanPengadilComponent implements OnInit {
   showJadualModal = false;
   editingJadual: any = null;
   savingJadual = false;
-  jadualForm = { no_perlawanan: '', tarikh: '', masa: '', kategori: '', peringkat: '', kumpulan: '', pasukan_home: '', pasukan_away: '', tempat: '' };
+  jadualForm = { no_perlawanan: '', tarikh: '', masa: '', kategori: '', peringkat: '', kumpulan: '', pasukan_home: '', pasukan_away: '', tempat: '', pasukan_home_daerah: '', pasukan_home_negeri: '', pasukan_away_daerah: '', pasukan_away_negeri: '' };
   kategoriList = ['B12', 'B15', 'B18'];
   peringkatList = ['Kumpulan', 'XY', 'Suku Akhir', 'Separuh Akhir', '3rd Playoff', 'Final'];
 
@@ -271,6 +286,14 @@ export class LantikanPengadilComponent implements OnInit {
       || this.getRegionLabel(this.jadualLantikanData?.kejohanan);
   }
 
+  getRegionCaution(
+    referee: RefereeOrigin | null | undefined,
+    match: MatchTeamOrigins | null = this.selectedJadual,
+    tournament: { peringkat_kejohanan?: string } | null = this.selectedKejohanan,
+  ): string {
+    return teamRegionCaution(referee, match, tournament?.peringkat_kejohanan || 'Daerah');
+  }
+
   isAutoTolak(assignment: any): boolean {
     const status = assignment?.status_lantikan ?? assignment?.status;
     return status === 'Ditolak'
@@ -288,7 +311,7 @@ export class LantikanPengadilComponent implements OnInit {
 
   canAdminOverrideAcceptance(assignment: any): boolean {
     const status = assignment?.status_lantikan ?? assignment?.status;
-    return status === 'Ditolak'
+    return !this.isDistrict && status === 'Ditolak'
       && (this.isAutoTolak(assignment) || this.isKupAssignment(assignment));
   }
 
@@ -550,6 +573,7 @@ export class LantikanPengadilComponent implements OnInit {
 
   get filteredKejohanan(): any[] {
     let list = this.kejohananList;
+    if (this.ownerFilter) list = list.filter(k=>(k.lantikan_daerah_nama || 'Admin Negeri')===this.ownerFilter);
     if (this.kejohananSearch) {
       const s = this.kejohananSearch.toLowerCase();
       list = list.filter(k =>
@@ -668,6 +692,7 @@ export class LantikanPengadilComponent implements OnInit {
   }
 
   loadPengerusi(kejohananId: number, openModal = false): void {
+    if (this.isDistrict) return;
     this.loadingPengerusi = true;
     this.api.get<any>('kejohanan-pengesah-laporan.php', { kejohanan_id: String(kejohananId) }).subscribe({
       next: (res) => {
@@ -966,7 +991,7 @@ export class LantikanPengadilComponent implements OnInit {
 
   loadAvailableForPool(): void {
     // Load pengadil luar not already in pool
-    this.api.get<any>('pengadil-luar.php').subscribe({
+    if (!this.isDistrict) this.api.get<any>('pengadil-luar.php').subscribe({
       next: (res) => {
         const luarInPool = new Set(this.poolList.filter(p => p.pengadil_luar_id).map(p => +p.pengadil_luar_id));
         this.availableLuar = (res.data || []).filter((p: any) => !luarInPool.has(p.id));
@@ -1176,7 +1201,7 @@ export class LantikanPengadilComponent implements OnInit {
 
   openAddJadual(): void {
     this.editingJadual = null;
-    this.jadualForm = { no_perlawanan: '', tarikh: '', masa: '', kategori: '', peringkat: '', kumpulan: '', pasukan_home: '', pasukan_away: '', tempat: '' };
+    this.jadualForm = { no_perlawanan: '', tarikh: '', masa: '', kategori: '', peringkat: '', kumpulan: '', pasukan_home: '', pasukan_away: '', tempat: '', pasukan_home_daerah: '', pasukan_home_negeri: '', pasukan_away_daerah: '', pasukan_away_negeri: '' };
     this.showJadualModal = true;
   }
 
@@ -1186,6 +1211,8 @@ export class LantikanPengadilComponent implements OnInit {
       no_perlawanan: j.no_perlawanan, tarikh: j.tarikh, masa: j.masa?.slice(0, 5) || '',
       kategori: j.kategori || '', peringkat: j.peringkat || '', kumpulan: j.kumpulan || '',
       pasukan_home: j.pasukan_home || '', pasukan_away: j.pasukan_away || '', tempat: j.tempat || '',
+      pasukan_home_daerah: j.pasukan_home_daerah || '', pasukan_home_negeri: j.pasukan_home_negeri || '',
+      pasukan_away_daerah: j.pasukan_away_daerah || '', pasukan_away_negeri: j.pasukan_away_negeri || '',
     };
     this.showJadualModal = true;
   }
@@ -1203,6 +1230,9 @@ export class LantikanPengadilComponent implements OnInit {
         this.toast.show(res.message || 'Berjaya.', 'success');
         this.showJadualModal = false;
         this.savingJadual = false;
+        if (this.editingJadual && this.selectedJadual?.id === this.editingJadual.id) {
+          this.selectedJadual = { ...this.selectedJadual, ...this.jadualForm };
+        }
         this.loadJadual(this.selectedKejohanan!.id);
       },
       error: (err) => { this.toast.show(err?.error?.message || 'Ralat.', 'error'); this.savingJadual = false; },
@@ -1271,15 +1301,15 @@ export class LantikanPengadilComponent implements OnInit {
   }
 
   downloadJadualTemplate(): void {
-    const header = ['No Perlawanan', 'Tarikh', 'Masa', 'Kategori', 'Peringkat', 'Kumpulan', 'Pasukan Home', 'Pasukan Away', 'Padang'];
+    const header = ['No Perlawanan', 'Tarikh', 'Masa', 'Kategori', 'Peringkat', 'Kumpulan', 'Pasukan Home', 'Pasukan Away', 'Padang', 'Daerah Home', 'Negeri Home', 'Daerah Away', 'Negeri Away'];
     const sample = [
-      ['1', '2024-09-04', '08:00', 'B15', 'Kumpulan', 'A', 'MSS Pahang', 'MSS Selangor', 'Padang 1'],
-      ['2', '2024-09-04', '09:15', 'B15', 'Kumpulan', 'B', 'MSS Johor', 'MSS Perak', 'Padang 2'],
-      ['3', '2024-09-05', '15:30', 'B15', 'Suku Akhir', '', 'MSS Kedah', 'MSS Sabah', 'Padang 1'],
-      ['4', '2024-09-06', '10:00', 'B18', 'Final', '', 'MSS Pahang', 'MSS Johor', 'Padang 1'],
+      ['1', '2024-09-04', '08:00', 'B15', 'Kumpulan', 'A', 'MSS Pahang', 'MSS Selangor', 'Padang 1', '', 'Pahang', '', 'Selangor'],
+      ['2', '2024-09-04', '09:15', 'B15', 'Kumpulan', 'B', 'MSS Johor', 'MSS Perak', 'Padang 2', '', 'Johor', '', 'Perak'],
+      ['3', '2024-09-05', '15:30', 'B15', 'Suku Akhir', '', 'MSS Kedah', 'MSS Sabah', 'Padang 1', '', 'Kedah', '', 'Sabah'],
+      ['4', '2024-09-06', '10:00', 'B18', 'Final', '', 'Kelab A', 'Kelab B', 'Padang 1', 'Kuantan', 'Pahang', 'Temerloh', 'Pahang'],
     ];
     const ws = XLSX.utils.aoa_to_sheet([header, ...sample]);
-    ws['!cols'] = [{ wch: 16 }, { wch: 14 }, { wch: 8 }, { wch: 10 }, { wch: 16 }, { wch: 10 }, { wch: 25 }, { wch: 25 }, { wch: 22 }];
+    ws['!cols'] = [{ wch: 16 }, { wch: 14 }, { wch: 8 }, { wch: 10 }, { wch: 16 }, { wch: 10 }, { wch: 25 }, { wch: 25 }, { wch: 22 }, ...Array.from({ length: 4 }, () => ({ wch: 20 }))];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Jadual Perlawanan');
     XLSX.writeFile(wb, 'template-jadual-perlawanan.xlsx');
@@ -1309,7 +1339,11 @@ export class LantikanPengadilComponent implements OnInit {
       const headerRow = rows[0].map((h: any) => String(h).toLowerCase().trim());
       const colMap: Record<string, number> = {};
       headerRow.forEach((h: string, idx: number) => {
-        if (h.includes('no') && (h.includes('per') || h.includes('match'))) colMap['no_perlawanan'] = idx;
+        const side = h.includes('home') || h.includes('tuan') ? 'home'
+          : h.includes('away') || h.includes('tetamu') || h.includes('pelawat') ? 'away' : null;
+        if (side && (h.includes('daerah') || h.includes('district'))) colMap[`pasukan_${side}_daerah`] = idx;
+        else if (side && (h.includes('negeri') || h.includes('state'))) colMap[`pasukan_${side}_negeri`] = idx;
+        else if (h.includes('no') && (h.includes('per') || h.includes('match'))) colMap['no_perlawanan'] = idx;
         else if (h.includes('tarikh') || h.includes('date')) colMap['tarikh'] = idx;
         else if (h.includes('masa') || h.includes('time')) colMap['masa'] = idx;
         else if (h.includes('kategori') || h.includes('category')) colMap['kategori'] = idx;
@@ -1365,6 +1399,8 @@ export class LantikanPengadilComponent implements OnInit {
           kumpulan: 'kumpulan' in colMap ? String(r[colMap['kumpulan']] ?? '').trim() : '',
           pasukan_home: home,
           pasukan_away: away,
+          ...Object.fromEntries(['pasukan_home_daerah', 'pasukan_home_negeri', 'pasukan_away_daerah', 'pasukan_away_negeri']
+            .map(field => [field, field in colMap ? String(r[colMap[field]] ?? '').trim() : ''])),
           tempat: 'tempat' in colMap ? String(r[colMap['tempat']] ?? '').trim() : '',
         });
       }
@@ -1934,6 +1970,7 @@ export class LantikanPengadilComponent implements OnInit {
   }
 
   loadLaporan(): void {
+    if (this.isDistrict) return;
     this.loadingLaporan = true;
     this.api.get<any>('laporan-penilaian.php').subscribe({
       next: (res) => { this.laporanList = res.data || []; this.loadingLaporan = false; },

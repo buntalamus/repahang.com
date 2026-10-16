@@ -1,3 +1,4 @@
+import { authorizeAppointmentResource, districtOf, localOfficialSql } from './appointment-access';
 import {currentUser,json} from './auth';
 import {appointmentWritesEnabled,lantikanWrite} from './lantikan-write';
 import {autoTolakLantikanTertunggak,retryPendingKupCrewNotifications} from './php/lantikan-helper';
@@ -11,7 +12,8 @@ type PoolOfficial = Record<string,unknown> & {daerah:string|null;negeri:string|n
 export async function adminAppointments(request:Request,env:Env):Promise<Response> {
   const user=await currentUser(request,env);
   if (!user) return json({error:true,message: 'Sesi tidak sah. Sila log masuk semula.'},401);
-  if (user.role!=='Admin') return json({error:true,message:'Akses ditolak.'},403);
+  const access=await authorizeAppointmentResource(request,env,user,'appointment');
+  if (access) return access;
   if (request.method!=='GET') return lantikanWrite(request,env,user);
   const raw=new URL(request.url).searchParams.get('jadual_id');
   const jadualId=Number(raw);
@@ -45,6 +47,8 @@ export async function adminAppointments(request:Request,env:Env):Promise<Respons
         CASE WHEN lp.pengadil_id IS NOT NULL THEN u.no_telefon ELSE pl.no_tel END AS no_telefon,
         CASE WHEN lp.pengadil_id IS NOT NULL THEN u.email ELSE pl.emel END AS email,
         CASE WHEN lp.pengadil_id IS NOT NULL THEN u.jenis_pengadil ELSE pl.jenis_pengadil END AS jenis_pengadil,
+        CASE WHEN lp.pengadil_id IS NOT NULL THEN u.daerah ELSE pl.daerah END AS daerah,
+        CASE WHEN lp.pengadil_id IS NOT NULL THEN u.negeri ELSE pl.negeri END AS negeri,
         CASE WHEN lp.pengadil_id IS NOT NULL THEN 'Berdaftar' ELSE 'Luar' END AS jenis_sumber
       FROM lantikan_pengadil lp
       LEFT JOIN users u ON u.id=lp.pengadil_id
@@ -76,8 +80,8 @@ export async function adminAppointments(request:Request,env:Env):Promise<Respons
       FROM pool_pengadil pp
       LEFT JOIN users u ON u.id=pp.pengadil_id
       LEFT JOIN pengadil_luar pl ON pl.id=pp.pengadil_luar_id
-      WHERE pp.kejohanan_id=? ORDER BY nama_penuh ASC
-    `).bind(tournament.kejohanan_id).all<PoolOfficial>(),
+      WHERE pp.kejohanan_id=? ${user.role==='PP Daerah' ? `AND pp.pengadil_luar_id IS NULL AND ${localOfficialSql('u')}` : ''} ORDER BY nama_penuh ASC
+    `).bind(tournament.kejohanan_id,...(user.role==='PP Daerah' ? [districtOf(user)] : [])).all<PoolOfficial>(),
   ]);
   const state=tournament.peringkat_kejohanan==='Negeri';
   return json({error:false,data:assignments.results,

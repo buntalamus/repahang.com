@@ -161,7 +161,7 @@ export function renderScheduleDocument(document: ScheduleDocument, printedBy: st
 export async function printSchedule(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'GET') return errorPage('Kaedah tidak dibenarkan.', 405);
   const user = await currentUser(request, env);
-  if (!user || user.role !== 'Admin') return errorPage('Akses tidak dibenarkan. Sila log masuk sebagai Admin terlebih dahulu.', 403);
+  if (!user || !['Admin','PP Daerah'].includes(user.role)) return errorPage('Akses tidak dibenarkan. Sila log masuk sebagai Admin terlebih dahulu.', 403);
   const result = await scheduleReport(request, env);
   if (!result.ok) {
     const failure = await result.json() as { message?: string };

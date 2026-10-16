@@ -200,8 +200,7 @@ export const routes: Routes = [
       {
         path: 'lantikan',
         loadComponent: () =>
-          import('./features/pp-daerah/applications/applications.component').then((m) => m.PpApplicationsComponent),
-        data: { type: 'lantikan' },
+          import('./features/admin/lantikan-pengadil/lantikan-pengadil.component').then((m) => m.LantikanPengadilComponent),
       },
       {
         path: 'notifikasi-lantikan',

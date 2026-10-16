@@ -1,3 +1,19 @@
+@if (isDistrict) {
+  <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-slate-800">
+    <h2 class="font-bold">Lantikan Pengadil Daerah · {{ districtName }}</h2>
+    <p class="mt-1 text-xs leading-relaxed">Cipta kejohanan dan jadual, tambah pengadil kelolaan daerah ke pool, kemudian buat dan hantar lantikan. Salinan makluman dihantar kepada PP Daerah dan Admin. Admin boleh memantau dan mengubah lantikan.</p>
+  </div>
+} @else {
+  <div class="mb-4 rounded-xl border border-slate-200 bg-white p-4">
+    <label class="text-xs font-semibold text-slate-700">Pemilik lantikan
+      <select [(ngModel)]="ownerFilter" (ngModelChange)="kejohananPage = 1" class="ml-3 px-3 py-2 border border-slate-300 rounded-lg text-sm">
+        <option value="">Semua: Admin dan PP Daerah</option>
+        @for (owner of appointmentOwners; track owner) { <option [value]="owner">{{ owner }}</option> }
+      </select>
+    </label>
+    <p class="mt-2 text-xs text-slate-500">Semua lantikan PP Daerah boleh dipantau dan diubah menggunakan tindakan lantikan yang sama.</p>
+  </div>
+}
 <div class="space-y-6">
 
   <!-- Tab Nav -->
@@ -86,6 +102,7 @@
                   (click)="selectKejohanan(k)">
                   <td class="px-4 py-3">
                     <p class="font-medium text-slate-900 text-sm">{{ k.nama }}</p>
+                    <p class="text-xs text-slate-600 mt-1">{{ k.lantikan_daerah_nama || 'Admin Negeri' }} · {{ k.created_by_nama || '-' }}</p>
                     <div class="flex items-center gap-1.5 mt-0.5">
                       <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold"
                         [class]="k.jenis_kejohanan === 'Liga' ? 'bg-blue-100 text-blue-700' : k.jenis_kejohanan === 'Karnival' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'">
@@ -228,7 +245,7 @@
     }
 
     <!-- Pengerusi Pengadil bagi pengesahan laporan RA -->
-    @if (selectedKejohanan) {
+    @if (selectedKejohanan && !isDistrict) {
       <div class="mt-6 bg-white rounded-xl shadow-sm border border-slate-200 p-5">
         <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div>
@@ -291,7 +308,8 @@
             <p class="text-xs text-slate-500 mt-0.5">{{ poolList.length }} pengadil ditag untuk {{ selectedKejohanan.nama }}</p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <button type="button" (click)="openTelegramOnboardingModal()"
+            @if (!isDistrict) {
+<button type="button" (click)="openTelegramOnboardingModal()"
               [disabled]="loadingPool || externalPoolCount === 0"
               class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0088CC] text-white text-xs font-semibold rounded-lg hover:bg-[#006FA3] disabled:opacity-50 disabled:cursor-not-allowed transition">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -302,6 +320,7 @@
                 <span class="rounded-full bg-white/20 px-1.5 py-0.5">{{ linkedExternalPoolCount }}/{{ externalPoolCount }}</span>
               }
             </button>
+}
             <button type="button" (click)="openPoolModal()"
               class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-pahang-black text-pahang-yellow text-xs font-semibold rounded-lg hover:bg-gray-800 transition">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -720,6 +739,7 @@
         <app-loading message="Memuatkan lantikan..." />
       } @else {
         <!-- Two-column layout: assignments table (left) + pool browser (right) -->
+        <p class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">⚠ Baris merah: asal pengadil sepadan dengan pasukan bertanding mengikut peringkat kejohanan. Ini tanda berjaga-jaga; lantikan masih dibenarkan. Semakan memerlukan daerah/negeri pasukan diisi dalam Jadual Perlawanan.</p>
         <div class="grid min-w-0 grid-cols-1 lg:grid-cols-2 gap-4">
 
           <!-- LEFT: Jawatan Assignment Table -->
@@ -749,8 +769,9 @@
                   @for (jawatan of jawatanList; track jawatan) {
                     @let assignment = getAssignment(jawatan);
                     @let isActive = activeJawatan === jawatan;
+                    @let regionCaution = getRegionCaution(assignment);
                     <tr class="transition-colors"
-                      [class]="isActive ? 'bg-pahang-yellow/10 ring-inset ring-1 ring-pahang-black/20' : 'hover:bg-slate-50'">
+                      [class]="regionCaution ? 'region-caution' : isActive ? 'bg-pahang-yellow/10 ring-inset ring-1 ring-pahang-black/20' : 'hover:bg-slate-50'">
                       <td class="px-4 py-3 align-top w-36">
                         <p class="text-xs font-semibold text-slate-700 leading-snug">{{ jawatan }}</p>
                         @if (assignment?.notif_hantar) {
@@ -787,6 +808,9 @@
                                  [class.hover:text-blue-600]="assignment.pengadil_id"
                                  [class.hover:underline]="assignment.pengadil_id"
                                  (click)="assignment.pengadil_id && profileModal.open(assignment.pengadil_id)">{{ assignment.nama_penuh }}</p>
+                              @if (regionCaution) {
+                                <p class="mt-1 text-[11px] font-semibold text-red-800">⚠ {{ regionCaution }}</p>
+                              }
                               <div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                 <span class="px-1.5 py-0.5 rounded border text-[10px] font-medium leading-none" [class]="getJenisBadgeClass(assignment.jenis_pengadil)">
                                   {{ assignment.jenis_pengadil || assignment.jenis_sumber }}
@@ -844,11 +868,13 @@
                                 Buang
                               </button>
                             }
-                            <button type="button" (click)="toggleAppointmentAudit(assignment.id)"
+                            @if (!isDistrict) {
+<button type="button" (click)="toggleAppointmentAudit(assignment.id)"
                               class="px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 rounded-lg text-[10px] font-semibold transition whitespace-nowrap"
                               [attr.aria-expanded]="expandedAuditId === assignment.id">
                               {{ expandedAuditId === assignment.id ? 'Tutup Log' : 'Pautan & Log' }}
                             </button>
+}
                           </div>
                         } @else {
                           <button (click)="selectJawatan(jawatan)"
@@ -1044,8 +1070,9 @@
                 }
                 @for (ref of filteredReferees; track ref.pool_id) {
                   @let alreadyAssigned = isAssignedToCurrentMatch(ref);
+                  @let regionCaution = getRegionCaution(ref);
                   <div class="px-4 py-3 transition-colors"
-                    [class]="alreadyAssigned ? 'bg-slate-50 opacity-60' : 'hover:bg-slate-50'">
+                    [class]="regionCaution ? 'region-caution' : alreadyAssigned ? 'bg-slate-50 opacity-60' : 'hover:bg-slate-50'">
                     <div class="flex items-start justify-between gap-2">
                       <div class="flex items-start gap-2.5 min-w-0">
                         <!-- Avatar -->
@@ -1060,6 +1087,9 @@
                              [class.hover:text-blue-600]="ref.pengadil_id"
                              [class.hover:underline]="ref.pengadil_id"
                              (click)="ref.pengadil_id && profileModal.open(ref.pengadil_id)">{{ ref.nama_penuh }}</p>
+                          @if (regionCaution) {
+                            <p class="mt-1 text-[11px] font-semibold text-red-800">⚠ {{ regionCaution }}</p>
+                          }
                           <div class="flex flex-wrap items-center gap-1 mt-0.5">
                             <span class="px-1.5 py-0.5 rounded border text-[10px] font-medium leading-none" [class]="getJenisBadgeClass(ref.jenis_pengadil)">
                               {{ ref.jenis_pengadil || ref.jenis_sumber }}
@@ -1310,6 +1340,7 @@
       </div>
 
       <!-- Full schedule table (PDF-style) -->
+      <p class="my-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">⚠ Baris merah pada pegawai: daerah sama untuk kejohanan Negeri/Daerah, atau negeri sama untuk Kebangsaan. Medan asal pasukan yang kosong belum boleh disemak. Status penerimaan kekal berasingan.</p>
       @if (jadual.length === 0 || jadualLantikanGrouped.length === 0) {
         <div class="bg-slate-50 border border-slate-200 rounded-b-xl p-8 text-center text-sm text-slate-500">
           {{ jadual.length === 0 ? 'Tiada perlawanan dalam jadual bagi kejohanan ini.' : 'Tiada perlawanan sepadan dengan carian.' }}
@@ -1378,7 +1409,10 @@
                   </tr>
                   @for (j of group.matches; track j.id) {
                   @for (jaw of jawatanList; track jaw; let ji = $index) {
+                    @let a = j.assignments[jaw];
+                    @let regionCaution = getRegionCaution(a, j, jadualLantikanData.kejohanan);
                     <tr class="hover:bg-amber-50/30 transition-colors"
+                        [class.region-caution]="!!regionCaution"
                         [class.border-b-2]="ji === jawatanList.length - 1"
                         [class.border-b-slate-400]="ji === jawatanList.length - 1"
                         [class.bg-white]="ji % 2 === 0"
@@ -1448,7 +1482,6 @@
                         </td>
                       }
                       <!-- Jawatan code -->
-                      @let a = j.assignments[jaw];
                       <td class="px-1.5 py-1 text-center border-y border-l border-slate-200 font-bold text-slate-500 w-8"
                           [class.bg-amber-50]="a?.status_lantikan === 'Belum Jawab'"
                           [class.bg-emerald-50]="a?.status_lantikan === 'Diterima'"
@@ -1469,6 +1502,9 @@
                                 [class.hover:text-blue-600]="a.pengadil_id"
                                 [class.hover:underline]="a.pengadil_id"
                                 (click)="a.pengadil_id && profileModal.open(a.pengadil_id)">{{ a.nama_penuh }}</span>
+                          @if (regionCaution) {
+                            <span class="block mt-0.5 text-[10px] font-semibold text-red-800">⚠ {{ regionCaution }}</span>
+                          }
                           @if (a.status_lantikan === 'Diterima') {
                             <svg class="w-3 h-3 text-emerald-600 inline ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
@@ -1679,7 +1715,7 @@
           </div>
           <div>
             <label class="block text-xs text-gray-500 mb-1">Peringkat <span class="text-rose-500">*</span></label>
-            <select [(ngModel)]="kejohananForm.peringkat_kejohanan" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+            <select [disabled]="isDistrict" [(ngModel)]="kejohananForm.peringkat_kejohanan" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
               <option value="Daerah">Daerah</option>
               <option value="Negeri">Negeri</option>
               <option value="Kebangsaan">Kebangsaan</option>
@@ -1823,11 +1859,20 @@
             <div>
               <label class="block text-xs text-gray-500 mb-1">Pasukan Tuan Rumah</label>
               <input type="text" [(ngModel)]="jadualForm.pasukan_home" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="cth: MSS Pahang" />
+              <label for="home-daerah" class="block text-xs text-gray-500 mt-2 mb-1">Daerah pasukan tuan rumah</label>
+              <input id="home-daerah" type="text" maxlength="255" [(ngModel)]="jadualForm.pasukan_home_daerah" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="cth: Kuantan" />
+              <label for="home-negeri" class="block text-xs text-gray-500 mt-2 mb-1">Negeri pasukan tuan rumah</label>
+              <input id="home-negeri" type="text" maxlength="255" [(ngModel)]="jadualForm.pasukan_home_negeri" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="cth: Pahang" />
             </div>
             <div>
               <label class="block text-xs text-gray-500 mb-1">Pasukan Pelawat</label>
               <input type="text" [(ngModel)]="jadualForm.pasukan_away" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="cth: MSS Selangor" />
+              <label for="away-daerah" class="block text-xs text-gray-500 mt-2 mb-1">Daerah pasukan pelawat</label>
+              <input id="away-daerah" type="text" maxlength="255" [(ngModel)]="jadualForm.pasukan_away_daerah" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="cth: Temerloh" />
+              <label for="away-negeri" class="block text-xs text-gray-500 mt-2 mb-1">Negeri pasukan pelawat</label>
+              <input id="away-negeri" type="text" maxlength="255" [(ngModel)]="jadualForm.pasukan_away_negeri" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="cth: Pahang" />
             </div>
+            <p class="col-span-2 text-xs text-slate-600">Isi asal pasukan untuk semakan lantikan: peringkat Negeri/Daerah membandingkan daerah; Kebangsaan membandingkan negeri. Medan kosong belum boleh disemak.</p>
           </div>
           <div class="col-span-3">
             <label class="block text-xs text-gray-500 mb-1">Tempat / Padang</label>
@@ -1926,8 +1971,8 @@
                           <td class="px-3 py-2 text-slate-700">{{ row.kategori || '-' }}</td>
                           <td class="px-3 py-2 text-slate-700">{{ row.peringkat || '-' }}</td>
                           <td class="px-3 py-2 text-slate-700">{{ row.kumpulan || '-' }}</td>
-                          <td class="px-3 py-2 text-slate-700">{{ row.pasukan_home || '-' }}</td>
-                          <td class="px-3 py-2 text-slate-700">{{ row.pasukan_away || '-' }}</td>
+                          <td class="px-3 py-2 text-slate-700">{{ row.pasukan_home || '-' }}<span class="block text-[10px] text-slate-500">{{ row.pasukan_home_daerah || 'Daerah belum diisi' }} · {{ row.pasukan_home_negeri || 'Negeri belum diisi' }}</span></td>
+                          <td class="px-3 py-2 text-slate-700">{{ row.pasukan_away || '-' }}<span class="block text-[10px] text-slate-500">{{ row.pasukan_away_daerah || 'Daerah belum diisi' }} · {{ row.pasukan_away_negeri || 'Negeri belum diisi' }}</span></td>
                           <td class="px-3 py-2 text-slate-700">{{ row.tempat || '-' }}</td>
                         </tr>
                       }
@@ -2154,13 +2199,15 @@
         <button (click)="switchPoolTab('berdaftar')"
           class="px-4 py-2 text-xs font-semibold rounded-lg transition"
           [class]="poolTab === 'berdaftar' ? 'bg-pahang-black text-pahang-yellow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
-          Pengadil Berdaftar (Pahang)
+          {{ isDistrict ? 'Pengadil Kelolaan Daerah' : 'Pengadil Berdaftar (Pahang)' }}
         </button>
-        <button (click)="switchPoolTab('luar')"
+        @if (!isDistrict) {
+<button (click)="switchPoolTab('luar')"
           class="px-4 py-2 text-xs font-semibold rounded-lg transition"
           [class]="poolTab === 'luar' ? 'bg-pahang-black text-pahang-yellow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
           Pengadil Luar
         </button>
+}
       </div>
 
       <!-- Auto-tick dari Excel -->
@@ -2168,7 +2215,7 @@
         <div class="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
           <div class="flex-1 min-w-0">
             <p class="text-xs font-semibold text-amber-800">Tanda automatik dari Excel</p>
-            <p class="text-[11px] text-amber-700 leading-snug">Muat naik senarai nama — sistem auto-tanda pengadil sepadan (Pahang &amp; luar) dalam kedua-dua tab.</p>
+            <p class="text-[11px] text-amber-700 leading-snug">{{ isDistrict ? 'Muat naik senarai nama untuk menanda pengadil kelolaan daerah yang sepadan.' : 'Muat naik senarai nama untuk menanda pengadil Pahang dan luar yang sepadan.' }}</p>
           </div>
           <button (click)="downloadPoolMatchTemplate()"
             class="px-2.5 py-1.5 text-[11px] font-semibold text-amber-800 border border-amber-300 rounded-lg hover:bg-amber-100 whitespace-nowrap">

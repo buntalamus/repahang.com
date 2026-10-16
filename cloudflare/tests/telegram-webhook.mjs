@@ -7,7 +7,7 @@ const worker=await bundle(`
   export {setEmailSenderForTests} from '../src/php/email';
   export {setTelegramSenderForTests,setTelegramApiForTests} from '../src/php/telegram';
 `);
-const {db,DB,close}=openDatabase(['0009_mysql_on_update_triggers','0010_worker_write_guards']);
+const {db,DB,close}=openDatabase(['0009_mysql_on_update_triggers','0010_worker_write_guards','0022_district_appointments']);
 const sent=[];
 const api=[];
 worker.setEmailSenderForTests(async()=>true);

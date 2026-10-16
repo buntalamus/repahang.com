@@ -1,3 +1,4 @@
+import { processDistrictAppointmentMail } from './district-appointment-mail';
 import { currentUser, json, login, logout, session } from './auth';
 import { adminUsers } from './admin-users';
 import { adminUserMasterData } from './user-master-data';
@@ -364,7 +365,15 @@ export default {
       return json({ error: true, message: 'Asal permintaan tidak dibenarkan.' }, 403);
     }
     try {
-      if (pathname.startsWith('/api/')) return await api(request, env, pathname, ctx);
+      if (pathname.startsWith('/api/')) {
+        const response=await api(request, env, pathname, ctx);
+        if (response.ok && request.method==='POST' && appointmentWritesEnabled(env)
+          && ['/api/lantikan.php','/api/lantikan-jawab.php','/api/lantikan-jawab-token.php',
+            '/api/lantikan-audit.php','/api/telegram-webhook.php'].includes(pathname)) {
+          ctx.waitUntil(processDistrictAppointmentMail(env).catch(()=>console.error('District appointment mail retry pending.')));
+        }
+        return response;
+      }
       if (pathname.startsWith('/uploads/')) {
         if (request.method !== 'GET' && request.method !== 'HEAD') {
           return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
@@ -380,7 +389,10 @@ export default {
   async scheduled(_event: ScheduledController, env: Env): Promise<void> {
     // api/kup-crew-notification-retry.php ran from the system cron in PHP.
     try {
-      if (appointmentWritesEnabled(env)) await processQueuedKupCrewNotifications(env);
+      if (appointmentWritesEnabled(env)) {
+        try { await processQueuedKupCrewNotifications(env); }
+        finally { await processDistrictAppointmentMail(env); }
+      }
     } finally {
       await syncAllShinjiruMailboxes(env);
     }

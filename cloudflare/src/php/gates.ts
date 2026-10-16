@@ -38,7 +38,7 @@ const ALL_ROLES = ['Pengadil', 'Penilai', 'PP Daerah', 'Admin'];
 
 export const GATES: Record<string, Gate> = {
   // requireRole([...]) at the top of the file
-  'lantikan.php': requireRole('Admin'),
+  'lantikan.php': requireRole('Admin', 'PP Daerah'),
   'admin-matches.php': requireRole('Admin'),
   'lantikan-audit.php': requireRole('Admin'),
   'lantikan-jawab.php': requireRole('Pengadil', 'Penilai', 'PP Daerah'),
@@ -59,11 +59,11 @@ export const GATES: Record<string, Gate> = {
   'get-active-referees.php': requireRole(...ALL_ROLES),
   'pengadil-taraf.php': requireRole('Admin'),
   'pengadil-match-manage.php': requireRole('Pengadil'),
-  'pool-pengadil.php': requireRole('Admin'),
-  'jadual-perlawanan.php': requireRole('Admin'),
-  'jadual-lantikan-report.php': requireRole('Admin'),
-  'jadual-upload.php': requireRole('Admin'),
-  'kejohanan.php': requireRole('Admin'),
+  'pool-pengadil.php': requireRole('Admin', 'PP Daerah'),
+  'jadual-perlawanan.php': requireRole('Admin', 'PP Daerah'),
+  'jadual-lantikan-report.php': requireRole('Admin', 'PP Daerah'),
+  'jadual-upload.php': requireRole('Admin', 'PP Daerah'),
+  'kejohanan.php': requireRole('Admin', 'PP Daerah'),
   'districts.php': requireRole(...ALL_ROLES),
   // requireAdmin()
   'admin-users.php': requireAdmin,
