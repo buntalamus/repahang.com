@@ -1848,18 +1848,24 @@
             <input type="text" [(ngModel)]="jadualForm.no_perlawanan" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="Auto (cth B12-01)" />
           </div>
           <div>
-            <label class="block text-xs text-gray-500 mb-1">Kategori</label>
-            <select [(ngModel)]="jadualForm.kategori" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+            <label for="jadual-kategori" class="block text-xs text-gray-500 mb-1">Kategori</label>
+            <select id="jadual-kategori" [(ngModel)]="jadualForm.kategori" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
               <option value="">-- Pilih --</option>
+              @if (jadualForm.kategori && !kategoriList.includes(jadualForm.kategori)) {
+                <option [value]="jadualForm.kategori">{{ jadualForm.kategori }} (rekod sedia ada)</option>
+              }
               @for (k of kategoriList; track k) {
                 <option [value]="k">{{ k }}</option>
               }
             </select>
           </div>
           <div>
-            <label class="block text-xs text-gray-500 mb-1">Peringkat</label>
-            <select [(ngModel)]="jadualForm.peringkat" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+            <label for="jadual-peringkat" class="block text-xs text-gray-500 mb-1">Peringkat</label>
+            <select id="jadual-peringkat" [(ngModel)]="jadualForm.peringkat" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
               <option value="">-- Pilih --</option>
+              @if (jadualForm.peringkat && !peringkatList.includes(jadualForm.peringkat)) {
+                <option [value]="jadualForm.peringkat">{{ jadualForm.peringkat }} (rekod sedia ada)</option>
+              }
               @for (p of peringkatList; track p) {
                 <option [value]="p">{{ p }}</option>
               }

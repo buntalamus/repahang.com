@@ -214,8 +214,8 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
   editingJadual: any = null;
   savingJadual = false;
   jadualForm = { no_perlawanan: '', tarikh: '', masa: '', kategori: '', peringkat: '', kumpulan: '', pasukan_home: '', pasukan_away: '', tempat: '', pasukan_home_daerah: '', pasukan_home_negeri: '', pasukan_away_daerah: '', pasukan_away_negeri: '' };
-  kategoriList = ['B12', 'B15', 'B18'];
-  peringkatList = ['Kumpulan', 'XY', 'Suku Akhir', 'Separuh Akhir', '3rd Playoff', 'Final'];
+  readonly kategoriList = ['Terbuka', 'B11', 'B12', 'B14', 'B15', 'B16', 'B18', 'B19'];
+  readonly peringkatList = ['Kumpulan', 'Liga', 'XY', 'Suku Akhir', 'Separuh Akhir', 'Ke 3/4', 'Akhir', 'Persahabatan'];
 
   getKategoriClass(kategori: string): string {
     switch (kategori?.toUpperCase()) {
@@ -1346,7 +1346,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
       ['1', '2024-09-04', '08:00', 'B15', 'Kumpulan', 'A', 'MSS Pahang', 'MSS Selangor', 'Padang 1', '', 'Pahang', '', 'Selangor'],
       ['2', '2024-09-04', '09:15', 'B15', 'Kumpulan', 'B', 'MSS Johor', 'MSS Perak', 'Padang 2', '', 'Johor', '', 'Perak'],
       ['3', '2024-09-05', '15:30', 'B15', 'Suku Akhir', '', 'MSS Kedah', 'MSS Sabah', 'Padang 1', '', 'Kedah', '', 'Sabah'],
-      ['4', '2024-09-06', '10:00', 'B18', 'Final', '', 'Kelab A', 'Kelab B', 'Padang 1', 'Kuantan', 'Pahang', 'Temerloh', 'Pahang'],
+      ['4', '2024-09-06', '10:00', 'B18', 'Akhir', '', 'Kelab A', 'Kelab B', 'Padang 1', 'Kuantan', 'Pahang', 'Temerloh', 'Pahang'],
     ];
     const ws = XLSX.utils.aoa_to_sheet([header, ...sample]);
     ws['!cols'] = [{ wch: 16 }, { wch: 14 }, { wch: 8 }, { wch: 10 }, { wch: 16 }, { wch: 10 }, { wch: 25 }, { wch: 25 }, { wch: 22 }, ...Array.from({ length: 4 }, () => ({ wch: 20 }))];
