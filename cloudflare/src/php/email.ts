@@ -439,12 +439,13 @@ export async function sendLantikanEmail(env: Env, to: string, nama: string, jawa
 export async function sendBatalEmail(env: Env, to: string, nama: string, jawatan: string,
   kejohanan: string, tarikh: string, masa: string, tempat: string, pasukanHome: string,
   pasukanAway: string, noMatch = '', logoHome = '', logoAway = '', isDashboard = false,
-  status = 'Dibatalkan', sebab = ''): Promise<boolean> {
+  status = 'Dibatalkan', sebab = '', scope: 'perlawanan' | 'lantikan' = 'perlawanan'): Promise<boolean> {
   const base = baseUrl(env);
   const noFmt = noMatchFmt(noMatch);
   const inlineImages: InlineImage[] = [];
   const isPostponed = status === 'Ditangguhkan';
-  const title = isPostponed ? 'Perlawanan Ditangguhkan' : 'Perlawanan Dibatalkan';
+  const title = scope === 'lantikan' ? 'Lantikan Dibatalkan'
+    : isPostponed ? 'Perlawanan Ditangguhkan' : 'Perlawanan Dibatalkan';
   const statusText = isPostponed ? 'ditangguhkan' : 'dibatalkan';
   const accent = isPostponed ? '#D97706' : '#DC2626';
   const noticeBanner = `
@@ -530,7 +531,9 @@ export async function sendBatalEmail(env: Env, to: string, nama: string, jawatan
            Ini adalah notifikasi automatik. Sila hubungi pengurus kejohanan jika anda mempunyai
            sebarang pertanyaan berkenaan pembatalan ini.
          </p>`;
-  const subject = `${isPostponed ? 'Penangguhan Perlawanan: ' : 'Pembatalan Perlawanan: '}${kejohanan}`
+  const subjectPrefix = scope === 'lantikan' ? 'Pembatalan Lantikan: '
+    : isPostponed ? 'Penangguhan Perlawanan: ' : 'Pembatalan Perlawanan: ';
+  const subject = `${subjectPrefix}${kejohanan}`
     + `${noFmt !== '-' ? ` (No: ${noFmt})` : ''} — ${pasukanHome} vs ${pasukanAway} — ${tarikhFmt(tarikh)}`;
   const html = buildEmailTemplate(title, accent, '', body);
   return sendEmail(env, to, subject, html, nama, 'lantikan', inlineImages);

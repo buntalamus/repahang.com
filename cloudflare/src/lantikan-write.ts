@@ -11,7 +11,7 @@ import type { SessionUser as User } from './auth';
 import type { Env } from './types';
 import { boundedJson } from './request';
 import { sendBatalEmail, sendLantikanEmail } from './php/email';
-import type { AuditMeta } from './php/lantikan-audit';
+import type { AuditMeta, LantikanSnapshot } from './php/lantikan-audit';
 import { NOW, buildAppointmentDirectLinks, buildTelegramLink, getLantikanAuditSnapshot,
   lantikanAuditSelectStatement, lantikanAuditStatement, recordLantikanAudit } from './php/lantikan-audit';
 import { autoTolakLantikanTertunggak, createPortalNotification, generatePenilaianToken,
@@ -21,6 +21,7 @@ import { autoTolakLantikanTertunggak, createPortalNotification, generatePenilaia
   notifyPPDaerahLantikan, randomHex } from './php/lantikan-helper';
 import { tgBatalMessage, tgLantikanKeyboard, tgLantikanMessage, tgSend } from './php/telegram';
 import { guardStatement, runGuarded } from './php/guard';
+import { notifyPPDaerahBatal } from './lantikan-notify';
 
 const VALID_JAWATAN = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4', 'Penilai Pengadil'];
 const CHANGED = 'Slot lantikan telah berubah. Muat semula dan cuba lagi.';
@@ -243,7 +244,15 @@ async function assign(env: Env, input: Record<string, unknown>, user: User, meta
     statements.push(env.DB.prepare("UPDATE jadual_perlawanan SET status='Menunggu Pengesahan' WHERE id=?")
       .bind(jadualId));
   }
+  // The replaced official must hear that their appointment no longer stands.
+  const previousHolder = existing && identityChanged && !matchStarted
+    && ['Belum Jawab', 'Diterima'].includes(String(existing.status))
+    ? await getLantikanAuditSnapshot(env, existing.id) : null;
   if (!(await runGuarded(env, statements))) return json({ error: true, message: CHANGED }, 409);
+  let previousHolderNotified = false;
+  if (previousHolder && (previousHolder.notif_hantar || previousHolder.tg_notif_hantar)) {
+    previousHolderNotified = await notifyReplacedOfficial(env, previousHolder, user, meta);
+  }
 
   const shouldNotifyCompleteKup = matchStarted && requiresFreshResponse && isKupPosition(jawatan)
     && await isAcceptedKupCrewComplete(env, jadualId);
@@ -273,7 +282,49 @@ async function assign(env: Env, input: Record<string, unknown>, user: User, meta
       message += ' Lantikan Penilai Pengadil berjaya, tetapi notifikasi borang gagal dihantar.';
     }
   }
-  return json({ error: false, message });
+  return json({ error: false, message,
+    ...(previousHolder ? { previous_holder_notified: previousHolderNotified } : {}) });
+}
+
+const REPLACED_REASON = 'Lantikan anda telah diganti oleh pegawai lain.';
+
+/** Cancellation notice (Telegram, email, portal) to an official replaced before kickoff. */
+async function notifyReplacedOfficial(env: Env, snapshot: LantikanSnapshot, user: User,
+  meta: AuditMeta): Promise<boolean> {
+  const actorType = user.role === 'PP Daerah' ? 'pp_daerah' : 'admin';
+  const s = (key: keyof LantikanSnapshot) => String(snapshot[key] ?? '');
+  let delivered = false;
+  try {
+    if (snapshot.telegram_chat_id) {
+      const ok = await tgSend(env, Number(snapshot.telegram_chat_id), tgBatalMessage(s('nama_pegawai'),
+        s('jawatan'), s('kejohanan'), s('tarikh'), s('masa'), s('tempat'), s('pasukan_home'),
+        s('pasukan_away'), s('no_perlawanan'), 'Dibatalkan', REPLACED_REASON, 'lantikan'));
+      delivered = ok || delivered;
+      await recordLantikanAudit(env, snapshot.lantikan_id, 'reassignment_notification', 'telegram',
+        ok ? 'success' : 'failed', { reason: REPLACED_REASON }, null, actorType, user.id, snapshot, meta);
+    }
+    if (snapshot.emel_pegawai) {
+      const match = await env.DB.prepare('SELECT logo_home,logo_away FROM jadual_perlawanan WHERE id=?')
+        .bind(snapshot.jadual_id).first<{ logo_home: string | null; logo_away: string | null }>();
+      const ok = await sendBatalEmail(env, s('emel_pegawai'), s('nama_pegawai'), s('jawatan'), s('kejohanan'),
+        s('tarikh'), s('masa'), s('tempat'), s('pasukan_home'), s('pasukan_away'), s('no_perlawanan'),
+        String(match?.logo_home ?? ''), String(match?.logo_away ?? ''), Boolean(snapshot.pengadil_id),
+        'Dibatalkan', REPLACED_REASON, 'lantikan');
+      delivered = ok || delivered;
+      await recordLantikanAudit(env, snapshot.lantikan_id, 'reassignment_notification', 'email',
+        ok ? 'success' : 'failed', { reason: REPLACED_REASON, recipient: snapshot.emel_pegawai },
+        null, actorType, user.id, snapshot, meta);
+    }
+    if (snapshot.pengadil_id) {
+      await createPortalNotification(env, Number(snapshot.pengadil_id), 'Status Perlawanan',
+        `Lantikan dibatalkan: ${s('pasukan_home')} lwn ${s('pasukan_away')}`,
+        `Lantikan anda sebagai ${s('jawatan')} untuk ${s('pasukan_home')} lwn ${s('pasukan_away')} telah diganti oleh pegawai lain.`);
+      delivered = true;
+    }
+  } catch (error) {
+    console.error('[lantikan.php] replaced official notification error', error instanceof Error ? error.message : error);
+  }
+  return delivered;
 }
 
 async function deleteAppointment(env: Env, request: Request, user: User, meta: AuditMeta): Promise<Response> {
@@ -374,7 +425,8 @@ async function batalLantikanByJadual(env: Env, rawIds: number[], status: string,
       message: 'Perlawanan yang telah bermula tidak boleh dibatalkan melalui aliran lantikan. Rekod sejarah perlu dikekalkan.' }, 409);
   }
   const records = (await env.DB.prepare(`
-    SELECT lp.id,lp.jawatan,lp.notif_hantar,lp.jadual_id,
+    SELECT lp.id,lp.jawatan,lp.notif_hantar,lp.jadual_id,lp.status AS previous_status,
+      u.persatuan_id,kj.lantikan_persatuan_id,
       COALESCE(u.telegram_chat_id,pl.telegram_chat_id) AS telegram_chat_id,
       COALESCE(u.nama_penuh,pl.nama) AS nama, COALESCE(u.email,pl.emel) AS email,
       lp.pengadil_id,jp.no_perlawanan,jp.tarikh,jp.masa,jp.tempat,jp.pasukan_home,jp.pasukan_away,
@@ -442,6 +494,30 @@ async function batalLantikanByJadual(env: Env, rawIds: number[], status: string,
       delivered = true;
     }
     if (delivered) notifCount++;
+  }
+  // PP Daerah of state tournaments were told about the appointment, so they hear about the cancellation.
+  const ppGroups = new Map<string, { persatuanId: number; first: Record<string, unknown>;
+    officials: Array<{ nama: string; jawatan: string }> }>();
+  for (const r of records) {
+    const pid = Number(r.persatuan_id ?? 0);
+    if (!r.notif_hantar || r.lantikan_persatuan_id || !pid || !r.pengadil_id
+      || !['Belum Jawab', 'Diterima'].includes(String(r.previous_status))) continue;
+    const key = `${r.jadual_id}:${pid}`;
+    const group = ppGroups.get(key) ?? { persatuanId: pid, first: r, officials: [] };
+    group.officials.push({ nama: String(r.nama ?? ''), jawatan: String(r.jawatan ?? '') });
+    ppGroups.set(key, group);
+  }
+  for (const group of ppGroups.values()) {
+    try {
+      const f = group.first;
+      await notifyPPDaerahBatal(env, group.persatuanId, group.officials, status, sebab, {
+        kejohanan: String(f.kejohanan ?? ''), tarikh: String(f.tarikh ?? ''), masa: f.masa as string | null,
+        tempat: f.tempat as string | null, pasukan_home: String(f.pasukan_home ?? ''),
+        pasukan_away: String(f.pasukan_away ?? ''),
+      });
+    } catch (error) {
+      console.error('[lantikan.php batal] PP Daerah notification error', error instanceof Error ? error.message : error);
+    }
   }
   let message = `${records.length} lantikan ditanda ${status} untuk ${jadualIds.length} perlawanan.`;
   if (notifCount > 0) message += ` ${notifCount} notifikasi pembatalan dihantar.`;

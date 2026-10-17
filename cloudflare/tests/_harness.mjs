@@ -25,7 +25,8 @@ export function openDatabase(migrations) {
     new URL('../../output/cloudflare/refpahang_2026-10-13_hanafi51_v2.sqlite',import.meta.url);
   copyFileSync(snapshot,path);
   const db=new DatabaseSync(path);
-  for (const file of migrations) {
+  // Every Worker write path may queue notices, so the outbox is always present.
+  for (const file of [...migrations.filter((name)=>name!=='0024_notification_outbox'),'0024_notification_outbox']) {
     db.exec(readFileSync(new URL(`../migrations/${file}.sql`,import.meta.url),'utf8'));
   }
   // Imported flag value can predate the file-based PHP maintenance state.

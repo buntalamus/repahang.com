@@ -75,12 +75,13 @@ export function tgEditMessage(env: Env, chatId: number | string, messageId: numb
 
 export function tgBatalMessage(nama: string, jawatan: string, kejohanan: string, tarikh: string,
   masa: string, tempat: string, pasukanHome: string, pasukanAway: string, noMatch = '',
-  status = 'Dibatalkan', sebab = ''): string {
+  status = 'Dibatalkan', sebab = '', scope: 'perlawanan' | 'lantikan' = 'perlawanan'): string {
   const noFmt = noMatchFmt(noMatch, '');
   const matchLine = `${h(pasukanHome)} lwn ${h(pasukanAway)}`;
   const noLine = noFmt ? `<b>No. Perlawanan:</b> ${noFmt}\n` : '';
   const isPostponed = status === 'Ditangguhkan';
-  const tajuk = isPostponed ? 'Penangguhan Perlawanan' : 'Pembatalan Perlawanan';
+  const tajuk = scope === 'lantikan' ? 'Pembatalan Lantikan'
+    : isPostponed ? 'Penangguhan Perlawanan' : 'Pembatalan Perlawanan';
   const statusText = isPostponed ? 'ditangguhkan' : 'dibatalkan';
   const sebabText = sebab !== '' ? `\n<b>Sebab:</b> ${h(sebab)}\n` : '';
   return `<b>⛔ ${tajuk}</b>\n\n`

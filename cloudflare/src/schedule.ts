@@ -3,6 +3,8 @@ import { currentUser, json } from './auth';
 import { appointmentWritesEnabled } from './lantikan-write';
 import { auditMetaFrom } from './php/lantikan-audit';
 import { autoTolakLantikanTertunggak } from './php/lantikan-helper';
+import { notifyScheduleChange } from './lantikan-notify';
+import type { MatchDetails } from './lantikan-notify';
 import { boundedJson } from './request';
 import type { Env } from './types';
 import { wroteRow } from './d1-changes';
@@ -314,6 +316,8 @@ export async function schedule(request: Request, env: Env): Promise<Response> {
   if (!id) return json({ error: true, message: 'ID diperlukan.' }, 400);
   const report = await env.DB.prepare('SELECT 1 FROM laporan_penilaian WHERE jadual_id=? LIMIT 1').bind(id).first();
   if (report) return json({ error: true, message: 'Perlawanan tidak boleh diubah kerana laporan RA telah diwujudkan.' }, 409);
+  const before = await env.DB.prepare(`SELECT tarikh,masa,tempat,pasukan_home,pasukan_away
+    FROM jadual_perlawanan WHERE id=?`).bind(id).first<MatchDetails>();
   const history = await historyStatements(env, id, values);
   const results = await env.DB.batch([
     env.DB.prepare(`UPDATE jadual_perlawanan SET no_perlawanan=?,tarikh=?,masa=?,hari=?,
@@ -335,5 +339,17 @@ export async function schedule(request: Request, env: Env): Promise<Response> {
     return json({ error: true, message: 'Perlawanan tidak dijumpai atau laporan RA telah diwujudkan.' }, 409);
   }
   await logoFromRegistry(env, id);
-  return json({ error: false, message: 'Perlawanan berjaya dikemaskini.' });
+  let officialsNotified = 0;
+  if (before && appointmentWritesEnabled(env)) {
+    try {
+      officialsNotified = await notifyScheduleChange(env, id, before, {
+        tarikh: values.tarikh, masa: values.masa, tempat: values.tempat,
+        pasukan_home: values.pasukan_home, pasukan_away: values.pasukan_away,
+      }, user.role === 'PP Daerah' ? 'pp_daerah' : 'admin', user.id);
+    } catch (error) {
+      console.error('[jadual-perlawanan] schedule change notification failed',
+        error instanceof Error ? error.message : error);
+    }
+  }
+  return json({ error: false, message: 'Perlawanan berjaya dikemaskini.', officials_notified: officialsNotified });
 }

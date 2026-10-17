@@ -11,6 +11,8 @@ import type { LantikanSnapshot } from './lantikan-audit';
 import { NOW, getLantikanAuditSnapshot, recordLantikanAudit } from './lantikan-audit';
 import { tgKupCrewCompleteMessage, tgSend } from './telegram';
 import { wroteRow } from '../d1-changes';
+import { enqueueNoticeStatements } from '../notify';
+import { autoRejectNotice, autoRejectRecipient, queueAutoRejectDigests } from '../lantikan-notify';
 
 export const LANTIKAN_AUTO_TOLAK_KOMEN = 'Ditolak automatik - tiada jawapan dalam tempoh';
 export const KUP_POSITIONS = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4'];
@@ -658,6 +660,13 @@ export async function autoTolakLantikanTertunggak(env: Env,
         user_agent,created_at)
       SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,${NOW} WHERE changes()=1`)
       .bind(...auditValues(snapshot, row.id, row.deadline, meta, `${batchKey}-${row.id}`)));
+    // Queued with the rejection itself; delivered by cron or waitUntil, never inside this request.
+    statements.push(...enqueueNoticeStatements(env, `auto_reject:${row.id}:${row.tarikh_notif}`,
+      autoRejectRecipient(snapshot), autoRejectNotice(snapshot), {
+        kind: 'auto_reject_notification', lantikanId: row.id,
+        guardSql: 'EXISTS(SELECT 1 FROM lantikan_audit_log WHERE event_key=?)',
+        guardBinds: [`${batchKey}-${row.id}`],
+      }));
   }
   const matches = [...new Set(expired.map((row) => row.jadual_id))];
   for (const jadualId of matches) {
@@ -669,6 +678,21 @@ export async function autoTolakLantikanTertunggak(env: Env,
   await env.DB.batch(statements);
   const changed = await env.DB.prepare(`SELECT lantikan_id,jadual_id,jawatan FROM lantikan_audit_log
     WHERE event_key LIKE ?`).bind(`${batchKey}-%`).all<{ jadual_id: number; jawatan: string }>();
+  try {
+    const digestRows = await env.DB.prepare(`SELECT al.nama_pegawai AS nama,al.jawatan,
+        jp.pasukan_home||' lwn '||jp.pasukan_away AS pasukan,COALESCE(kj.nama,'') AS kejohanan,jp.tarikh,
+        u.persatuan_id
+      FROM lantikan_audit_log al
+      JOIN jadual_perlawanan jp ON jp.id=al.jadual_id
+      LEFT JOIN kejohanan kj ON kj.id=jp.kejohanan_id
+      LEFT JOIN users u ON u.id=al.pengadil_id
+      WHERE al.event_key LIKE ? ORDER BY jp.tarikh,jp.masa,al.id`).bind(`${batchKey}-%`)
+      .all<{ nama: string; jawatan: string; pasukan: string; kejohanan: string; tarikh: string;
+        persatuan_id: number | null }>();
+    await queueAutoRejectDigests(env, batchKey, digestRows.results);
+  } catch (error) {
+    console.error('[autoTolakLantikanTertunggak] digest queue error', error instanceof Error ? error.message : error);
+  }
   const kupMatches = [...new Set(changed.results.filter((row) => isKupPosition(row.jawatan))
     .map((row) => Number(row.jadual_id)))];
   for (const jadualId of kupMatches) {

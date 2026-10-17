@@ -146,13 +146,21 @@ try {
 
   // Replacement before kickoff resets the response state.
   emails.length=0;telegrams.length=0;
-  assert.equal((await read(await call({jadual_id:future,pengadil_id:kup[3].id,jawatan:'Pengadil'}))).body.message,
-    'Lantikan dikemaskini.');
+  const replacement=await read(await call({jadual_id:future,pengadil_id:kup[3].id,jawatan:'Pengadil'}));
+  assert.deepEqual(replacement.body,{error:false,message:'Lantikan dikemaskini.',previous_holder_notified:true});
   const replaced=one('SELECT * FROM lantikan_pengadil WHERE id=?',r1.id);
   assert.deepEqual([replaced.pengadil_id,replaced.status,replaced.notif_hantar,replaced.email_token,replaced.tg_token],
     [kup[3].id,'Belum Jawab',0,null,null]);
-  assert.equal(one("SELECT event_type FROM lantikan_audit_log WHERE lantikan_id=? ORDER BY id DESC",r1.id).event_type,
-    'appointment_reassigned');
+  assert.equal(one(`SELECT event_type FROM lantikan_audit_log WHERE lantikan_id=? AND event_type LIKE 'appointment_%'
+    ORDER BY id DESC`,r1.id).event_type,'appointment_reassigned');
+  // The replaced official (not the new one) hears that the appointment no longer stands.
+  assert.deepEqual(emails.map((mail)=>mail.to),[kup[0].email]);
+  assert.match(emails[0].subject,/^Pembatalan Lantikan: /);
+  assert.ok(emails[0].html.includes('diganti oleh pegawai lain'));
+  assert.deepEqual(telegrams.map((message)=>Number(message.chatId)),[Number(kup[0].telegram_chat_id)]);
+  assert.match(telegrams[0].text,/Pembatalan Lantikan/);
+  assert.equal(count(`SELECT count(*) FROM lantikan_audit_log WHERE lantikan_id=?
+    AND event_type='reassignment_notification' AND pengadil_id=?`,r1.id,kup[0].id),2);
   assert.equal(one('SELECT status FROM jadual_perlawanan WHERE id=?',future).status,'Menunggu Pengesahan');
 
   // Delete a notified appointment: audit, cancellation messages, match status.

@@ -7,6 +7,8 @@ const source = readFileSync(new URL('../src/appointment-audit.ts',import.meta.ur
   .replace("import { currentUser, json } from './auth';",
     `const currentUser = async () => globalThis.auditUser;
      const json = (value,status=200) => Response.json(value,{status});`)
+  .replace("import { notifyAcceptanceOverride } from './lantikan-notify';",
+    'const notifyAcceptanceOverride = async () => {};')
   .replace("import { boundedJson } from './request';",
     'const boundedJson = async (request) => request.json();')
   .replace("import { wroteRow } from './d1-changes';",

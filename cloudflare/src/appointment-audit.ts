@@ -1,4 +1,5 @@
 import { currentUser, json } from './auth';
+import { notifyAcceptanceOverride } from './lantikan-notify';
 import { boundedJson } from './request';
 import type { Env } from './types';
 import { guardStatement, runGuarded } from './php/guard';
@@ -346,6 +347,11 @@ async function adminOverrideAcceptance(request: Request, env: Env, actorId: numb
         `Pentadbir telah merekodkan penerimaan anda sebagai ${jawatan} selepas pengesahan diterima di luar portal.`);
     } catch (error) {
       console.error('[lantikan-audit.php] override portal notification error',error instanceof Error ? error.message : error);
+    }
+  }
+  if (jawatan !== 'Penilai Pengadil') {
+    try { await notifyAcceptanceOverride(env,snapshot,actorId); } catch (error) {
+      console.error('[lantikan-audit.php] override notice error',error instanceof Error ? error.message : error);
     }
   }
   if (jawatan === 'Penilai Pengadil') {

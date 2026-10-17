@@ -22,7 +22,9 @@ import { announcementsWrite } from './announcements-write';
 import { refereeProfileWrite } from './profile-admin-write';
 import { GATES } from './php/gates';
 import { appointmentWritesEnabled } from './lantikan-write';
-import { processQueuedKupCrewNotifications } from './php/lantikan-helper';
+import { autoTolakLantikanTertunggak, processQueuedKupCrewNotifications } from './php/lantikan-helper';
+import { notificationOutboxEnabled, processNotificationOutbox } from './notify';
+import { sendAppointmentReminders } from './lantikan-notify';
 import { districtAssessments, refereeAssessments } from './assessments';
 import { districtApplications } from './district-applications';
 import { districtReferees } from './district-referees';
@@ -378,6 +380,13 @@ export default {
             '/api/lantikan-audit.php','/api/telegram-webhook.php'].includes(pathname)) {
           ctx.waitUntil(processDistrictAppointmentMail(env).catch(()=>console.error('District appointment mail retry pending.')));
         }
+        // Queued notices go out right after the change; cron retries anything left.
+        if (response.ok && notificationOutboxEnabled(env) && (request.method!=='GET'
+          || ['/api/tugasan.php','/api/jadual-perlawanan.php','/api/lantikan.php',
+            '/api/jadual-lantikan-report.php'].includes(pathname))) {
+          ctx.waitUntil(processNotificationOutbox(env,15).then(()=>undefined)
+            .catch(()=>console.error('Notification outbox retry pending.')));
+        }
         return response;
       }
       if (pathname.startsWith('/uploads/')) {
@@ -397,11 +406,21 @@ export default {
     try {
       if (appointmentWritesEnabled(env)) {
         try { await processQueuedKupCrewNotifications(env); }
-        finally { await processDistrictAppointmentMail(env); }
+        finally {
+          // Overdue answers expire on schedule, not only when someone opens a page.
+          try { await autoTolakLantikanTertunggak(env); }
+          finally {
+            try { await sendAppointmentReminders(env); }
+            finally { await processDistrictAppointmentMail(env); }
+          }
+        }
       }
     } finally {
-      try { await processMailboxCampaigns(env); }
-      finally { await syncAllShinjiruMailboxes(env); }
+      try { await processNotificationOutbox(env); }
+      finally {
+        try { await processMailboxCampaigns(env); }
+        finally { await syncAllShinjiruMailboxes(env); }
+      }
     }
   },
 } satisfies ExportedHandler<Env>;

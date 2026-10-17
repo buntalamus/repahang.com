@@ -45,7 +45,8 @@
     "dev": "wrangler dev",
     "deploy:staging": "npm run typecheck && npm run build:frontend && wrangler deploy",
     "test:mailbox-campaigns": "node --no-warnings tests/mailbox-campaigns.mjs",
-    "test:portal-dashboard": "node --no-warnings tests/portal-dashboard.mjs"
+    "test:portal-dashboard": "node --no-warnings tests/portal-dashboard.mjs",
+    "test:notify-lantikan": "node --no-warnings tests/notify-lantikan.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
