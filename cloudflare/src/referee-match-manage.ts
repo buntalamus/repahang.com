@@ -1,4 +1,6 @@
 import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
+import { notifyVerifierOfRecordChange } from './match-notify';
+import type { MatchSummary } from './match-notify';
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
@@ -262,6 +264,9 @@ async function editMatch(input: Record<string, unknown>, env: Env, userId: numbe
     AND lantikan_id IS NULL AND match_group_id IS NULL AND COALESCE(status_pp,'')<>'Disahkan'`)
     .bind(...values, matchId, userId).run();
   if (!wroteRow(result)) return json({ error: true, message: 'Rekod berubah semasa semakan.' }, 409);
+  const updated = await env.DB.prepare('SELECT home_team,away_team,tarikh,tempat FROM perlawanan WHERE id=?')
+    .bind(matchId).first<MatchSummary>();
+  if (updated) await tellVerifier(env, userId, 'edit', updated);
   return json({ error: false, message: 'Rekod perlawanan berjaya dikemaskini.' });
 }
 
@@ -285,7 +290,15 @@ async function deleteMatch(input: Record<string, unknown>, env: Env, userId: num
       .bind(userId, matchId, `${match.home_team ?? ''} vs ${match.away_team ?? ''} (${match.tarikh})`),
   ]);
   if (!wroteRow(results[0])) return json({ error: true, message: 'Perlawanan sudah berubah.' }, 409);
+  await tellVerifier(env, userId, 'delete', match);
   return json({ error: false, message: 'Rekod perlawanan berjaya dipadam.' });
+}
+
+async function tellVerifier(env: Env, userId: number, change: 'edit' | 'delete', match: MatchSummary):
+  Promise<void> {
+  try { await notifyVerifierOfRecordChange(env, userId, change, match); } catch (error) {
+    console.error('[pengadil-match-manage] verifier notice failed', error instanceof Error ? error.message : error);
+  }
 }
 
 export async function refereeMatchManage(request: Request, env: Env): Promise<Response> {

@@ -1,4 +1,6 @@
 import { currentUser, json } from './auth';
+import { notifyUser, userContact } from './notify';
+import type { Notice } from './notify';
 import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
 import { boundedJson } from './request';
 import type { Env } from './types';
@@ -231,7 +233,9 @@ export async function deleteApplication(request: Request, env: Env): Promise<Res
   }
   const id = positiveId(String(body.id ?? ''));
   if (id === null) return json({ error: true, message: 'ID permohonan diperlukan.' }, 400);
-  const exists = await env.DB.prepare('SELECT id FROM permohonan WHERE id=?').bind(id).first();
+  const exists = await env.DB.prepare(`SELECT p.id,p.user_id,p.nama_penuh,p.emel,p.jenis_borang,p.tahun_permohonan,
+    u.email AS user_email FROM permohonan p LEFT JOIN users u ON u.id=p.user_id WHERE p.id=?`).bind(id)
+    .first<ApplicantRow & { jenis_borang: string | null; tahun_permohonan: number | null }>();
   if (!exists) return json({ error: true, message: 'Permohonan tidak dijumpai.' }, 404);
 
   // D1 batch is transactional. Detach match history before the FK cascade
@@ -243,8 +247,20 @@ export async function deleteApplication(request: Request, env: Env): Promise<Res
   if (!wroteRow(results[1])) {
     return json({ error: true, message: 'Permohonan sudah diproses.' }, 409);
   }
+  const label = formLabel(exists.jenis_borang, exists.tahun_permohonan);
+  const notified = await notifyApplicant(env, exists, {
+    subject: `Permohonan Dipadam: ${label} - PBNP`,
+    title: 'Permohonan Dipadam',
+    accent: '#6B7280',
+    mailType: 'daftar',
+    paragraphs: [`Permohonan ${label} anda (No. #${id}) telah dipadam daripada sistem oleh pentadbir.`,
+      'Rekod sejarah perlawanan anda dikekalkan. Hubungi pentadbir jika anda mempunyai sebarang pertanyaan.'],
+    portal: { type: 'Permohonan Dipadam', subject: `Permohonan Dipadam: ${label}`,
+      message: `Permohonan ${label} anda (No. #${id}) telah dipadam oleh pentadbir.` },
+  });
   return json({
     error: false,
+    notification_sent: notified,
     message: 'Permohonan berjaya dipadam; rekod perlawanan dikekalkan.',
     affected_rows: results[1].meta.changes,
     unlinked_matches: results[0].meta.changes,
@@ -257,6 +273,9 @@ async function updateSeminarAttendance(body: Record<string, unknown>, env: Env):
   if (!id || !(status === null || status === 'Hadir' || status === 'Tidak Hadir')) {
     return json({ error: true, message: 'Parameter rekod seminar tidak sah.' }, 400);
   }
+  const before = await env.DB.prepare(`SELECT p.status_seminar,p.user_id,p.nama_penuh,p.emel,p.tahun_permohonan,
+    u.email AS user_email FROM permohonan p LEFT JOIN users u ON u.id=p.user_id WHERE p.id=?`).bind(id)
+    .first<ApplicantRow & { status_seminar: string | null; tahun_permohonan: number | null }>();
   const result = await env.DB.prepare(`UPDATE permohonan
     SET status_seminar=?,status_kemaskini=datetime('now','+8 hours')
     WHERE id=? AND jenis_borang='pengadil_berdaftar'
@@ -266,7 +285,23 @@ async function updateSeminarAttendance(body: Record<string, unknown>, env: Env):
   if (!wroteRow(result)) {
     return json({ error: true, message: 'Permohonan tahunan pengadil tidak dijumpai.' }, 404);
   }
-  return json({ error: false,
+  let notified = false;
+  if (before && status !== null && before.status_seminar !== status) {
+    const session = before.tahun_permohonan ? ` sesi ${before.tahun_permohonan}` : '';
+    notified = await notifyApplicant(env, before, {
+      subject: `Kehadiran Seminar${session}: ${status} - PBNP`,
+      title: 'Kehadiran Seminar Direkodkan',
+      accent: status === 'Hadir' ? '#16A34A' : '#F59E0B',
+      mailType: 'daftar',
+      paragraphs: [`Kehadiran seminar anda${session} telah direkodkan sebagai: ${status}.`,
+        status === 'Hadir' ? 'Terima kasih atas kehadiran anda.'
+          : 'Jika rekod ini tidak tepat, sila hubungi pentadbir atau Pegawai Pembangunan Daerah anda.'],
+      rows: [['No. Permohonan', `#${id}`], ['Status Seminar', status]],
+      portal: { type: 'Kehadiran Seminar', subject: `Kehadiran Seminar: ${status}`,
+        message: `Kehadiran seminar anda${session} direkodkan sebagai ${status}.` },
+    });
+  }
+  return json({ error: false, notification_sent: notified,
     message: status === null ? 'Rekod kehadiran seminar dikosongkan.'
       : `Kehadiran seminar dikemaskini: ${status}.`,
     status_seminar: status });
@@ -365,8 +400,13 @@ async function updateFitnessResult(body: Record<string, unknown>, env: Env, admi
       .bind(...(passed ? [year, year, application.user_id] : [application.user_id, year])));
   }
   const results = await env.DB.batch(statements);
+  let emailSent = false;
+  if (wroteRow(results[0])) {
+    const label = formLabel(application.jenis_borang, application.tahun_permohonan);
+    emailSent = await notifyApplicant(env, application, resultNotice(label, decision as string, id));
+  }
   return json({ error: false, message: 'Status ujian berjaya dikemaskini.',
-    affected_rows: results[0].meta.changes });
+    affected_rows: results[0].meta.changes, email_sent: emailSent });
 }
 
 /**
@@ -417,5 +457,56 @@ async function updateLegacyFitnessResult(
   if (!wroteRow(result)) {
     return json({ error: true, message: 'Keputusan berubah semasa semakan. Sila muat semula.' }, 409);
   }
+  // Pre-2027 results are back-filled records; by design they send no email or notification.
   return json({ error: false, message: 'Keputusan ujian berjaya dikemaskini.' });
+}
+
+interface ApplicantRow {
+  user_id: number | null;
+  nama_penuh: string;
+  emel: string | null;
+  user_email: string | null;
+}
+
+const FORM_LABELS: Record<string, string> = {
+  pengadil_berdaftar: 'Pendaftaran Tahunan Pengadil',
+  kelas3_fam: 'Kelas III FAM',
+  ujian_bertulis: 'Ujian Bertulis',
+  ujian_kecergasan: 'Ujian Kecergasan',
+};
+
+function formLabel(jenisBorang: string | null, tahun: number | null): string {
+  const label = FORM_LABELS[String(jenisBorang ?? '')] ?? 'Permohonan';
+  return tahun ? `${label} ${tahun}` : label;
+}
+
+function resultNotice(label: string, decision: string, id: number): Notice {
+  return {
+    subject: `Keputusan ${label}: ${decision} - PBNP`,
+    title: `Keputusan ${label}`,
+    accent: decision === 'Lulus' ? '#16A34A' : '#DC2626',
+    mailType: 'daftar',
+    paragraphs: [`Keputusan ${label} anda telah direkodkan: ${decision}.`,
+      'Sila log masuk untuk menyemak status permohonan anda.'],
+    rows: [['No. Permohonan', `#${id}`], ['Keputusan', decision]],
+    portal: { type: 'Keputusan Ujian', subject: `Keputusan ${label}: ${decision}`,
+      message: `Keputusan ${label} anda telah direkodkan: ${decision}.` },
+  };
+}
+
+/** Email (and Telegram/in-app for registered users) to the applicant; never throws. */
+async function notifyApplicant(env: Env, application: ApplicantRow, notice: Notice): Promise<boolean> {
+  try {
+    const contact = await userContact(env, application.user_id);
+    const result = await notifyUser(env, {
+      userId: contact?.id ?? null,
+      name: application.nama_penuh || contact?.nama_penuh || '',
+      email: application.user_email || application.emel || contact?.email,
+      telegramChatId: contact?.telegram_chat_id ?? null,
+    }, notice);
+    return result.email === 'sent';
+  } catch (error) {
+    console.error('[admin-applications] applicant notice failed', error instanceof Error ? error.message : error);
+    return false;
+  }
 }

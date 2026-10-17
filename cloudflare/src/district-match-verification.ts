@@ -1,4 +1,6 @@
 import { currentUser, json } from './auth';
+import { notifyMatchDecision } from './match-notify';
+import type { MatchDecision } from './match-notify';
 import { boundedJson } from './request';
 import type { Env } from './types';
 import { conflictSummary, findMatchConflicts, recordKey, type MatchRecord } from './match-conflicts';
@@ -152,7 +154,9 @@ async function change(request: Request, env: Env, userId: number,
     if (result[0].meta.changes < rows.length) {
       return json({ error: true, message: 'Perlawanan berubah semasa dipadam. Sila semak semula.' }, 409);
     }
-    return json({ error: false, message: grouped
+    const notified = await safely(() => notifyMatchDecision(env, rows.map((row) => row.user_id), 'delete', first,
+      'Pegawai Pembangunan Daerah', notes));
+    return json({ error: false, officials_notified: notified, message: grouped
       ? `Perlawanan berjaya dipadam (${rows.length} rekod).` : 'Perlawanan berjaya dipadam.' });
   }
   // A doubtful record is verified only after the PP confirms the review with a note.
@@ -188,7 +192,9 @@ async function change(request: Request, env: Env, userId: number,
   if (results[0].meta.changes < rows.length) {
     return json({ error: true, message: 'Perlawanan berubah semasa semakan. Sila muat semula.' }, 409);
   }
-  return json({ error: false, message: action === 'verify' ? 'Perlawanan berjaya disahkan.'
+  const notified = await safely(() => notifyMatchDecision(env, recipients, action as MatchDecision, first,
+    'Pegawai Pembangunan Daerah', notes));
+  return json({ error: false, officials_notified: notified, message: action === 'verify' ? 'Perlawanan berjaya disahkan.'
     : action === 'reject' ? 'Perlawanan telah ditolak.' : 'Perlawanan dikembalikan ke status menunggu.',
     match: { ...(grouped ? { match_group_id: input.match_group_id,officials_count: rows.length } : { id: first.id }),
       status_pp: status,verified_at: new Date().toISOString() } });
@@ -210,4 +216,11 @@ export async function districtMatchVerification(request: Request, env: Env): Pro
     return json({ error: true, message: 'Tindakan tulis belum tersedia di staging.' }, 503);
   }
   return change(request, env, user.id, user.persatuan_id, districtId);
+}
+
+async function safely(send: () => Promise<number>): Promise<number> {
+  try { return await send(); } catch (error) {
+    console.error('[pp-verify-match] notification failed', error instanceof Error ? error.message : error);
+    return 0;
+  }
 }

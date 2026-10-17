@@ -1,4 +1,6 @@
 import { currentUser, json } from './auth';
+import { notifyMatchDecision } from './match-notify';
+import type { MatchDecision, MatchSummary } from './match-notify';
 import { boundedJson } from './request';
 import type { Env } from './types';
 
@@ -168,9 +170,10 @@ async function changeMatch(request: Request, env: Env, adminId: number, adminNam
   if (request.method === 'POST' && action !== 'revert' && !justification) {
     return json({ error: true, message: 'Justifikasi wajib diisi untuk override admin.' }, 422);
   }
-  const rows = await env.DB.prepare(`SELECT p.id,p.home_team,p.away_team,p.tarikh,p.user_id
+  const rows = await env.DB.prepare(`SELECT p.id,p.home_team,p.away_team,p.tarikh,p.tempat,p.jenis,p.user_id
     FROM perlawanan p WHERE p.${matchTarget.where}`).bind(matchTarget.value).all<{
-      id: number; home_team: string | null; away_team: string | null; tarikh: string; user_id: number | null;
+      id: number; home_team: string | null; away_team: string | null; tarikh: string; tempat: string | null;
+      jenis: string | null; user_id: number | null;
     }>();
   if (!rows.results.length) return json({ error: true, message: 'Perlawanan tidak dijumpai.' }, 404);
   const first = rows.results[0];
@@ -185,7 +188,8 @@ async function changeMatch(request: Request, env: Env, adminId: number, adminNam
         .bind(adminId, matchTarget.where === 'id=?' ? 'admin_delete_match' : 'admin_delete_match_group', first.id, description),
     ]);
     if (results[0].meta.changes < 1) return json({ error: true, message: 'Perlawanan tidak dijumpai.' }, 404);
-    return json({ error: false, message: matchTarget.where === 'id=?'
+    const notified = await notifyOfficials(env, rows.results.map((row) => row.user_id), 'delete', first, justification);
+    return json({ error: false, officials_notified: notified, message: matchTarget.where === 'id=?'
       ? 'Perlawanan berjaya dipadam.' : `Perlawanan dipadam (${rows.results.length} rekod).` });
   }
   const status = action === 'verify' ? 'Disahkan' : action === 'reject' ? 'Tidak Disahkan' : 'Belum Disahkan';
@@ -215,7 +219,8 @@ async function changeMatch(request: Request, env: Env, adminId: number, adminNam
   if (results[0].meta.changes < 1) return json({ error: true, message: 'Perlawanan tidak dijumpai.' }, 404);
   const response = action === 'verify' ? 'Perlawanan berjaya disahkan (Admin Override).'
     : action === 'reject' ? 'Perlawanan ditolak (Admin Override).' : 'Status perlawanan dikembalikan.';
-  return json({ error: false, message: response });
+  const notified = await notifyOfficials(env, recipients, action as MatchDecision, first, justification);
+  return json({ error: false, officials_notified: notified, message: response });
 }
 
 export async function adminMatches(request: Request, env: Env): Promise<Response> {
@@ -230,4 +235,12 @@ export async function adminMatches(request: Request, env: Env): Promise<Response
     return json({ error: true, message: 'Tindakan tulis belum tersedia di staging.' }, 503);
   }
   return changeMatch(request, env, user.id, user.nama_penuh);
+}
+
+async function notifyOfficials(env: Env, userIds: Array<number | null>, decision: MatchDecision,
+  match: MatchSummary, note: string): Promise<number> {
+  try { return await notifyMatchDecision(env, userIds, decision, match, 'Admin', note); } catch (error) {
+    console.error('[admin-matches] notification failed', error instanceof Error ? error.message : error);
+    return 0;
+  }
 }
