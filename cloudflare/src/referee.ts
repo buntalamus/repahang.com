@@ -49,12 +49,22 @@ export async function refereeMatches(request: Request, env: Env): Promise<Respon
   const year = Number(new Intl.DateTimeFormat('en-CA', {
     year: 'numeric', timeZone: 'Asia/Kuala_Lumpur',
   }).format(new Date()));
+  const requestedYear = params.get('year');
+  if (requestedYear !== null && (!/^\d{4}$/.test(requestedYear) || Number(requestedYear) < 2000 || Number(requestedYear) > 2100)) {
+    return json({ error: true, message: 'Tahun tidak sah.' }, 422);
+  }
+  const statsYear = requestedYear === null ? year : Number(requestedYear);
+  const status = params.get('status');
+  if (status !== null && !['Disahkan','Belum Disahkan','Tidak Disahkan'].includes(status)) return json({ error: true, message: 'Status tidak sah.' }, 422);
+  const listFilter = `${requestedYear === null ? '' : ' AND substr(p.tarikh,1,4)=?'}${status === null ? '' : status === 'Belum Disahkan'
+    ? " AND (p.status_pp IS NULL OR p.status_pp='' OR p.status_pp='Belum Disahkan')" : ' AND p.status_pp=?'}`;
+  const filterValues = [...(requestedYear === null ? [] : [requestedYear]), ...(status === null || status === 'Belum Disahkan' ? [] : [status])];
 
-  const [count, matches, yearStats] = await Promise.all([
+  const [count, matches, yearStats, allTime] = await Promise.all([
     env.DB.prepare(`SELECT COUNT(*) AS total,
       SUM(CASE WHEN status_pp='Disahkan' THEN 1 ELSE 0 END) AS verified_total
-      FROM perlawanan WHERE user_id=?`)
-      .bind(user.id).first<{ total: number; verified_total: number | null }>(),
+      FROM perlawanan p WHERE user_id=?${listFilter}`)
+      .bind(user.id,...filterValues).first<{ total: number; verified_total: number | null }>(),
     env.DB.prepare(`
       SELECT p.id, p.match_group_id, p.tarikh, p.masa, p.jenis,
              p.nama_kejohanan, p.tempat, p.jawatan, p.status_pp,
@@ -78,13 +88,17 @@ export async function refereeMatches(request: Request, env: Env): Promise<Respon
       LEFT JOIN users u3 ON p.assistant_referee_2_id=u3.id
       LEFT JOIN users u4 ON p.fourth_official_id=u4.id
       LEFT JOIN districts d ON p.daerah_perlawanan_id=d.id
-      WHERE p.user_id=? ORDER BY p.tarikh DESC, p.id DESC LIMIT ? OFFSET ?
-    `).bind(user.id, perPage, offset).all(),
+      WHERE p.user_id=?${listFilter} ORDER BY p.tarikh DESC, p.id DESC LIMIT ? OFFSET ?
+    `).bind(user.id,...filterValues, perPage, offset).all(),
     env.DB.prepare(`
       SELECT COUNT(*) AS current_year,
-             SUM(CASE WHEN status_pp='Disahkan' THEN 1 ELSE 0 END) AS verified_year
+             SUM(CASE WHEN status_pp='Disahkan' THEN 1 ELSE 0 END) AS verified_year,
+             SUM(CASE WHEN status_pp IS NULL OR status_pp='' OR status_pp='Belum Disahkan' THEN 1 ELSE 0 END) AS pending_year,
+             SUM(CASE WHEN status_pp='Tidak Disahkan' THEN 1 ELSE 0 END) AS rejected_year
       FROM perlawanan WHERE user_id=? AND substr(tarikh,1,4)=?
-    `).bind(user.id, String(year)).first<{ current_year: number; verified_year: number | null }>(),
+    `).bind(user.id, String(statsYear)).first<{ current_year: number; verified_year: number | null; pending_year: number | null; rejected_year: number | null }>(),
+    env.DB.prepare(`SELECT COUNT(*) AS total,SUM(CASE WHEN status_pp='Disahkan' THEN 1 ELSE 0 END) AS verified_total
+      FROM perlawanan WHERE user_id=?`).bind(user.id).first<{total:number;verified_total:number|null}>(),
   ]);
   const total = Number(count?.total ?? 0);
   const verified = Number(yearStats?.verified_year ?? 0);
@@ -94,11 +108,13 @@ export async function refereeMatches(request: Request, env: Env): Promise<Respon
     statistics: {
       total: Number(yearStats?.current_year ?? 0),
       verified_total: verified,
-      all_time_total: total,
-      all_time_verified_total: Number(count?.verified_total ?? 0),
+      all_time_total: Number(allTime?.total ?? 0),
+      all_time_verified_total: Number(allTime?.verified_total ?? 0),
       current_year: Number(yearStats?.current_year ?? 0),
       verified_year: verified,
-      year: String(year),
+      pending_year: Number(yearStats?.pending_year ?? 0),
+      rejected_year: Number(yearStats?.rejected_year ?? 0),
+      year: String(statsYear),
       minimum_required: 20,
       eligible: verified >= 20,
     },

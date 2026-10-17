@@ -1,5 +1,6 @@
 import { Component, OnInit, HostListener } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
@@ -319,9 +320,12 @@ export class PpMatchVerificationComponent implements OnInit {
   constructor(
     private api: ApiService,
     private toast: ToastService,
+    private route: ActivatedRoute,
   ) {}
 
   ngOnInit(): void {
+    const status = this.route.snapshot.queryParamMap.get('status');
+    if (status && ['pending','verified','rejected'].includes(status)) this.filterStatus = status;
     this.loadMatches();
   }
 
@@ -338,7 +342,8 @@ export class PpMatchVerificationComponent implements OnInit {
 
   loadMatches(): void {
     this.loading = true;
-    const params = `?status=${this.filterStatus}&page=${this.pagination.page}&per_page=50`;
+    const year = this.route.snapshot.queryParamMap.get('year');
+    const params = `?status=${this.filterStatus}&page=${this.pagination.page}&per_page=50${year && /^\d{4}$/.test(year) ? '&year='+year : ''}`;
     this.api.get<any>(`pp-verify-match.php${params}`).subscribe({
       next: (res) => {
         if (!res.error) {

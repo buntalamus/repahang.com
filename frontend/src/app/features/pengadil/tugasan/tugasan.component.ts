@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { DatePipe, SlicePipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
@@ -24,9 +25,11 @@ export class PengadilTugasanComponent implements OnInit {
   komen = '';
   saving = false;
 
-  constructor(private api: ApiService, private toast: ToastService) {}
+  constructor(private api: ApiService, private toast: ToastService, private route: ActivatedRoute) {}
 
   ngOnInit(): void {
+    const status = this.route.snapshot.queryParamMap.get('status');
+    if (status && ['Belum Jawab','Diterima','Ditolak','Dibatalkan','Ditangguhkan'].includes(status)) this.filterStatus = status;
     this.load();
   }
 

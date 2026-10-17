@@ -1,5 +1,6 @@
 import { adminMailboxCampaigns, processMailboxCampaigns } from './mailbox-campaigns';
 import { processDistrictAppointmentMail } from './district-appointment-mail';
+import { portalDashboard } from './portal-dashboard';
 import { currentUser, json, login, logout, session } from './auth';
 import { adminUsers } from './admin-users';
 import { adminUserMasterData } from './user-master-data';
@@ -243,6 +244,7 @@ async function privateMedia(request: Request, env: Env, pathname: string): Promi
 }
 
 async function api(request: Request, env: Env, pathname: string, ctx: ExecutionContext): Promise<Response> {
+  if (pathname === '/api/portal-dashboard.php') return portalDashboard(request, env);
   if (pathname === '/api/__migration-health') {
     if (request.method !== 'GET') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
     await env.DB.prepare('SELECT 1').first();

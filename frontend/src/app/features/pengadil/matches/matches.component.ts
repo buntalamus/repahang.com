@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
@@ -22,7 +22,8 @@ export class PengadilMatchesComponent implements OnInit {
   matches: any[] = [];
   filtered: any[] = [];
   search = '';
-  stats = { total: 0, disahkan: 0, belum_disahkan: 0, year: new Date().getFullYear() };
+  stats = { total: 0, disahkan: 0, belum_disahkan: 0, ditolak: 0, year: new Date().getFullYear() };
+  filterStatus = '';
   showForm = false;
   submitting = false;
 
@@ -40,15 +41,21 @@ export class PengadilMatchesComponent implements OnInit {
     private api: ApiService,
     private toast: ToastService,
     private route: ActivatedRoute,
+    private router: Router,
   ) {}
 
   ngOnInit(): void {
+    this.filterStatus = this.route.snapshot.queryParamMap.get('status') || '';
     this.loadMatches();
     this.loadDistricts();
   }
 
   loadMatches(): void {
-    this.api.get<any>('pengadil-matches.php?per_page=200').subscribe({
+    const params: Record<string,string> = { per_page: '100' };
+    const year = this.route.snapshot.queryParamMap.get('year');
+    if (year) params['year'] = year;
+    if (this.filterStatus) params['status'] = this.filterStatus;
+    this.api.get<any>('pengadil-matches.php',params).subscribe({
       next: (res) => {
         if (!res.error) {
           this.matches = res.data || res.matches || [];
@@ -58,7 +65,8 @@ export class PengadilMatchesComponent implements OnInit {
           this.stats.total = res.statistics?.current_year ?? res.statistics?.total ?? yearMatches.length;
           this.stats.disahkan = res.statistics?.verified_year ?? res.statistics?.verified_total
             ?? yearMatches.filter((m: any) => m.status_pp === 'Disahkan').length;
-          this.stats.belum_disahkan = Math.max(0, this.stats.total - this.stats.disahkan);
+          this.stats.belum_disahkan = Number(res.statistics?.pending_year ?? 0);
+          this.stats.ditolak = Number(res.statistics?.rejected_year ?? 0);
         }
         this.loading = false;
       },
@@ -72,6 +80,12 @@ export class PengadilMatchesComponent implements OnInit {
         if (!res.error) this.districts = res.data || [];
       },
     });
+  }
+
+  clearStatusFilter(): void {
+    this.filterStatus = '';
+    void this.router.navigate([], { relativeTo: this.route, queryParams: { status: null }, queryParamsHandling: 'merge' })
+      .then(() => this.loadMatches());
   }
 
   onSearch(event: Event): void {

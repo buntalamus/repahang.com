@@ -1,0 +1,90 @@
+<div class="portal-page">
+  <section class="portal-hero" aria-labelledby="portal-title">
+    <div class="hero-label"><span class="material-icons" aria-hidden="true">{{ statistical ? 'insights' : 'dashboard' }}</span>
+      {{ isPp ? 'Portal Pegawai Pembangunan Daerah' : view === 'ra' ? 'Portal Penilai Pengadil' : 'Portal Pengadil' }}</div>
+    <h2 id="portal-title">{{ statistical ? 'Statistik · ' + title : title }}</h2>
+    <p>{{ description }}</p>
+    <div class="hero-person">{{ auth.currentUser?.nama_penuh }}
+      @if (isPp) { <span> · {{ auth.currentUser?.persatuan_nama }}</span> }</div>
+  </section>
+
+  <div class="portal-toolbar">
+    <nav aria-label="Paparan dashboard" class="portal-tabs">
+      <a [routerLink]="base" [queryParams]="{year:year()}" [class.selected]="!statistical" [attr.aria-current]="!statistical ? 'page' : null">Ringkasan & tindakan</a>
+      <a [routerLink]="base + '/statistik'" [queryParams]="{year:year()}" [class.selected]="statistical" [attr.aria-current]="statistical ? 'page' : null">Statistik tahunan</a>
+    </nav>
+    <div class="toolbar-controls"><label for="portal-year">Tahun rekod</label>
+      <select id="portal-year" [value]="year()" (change)="selectYear($event)">@for (y of years; track y) { <option [value]="y" [selected]="y === year()">{{ y }}</option> }</select>
+      <button type="button" (click)="load()" [disabled]="loading()" aria-label="Muat semula dashboard"><span class="material-icons" aria-hidden="true">refresh</span></button>
+    </div>
+  </div>
+  @if (loading()) { <div role="status" class="portal-empty">Memuatkan maklumat {{ year() }}…</div> }
+  @else if (error()) { <div role="alert" class="portal-error"><h3>Maklumat belum tersedia</h3><p>{{ error() }}</p><button (click)="load()" type="button">Cuba semula</button></div> }
+  @else if (data(); as d) {
+    @if (!statistical) {
+      <section aria-labelledby="action-title"><div class="section-heading"><h3 id="action-title">Perlu tindakan</h3><span>Utamakan perkara yang belum selesai</span></div>
+        <div class="action-grid">@for (action of actions(); track action.title) {
+          <a class="action-card" [class.has-work]="action.count > 0" [routerLink]="action.route" [queryParams]="action.params">
+            <div><p>{{ action.title }}</p><strong>{{ action.count }}</strong><small>{{ action.detail }}</small></div>
+            <span class="material-icons" aria-hidden="true">arrow_forward</span>
+          </a>
+        }</div>
+      </section>
+    }
+    <section aria-label="Ringkasan tahun dipilih" class="metric-grid">@for (card of metricCards(); track card.label) {
+      <div class="metric-card"><span class="metric-icon material-icons" aria-hidden="true">{{ card.icon }}</span>
+        <p>{{ card.label }}</p><strong>{{ card.value }}</strong><small>{{ card.hint }}</small></div>
+    }</section>
+
+    @if (statistical) {
+      <section class="portal-panel" aria-labelledby="trend-title"><div class="section-heading"><div><h3 id="trend-title">Trend bulanan {{ year() }}</h3><p>{{ view === 'ra' ? 'Jumlah laporan dan laporan disahkan' : view === 'pp' ? 'Kumpulan perlawanan / rekod lama dan kumpulan disahkan' : 'Rekod perlawanan dan rekod disahkan' }}</p></div></div>
+        <div class="trend" role="img" aria-label="Carta ringkasan bulanan. Nilai tepat tersedia dalam jadual di bawah.">
+          @for (m of d.monthly; track m.month) { <div class="trend-column"><span>{{ m.total }}</span><div class="trend-track"><div class="trend-bar" [style.height.%]="m.total / chartMax() * 100"></div></div><small>{{ months[m.month - 1] }}</small></div> }
+        </div>
+        <div class="table-scroll"><table><caption>Butiran bulanan {{ year() }}</caption><thead><tr><th scope="col">Bulan</th><th scope="col">Jumlah</th><th scope="col">Disahkan</th></tr></thead><tbody>
+          @for (m of d.monthly; track m.month) { <tr><th scope="row">{{ months[m.month - 1] }}</th><td>{{ m.total }}</td><td>{{ m.verified }}</td></tr> }
+        </tbody></table></div><p class="panel-note">{{ d.unit_note }}</p>
+      </section>
+      @if (view === 'ra') {
+        <section class="portal-panel"><h3>Pecahan penilaian</h3><dl class="detail-grid"><div><dt>Draf</dt><dd>{{ d.totals['drafts'] }}</dd></div><div><dt>Menunggu pengerusi</dt><dd>{{ d.totals['submitted'] }}</dd></div><div><dt>Pengadil unik dinilai</dt><dd>{{ d.totals['assessed'] }}</dd></div><div><dt>Rekod penilaian tanpa padanan individu</dt><dd>{{ d.totals['unlinked'] }}</dd></div></dl><p class="panel-note">Bilangan individu merujuk laporan yang telah disahkan, bukan bilangan penugasan.</p></section>
+      }
+      @if (view === 'pp') {
+        <section class="portal-panel"><h3>Unit rekod daerah</h3><dl class="detail-grid"><div><dt>Perlawanan dikenal pasti</dt><dd>{{ d.totals['identified_matches'] }}</dd></div><div><dt>Rekod lama belum dipadankan</dt><dd>{{ d.totals['legacy_records'] }}</dd></div><div><dt>Rekod pegawai menunggu</dt><dd>{{ d.totals['pending'] }}</dd></div><div><dt>Rekod tidak disahkan</dt><dd>{{ d.totals['rejected'] }}</dd></div></dl><p class="panel-note">Satu perlawanan boleh mempunyai beberapa rekod pegawai. Rekod lama tidak digabungkan berdasarkan nama pasukan semata-mata.</p></section>
+      }
+      @if (view === 'pengadil') {
+        <section class="portal-panel"><h3>Lantikan mengikut jawatan</h3><div class="detail-grid">@for (position of d.positions; track position.label) { <div><p>{{ position.label }}</p><strong>{{ position.total }}</strong></div> } @empty { <p>Tiada lantikan dalam tahun dipilih.</p> }</div></section>
+      }
+    } @else {
+      <div class="content-grid">
+        <section class="portal-panel"><div class="section-heading"><div><h3>{{ view === 'pp' ? 'Lantikan pegawai daerah akan datang' : 'Jadual tugasan terdekat' }}</h3><p>Jadual semasa, merentas tahun rekod yang dipilih</p></div><span class="material-icons muted" aria-hidden="true">event</span></div>
+          @for (item of d.upcoming; track item.id) { <article class="schedule-item"><div class="schedule-date"><strong>{{ item.date | date:'dd' }}</strong><span>{{ item.date | date:'MMM' }}</span></div><div><h4>{{ item.title }}</h4><p>{{ item.tournament }}</p><p>{{ item.date | date:'d MMM y' }} · {{ item.time || 'Masa belum ditetapkan' }} · {{ item.subtitle }}</p><small>{{ item.officials || item.jawatan }}</small></div></article> }
+          @empty { <div class="portal-empty compact">Tiada lantikan akan datang yang aktif.</div> }
+          @if (view !== 'pp') { <a class="portal-link" [routerLink]="base + '/tugasan'">Lihat semua tugasan <span aria-hidden="true">→</span></a> }
+        </section>
+        <section class="portal-panel">
+          @if (view === 'pp') { <h3>Pengurusan daerah</h3><p class="panel-note">Pilih senarai untuk semakan lanjut.</p><div class="quick-links">@for (type of applicationTypes; track type.key) { <a [routerLink]="type.route"><span>{{ type.label }}</span><strong>{{ d.applications[type.key]?.total || 0 }}</strong></a> }</div> }
+          @else if (view === 'ra') { <h3>Laporan terkini</h3>@for (report of d.recent; track report.id) { <article class="report-item"><div><h4>{{ report.title }}</h4><p>{{ report.date | date:'d MMM y' }} · {{ report.tournament }}</p></div><span class="status-badge" [class.confirmed]="report.status === 'Disahkan'">{{ report.status }}</span></article> } @empty { <p class="portal-empty compact">Tiada laporan dalam tahun dipilih.</p> }<a class="portal-link" [routerLink]="base + '/penilaian'">Urus penilaian →</a> }
+          @else { <h3>Kemajuan rekod {{ year() }}</h3><p class="progress-number">{{ d.totals['verified'] }} <span>/ {{ d.minimum_matches }} rekod disahkan</span></p><div class="progress-track" role="progressbar" aria-label="Kemajuan rekod disahkan" [attr.aria-valuenow]="progress()" aria-valuemin="0" aria-valuemax="100"><div [style.width.%]="progress()"></div></div><p class="panel-note">Sasaran daripada tetapan sistem. Kelayakan permohonan turut bergantung pada sesi dan syarat borang.</p><div class="quick-links"><a routerLink="/pengadil/perlawanan">Rekod perlawanan →</a><a routerLink="/pengadil/permohonan/berdaftar">Pendaftaran tahunan →</a><a routerLink="/pengadil/penilaian">Penilaian saya →</a></div> }
+        </section>
+      </div>
+      @if (isPp) {
+        <section class="personal-panel"><div><span class="eyebrow">Tugasan saya</span><h3>Peranan PP, kelayakan peribadi anda</h3><p>Urus tugas peribadi tanpa meninggalkan Portal PP.</p></div><div class="personal-links">
+          <a routerLink="/pp-daerah/tugasan">Lantikan saya →</a>
+          @if (d.can_ra) { <a routerLink="/pp-daerah/penilai">Panel penilai saya →</a> }
+          @if (d.can_referee) { <a routerLink="/pengadil/perlawanan">Rekod pengadil saya →</a> }
+          <a routerLink="/pp-daerah/profil">Profil saya →</a>
+        </div></section>
+      }
+    }
+    @if (view === 'pp' && statistical) {
+      <section class="portal-panel"><h3>Pendaftaran dan permohonan {{ year() }}</h3><div class="table-scroll"><table><caption>Pecahan mengikut jenis permohonan</caption><thead><tr><th scope="col">Jenis</th><th scope="col">Jumlah</th><th scope="col">Menunggu</th><th scope="col">Diluluskan</th><th scope="col">Ditolak</th></tr></thead><tbody>@for (type of applicationTypes; track type.key) { <tr><th scope="row">{{ type.label }}</th><td>{{ d.applications[type.key]?.total || 0 }}</td><td>{{ d.applications[type.key]?.pending || 0 }}</td><td>{{ d.applications[type.key]?.approved || 0 }}</td><td>{{ d.applications[type.key]?.rejected || 0 }}</td></tr> }</tbody></table></div></section>
+    }
+    @if (view !== 'pp' && d.registrations.length) {
+      <section class="portal-panel"><h3>Pendaftaran & ujian {{ year() }}</h3><p class="panel-note">Status permohonan, seminar dan kecergasan direkod berasingan.</p><div class="registration-list">@for (registration of d.registrations; track registration.id) { <article><div><h4>{{ formLabel(registration.jenis_borang) }}</h4><p>{{ registration.status_workflow || registration.status }}</p></div><div class="registration-details">@if (registration.status_seminar) { <span>Seminar: {{ registration.status_seminar }}</span> }@if (registration.status_ujian) { <span>Ujian: {{ registration.status_ujian }}</span> }</div></article> }</div></section>
+    }
+    @if (!statistical && d.announcements.length) {
+      <section class="portal-panel"><h3>Makluman penting</h3><div class="announcement-grid">@for (notice of d.announcements; track notice.id) { <article><small>{{ notice.created_at | date:'d MMM y' }}</small><h4>{{ notice.title }}</h4><p>{{ notice.content }}</p></article> }</div></section>
+    }
+    <p class="updated-at">Data dimuatkan {{ d.updated_at }} MYT · Tahun statistik {{ year() }}</p>
+  }
+</div>

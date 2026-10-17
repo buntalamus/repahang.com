@@ -3,7 +3,7 @@
     <app-loading message="Memuatkan perlawanan..." />
   } @else {
     <!-- Stats -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
       <div class="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
         <div class="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
           <span class="material-icons text-blue-600">sports_soccer</span>
@@ -31,7 +31,9 @@
           <p class="text-xs text-gray-500">Belum Disahkan Tahun {{ stats.year }}</p>
         </div>
       </div>
+      <div class="bg-white rounded-xl shadow-sm p-5"><p class="text-2xl font-bold text-rose-800">{{ stats.ditolak }}</p><p class="text-xs text-gray-600">Tidak Disahkan Tahun {{ stats.year }}</p></div>
     </div>
+    @if (filterStatus) { <p class="text-sm text-slate-700">Senarai ditapis: {{ filterStatus }}. <button type="button" (click)="clearStatusFilter()" class="underline">Buang penapis status</button></p> }
 
     <!-- Search + Add Button -->
     <div class="bg-white rounded-xl shadow-sm p-4 flex flex-col sm:flex-row gap-3">

@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { DatePipe, SlicePipe } from '@angular/common';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
@@ -75,6 +76,7 @@ export class PenilaiAssessmentsComponent implements OnInit {
     private api: ApiService,
     private toast: ToastService,
     public profileModal: ProfileModalService,
+    private route: ActivatedRoute,
   ) {}
 
   ngOnInit(): void {
@@ -114,10 +116,14 @@ export class PenilaiAssessmentsComponent implements OnInit {
   }
 
   buildPendingList(): void {
-    this.pendingAssignments = this.assignments;
-    this.pendingCount = this.assignments.filter(
-      (a: any) => !this.getLaporanForAssignment(a.id),
-    ).length;
+    const year = this.route.snapshot.queryParamMap.get('year');
+    const candidates = this.assignments.filter((a: { tarikh: string }) => !year || a.tarikh?.startsWith(year));
+    const unfinished = candidates.filter((a: { id: number }) => {
+      const report = this.getLaporanForAssignment(a.id);
+      return !report || report.status === 'Draf';
+    });
+    this.pendingAssignments = this.route.snapshot.queryParamMap.get('needs_report') === '1' ? unfinished : candidates;
+    this.pendingCount = unfinished.length;
   }
 
   getLaporanForAssignment(lantikanId: number): any {

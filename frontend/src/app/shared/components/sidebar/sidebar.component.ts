@@ -1,5 +1,5 @@
 import { Component, Input, Output, EventEmitter, OnDestroy } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
 import {
@@ -12,7 +12,6 @@ import {
 
 @Component({
   selector: 'app-sidebar',
-  standalone: true,
   imports: [RouterLink, RouterLinkActive],
   template: `
     <aside
@@ -34,10 +33,12 @@ import {
       <!-- Navigation -->
       <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
         @for (item of navItems; track item.label) {
+          @if (item.section) { <p class="px-4 pt-5 pb-2 text-[10px] font-bold uppercase tracking-wider text-white/70">{{ item.section }}</p> }
           @if (item.children) {
             <div>
               <button
                 (click)="toggleSubmenu(item.label)"
+                [attr.aria-expanded]="!!openSubmenus[item.label]"
                 class="flex items-center justify-between w-full px-4 py-3 rounded-xl text-sm transition-colors text-white/60 hover:text-white/90 hover:bg-white/5"
               >
                 <span class="flex items-center">
@@ -82,7 +83,7 @@ import {
 
       <!-- Footer -->
       <div class="p-4 border-t border-white/10">
-        <p class="text-xs text-white/40 text-center">Pertanyaan teknikal:</p>
+        <p class="text-xs text-white/70 text-center">Pertanyaan teknikal:</p>
         <p class="text-xs text-white/60 text-center">sokongan&#64;pbnppahang.my</p>
       </div>
     </aside>
@@ -104,14 +105,19 @@ export class SidebarComponent implements OnDestroy {
   navItems: NavItem[] = [];
   roleLabel = '';
   private sub: Subscription;
+  private navigationSub: Subscription;
 
-  constructor(private auth: AuthService) {
+  constructor(private auth: AuthService, private router: Router) {
     this.updateNav();
     this.sub = this.auth.currentUser$.subscribe(() => this.updateNav());
+    this.navigationSub = this.router.events.subscribe(event => {
+      if (event instanceof NavigationEnd) this.openActiveGroup(event.urlAfterRedirects);
+    });
   }
 
   ngOnDestroy(): void {
     this.sub.unsubscribe();
+    this.navigationSub.unsubscribe();
   }
 
   private updateNav(): void {
@@ -123,7 +129,9 @@ export class SidebarComponent implements OnDestroy {
         this.roleLabel = 'Admin';
         break;
       case 'PP Daerah':
-        this.navItems = [...PP_DAERAH_NAV];
+        this.navItems = PP_DAERAH_NAV.filter(item => !['Permohonan Saya','Tugasan Lantikan','Profil'].includes(item.label));
+        this.navItems = this.navItems.map((item, index) => index === 0 ? { ...item, section: 'Pengurusan daerah' } : item);
+        this.navItems.push({ label: 'Tugasan Lantikan Saya', icon: 'assignment_ind', route: '/pp-daerah/tugasan', section: 'Tugasan saya' });
         if (this.auth.currentUser.can_referee === 1) {
           this.navItems.push(
             { label: 'Rekod Perlawanan Saya', icon: 'sports', route: '/pengadil/perlawanan' },
@@ -131,8 +139,14 @@ export class SidebarComponent implements OnDestroy {
           );
         }
         if (this.auth.currentUser.can_ra === 1) {
-          this.navItems.push({ label: 'Panel Penilai Pengadil Saya', icon: 'rate_review', route: '/penilai' });
+          this.navItems.push({ label: 'Panel Penilai Pengadil Saya', icon: 'rate_review', route: '/pp-daerah/penilai' },
+            { label: 'Pendaftaran Penilai Saya (R1)', icon: 'how_to_reg', route: '/pp-daerah/daftar/tahunan' });
         }
+        if (this.auth.currentUser.can_referee === 1) this.navItems.push({ label: 'Permohonan Saya', icon: 'description', children: [
+          { label: 'Kelas III FAM', icon: 'quiz', route: '/pp-daerah/daftar/kelas3' },
+          { label: 'Kelas I FAM', icon: 'military_tech', route: '/pp-daerah/daftar/kelas1' },
+        ] });
+        this.navItems.push({ label: 'Profil Saya', icon: 'person', route: '/pp-daerah/profil' });
         this.roleLabel = 'Pegawai Pembangunan Daerah';
         break;
       case 'Pengadil':
@@ -144,6 +158,13 @@ export class SidebarComponent implements OnDestroy {
         this.roleLabel = 'Penilai Pengadil';
         break;
     }
+    this.openActiveGroup(this.router.url);
+  }
+
+  private openActiveGroup(url: string): void {
+    const group = this.navItems.find(item => item.children?.some(child =>
+      child.route && (url.split('?')[0] === child.route || url.startsWith(child.route + '/'))));
+    if (group && this.auth.currentUser?.role === 'Admin') this.openSubmenus = { [group.label]: true };
   }
 
   getBaseRoute(): string {
@@ -151,7 +172,9 @@ export class SidebarComponent implements OnDestroy {
   }
 
   toggleSubmenu(label: string): void {
-    this.openSubmenus[label] = !this.openSubmenus[label];
+    const open = !this.openSubmenus[label];
+    if (this.auth.currentUser?.role === 'Admin') this.openSubmenus = { [label]: open };
+    else this.openSubmenus[label] = open;
   }
 
   closeMobile(): void {

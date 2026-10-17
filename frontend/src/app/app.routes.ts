@@ -257,6 +257,24 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/profile/profile.component').then((m) => m.AdminProfileComponent),
       },
+      {
+        path: 'penilai', canActivate: [roleGuard('Penilai')],
+        loadComponent: () => import('./shared/components/portal-dashboard/portal-dashboard.component').then(m => m.PortalDashboardComponent),
+        data: { dashboardView: 'ra' },
+      },
+      {
+        path: 'penilai/statistik', canActivate: [roleGuard('Penilai')],
+        loadComponent: () => import('./shared/components/portal-dashboard/portal-dashboard.component').then(m => m.PortalDashboardComponent),
+        data: { dashboardView: 'ra', section: 'statistik' },
+      },
+      {
+        path: 'penilai/penilaian', canActivate: [roleGuard('Penilai')],
+        loadComponent: () => import('./features/penilai/assessments/assessments.component').then(m => m.PenilaiAssessmentsComponent),
+      },
+      {
+        path: 'penilai/tugasan', canActivate: [roleGuard('Penilai')],
+        loadComponent: () => import('./features/pengadil/tugasan/tugasan.component').then(m => m.PengadilTugasanComponent),
+      },
     ],
   },
 
@@ -309,6 +327,11 @@ export const routes: Routes = [
         path: 'tugasan',
         loadComponent: () =>
           import('./features/pengadil/tugasan/tugasan.component').then((m) => m.PengadilTugasanComponent),
+      },
+      {
+        path: 'statistik',
+        loadComponent: () => import('./shared/components/portal-dashboard/portal-dashboard.component').then(m => m.PortalDashboardComponent),
+        data: { section: 'statistik' },
       },
     ],
   },

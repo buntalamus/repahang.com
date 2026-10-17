@@ -44,7 +44,8 @@
     "build:frontend": "npm --prefix ../frontend run build:prod",
     "dev": "wrangler dev",
     "deploy:staging": "npm run typecheck && npm run build:frontend && wrangler deploy",
-    "test:mailbox-campaigns": "node --no-warnings tests/mailbox-campaigns.mjs"
+    "test:mailbox-campaigns": "node --no-warnings tests/mailbox-campaigns.mjs",
+    "test:portal-dashboard": "node --no-warnings tests/portal-dashboard.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

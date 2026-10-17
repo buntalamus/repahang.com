@@ -1,4 +1,5 @@
 export interface NavItem {
+  section?: string;
   label: string;
   icon: string;
   route?: string;
@@ -7,20 +8,30 @@ export interface NavItem {
 
 export const ADMIN_NAV: NavItem[] = [
   { label: 'Dashboard', icon: 'dashboard', route: '/admin' },
-  { label: 'Permohonan Pengadil', icon: 'description', route: '/admin/permohonan' },
-  { label: 'Permohonan Penilai Pengadil', icon: 'rate_review', route: '/admin/permohonan-ra' },
-  { label: 'Pengadil Berdaftar', icon: 'people', route: '/admin/pengadil-berdaftar' },
-  { label: 'Penilai Pengadil Berdaftar', icon: 'rate_review', route: '/admin/ra-berdaftar' },
-  { label: 'Pegawai Pembangunan Daerah', icon: 'admin_panel_settings', route: '/admin/pp-daerah' },
-  { label: 'Pengguna', icon: 'group', route: '/admin/pengguna' },
-  { label: 'Lantikan Pengadil', icon: 'assignment_ind', route: '/admin/lantikan' },
-  { label: 'Rekod Perlawanan', icon: 'sports_soccer', route: '/admin/perlawanan' },
-  { label: 'Pengadil Luar', icon: 'person_add', route: '/admin/pengadil-luar' },
-  { label: 'Statistik', icon: 'bar_chart', route: '/admin/statistik' },
-  { label: 'Pengumuman', icon: 'campaign', route: '/admin/pengumuman' },
-  { label: 'Peti Emel', icon: 'mail', route: '/admin/emel' },
-  { label: 'Tetapan', icon: 'settings', route: '/admin/tetapan' },
-  { label: 'Profil Saya', icon: 'person', route: '/admin/profil' },
+  { label: 'Permohonan', icon: 'description', children: [
+    { label: 'Permohonan Pengadil', icon: 'description', route: '/admin/permohonan' },
+    { label: 'Permohonan Penilai', icon: 'rate_review', route: '/admin/permohonan-ra' },
+  ] },
+  { label: 'Pengadil & Pegawai', icon: 'groups', children: [
+    { label: 'Pengadil Berdaftar', icon: 'people', route: '/admin/pengadil-berdaftar' },
+    { label: 'Penilai Pengadil Berdaftar', icon: 'rate_review', route: '/admin/ra-berdaftar' },
+    { label: 'Pegawai Pembangunan Daerah', icon: 'admin_panel_settings', route: '/admin/pp-daerah' },
+    { label: 'Pengguna', icon: 'group', route: '/admin/pengguna' },
+  ] },
+  { label: 'Lantikan & Perlawanan', icon: 'sports_soccer', children: [
+    { label: 'Lantikan Pengadil', icon: 'assignment_ind', route: '/admin/lantikan' },
+    { label: 'Rekod Perlawanan', icon: 'sports_soccer', route: '/admin/perlawanan' },
+    { label: 'Pengadil Luar', icon: 'person_add', route: '/admin/pengadil-luar' },
+  ] },
+  { label: 'Komunikasi', icon: 'forum', children: [
+    { label: 'Pengumuman', icon: 'campaign', route: '/admin/pengumuman' },
+    { label: 'Peti Emel', icon: 'mail', route: '/admin/emel' },
+  ] },
+  { label: 'Pengurusan Sistem', icon: 'settings', children: [
+    { label: 'Statistik', icon: 'bar_chart', route: '/admin/statistik' },
+    { label: 'Tetapan', icon: 'settings', route: '/admin/tetapan' },
+    { label: 'Profil Saya', icon: 'person', route: '/admin/profil' },
+  ] },
 ];
 
 export const PP_DAERAH_NAV: NavItem[] = [
@@ -50,12 +61,14 @@ export const PP_DAERAH_NAV: NavItem[] = [
   { label: 'Penilai Pengadil Berdaftar', icon: 'rate_review', route: '/pp-daerah/ra-berdaftar' },
   { label: 'Laporan Penilaian', icon: 'assessment', route: '/pp-daerah/laporan-penilaian' },
   { label: 'Lantikan Pengadil Daerah', icon: 'assignment_ind', route: '/pp-daerah/lantikan' },
+  { label: 'Statistik Daerah', icon: 'insights', route: '/pp-daerah/statistik' },
   { label: 'Tugasan Lantikan', icon: 'assignment_ind', route: '/pp-daerah/tugasan' },
   { label: 'Profil', icon: 'person', route: '/pp-daerah/profil' },
 ];
 
 export const PENGADIL_NAV: NavItem[] = [
   { label: 'Dashboard', icon: 'dashboard', route: '/pengadil' },
+  { label: 'Statistik Saya', icon: 'insights', route: '/pengadil/statistik' },
   { label: 'Profil Saya', icon: 'person', route: '/pengadil/profil' },
   { label: 'Notifikasi Lantikan', icon: 'notifications_active', route: '/pengadil/notifikasi-lantikan' },
   { label: 'Rekod Perlawanan', icon: 'sports', route: '/pengadil/perlawanan' },

@@ -30,6 +30,11 @@ async function list(request: Request, env: Env, persatuanId: number, districtId:
     : status === 'verified' ? " AND p.status_pp='Disahkan'"
       : status === 'rejected' ? " AND p.status_pp='Tidak Disahkan'" : '';
   const access = scope(persatuanId, districtId);
+  const year = query.get('year');
+  if (year !== null) {
+    if (!/^\d{4}$/.test(year) || Number(year)<2000 || Number(year)>2100) return json({error:true,message:'Tahun tidak sah.'},422);
+    access.sql += ` AND substr(p.tarikh,1,4)='${year}'`;
+  }
   const rows = await env.DB.prepare(`SELECT p.id,p.match_group_id,p.tarikh,p.masa,p.jenis,p.nama_kejohanan,
     p.tempat,p.jawatan,p.home_team,p.away_team,p.status_pp,p.catatan_pp,p.verified_at,p.created_at,
     p.lantikan_id,p.submitted_by,p.daerah_perlawanan_id,
