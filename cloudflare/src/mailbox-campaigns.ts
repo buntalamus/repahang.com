@@ -145,8 +145,10 @@ export async function processMailboxCampaigns(env: Env): Promise<void> {
   const campaigns = enabled(env), telegram = telegramBlastEnabled(env);
   if (!campaigns && !telegram) return;
   const now = Math.floor(Date.now()/1000), token = crypto.randomUUID();
+  // The */5 cron paces batches at ten per five minutes. The window is four minutes so a
+  // run that started a few seconds late does not make the next cron skip its turn.
   const lease = await env.DB.prepare(`UPDATE mailbox_campaign_dispatch SET lock_token=?,lock_until=?,next_batch_at=?
-    WHERE id=1 AND lock_until<=? AND next_batch_at<=?`).bind(token,now+1200,now+300,now,now).run();
+    WHERE id=1 AND lock_until<=? AND next_batch_at<=?`).bind(token,now+1200,now+240,now,now).run();
   if (!wroteRow(lease)) return;
   let used = 0, paused = false;
   try {
