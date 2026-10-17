@@ -4,6 +4,37 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [17 Oktober 2026] — Notifikasi emel yang hilang
+
+### Lantikan
+
+- Pegawai yang sudah dimaklumkan menerima emel, Telegram dan notis portal apabila tarikh, masa, tempat atau pasukan perlawanan diubah. Pegawai Belum Jawab menerima semula pautan terima/tolak.
+- Pegawai yang diganti menerima notis "Pembatalan Lantikan". Pegawai baharu masih dimaklumkan melalui butang Hantar seperti biasa.
+- Peringatan sekali sebelum tarikh akhir jawapan: 12 jam (Liga) atau 1 jam (lain). Peringatan dilangkau jika pegawai sudah menjawab.
+- Auto-tolak kini juga dijalankan oleh cron setiap 5 minit. Pegawai menerima emel dan Telegram. Admin dan PP Daerah menerima ringkasan portal dan Telegram, tanpa emel. Perlawanan yang sudah bermula dikemas kini tanpa notis.
+- PP Daerah kejohanan negeri dimaklumkan apabila perlawanan dibatalkan atau ditangguhkan. Pegawai menerima emel dan Telegram apabila Admin mengesahkan penerimaan melalui override.
+
+### Akaun dan keselamatan
+
+- Akaun yang dicipta Admin menerima emel alu-aluan dengan kata laluan.
+- Pengguna dimaklumkan apabila Admin menukar kata laluan, peranan atau emel. Alamat emel lama diberi amaran keselamatan.
+- Notis apabila akaun dinyahaktifkan, selepas pengguna menukar atau menetapkan semula kata laluan, apabila profil diedit oleh Admin/PP Daerah (nama medan sahaja), dan apabila taraf berubah.
+- PP Daerah, atau Admin jika tiada PP, dimaklumkan tentang pendaftaran pengadil baharu.
+
+### Perlawanan, permohonan, laporan dan kejohanan
+
+- Keputusan sah/tolak/kembalikan dan pemadaman rekod perlawanan sampai kepada semua pegawai melalui emel dan Telegram. PP Daerah dimaklumkan apabila pengadil mengedit atau memadam rekod belum disahkan.
+- Pemohon dimaklumkan tentang kehadiran seminar, keputusan Kelas III/ujian bertulis dan permohonan yang dipadam. Keputusan kecergasan pra-2027 kekal tanpa notifikasi.
+- Penulis laporan RA dimaklumkan apabila laporan disahkan. Pengerusi yang menerima pautan dimaklumkan apabila Admin membuat override. Pengerusi baharu dan Pengerusi lama dimaklumkan apabila ditukar.
+- Admin dimaklumkan tentang kejohanan yang dicipta PP Daerah. Pegawai yang dilantik dimaklumkan tentang perubahan butiran kejohanan. Penambahan dan pembuangan pool dimaklumkan kepada pegawai.
+
+### Operasi
+
+- Jalankan migrasi D1 `0024_notification_outbox.sql` sebelum release Worker. Notis pukal dan latar belakang disimpan dalam `worker_notification_outbox` dan dihantar oleh cron atau selepas permintaan, dengan cubaan semula sehingga 5 kali.
+- Ujian: `test:notify-lantikan`, `test:notify-akaun`, `test:notify-perlawanan`, `test:notify-laporan`. Ujian Worker memerlukan Node 22 atau lebih baharu.
+
+---
+
 ## [16 Oktober 2026] — Lantikan daerah, penapis dan master data
 
 ### Lantikan PP Daerah
