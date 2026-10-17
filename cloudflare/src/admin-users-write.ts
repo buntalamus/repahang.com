@@ -15,6 +15,7 @@ import {
   emailInfoTable, emailPara, sendEmail,
 } from './php/email';
 import type { Env } from './types';
+import { notifyAccountDeactivated, notifyAccountUpdated, notifyOldEmailAddress } from './account-notify';
 
 const VALID_ROLES = ['Pengadil', 'Penilai', 'PP Daerah', 'Admin'];
 // PHP's reset_password and resend_notification both set this fixed value.
@@ -119,7 +120,8 @@ async function createUser(request: Request, env: Env): Promise<Response> {
       aktif, password_changed, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, datetime('now','+8 hours'), datetime('now','+8 hours'))
   `).bind(email, passwordHash, role, persatuanId, jenisPengadil, namaPenuh, noTelefon).run();
-  return json({ error: false, message: 'Pengguna berjaya ditambah.', generatedPassword: password });
+  const emailSent = await sendUserRegistrationEmail(env, email, namaPenuh, role, password, jenisPengadil || null, false);
+  return json({ error: false, message: 'Pengguna berjaya ditambah.', generatedPassword: password, email_sent: emailSent });
 }
 
 const PROFILE_FIELDS = [
@@ -152,6 +154,8 @@ async function updateUser(request: Request, env: Env): Promise<Response> {
   }
   // Like PHP, every profile column is written; a field missing from the
   // request becomes ''. All current callers send the full GET ?id= record.
+  const previous = await env.DB.prepare('SELECT email,role,telegram_chat_id FROM users WHERE id=?')
+    .bind(userId).first<{ email: string | null; role: string; telegram_chat_id: string | number | null }>();
   const umur = input.umur === undefined || input.umur === null || input.umur === '' ? null : phpInt(input.umur);
   const sets = ['nama_penuh=?', 'email=?', 'no_telefon=?', ...PROFILE_FIELDS.map((f) => `${f}=?`),
     'umur=?', 'role=?', 'persatuan_id=?', 'jenis_pengadil=?'];
@@ -162,7 +166,25 @@ async function updateUser(request: Request, env: Env): Promise<Response> {
     values.push(await hash(password, 12));
   }
   await env.DB.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id=?`).bind(...values, userId).run();
-  return json({ error: false, message: 'Pengguna berjaya dikemaskini.' });
+  let notified = false;
+  if (previous) {
+    const jenis = text(input, 'jenis_pengadil');
+    if (password) {
+      notified = await sendUserRegistrationEmail(env, email, namaPenuh, role, password, jenis || null, true) || notified;
+    }
+    const oldEmail = String(previous.email ?? '');
+    const emailChanged = oldEmail.trim().toLowerCase() !== email.toLowerCase();
+    const roleChanged = previous.role !== role;
+    if (emailChanged || roleChanged) {
+      notified = await notifyAccountUpdated(env,
+        { userId, name: namaPenuh, email, telegramChatId: previous.telegram_chat_id }, {
+          ...(roleChanged ? { role: { from: previous.role, to: role } } : {}),
+          ...(emailChanged ? { email: { from: oldEmail, to: email } } : {}),
+        }) || notified;
+      if (emailChanged) await notifyOldEmailAddress(env, oldEmail, namaPenuh, email, 'pentadbir');
+    }
+  }
+  return json({ error: false, message: 'Pengguna berjaya dikemaskini.', notification_sent: notified });
 }
 
 async function passwordAction(request: Request, env: Env): Promise<Response> {
@@ -198,8 +220,9 @@ async function deactivateUser(request: Request, env: Env, adminId: number): Prom
   const input = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as Input;
   const userId = phpInt(input.userId ?? new URL(request.url).searchParams.get('id') ?? 0);
   if (!userId) return json({ error: true, message: 'ID pengguna diperlukan.' }, 400);
-  const user = await env.DB.prepare('SELECT id, nama_penuh FROM users WHERE id=?')
-    .bind(userId).first<{ id: number; nama_penuh: string }>();
+  const user = await env.DB.prepare('SELECT id, nama_penuh, email, telegram_chat_id, aktif FROM users WHERE id=?')
+    .bind(userId).first<{ id: number; nama_penuh: string; email: string | null;
+      telegram_chat_id: string | number | null; aktif: number }>();
   if (!user) return json({ error: true, message: 'Pengguna tidak dijumpai.' }, 404);
   if (userId === adminId) {
     return json({ error: true, message: 'Anda tidak boleh memadam akaun sendiri.' }, 400);
@@ -211,8 +234,10 @@ async function deactivateUser(request: Request, env: Env, adminId: number): Prom
       VALUES(?,'deactivate_user','users',?,?,datetime('now','+8 hours'))`)
       .bind(adminId, userId, `Akaun ${user.nama_penuh} dinyahaktifkan oleh Admin; sejarah dikekalkan.`),
   ]);
+  const notified = Number(user.aktif) === 1 && await notifyAccountDeactivated(env,
+    { name: user.nama_penuh, email: user.email, telegramChatId: user.telegram_chat_id });
   return json({ error: false, message: 'Akaun pengguna dinyahaktifkan. Semua sejarah dikekalkan.',
-    deletedUser: user.nama_penuh });
+    deletedUser: user.nama_penuh, notification_sent: notified });
 }
 
 export async function adminUsersWrite(request: Request, env: Env): Promise<Response> {

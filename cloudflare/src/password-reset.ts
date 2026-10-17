@@ -1,4 +1,5 @@
 import { hash } from 'bcryptjs';
+import { notifyPasswordChanged } from './account-notify';
 
 import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
 import { json } from './auth';
@@ -98,11 +99,12 @@ export async function resetPassword(request: Request, env: Env): Promise<Respons
   }
 
   const tokenRow = await env.DB.prepare(`
-    SELECT t.id,t.user_id,t.expires_at,COALESCE(t.used,0) AS used,u.aktif
+    SELECT t.id,t.user_id,t.expires_at,COALESCE(t.used,0) AS used,u.aktif,u.nama_penuh,u.email
     FROM password_reset_tokens t JOIN users u ON u.id=t.user_id
     WHERE t.token IN (?,?) LIMIT 1
   `).bind(await sha256(token), token).first<{
     id: number; user_id: number; expires_at: string; used: number; aktif: number;
+    nama_penuh: string; email: string | null;
   }>();
   if (!tokenRow || tokenRow.used !== 0 || tokenRow.aktif !== 1) {
     return json({ error: true, message: 'Pautan tidak sah atau telah digunakan.' }, 400);
@@ -140,6 +142,7 @@ export async function resetPassword(request: Request, env: Env): Promise<Respons
   if (!wroteRow(results[0])) {
     return json({ error: true, message: 'Pautan tidak sah atau telah digunakan.' }, 400);
   }
+  await notifyPasswordChanged(env, { name: tokenRow.nama_penuh, email: tokenRow.email }, 'reset');
   return json({
     error: false,
     message: 'Kata laluan berjaya ditukar. Sila log masuk dengan kata laluan baharu.',

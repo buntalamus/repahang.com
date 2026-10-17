@@ -1,6 +1,8 @@
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { contactRecipient, enqueueNoticeStatements } from './notify';
+import type { ContactRow } from './notify';
 
 const grades = {
   kebangsaan: { column: 'pengadil_kebangsaan', label: 'Pengadil Kebangsaan' },
@@ -48,8 +50,31 @@ export async function refereeGrades(request: Request, env: Env): Promise<Respons
     queries.push(env.DB.prepare(`UPDATE users SET ${column}=? WHERE id IN (${placeholders})`)
       .bind(value, ...chunk));
   }
-  const results = await env.DB.batch(queries);
-  const count = results.reduce((total, result) => total + result.meta.changes, 0);
+  // Only referees whose grade actually changes are told; notices go out through the outbox.
+  const affected: ContactRow[] = [];
+  for (let offset = 0; offset < ids.length; offset += 100) {
+    const chunk = ids.slice(offset, offset + 100);
+    affected.push(...(await env.DB.prepare(`SELECT id,nama_penuh,email,telegram_chat_id FROM users
+      WHERE id IN (${chunk.map(() => '?').join(',')}) AND aktif=1 AND COALESCE(${column},0)<>?`)
+      .bind(...chunk, value).all<ContactRow>()).results);
+  }
+  const batchKey = crypto.randomUUID();
+  const granted = value === 1;
+  const notices = affected.flatMap((row) => enqueueNoticeStatements(env, `taraf:${column}:${value}:${row.id}:${batchKey}`,
+    contactRecipient(row), {
+      subject: `Taraf ${label} ${granted ? 'Ditetapkan' : 'Dibuang'} - Sistem Pengurusan Pengadil PBNP`,
+      title: 'Taraf Pengadil Dikemaskini',
+      accent: granted ? '#16A34A' : '#6B7280',
+      paragraphs: [granted
+        ? `Tahniah. Taraf ${label} telah ditetapkan pada rekod anda oleh pentadbir.`
+        : `Taraf ${label} telah dibuang daripada rekod anda oleh pentadbir.`,
+      'Sila hubungi pentadbir jika anda mempunyai sebarang pertanyaan.'],
+      portal: { type: 'Taraf Pengadil', subject: `Taraf ${label} ${granted ? 'ditetapkan' : 'dibuang'}`,
+        message: granted ? `Taraf ${label} telah ditetapkan pada rekod anda.`
+          : `Taraf ${label} telah dibuang daripada rekod anda.` },
+    }, { kind: 'taraf_notification' }));
+  const results = await env.DB.batch([...queries, ...notices]);
+  const count = results.slice(0, queries.length).reduce((total, result) => total + result.meta.changes, 0);
   const action = value === 1 ? 'ditetapkan' : 'dibuang';
   return json({ error: false, message: `Taraf ${label} ${action} untuk ${count} pengadil.`, count });
 }

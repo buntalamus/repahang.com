@@ -1,4 +1,5 @@
 import { currentUser, json } from './auth';
+import { notifyAccountDeactivated } from './account-notify';
 import type { Env } from './types';
 import { wroteRow } from './d1-changes';
 
@@ -112,8 +113,9 @@ export async function deactivateReferee(request: Request, env: Env): Promise<Res
   }
   const id = positiveId(new URL(request.url).searchParams.get('id'));
   if (!id) return json({ error: true, message: 'ID pengguna diperlukan.' }, 422);
-  const referee = await env.DB.prepare("SELECT nama_penuh FROM users WHERE id=? AND role='Pengadil' AND aktif=1")
-    .bind(id).first<{ nama_penuh: string }>();
+  const referee = await env.DB.prepare(`SELECT nama_penuh,email,telegram_chat_id FROM users
+    WHERE id=? AND role='Pengadil' AND aktif=1`)
+    .bind(id).first<{ nama_penuh: string; email: string | null; telegram_chat_id: string | number | null }>();
   if (!referee) return json({ error: true, message: 'Pengadil tidak dijumpai.' }, 404);
   // Do not hard-delete a user: cascades would destroy match history, reports,
   // applications and audit relationships (the original PHP endpoint did so).
@@ -126,6 +128,8 @@ export async function deactivateReferee(request: Request, env: Env): Promise<Res
       .bind(user.id, id, `Akaun pengadil ${referee.nama_penuh} dinyahaktifkan oleh Admin; sejarah dikekalkan.`),
   ]);
   if (!wroteRow(results[0])) return json({ error: true, message: 'Pengadil tidak dijumpai.' }, 404);
+  const notified = await notifyAccountDeactivated(env,
+    { name: referee.nama_penuh, email: referee.email, telegramChatId: referee.telegram_chat_id });
   return json({ error: false, message: 'Akaun pengadil dinyahaktifkan. Semua sejarah perlawanan dikekalkan.',
-    referee_name: referee.nama_penuh });
+    referee_name: referee.nama_penuh, notification_sent: notified });
 }

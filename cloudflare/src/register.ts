@@ -1,4 +1,6 @@
 import { hash } from 'bcryptjs';
+import { activeAdmins, contactRecipient, districtPPs, notifyUser } from './notify';
+import { baseUrl } from './php/email';
 import { applicationWindow, klToday, windowClosedMessage, type ApplicationWindow } from './application-window';
 
 import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
@@ -206,9 +208,37 @@ export async function register(request: Request, env: Env): Promise<Response> {
   } catch {
     console.error('Registration email could not be sent');
   }
+  await notifyReviewersOfRegistration(env, associationId, association.daerah, {
+    name, email, phone, refereeType: String(refereeType ?? ''),
+  });
   return json({ error: false, user_id: userId, email_sent: emailSent,
     telegram_link: telegramLink,
     message: emailSent
       ? 'Pendaftaran berjaya! Hubungkan Telegram melalui pautan ini sebelum menerima lantikan. Kata laluan dihantar melalui emel.'
       : 'Akaun berjaya didaftarkan tetapi emel belum dapat dihantar. Hubungkan Telegram melalui pautan ini, kemudian gunakan tetapan semula kata laluan untuk mendapatkan akses.' });
+}
+
+/** The district PP Daerah (or Admins when the district has none) hear about a new self-registration. */
+async function notifyReviewersOfRegistration(env: Env, associationId: number, daerah: string,
+  referee: { name: string; email: string; phone: string; refereeType: string }): Promise<void> {
+  try {
+    const pps = await districtPPs(env, associationId);
+    const reviewers = pps.length ? pps : await activeAdmins(env);
+    for (const reviewer of reviewers) {
+      await notifyUser(env, { ...contactRecipient(reviewer), telegramChatId: pps.length ? reviewer.telegram_chat_id : null }, {
+        subject: `Pendaftaran Pengadil Baharu: ${referee.name}`,
+        title: 'Pendaftaran Pengadil Baharu',
+        mailType: 'daftar',
+        paragraphs: ['Seorang pengadil baharu telah mendaftar akaun melalui portal.',
+          'Sila log masuk untuk menyemak profil pengadil ini.'],
+        rows: [['Nama', referee.name], ['Emel', referee.email], ['No. Telefon', referee.phone || '-'],
+          ['Jenis Pengadil', referee.refereeType || '-'], ['Persatuan / Daerah', daerah || '-']],
+        actions: [{ label: 'Log Masuk ke Sistem', url: `${baseUrl(env)}/login` }],
+        portal: { type: 'Pendaftaran Baharu', subject: `Pendaftaran Pengadil Baharu: ${referee.name}`,
+          message: `${referee.name} (${referee.refereeType || 'Pengadil'}) dari ${daerah || 'daerah anda'} telah mendaftar akaun baharu.` },
+      });
+    }
+  } catch (error) {
+    console.error('Registration reviewer notice failed', error instanceof Error ? error.message : error);
+  }
 }

@@ -88,7 +88,12 @@ try {
   assert.equal(user.tahun_mula_aktif, '2026');
   assert.ok(user.url_gambar_profil.startsWith('/uploads/profiles/registration_'));
   assert.equal(objects.size, 1);
-  assert.equal(emails.length, 1);
+  const recipientOf = (message) => typeof message.to === 'string' ? message.to : message.to.email;
+  assert.equal(emails.filter((message) => recipientOf(message) === 'pengadil.ujian@example.invalid').length, 1);
+  // The district PP Daerah (or Admin) is told about the new sign-up.
+  const reviewerMails = emails.filter((message) => /^Pendaftaran Pengadil Baharu: /.test(message.subject));
+  assert.ok(reviewerMails.length >= 1);
+  assert.equal(emails.length, 1 + reviewerMails.length);
   assert.match(emails[0].text, /Wajib: Hubungkan Telegram sebelum anda boleh menerima lantikan/);
   assert.match(emails[0].html, /Hubungkan Telegram \(Wajib\)/);
   assert.equal((await post(form())).status, 409);

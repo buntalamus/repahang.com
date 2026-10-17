@@ -4,6 +4,7 @@ import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
 import { wroteRow } from './d1-changes';
+import { notifyPasswordChanged } from './account-notify';
 
 export async function changePassword(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'POST') {
@@ -39,8 +40,8 @@ export async function changePassword(request: Request, env: Env): Promise<Respon
     return json({ error: true, message: 'Kata laluan baru dan pengesahan tidak sepadan!' }, 400);
   }
 
-  const user = await env.DB.prepare('SELECT password FROM users WHERE id=?')
-    .bind(session.id).first<{ password: string }>();
+  const user = await env.DB.prepare('SELECT password,nama_penuh,email FROM users WHERE id=?')
+    .bind(session.id).first<{ password: string; nama_penuh: string; email: string | null }>();
   if (!user) return json({ error: true, message: 'Pengguna tidak dijumpai!' }, 404);
   const valid = await compare(current, user.password.replace(/^\$2y\$/, '$2b$'));
   if (!valid) return json({ error: true, message: 'Kata laluan semasa tidak tepat!' }, 400);
@@ -55,5 +56,6 @@ export async function changePassword(request: Request, env: Env): Promise<Respon
   if (!wroteRow(result)) {
     return json({ error: true, message: 'Kata laluan telah berubah. Cuba lagi.' }, 409);
   }
+  await notifyPasswordChanged(env, { name: user.nama_penuh, email: user.email }, 'change');
   return json({ error: false, message: 'Kata laluan berjaya dikemaskini!' });
 }
