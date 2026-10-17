@@ -5,9 +5,17 @@ Shinjiru sedia ada. Semua aliran berkongsi `sendRefpahangEmail()` dalam
 `cloudflare/mail.ts`: lantikan, jawapan/pengesahan, laporan RA, pendaftaran
 berserta PDF, tetapan semula kata laluan, onboarding dan Peti Emel Admin.
 
+Pemulihan 17 Oktober 2026: produksi menggunakan `cloudflare-email` sementara
+relay MailSentinel masih memulangkan `451 Your account has been locked`
+selepas pembuangan domain daripada Spamhaus DBL. Cloudflare Email Sending
+telah aktif untuk domain dan dashboard menunjukkan kuota akaun 1,500 emel
+sehari ketika pertukaran dibuat. Sekatan Shinjiru masih memerlukan tindakan
+penyedia; pertukaran ini tidak membuka kunci relay mereka.
+
 ## Konfigurasi
 
-- Production: `EMAIL_TRANSPORT=legacy-smtp` dalam `wrangler.production.jsonc`.
+- Pilihan Shinjiru: `EMAIL_TRANSPORT=legacy-smtp` dalam `wrangler.production.jsonc`.
+  Semasa pemulihan 17 Oktober, produksi ditetapkan kepada `cloudflare-email`.
 - SMTP: `mail.refpahang.com`, port `465`, TLS sejak permulaan sambungan.
 - Lima identiti sedia ada: `admin`, `daftar`, `lantikan`, `support`, `pengesahan`.
 - `SMTP_HOST`, `SMTP_PORT`, dan `MAIL_*_USER/NAME/PASS` ialah Worker secrets.
@@ -82,3 +90,8 @@ Binding `EMAIL` Cloudflare dikekalkan untuk rollback. Tetapkan
 `EMAIL_TRANSPORT=cloudflare-email` dan deploy semula versi yang telah diuji
 jika perlu. Jangan tukar MX masuk atau memadam secrets SMTP untuk rollback
 pengangkutan. Had harian Cloudflare akan terpakai semula.
+
+Untuk kembali ke Shinjiru selepas penyedia mengesahkan pembukaan sekatan,
+tetapkan `EMAIL_TRANSPORT=legacy-smtp`, deploy, dan sahkan penerimaan sebenar
+di peti penerima luar. Respons `250` pelayan Shinjiru sahaja tidak membuktikan
+penghantaran relay berjaya. Semak mesej tertangguh sebelum menghantar semula.

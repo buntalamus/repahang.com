@@ -56,7 +56,7 @@
   // on in production. STAGING_LOGIN_EMAILS is left unset so every user can log in.
   "vars": {
     "BASE_URL": "https://refpahang.com",
-    "EMAIL_TRANSPORT": "legacy-smtp",
+    "EMAIL_TRANSPORT": "cloudflare-email",
     "TELEGRAM_BOT_USERNAME": "refpahang_bot",
     "STAGING_AUTH_ENABLED": "1",
     "STAGING_WRITES_ENABLED": "1",
