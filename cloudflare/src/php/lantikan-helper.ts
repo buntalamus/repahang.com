@@ -640,7 +640,7 @@ export async function autoTolakLantikanTertunggak(env: Env,
     if (notif === null || notif <= 0 || kickoff === null) return [];
     const hours = String(row.jenis_kejohanan).toLowerCase() === 'liga' ? 48 : 3;
     const deadline = Math.floor(notif / 1000) * 1000 + hours * 3600_000;
-    return deadline <= now && deadline < kickoff ? [{ ...row, deadline }] : [];
+    return deadline <= now && deadline < kickoff ? [{ ...row, deadline, upcoming: kickoff > now }] : [];
   });
   if (expired.length === 0) return 0;
   const batchKey = `worker-auto-reject-${crypto.randomUUID()}`;
@@ -661,7 +661,8 @@ export async function autoTolakLantikanTertunggak(env: Env,
       SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,${NOW} WHERE changes()=1`)
       .bind(...auditValues(snapshot, row.id, row.deadline, meta, `${batchKey}-${row.id}`)));
     // Queued with the rejection itself; delivered by cron or waitUntil, never inside this request.
-    statements.push(...enqueueNoticeStatements(env, `auto_reject:${row.id}:${row.tarikh_notif}`,
+    // A match that has already kicked off is only tidied up: nobody can act on it any more.
+    if (row.upcoming) statements.push(...enqueueNoticeStatements(env, `auto_reject:${row.id}:${row.tarikh_notif}`,
       autoRejectRecipient(snapshot), autoRejectNotice(snapshot), {
         kind: 'auto_reject_notification', lantikanId: row.id,
         guardSql: 'EXISTS(SELECT 1 FROM lantikan_audit_log WHERE event_key=?)',
@@ -679,7 +680,8 @@ export async function autoTolakLantikanTertunggak(env: Env,
   const changed = await env.DB.prepare(`SELECT lantikan_id,jadual_id,jawatan FROM lantikan_audit_log
     WHERE event_key LIKE ?`).bind(`${batchKey}-%`).all<{ jadual_id: number; jawatan: string }>();
   try {
-    const digestRows = await env.DB.prepare(`SELECT al.nama_pegawai AS nama,al.jawatan,
+    const upcoming = new Set(expired.filter((row) => row.upcoming).map((row) => row.id));
+    const digestRows = await env.DB.prepare(`SELECT al.lantikan_id,al.nama_pegawai AS nama,al.jawatan,
         jp.pasukan_home||' lwn '||jp.pasukan_away AS pasukan,COALESCE(kj.nama,'') AS kejohanan,jp.tarikh,
         u.persatuan_id
       FROM lantikan_audit_log al
@@ -687,9 +689,9 @@ export async function autoTolakLantikanTertunggak(env: Env,
       LEFT JOIN kejohanan kj ON kj.id=jp.kejohanan_id
       LEFT JOIN users u ON u.id=al.pengadil_id
       WHERE al.event_key LIKE ? ORDER BY jp.tarikh,jp.masa,al.id`).bind(`${batchKey}-%`)
-      .all<{ nama: string; jawatan: string; pasukan: string; kejohanan: string; tarikh: string;
-        persatuan_id: number | null }>();
-    await queueAutoRejectDigests(env, batchKey, digestRows.results);
+      .all<{ lantikan_id: number; nama: string; jawatan: string; pasukan: string; kejohanan: string;
+        tarikh: string; persatuan_id: number | null }>();
+    await queueAutoRejectDigests(env, batchKey, digestRows.results.filter((row) => upcoming.has(Number(row.lantikan_id))));
   } catch (error) {
     console.error('[autoTolakLantikanTertunggak] digest queue error', error instanceof Error ? error.message : error);
   }

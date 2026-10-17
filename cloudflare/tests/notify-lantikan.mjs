@@ -176,6 +176,20 @@ try {
   assert.equal(count(`SELECT count(*) FROM lantikan_audit_log WHERE lantikan_id=? AND event_type='auto_reject_notification'
     AND event_status='success'`,rows3[0].id),2);
 
+  // A match that already kicked off is tidied up silently (no stale notices).
+  const m5=insertMatch('2099-05-02','10:00:00');
+  await appointAndNotify(m5,kup.slice(6,9));
+  const pastRows=all('SELECT id FROM lantikan_pengadil WHERE jadual_id=?',m5);
+  assert.equal(pastRows.length,3);
+  {
+    db.prepare("UPDATE jadual_perlawanan SET tarikh=date('now','+8 hours','-5 days'),masa='10:00:00' WHERE id=?").run(m5);
+    db.prepare(`UPDATE lantikan_pengadil SET status='Belum Jawab',notif_hantar=1,tarikh_notif=datetime('now','+8 hours','-8 days')
+      WHERE jadual_id=?`).run(m5);
+    const queuedBefore=count('SELECT count(*) FROM worker_notification_outbox');
+    assert.equal(await worker.autoTolakLantikanTertunggak(env,{jadual_id:m5}),pastRows.length);
+    assert.equal(count('SELECT count(*) FROM worker_notification_outbox'),queuedBefore,'no notices for past matches');
+  }
+
   // --- Answer reminder: once per dispatch, skipped once answered ------------
   const day=3600_000;
   assert.ok(worker.reminderWindow('Liga',kl(Date.now()-37*day),'2099-01-01','10:00:00'));
