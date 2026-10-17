@@ -23,6 +23,10 @@ atau kandungan respons pelayan. Sambungan mempunyai had masa keseluruhan
 30 saat dan ditutup selepas pengesahan penerimaan. MIME mengekalkan teks,
 HTML, nama/subjek Unicode, logo CID dan lampiran PDF.
 
+Peti Emel memberi permintaan penghantaran had masa 45 saat, melebihi had
+SMTP 30 saat, supaya pelayan sempat merekodkan hasil sebelum UI berhenti
+menunggu. Had lalai permintaan API lain kekal 20 saat.
+
 ## DNS
 
 Pada 16 Oktober, hos SMTP yang tiada telah dipulihkan:
@@ -37,6 +41,10 @@ asal dengan Cloudflare. Kekalkan hanya satu SPF akar. DKIM lama
 `default._domainkey.refpahang.com`, MX masuk Cloudflare dan DMARC sedia ada
 dikekalkan. Pengembalian SMTP keluar tidak memindahkan e-mel dalam D1/R2
 atau mengubah penghalaan e-mel masuk.
+
+Pada 17 Oktober, SPF akar turut ditambah `ip4:101.99.77.162`, iaitu IP
+keluar yang ditunjukkan oleh pemeriksaan Email Deliverability cPanel
+(`baboon1.awedns.com`). Semua mekanisme SPF sedia ada dikekalkan.
 
 Pelayan Shinjiru juga mempunyai peti masuk tempatan. E-mel yang dihantar
 melalui SMTP kepada alamat dalam domain yang dianggap tempatan oleh cPanel

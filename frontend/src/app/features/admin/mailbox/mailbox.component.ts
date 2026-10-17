@@ -288,7 +288,8 @@ export class AdminMailboxComponent implements OnInit {
   send(): void {
     if (this.sending) return;
     this.error = ''; this.notice = ''; this.sending = true;
-    this.api.post<ApiResult<{ id: string; delivery_status: string }>>('admin-mailbox.php', this.draft).subscribe({
+    // SMTP can take 30 seconds; keep the request open long enough to record its outcome.
+    this.api.post<ApiResult<{ id: string; delivery_status: string }>>('admin-mailbox.php', this.draft, 45000).subscribe({
       next: (result) => {
         this.sending = false; this.cdr.markForCheck();
         if (result.data.delivery_status !== 'sent') { this.error = 'Status penghantaran belum pasti. Semak folder Dihantar sebelum mencuba lagi.'; return; }
