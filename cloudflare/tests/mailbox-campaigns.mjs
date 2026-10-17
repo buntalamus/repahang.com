@@ -4,7 +4,7 @@ import {bundle,openDatabase,sessionCookie} from './_harness.mjs';
 const {adminMailboxCampaigns:api,processMailboxCampaigns:run,SmtpRejection,mailboxDirectory,directoryRecipients}=await bundle(
   "export {SmtpRejection} from '../smtp'; export {adminMailboxCampaigns,processMailboxCampaigns} from '../src/mailbox-campaigns'; export {mailboxDirectory,directoryRecipients} from '../src/mailbox-directory';"
 );
-const {db,DB,hooks,close}=openDatabase(['0001_worker_sessions','0013_mailbox','0021_mailbox_imap','0023_mailbox_campaigns']);
+const {db,DB,hooks,close}=openDatabase(['0001_worker_sessions','0013_mailbox','0021_mailbox_imap','0023_mailbox_campaigns','0025_telegram_blast_queue']);
 const objects=new Map(),sent=[];
 const MEDIA={async put(key,value){objects.set(key,value);},async delete(key){objects.delete(key);}};
 const env={DB,MEDIA,STAGING_AUTH_ENABLED:'1',STAGING_WRITES_ENABLED:'1',BULK_EMAIL_ENABLED:'1',MAILBOX_SEND_ENABLED:'1',

@@ -4,6 +4,8 @@ import { currentUser, json } from './auth';
 import { wroteRow } from './d1-changes';
 import { boundedJson } from './request';
 import { directoryRecipients, mailboxDirectory, mailYear, recipientFilter } from './mailbox-directory';
+import { archiveSentCopy } from './mailbox-archive';
+import { processTelegramBlast, telegramBlastEnabled } from './telegram-blast';
 import type { Env } from './types';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -128,78 +130,76 @@ export async function adminMailboxCampaigns(request: Request, env: Env): Promise
   return json({error:true,message:'Tindakan tidak sah.'},422);
 }
 
-function base64(value: string): string {
-  return btoa(Array.from(new TextEncoder().encode(value),b=>String.fromCharCode(b)).join('')).replace(/.{1,76}/g,'$&\r\n');
-}
 async function archive(env: Env, campaign: Campaign, target: Target) {
   const formatted = buildRefpahangEmail(campaign.subject,'',campaign.content.split(/\n\s*\n/));
-  const id = target.message_id, boundary = `refpahang-${id}`;
-  const words:string[]=[];let word='';
-  for(const character of campaign.subject){
-    if(new TextEncoder().encode(word+character).byteLength>30){words.push(`=?UTF-8?B?${base64(word).replace(/\r\n/g,'')}?=`);word='';}
-    word+=character;
-  }
-  if(word) words.push(`=?UTF-8?B?${base64(word).replace(/\r\n/g,'')}?=`);
-  const subject=words.join('\r\n ');
-  const raw = `From: ${campaign.mailbox}\r\nTo: ${target.email}\r\nSubject: ${subject}\r\nDate: ${new Date().toUTCString()}\r\nMIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary="${boundary}"\r\n\r\n`
-    + `--${boundary}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64(formatted.text)}`
-    + `--${boundary}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64(formatted.html)}--${boundary}--\r\n`;
-  const key = `mailbox/${campaign.mailbox}/sent/${id}.eml`;
-  await env.MEDIA.put(key,raw,{httpMetadata:{contentType:'message/rfc822'}});
-  await env.DB.prepare(`INSERT INTO mailbox_messages(id,mailbox,folder,sender,recipient,subject,r2_key,size_bytes,delivery_status,request_id)
-    VALUES(?,?,'sent',?,?,?,?,?,'processing',?)`).bind(id,campaign.mailbox,campaign.mailbox,target.email,campaign.subject,key,
-      new TextEncoder().encode(raw).byteLength,`blast:${id}`).run();
+  await archiveSentCopy(env,{id:target.message_id,mailbox:campaign.mailbox,to:target.email,subject:campaign.subject,
+    html:formatted.html,text:formatted.text,requestId:`blast:${target.message_id}`});
   return formatted;
 }
-/** Cron only; never start SMTP from preview/confirmation or retry an uncertain acceptance. */
+/**
+ * Cron only; never start SMTP from preview/confirmation or retry an uncertain acceptance.
+ * Mailbox campaigns and the Telegram linking blast share one lease and one budget of
+ * ten addresses per five minutes; campaigns go first.
+ */
 export async function processMailboxCampaigns(env: Env): Promise<void> {
-  if (!enabled(env)) return;
+  const campaigns = enabled(env), telegram = telegramBlastEnabled(env);
+  if (!campaigns && !telegram) return;
   const now = Math.floor(Date.now()/1000), token = crypto.randomUUID();
   const lease = await env.DB.prepare(`UPDATE mailbox_campaign_dispatch SET lock_token=?,lock_until=?,next_batch_at=?
     WHERE id=1 AND lock_until<=? AND next_batch_at<=?`).bind(token,now+1200,now+300,now,now).run();
   if (!wroteRow(lease)) return;
+  let used = 0, paused = false;
   try {
-    // A terminated Worker may have reached SMTP. Such targets require reconciliation, never automatic resending.
-    await env.DB.prepare(`UPDATE mailbox_campaign_recipients SET status='uncertain',error='Status SMTP belum pasti; semak folder Dihantar sebelum menghantar semula.'
-      WHERE status='processing' AND started_at<?`).bind(now-1200).run();
-    for (let index=0; index<10; index++) {
-      const candidate = await env.DB.prepare(`SELECT c.* FROM mailbox_campaigns c WHERE c.status='queued'
-        AND EXISTS(SELECT 1 FROM mailbox_campaign_recipients r WHERE r.campaign_id=c.id AND r.status='pending')
-        ORDER BY c.confirmed_at,c.created_at,c.id LIMIT 1`).first<Campaign>();
-      if (!candidate) break;
-      const messageId = crypto.randomUUID();
-      const claimed = await env.DB.prepare(`UPDATE mailbox_campaign_recipients SET status='processing',message_id=?,started_at=?
-        WHERE campaign_id=? AND email=(SELECT email FROM mailbox_campaign_recipients WHERE campaign_id=? AND status='pending' ORDER BY email LIMIT 1)
-          AND status='pending' AND EXISTS(SELECT 1 FROM mailbox_campaigns WHERE id=? AND status='queued')
-        RETURNING email,name,message_id`).bind(messageId,now,candidate.id,candidate.id,candidate.id).all<Target>();
-      const target = claimed.results[0];
-      if (!target) continue;
-      let smtpStarted = false;
-      try {
-        const formatted = await archive(env,candidate,target);
-        smtpStarted = true;
-        const providerId = await sendRefpahangEmail(env,candidate.mailbox.split('@')[0] as MailType,target.email,target.name,
-          candidate.subject,formatted.html,formatted.text);
-        await env.DB.batch([
-          env.DB.prepare("UPDATE mailbox_messages SET delivery_status='sent',message_id=? WHERE id=?").bind(providerId,messageId),
-          env.DB.prepare("UPDATE mailbox_campaign_recipients SET status='sent',completed_at=CURRENT_TIMESTAMP WHERE campaign_id=? AND email=? AND message_id=?")
-            .bind(candidate.id,target.email,messageId),
-        ]);
-      } catch (error) {
-        const uncertain = smtpStarted && !(error instanceof SmtpRejection);
-        const status = uncertain ? 'uncertain' : 'failed';
-        await env.DB.batch([
-          env.DB.prepare('UPDATE mailbox_messages SET delivery_status=? WHERE id=?').bind(uncertain?'processing':'failed',messageId),
-          env.DB.prepare('UPDATE mailbox_campaign_recipients SET status=?,error=? WHERE campaign_id=? AND email=? AND message_id=?')
-            .bind(status,uncertain?'Status SMTP belum pasti; semak folder Dihantar.':smtpStarted?'Pelayan menolak emel; semak alamat atau had penghantaran sebelum cuba semula.':'Gagal menyediakan emel; boleh cuba semula.',candidate.id,target.email,messageId),
-        ]);
-        // Pause this run on infrastructure/SMTP failure rather than consuming the whole queue.
-        break;
-      }
-    }
-    await env.DB.prepare(`UPDATE mailbox_campaigns SET status='completed' WHERE status='queued'
-      AND NOT EXISTS(SELECT 1 FROM mailbox_campaign_recipients r WHERE r.campaign_id=mailbox_campaigns.id AND r.status IN ('pending','processing'))`).run();
+    if (campaigns) ({used,paused} = await dispatchCampaigns(env,now));
+    if (telegram && !paused && used < 10) await processTelegramBlast(env,10-used,now);
   } finally {
     await env.DB.prepare('UPDATE mailbox_campaign_dispatch SET lock_token=NULL,lock_until=0 WHERE id=1 AND lock_token=?').bind(token).run();
   }
+}
+
+async function dispatchCampaigns(env: Env, now: number): Promise<{used:number;paused:boolean}> {
+  let used = 0, paused = false;
+  // A terminated Worker may have reached SMTP. Such targets require reconciliation, never automatic resending.
+  await env.DB.prepare(`UPDATE mailbox_campaign_recipients SET status='uncertain',error='Status SMTP belum pasti; semak folder Dihantar sebelum menghantar semula.'
+    WHERE status='processing' AND started_at<?`).bind(now-1200).run();
+  for (; used<10; used++) {
+    const candidate = await env.DB.prepare(`SELECT c.* FROM mailbox_campaigns c WHERE c.status='queued'
+      AND EXISTS(SELECT 1 FROM mailbox_campaign_recipients r WHERE r.campaign_id=c.id AND r.status='pending')
+      ORDER BY c.confirmed_at,c.created_at,c.id LIMIT 1`).first<Campaign>();
+    if (!candidate) break;
+    const messageId = crypto.randomUUID();
+    const claimed = await env.DB.prepare(`UPDATE mailbox_campaign_recipients SET status='processing',message_id=?,started_at=?
+      WHERE campaign_id=? AND email=(SELECT email FROM mailbox_campaign_recipients WHERE campaign_id=? AND status='pending' ORDER BY email LIMIT 1)
+        AND status='pending' AND EXISTS(SELECT 1 FROM mailbox_campaigns WHERE id=? AND status='queued')
+      RETURNING email,name,message_id`).bind(messageId,now,candidate.id,candidate.id,candidate.id).all<Target>();
+    const target = claimed.results[0];
+    if (!target) continue;
+    let smtpStarted = false;
+    try {
+      const formatted = await archive(env,candidate,target);
+      smtpStarted = true;
+      const providerId = await sendRefpahangEmail(env,candidate.mailbox.split('@')[0] as MailType,target.email,target.name,
+        candidate.subject,formatted.html,formatted.text);
+      await env.DB.batch([
+        env.DB.prepare("UPDATE mailbox_messages SET delivery_status='sent',message_id=? WHERE id=?").bind(providerId,messageId),
+        env.DB.prepare("UPDATE mailbox_campaign_recipients SET status='sent',completed_at=CURRENT_TIMESTAMP WHERE campaign_id=? AND email=? AND message_id=?")
+          .bind(candidate.id,target.email,messageId),
+      ]);
+    } catch (error) {
+      const uncertain = smtpStarted && !(error instanceof SmtpRejection);
+      const status = uncertain ? 'uncertain' : 'failed';
+      await env.DB.batch([
+        env.DB.prepare('UPDATE mailbox_messages SET delivery_status=? WHERE id=?').bind(uncertain?'processing':'failed',messageId),
+        env.DB.prepare('UPDATE mailbox_campaign_recipients SET status=?,error=? WHERE campaign_id=? AND email=? AND message_id=?')
+          .bind(status,uncertain?'Status SMTP belum pasti; semak folder Dihantar.':smtpStarted?'Pelayan menolak emel; semak alamat atau had penghantaran sebelum cuba semula.':'Gagal menyediakan emel; boleh cuba semula.',candidate.id,target.email,messageId),
+      ]);
+      // Pause this run on infrastructure/SMTP failure rather than consuming the whole queue.
+      used++;
+      paused = true;
+      break;
+    }
+  }
+  await env.DB.prepare(`UPDATE mailbox_campaigns SET status='completed' WHERE status='queued'
+    AND NOT EXISTS(SELECT 1 FROM mailbox_campaign_recipients r WHERE r.campaign_id=mailbox_campaigns.id AND r.status IN ('pending','processing'))`).run();
+  return {used,paused};
 }

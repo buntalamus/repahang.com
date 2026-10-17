@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import {bundle,openDatabase,sessionCookie} from './_harness.mjs';
 
-const {adminTelegramBlastPreview,externalTelegramBlastPreview}=await bundle(
-  "export {adminTelegramBlastPreview,externalTelegramBlastPreview} from '../src/telegram-blast-preview';"
+const {adminTelegramBlastPreview,externalTelegramBlastPreview,processMailboxCampaigns:run}=await bundle(
+  "export {adminTelegramBlastPreview,externalTelegramBlastPreview} from '../src/telegram-blast-preview'; export {processMailboxCampaigns} from '../src/mailbox-campaigns';"
 );
-const {db,DB,close}=openDatabase(['0001_worker_sessions']);
-const messages=[];
-const env={DB,STAGING_AUTH_ENABLED:'1',STAGING_WRITES_ENABLED:'0',BULK_EMAIL_ENABLED:'0',
+const {db,DB,close}=openDatabase(['0001_worker_sessions','0013_mailbox','0021_mailbox_imap',
+  '0023_mailbox_campaigns','0025_telegram_blast_queue']);
+const messages=[],objects=new Map();
+const MEDIA={async put(key,value){objects.set(key,value);},async delete(key){objects.delete(key);}};
+let now=Date.now();const originalNow=Date.now;Date.now=()=>now;
+const tick=()=>{now+=301000;};
+const env={DB,MEDIA,STAGING_AUTH_ENABLED:'1',STAGING_WRITES_ENABLED:'0',BULK_EMAIL_ENABLED:'0',
   TELEGRAM_BOT_USERNAME:'refpahang_bot',MAIL_ADMIN_USER:'admin@refpahang.example',
   MAIL_ADMIN_NAME:'PBNP',EMAIL:{send:async message=>{
     messages.push(message);
@@ -20,7 +24,11 @@ const referee=db.prepare("SELECT id FROM users WHERE role='Pengadil' AND aktif=1
 const adminCookie=await sessionCookie(db,admin.id);
 const refereeCookie=await sessionCookie(db,referee.id);
 const get=(url,cookie)=>new Request(url,{headers:cookie?{Cookie:cookie}:{}});
-const post=(cookie)=>new Request(main,{method:'POST',headers:cookie?{Cookie:cookie}:{}});
+const post=(cookie,body={action:'start'})=>new Request(main,{method:'POST',headers:cookie?{Cookie:cookie}:{},
+  body:JSON.stringify(body)});
+const call=async(body)=>{const response=await adminTelegramBlastPreview(post(adminCookie,body),env);
+  return {status:response.status,...await response.json()};};
+const status=async()=>(await (await adminTelegramBlastPreview(get(main,adminCookie),env)).json()).batch;
 
 try {
   assert.equal((await adminTelegramBlastPreview(get(main),env)).status,401);
@@ -71,25 +79,89 @@ try {
   assert.equal(filtered.not_linked,3);
   assert.equal(filtered.active_not_linked,2);
   assert.equal(filtered.inactive_not_linked,1);
+  assert.equal(filtered.batch,null);
   env.STAGING_WRITES_ENABLED='1';
   assert.equal((await adminTelegramBlastPreview(post(adminCookie),env)).status,503);
   env.BULK_EMAIL_ENABLED='1';
+  db.exec('UPDATE worker_sessions SET expires_at=expires_at+86400');
+  ['A SATU','B DUA','C TIGA'].forEach((name,i)=>db.prepare('UPDATE users SET nama_penuh=? WHERE id=?').run(name,invitees[i].id));
+
+  // Starting a blast freezes the list and creates links, but never sends from the request.
+  const first=await call({action:'start'});
+  assert.equal(first.error,false,first.message);
+  assert.equal(first.batch.total,3);
+  assert.equal(first.batch.counts.pending,3);
+  assert.equal(messages.length,0);
+  for(const invitee of invitees){
+    assert.match(db.prepare('SELECT tg_link_token FROM users WHERE id=?').get(invitee.id).tg_link_token,/^[a-f0-9]{32}$/);
+  }
+  assert.equal((await call({action:'start'})).status,409,'one blast at a time');
+
+  // The cron sends in name order and pauses at the first delivery error.
   globalThis.failRecipient=invitees[1].email;
-  const first=await (await adminTelegramBlastPreview(post(adminCookie),env)).json();
-  assert.equal(first.error,false);
-  assert.deepEqual([first.sent,first.failed],[2,1]);
-  assert.deepEqual(first.errors,[invitees[1].email]);
+  await run(env);
+  assert.deepEqual(messages.map(message=>message.to.email),[invitees[0].email,invitees[1].email]);
+  tick();await run(env);
   assert.equal(messages.length,3);
+  let batch=await status();
+  assert.equal(batch.status,'completed');
+  assert.deepEqual([batch.counts.sent,batch.counts.uncertain],[2,1]);
   assert.ok(messages.every(message=>message.from.email==='admin@refpahang.example'));
   for(const invitee of invitees){
     const token=db.prepare('SELECT tg_link_token FROM users WHERE id=?').get(invitee.id).tg_link_token;
-    assert.match(token,/^[a-f0-9]{32}$/);
     const message=messages.find(row=>row.to.email===invitee.email);
     assert.ok(message.html.includes(`https://t.me/refpahang_bot?start=${token}`));
   }
+  // Every attempt keeps a Peti Emel "Dihantar" copy.
+  const copies=db.prepare(`SELECT recipient,delivery_status FROM mailbox_messages
+    WHERE folder='sent' AND request_id LIKE 'telegram-blast:%' ORDER BY recipient`).all();
+  assert.equal(copies.length,3);
+  assert.equal(copies.filter(row=>row.delivery_status==='sent').length,2);
+  assert.equal(objects.size,3);
+
+  // Retry resends the uncertain address once the next batch window opens.
   globalThis.failRecipient=null;
-  const second=await (await adminTelegramBlastPreview(post(adminCookie),env)).json();
-  assert.deepEqual([second.sent,second.failed],[3,0]);
+  const retry=await call({action:'retry-failed',id:batch.id});
+  assert.equal(retry.error,false);
+  assert.equal(retry.batch.status,'queued');
+  await run(env);assert.equal(messages.length,3,'the shared five-minute window still applies');
+  tick();await run(env);
+  assert.equal(messages.length,4);
+  assert.equal(messages[3].to.email,invitees[1].email);
+  batch=await status();
+  assert.deepEqual([batch.status,batch.counts.sent,batch.counts.uncertain],['completed',3,0]);
+
+  // An account linked after the start is skipped without using the budget.
+  const second=await call({action:'start'});
+  assert.equal(second.batch.total,3);
+  db.prepare('UPDATE users SET telegram_chat_id=777 WHERE id=?').run(invitees[0].id);
+  tick();await run(env);
+  batch=await status();
+  assert.deepEqual([batch.counts.skipped,batch.counts.sent,batch.status],[1,2,'completed']);
+  assert.equal(batch.linked_since,0);
   assert.equal(messages.length,6);
-  console.log('Telegram blast: Admin scope, preview, write/delivery gates, token reuse and email failures passed');
-} finally {close();}
+
+  // Cancelling stops every email that has not been sent.
+  const third=await call({action:'start'});
+  assert.equal(third.batch.total,2);
+  assert.equal((await call({action:'cancel',id:third.batch.id})).error,false);
+  tick();await run(env);
+  assert.equal(messages.length,6);
+  assert.equal((await status()).counts.cancelled,2);
+
+  // Ten addresses per five minutes, shared with the mailbox campaigns.
+  const extra=db.prepare(`SELECT id FROM users WHERE id NOT IN (?,?,?,?) ORDER BY id LIMIT 12`)
+    .all(admin.id,...invitees.map(row=>row.id));
+  for(const [i,row] of extra.entries()){
+    db.prepare("UPDATE users SET telegram_chat_id=NULL,email=?,nama_penuh=? WHERE id=?")
+      .run(`blast${i}@example.test`,`D PENGGUNA ${String(i).padStart(2,'0')}`,row.id);
+  }
+  const fourth=await call({action:'start'});
+  assert.equal(fourth.batch.total,14);
+  tick();await Promise.all([run(env),run(env)]);
+  assert.equal(messages.length,16,'one lease, ten emails');
+  tick();await run(env);
+  assert.equal(messages.length,20);
+  assert.equal((await status()).status,'completed');
+  console.log('Telegram blast: Admin scope, preview, gates, queued delivery, Sent copies, retry, skip, cancel and budget passed');
+} finally {Date.now=originalNow;close();}

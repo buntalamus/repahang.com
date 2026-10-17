@@ -1,8 +1,16 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
+
+interface TelegramBlastRecipient { user_id: number; name: string; email: string; status: string;
+  error: string | null; completed_at: string | null; linked_now: number; }
+interface TelegramBlastCounts { pending: number; processing: number; sent: number; failed: number;
+  uncertain: number; skipped: number; cancelled: number; }
+interface TelegramBlastBatch { id: string; status: string; total: number; created_at: string;
+  created_by_name: string | null; linked_since: number; counts: TelegramBlastCounts;
+  recipients: TelegramBlastRecipient[]; }
 
 @Component({
   selector: 'app-admin-settings',
@@ -426,7 +434,7 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
             <h2 class="font-bold text-slate-800">Pautan Telegram Pengguna</h2>
           </div>
           <div class="p-6">
-            <p class="text-sm text-slate-600 mb-4">Hantar emel pautan Telegram kepada semua pengguna yang belum memautkan akaun, termasuk akaun aktif dan tidak aktif. Pemautan tidak mengaktifkan semula akaun.</p>
+            <p class="text-sm text-slate-600 mb-4">Hantar emel pautan Telegram kepada semua pengguna yang belum memautkan akaun, termasuk akaun aktif dan tidak aktif. Pemautan tidak mengaktifkan semula akaun. Emel dihantar secara berperingkat oleh pelayan, 10 emel setiap 5 minit, dan setiap emel direkod serta disalin ke folder Dihantar dalam Peti Emel admin. Halaman ini boleh ditutup semasa blast berjalan.</p>
 
             @if (tgStats) {
               <div class="grid grid-cols-3 gap-3 mb-5">
@@ -436,35 +444,97 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
                 </div>
                 <div class="rounded-lg bg-green-50 border border-green-200 p-3 text-center">
                   <p class="text-2xl font-bold text-green-600">{{ tgStats.linked }}</p>
-                  <p class="text-xs text-green-600">Sudah Dipaut</p>
+                  <p class="text-xs text-green-700">Sudah Dipaut</p>
                 </div>
                 <div class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-center">
-                  <p class="text-2xl font-bold text-amber-600">{{ tgStats.not_linked }}</p>
-                  <p class="text-xs text-amber-600">Belum Dipaut</p>
+                  <p class="text-2xl font-bold text-amber-700">{{ tgStats.not_linked }}</p>
+                  <p class="text-xs text-amber-700">Belum Dipaut</p>
                 </div>
               </div>
               <p class="text-xs text-slate-600 mb-4">Belum dipaut: {{ tgStats.active_not_linked }} akaun aktif, {{ tgStats.inactive_not_linked }} akaun tidak aktif.</p>
             }
 
-            @if (tgBlastResult) {
-              <div class="mb-4 rounded-lg p-3 text-sm font-medium"
-                [class]="tgBlastResult.failed > 0 ? 'bg-amber-50 border border-amber-200 text-amber-800' : 'bg-green-50 border border-green-200 text-green-800'">
-                <span class="material-icons text-sm align-middle mr-1">{{ tgBlastResult.failed > 0 ? 'warning' : 'check_circle' }}</span>
-                {{ tgBlastResult.message }}
+            @if (tgBatch) {
+              <div class="mb-5 rounded-lg border border-slate-200 p-4">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div>
+                    <p class="text-sm font-semibold text-slate-800">Blast terakhir: {{ tgBatchStatusLabel(tgBatch.status) }}</p>
+                    <p class="text-xs text-slate-600">Dimulakan {{ tgBatch.created_at }} oleh {{ tgBatch.created_by_name || '-' }} untuk {{ tgBatch.total }} pengguna.</p>
+                  </div>
+                  @if (tgBatch.status === 'queued') {
+                    <p class="text-xs text-slate-600">Anggaran baki: {{ tgMinutesLeft() }} minit</p>
+                  }
+                </div>
+                <div class="h-2 w-full rounded-full bg-slate-100 overflow-hidden mb-3" role="progressbar"
+                  [attr.aria-valuenow]="tgDone()" aria-valuemin="0" [attr.aria-valuemax]="tgBatch.total"
+                  aria-label="Kemajuan blast Telegram">
+                  <div class="h-full bg-[#0088CC]" [style.width.%]="tgBatch.total ? (tgDone() / tgBatch.total) * 100 : 0"></div>
+                </div>
+                <div class="flex flex-wrap gap-2 text-xs mb-3">
+                  <span class="px-2 py-1 rounded bg-green-50 text-green-800 border border-green-200">Dihantar {{ tgBatch.counts.sent }}</span>
+                  <span class="px-2 py-1 rounded bg-slate-50 text-slate-700 border border-slate-200">Menunggu {{ tgBatch.counts.pending + tgBatch.counts.processing }}</span>
+                  <span class="px-2 py-1 rounded bg-red-50 text-red-800 border border-red-200">Gagal {{ tgBatch.counts.failed }}</span>
+                  <span class="px-2 py-1 rounded bg-amber-50 text-amber-800 border border-amber-200">Belum pasti {{ tgBatch.counts.uncertain }}</span>
+                  <span class="px-2 py-1 rounded bg-slate-50 text-slate-700 border border-slate-200">Dilangkau {{ tgBatch.counts.skipped }}</span>
+                  @if (tgBatch.counts.cancelled) {
+                    <span class="px-2 py-1 rounded bg-slate-50 text-slate-700 border border-slate-200">Dibatalkan {{ tgBatch.counts.cancelled }}</span>
+                  }
+                  <span class="px-2 py-1 rounded bg-blue-50 text-blue-800 border border-blue-200">Sudah paut selepas emel {{ tgBatch.linked_since }}</span>
+                </div>
+                <div class="max-h-72 overflow-y-auto border border-slate-100 rounded">
+                  <table class="w-full text-xs">
+                    <caption class="sr-only">Status emel setiap penerima</caption>
+                    <thead class="bg-slate-50 sticky top-0">
+                      <tr>
+                        <th scope="col" class="text-left px-3 py-2 font-semibold text-slate-700">Nama</th>
+                        <th scope="col" class="text-left px-3 py-2 font-semibold text-slate-700">Emel</th>
+                        <th scope="col" class="text-left px-3 py-2 font-semibold text-slate-700">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (row of tgBatch.recipients; track row.user_id) {
+                        <tr class="border-t border-slate-100">
+                          <td class="px-3 py-1.5 text-slate-800">{{ row.name }}</td>
+                          <td class="px-3 py-1.5 text-slate-700 break-all">{{ row.email }}</td>
+                          <td class="px-3 py-1.5">
+                            <span [class]="tgRowClass(row.status)">{{ tgRowLabel(row.status) }}</span>
+                            @if (row.linked_now) { <span class="ml-1 text-blue-700">· Sudah paut</span> }
+                            @if (row.error) { <p class="text-slate-600 mt-0.5">{{ row.error }}</p> }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
               </div>
             }
 
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center gap-3">
               <button (click)="loadTelegramStats()" [disabled]="tgLoading"
                 class="flex items-center gap-2 px-4 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50 transition disabled:opacity-60">
-                <span class="material-icons text-sm">refresh</span>
+                <span class="material-icons text-sm" aria-hidden="true">refresh</span>
                 {{ tgLoading ? 'Memuatkan...' : 'Semak Status' }}
               </button>
-              <button (click)="sendTelegramBlast()" [disabled]="tgBlasting || !tgStats || tgStats.not_linked === 0"
-                class="flex items-center gap-2 px-5 py-2 bg-[#0088CC] text-white font-bold rounded-lg hover:bg-[#006FA3] transition disabled:opacity-60 text-sm">
-                <span class="material-icons text-sm">{{ tgBlasting ? 'hourglass_top' : 'send' }}</span>
-                {{ tgBlasting ? 'Menghantar emel...' : 'Hantar Blast Emel' }}
-              </button>
+              @if (tgBatch?.status === 'queued') {
+                <button (click)="cancelTelegramBlast()" [disabled]="tgBusy"
+                  class="flex items-center gap-2 px-4 py-2 text-sm border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition disabled:opacity-60">
+                  <span class="material-icons text-sm" aria-hidden="true">cancel</span>
+                  Batalkan Blast
+                </button>
+              } @else {
+                <button (click)="startTelegramBlast()" [disabled]="tgBusy || !tgStats || tgStats.not_linked === 0"
+                  class="flex items-center gap-2 px-5 py-2 bg-[#0077B3] text-white font-bold rounded-lg hover:bg-[#006FA3] transition disabled:opacity-60 text-sm">
+                  <span class="material-icons text-sm" aria-hidden="true">{{ tgBusy ? 'hourglass_top' : 'send' }}</span>
+                  {{ tgBusy ? 'Memulakan...' : 'Mulakan Blast Emel' }}
+                </button>
+                @if (tgBatch && (tgBatch.counts.failed + tgBatch.counts.uncertain) > 0) {
+                  <button (click)="retryTelegramBlast()" [disabled]="tgBusy"
+                    class="flex items-center gap-2 px-4 py-2 text-sm border border-amber-300 text-amber-800 rounded-lg hover:bg-amber-50 transition disabled:opacity-60">
+                    <span class="material-icons text-sm" aria-hidden="true">replay</span>
+                    Hantar Semula Gagal / Belum Pasti
+                  </button>
+                }
+              }
             </div>
           </div>
         </div>
@@ -487,15 +557,16 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
     }
   `,
 })
-export class AdminSettingsComponent implements OnInit {
+export class AdminSettingsComponent implements OnInit, OnDestroy {
   loading = true;
   saving = false;
   resetting = false;
   tgStats: { total: number; linked: number; not_linked: number;
     active_not_linked: number; inactive_not_linked: number } | null = null;
   tgLoading = false;
-  tgBlasting = false;
-  tgBlastResult: { message: string; sent: number; failed: number } | null = null;
+  tgBusy = false;
+  tgBatch: TelegramBlastBatch | null = null;
+  private tgPoll: ReturnType<typeof setTimeout> | null = null;
   settings: any = {
     maintenance_mode: false,
     registration_open: true,
@@ -541,7 +612,8 @@ export class AdminSettingsComponent implements OnInit {
     private toast: ToastService,
   ) {}
 
-  ngOnInit(): void { this.loadSettings(); }
+  ngOnInit(): void { this.loadSettings(); this.loadTelegramStats(); }
+  ngOnDestroy(): void { if (this.tgPoll) clearTimeout(this.tgPoll); }
 
   private bool(v: any): boolean { return v === '1' || v === true; }
 
@@ -657,6 +729,7 @@ export class AdminSettingsComponent implements OnInit {
   }
 
   loadTelegramStats(): void {
+    if (this.tgPoll) { clearTimeout(this.tgPoll); this.tgPoll = null; }
     this.tgLoading = true;
     this.api.get<any>('admin-telegram-blast.php').subscribe({
       next: (res) => {
@@ -664,31 +737,77 @@ export class AdminSettingsComponent implements OnInit {
         if (!res.error) {
           this.tgStats = { total: res.total, linked: res.linked, not_linked: res.not_linked,
             active_not_linked: res.active_not_linked, inactive_not_linked: res.inactive_not_linked };
+          this.setTelegramBatch(res.batch ?? null);
         }
       },
       error: () => { this.tgLoading = false; this.toast.error('Gagal memuatkan statistik Telegram.'); },
     });
   }
 
-  sendTelegramBlast(): void {
-    if (!confirm(`Hantar emel pautan Telegram kepada ${this.tgStats?.not_linked} pengguna, termasuk ${this.tgStats?.inactive_not_linked} akaun tidak aktif?`)) return;
-    this.tgBlasting = true;
-    this.tgBlastResult = null;
-    this.api.post<any>('admin-telegram-blast.php', {}, 300_000).subscribe({
+  /** While a blast is queued, refresh its progress every 30 seconds. */
+  private setTelegramBatch(batch: TelegramBlastBatch | null): void {
+    this.tgBatch = batch;
+    if (this.tgPoll) { clearTimeout(this.tgPoll); this.tgPoll = null; }
+    if (batch?.status === 'queued') this.tgPoll = setTimeout(() => this.loadTelegramStats(), 30_000);
+  }
+
+  startTelegramBlast(): void {
+    const total = this.tgStats?.not_linked ?? 0;
+    const minutes = Math.ceil(total / 10) * 5;
+    if (!confirm(`Mulakan blast emel pautan Telegram kepada ${total} pengguna, termasuk ${this.tgStats?.inactive_not_linked ?? 0} akaun tidak aktif? Emel dihantar 10 setiap 5 minit, anggaran ${minutes} minit.`)) return;
+    this.telegramAction({ action: 'start' });
+  }
+
+  cancelTelegramBlast(): void {
+    if (!this.tgBatch || !confirm('Batalkan blast? Emel yang belum dihantar tidak akan dihantar.')) return;
+    this.telegramAction({ action: 'cancel', id: this.tgBatch.id });
+  }
+
+  retryTelegramBlast(): void {
+    if (!this.tgBatch) return;
+    const count = this.tgBatch.counts.failed + this.tgBatch.counts.uncertain;
+    if (!confirm(`Hantar semula ${count} emel yang gagal atau belum pasti? Penerima yang statusnya belum pasti mungkin menerima emel kali kedua.`)) return;
+    this.telegramAction({ action: 'retry-failed', id: this.tgBatch.id });
+  }
+
+  private telegramAction(body: Record<string, string>): void {
+    this.tgBusy = true;
+    this.api.post<any>('admin-telegram-blast.php', body).subscribe({
       next: (res) => {
-        this.tgBlasting = false;
-        if (!res.error) {
-          this.tgBlastResult = { message: res.message, sent: res.sent, failed: res.failed };
-          this.toast.success(res.message);
-          this.loadTelegramStats();
-        } else {
-          this.toast.error(res.message);
-        }
+        this.tgBusy = false;
+        if (res.batch !== undefined) this.setTelegramBatch(res.batch);
+        if (res.error) this.toast.error(res.message); else this.toast.success(res.message);
+        this.loadTelegramStats();
       },
       error: (err: any) => {
-        this.tgBlasting = false;
-        this.toast.error(err?.error?.message || 'Gagal menghantar blast.');
+        this.tgBusy = false;
+        this.toast.error(err?.error?.message || 'Tindakan blast gagal.');
+        this.loadTelegramStats();
       },
     });
+  }
+
+  tgDone(): number {
+    const c = this.tgBatch?.counts;
+    return c ? c.sent + c.failed + c.uncertain + c.skipped + c.cancelled : 0;
+  }
+
+  tgMinutesLeft(): number {
+    const c = this.tgBatch?.counts;
+    return c ? Math.ceil((c.pending + c.processing) / 10) * 5 : 0;
+  }
+
+  tgBatchStatusLabel(status: string): string {
+    return ({ queued: 'Sedang berjalan', completed: 'Selesai', cancelled: 'Dibatalkan' } as Record<string, string>)[status] ?? status;
+  }
+
+  tgRowLabel(status: string): string {
+    return ({ pending: 'Menunggu', processing: 'Sedang dihantar', sent: 'Dihantar', failed: 'Gagal',
+      uncertain: 'Belum pasti', skipped: 'Dilangkau', cancelled: 'Dibatalkan' } as Record<string, string>)[status] ?? status;
+  }
+
+  tgRowClass(status: string): string {
+    const tone: Record<string, string> = { sent: 'text-green-800', failed: 'text-red-800', uncertain: 'text-amber-800' };
+    return `font-medium ${tone[status] ?? 'text-slate-700'}`;
   }
 }

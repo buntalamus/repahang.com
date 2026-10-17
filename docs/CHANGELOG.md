@@ -4,6 +4,23 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [17 Oktober 2026] — Blast emel pautan Telegram berperingkat
+
+### Tetapan Admin
+
+- Blast pautan Telegram tidak lagi menghantar semua emel dalam satu permintaan. Butang Mulakan Blast Emel membekukan senarai pengguna yang belum memaut, kemudian cron menghantar 10 emel setiap 5 minit. Had ini dikongsi dengan kempen Peti Emel, dan kempen didahulukan. Halaman boleh ditutup semasa blast berjalan.
+- Setiap penerima direkod sebagai Dihantar, Gagal, Belum pasti, Dilangkau atau Dibatalkan. Akaun yang memaut Telegram sebelum emelnya dihantar akan dilangkau.
+- Setiap emel disalin ke folder Dihantar dalam Peti Emel admin.
+- Tetapan memaparkan kemajuan, senarai penerima dan status masing-masing, serta bilangan yang memaut selepas menerima emel. Admin boleh membatalkan blast, atau menghantar semula emel yang gagal atau belum pasti. Hanya satu blast boleh berjalan pada satu masa.
+
+### Operasi
+
+- Jalankan migrasi D1 `0025_telegram_blast_queue.sql` sebelum release Worker. Migrasi ini mencipta `telegram_blast_batches` dan `telegram_blast_recipients`. Jadual lama `telegram_blast_delivery` tidak diusik.
+- Endpoint PHP `api/admin-telegram-blast.php` tidak diubah. Worker kini berbeza daripada PHP untuk blast ini.
+- Ujian: `tests/telegram-blast-preview.mjs` dan `tests/mailbox-campaigns.mjs`.
+
+---
+
 ## [17 Oktober 2026] — Notifikasi emel yang hilang
 
 ### Lantikan

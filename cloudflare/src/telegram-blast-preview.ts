@@ -5,6 +5,7 @@ import {mysqlTextOrder} from './php/mysql-order';
 import {boundedJson} from './request';
 import type {Env} from './types';
 import { wroteRow } from './d1-changes';
+import {latestTelegramBlast,telegramBlastAction,telegramBlastEnabled} from './telegram-blast';
 
 type External = Record<string,unknown> & {
   id:number;emel:string|null;telegram_chat_id:string|null;tg_link_token:string|null;
@@ -13,7 +14,6 @@ type External = Record<string,unknown> & {
 
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-type Invitee = {id:number;nama_penuh:string|null;email:string;tg_link_token:string|null};
 type OnboardingBatch = {id:number;batch_token:string;kejohanan_id:number;
   kejohanan_nama:string;attempt_mode:'initial'|'resend'};
 type OnboardingRecipient = External & {nama:string;emel:string|null};
@@ -30,55 +30,15 @@ export async function adminTelegramBlastPreview(request:Request,env:Env):Promise
   if (!user) return json({error:true,message: 'Sesi tidak sah. Sila log masuk semula.'},401);
   if (user.role!=='Admin') return json({error:true,message:'Akses ditolak.'},403);
   if (request.method==='POST') {
-    if (env.STAGING_WRITES_ENABLED!=='1' || env.BULK_EMAIL_ENABLED!=='1') {
+    if (!telegramBlastEnabled(env)) {
       return json({error:true,message:'Penghantaran blast belum tersedia di staging.'},503);
     }
-    const rows=await env.DB.prepare(`SELECT id,nama_penuh,email,tg_link_token FROM users
-      WHERE email IS NOT NULL AND trim(email)<>''
-        AND (telegram_chat_id IS NULL OR trim(telegram_chat_id)='') ORDER BY id`).all<Invitee>();
-    const bot=(env.TELEGRAM_BOT_USERNAME || 'refpahang_bot').replace(/^@+/,'');
-    let sent=0;
-    let failed=0;
-    const errors:string[]=[];
-    for (const row of rows.results) {
-      const email=String(row.email ?? '').trim();
-      if (!EMAIL.test(email)) {
-        failed++;
-        errors.push(email);
-        continue;
-      }
-      let token=String(row.tg_link_token ?? '').trim();
-      if (!token) {
-        const generated=tokenHex();
-        await env.DB.prepare(`UPDATE users SET tg_link_token=? WHERE id=?
-          AND (tg_link_token IS NULL OR trim(tg_link_token)='')
-          AND (telegram_chat_id IS NULL OR trim(telegram_chat_id)='')`)
-          .bind(generated,row.id).run();
-      }
-      const fresh=await env.DB.prepare(`SELECT tg_link_token FROM users WHERE id=?
-        AND (telegram_chat_id IS NULL OR trim(telegram_chat_id)='')`).bind(row.id)
-        .first<{tg_link_token:string|null}>();
-      token=String(fresh?.tg_link_token ?? '').trim();
-      if (!token) continue; // User linked Telegram while the blast was running.
-      const name=String(row.nama_penuh ?? '').trim() || 'Pengadil';
-      const link=`https://t.me/${encodeURIComponent(bot)}?start=${encodeURIComponent(token)}`;
-      const {html,text}=buildRefpahangEmail('Aktifkan Notifikasi Telegram',name,[
-        'Sistem Pengurusan Pengadil PBNP menggunakan Telegram untuk menghantar notifikasi lantikan perlawanan.',
-        'Hubungkan akaun anda untuk menerima notifikasi serta menerima atau menolak lantikan melalui Telegram.',
-        `Buka pautan ini dan tekan START pada bot @${bot}.`,
-      ],{label:'Aktifkan Telegram Sekarang',url:link});
-      try {
-        await sendRefpahangEmail(env,'admin',email,name,
-          'Aktifkan Telegram — Sistem Pengurusan Pengadil PBNP',html,text);
-        sent++;
-      } catch {
-        failed++;
-        errors.push(email);
-      }
+    const input=await boundedJson(request,4096);
+    if (input instanceof Response) return input;
+    if (!input || typeof input!=='object' || Array.isArray(input)) {
+      return json({error:true,message:'Data tidak sah.'},422);
     }
-    return json({error:false,
-      message:`Blast selesai. ${sent} emel berjaya dihantar${failed ? `, ${failed} gagal.` : '.'}`,
-      sent,failed,errors});
+    return telegramBlastAction(env,user.id,input as Record<string,unknown>);
   }
   if (request.method!=='GET') return json({error:true,message:'Kaedah tidak disokong.'},405);
   const row=await env.DB.prepare(`SELECT
@@ -96,7 +56,8 @@ export async function adminTelegramBlastPreview(request:Request,env:Env):Promise
   const linked=Number(row?.linked ?? 0);
   return json({error:false,total,linked,not_linked:total-linked,
     active_not_linked:Number(row?.active_not_linked ?? 0),
-    inactive_not_linked:Number(row?.inactive_not_linked ?? 0)});
+    inactive_not_linked:Number(row?.inactive_not_linked ?? 0),
+    enabled:telegramBlastEnabled(env),batch:await latestTelegramBlast(env)});
 }
 
 export async function externalTelegramBlastPreview(request:Request,env:Env):Promise<Response> {
