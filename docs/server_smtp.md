@@ -5,17 +5,16 @@ Shinjiru sedia ada. Semua aliran berkongsi `sendRefpahangEmail()` dalam
 `cloudflare/mail.ts`: lantikan, jawapan/pengesahan, laporan RA, pendaftaran
 berserta PDF, tetapan semula kata laluan, onboarding dan Peti Emel Admin.
 
-Pemulihan 17 Oktober 2026: produksi menggunakan `cloudflare-email` sementara
-relay MailSentinel masih memulangkan `451 Your account has been locked`
-selepas pembuangan domain daripada Spamhaus DBL. Cloudflare Email Sending
-telah aktif untuk domain dan dashboard menunjukkan kuota akaun 1,500 emel
-sehari ketika pertukaran dibuat. Sekatan Shinjiru masih memerlukan tindakan
-penyedia; pertukaran ini tidak membuka kunci relay mereka.
+Mulai 17 Oktober 2026, pengguna menetapkan Cloudflare sebagai perkhidmatan
+emel utama bagi semua aliran portal. Konfigurasi aktif diterangkan dalam
+`docs/cloudflare_email.md`. Dokumen ini mengekalkan sejarah konfigurasi SMTP
+Shinjiru. Relay MailSentinel masih memulangkan `451 Your account has been
+locked` ketika ujian selepas pembuangan domain daripada Spamhaus DBL.
 
 ## Konfigurasi
 
 - Pilihan Shinjiru: `EMAIL_TRANSPORT=legacy-smtp` dalam `wrangler.production.jsonc`.
-  Semasa pemulihan 17 Oktober, produksi ditetapkan kepada `cloudflare-email`.
+  Mulai 17 Oktober, produksi kekal ditetapkan kepada `cloudflare-email`.
 - SMTP: `mail.refpahang.com`, port `465`, TLS sejak permulaan sambungan.
 - Lima identiti sedia ada: `admin`, `daftar`, `lantikan`, `support`, `pengesahan`.
 - `SMTP_HOST`, `SMTP_PORT`, dan `MAIL_*_USER/NAME/PASS` ialah Worker secrets.
@@ -91,7 +90,7 @@ Binding `EMAIL` Cloudflare dikekalkan untuk rollback. Tetapkan
 jika perlu. Jangan tukar MX masuk atau memadam secrets SMTP untuk rollback
 pengangkutan. Had harian Cloudflare akan terpakai semula.
 
-Untuk kembali ke Shinjiru selepas penyedia mengesahkan pembukaan sekatan,
-tetapkan `EMAIL_TRANSPORT=legacy-smtp`, deploy, dan sahkan penerimaan sebenar
-di peti penerima luar. Respons `250` pelayan Shinjiru sahaja tidak membuktikan
-penghantaran relay berjaya. Semak mesej tertangguh sebelum menghantar semula.
+Sebarang cadangan kembali ke Shinjiru perlu mengambil kira arahan pengguna
+17 Oktober untuk menggunakan Cloudflare bagi semua aliran portal. Respons
+`250` pelayan Shinjiru sahaja tidak membuktikan penghantaran relay berjaya.
+Semak mesej tertangguh sebelum menghantar semula.
