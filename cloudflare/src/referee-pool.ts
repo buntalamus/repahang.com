@@ -1,4 +1,5 @@
 import { guardStatement, runGuarded } from './php/guard';
+import { enqueueNoticeStatements } from './notify';
 import { authorizeAppointmentResource, districtOf, localOfficialSql } from './appointment-access';
 import { currentUser, json } from './auth';
 import { mysqlTextOrder } from './php/mysql-order';
@@ -109,17 +110,20 @@ export async function refereePool(request: Request, env: Env): Promise<Response>
       VALUES(?,?,?,datetime('now','+8 hours'))
     `).bind(tournamentId, item.pengadil_id, item.pengadil_luar_id));
     let added=0;
+    let insertResults: D1Result[];
     if (user.role==='PP Daerah') {
       const ids=[...new Set(items.map(item=>item.pengadil_id))];
       const done=await runGuarded(env,[guardStatement(env,'district_pool',
         `(SELECT COUNT(*) FROM users u WHERE u.id IN (SELECT value FROM json_each(?)) AND ${localOfficialSql('u')})=?`,
         [JSON.stringify(ids),districtOf(user),ids.length]),...statements]);
       if (!done) return json({error:true,message:'Kelolaan pengadil telah berubah. Muat semula dan cuba lagi.'},409);
-      added=done.slice(1).filter(result=>result.meta.changes>0).length;
+      insertResults=done.slice(1);
     } else {
-      const results=await env.DB.batch(statements);
-      added=results.filter(result=>result.meta.changes>0).length;
+      insertResults=await env.DB.batch(statements);
     }
+    added=insertResults.filter(result=>result.meta.changes>0).length;
+    await queuePoolNotices(env, tournamentId, 'add',
+      items.filter((_item, index) => Number(insertResults[index]?.meta.changes ?? 0) > 0));
     const skipped = items.length - added;
     const message = `${added} pengadil ditambah ke pool.${skipped ? ` ${skipped} sudah ada dalam pool.` : ''}`;
     return json({ error: false, message, added, skipped });
@@ -127,6 +131,8 @@ export async function refereePool(request: Request, env: Env): Promise<Response>
 
   const id = positiveId(url.searchParams.get('id'));
   if (!id) return json({ error: true, message: 'ID diperlukan.' }, 400);
+  const member = await env.DB.prepare('SELECT kejohanan_id,pengadil_id,pengadil_luar_id FROM pool_pengadil WHERE id=?')
+    .bind(id).first<{ kejohanan_id: number; pengadil_id: number | null; pengadil_luar_id: number | null }>();
   const result = await env.DB.prepare(`
     DELETE FROM pool_pengadil WHERE id=? AND NOT EXISTS (
       SELECT 1 FROM jadual_perlawanan jp
@@ -141,5 +147,59 @@ export async function refereePool(request: Request, env: Env): Promise<Response>
     if (exists) return json({ error: true, message: 'Pengadil tidak boleh dibuang dari pool kerana mempunyai rekod lantikan dalam kejohanan ini.' }, 409);
     return json({ error: true, message: 'Rekod pool tidak dijumpai.' }, 404);
   }
+  if (member) await queuePoolNotices(env, member.kejohanan_id, 'remove', [member]);
   return json({ error: false, message: 'Dibuang dari pool.' });
+}
+
+/** Officials hear (through the outbox) when they are added to or removed from a tournament pool. */
+async function queuePoolNotices(env: Env, tournamentId: number, change: 'add' | 'remove',
+  members: Array<{ pengadil_id: number | null; pengadil_luar_id: number | null }>): Promise<void> {
+  if (members.length === 0) return;
+  try {
+    const tournament = await env.DB.prepare('SELECT nama,tarikh_mula,tarikh_akhir,tempat FROM kejohanan WHERE id=?')
+      .bind(tournamentId).first<{ nama: string; tarikh_mula: string | null; tarikh_akhir: string | null;
+        tempat: string | null }>();
+    if (!tournament) return;
+    const userIds = members.map((m) => m.pengadil_id).filter((id): id is number => !!id);
+    const luarIds = members.map((m) => m.pengadil_luar_id).filter((id): id is number => !!id);
+    const contacts = [
+      ...(userIds.length ? (await env.DB.prepare(`SELECT id AS pengadil_id,NULL AS pengadil_luar_id,nama_penuh AS nama,
+          email,telegram_chat_id FROM users WHERE id IN (SELECT value FROM json_each(?)) AND aktif=1`)
+        .bind(JSON.stringify(userIds)).all<PoolContact>()).results : []),
+      ...(luarIds.length ? (await env.DB.prepare(`SELECT NULL AS pengadil_id,id AS pengadil_luar_id,nama,
+          emel AS email,telegram_chat_id FROM pengadil_luar WHERE id IN (SELECT value FROM json_each(?))`)
+        .bind(JSON.stringify(luarIds)).all<PoolContact>()).results : []),
+    ];
+    const batchKey = crypto.randomUUID();
+    const added = change === 'add';
+    const statements = contacts.flatMap((contact) => enqueueNoticeStatements(env,
+      `pool_${change}:${tournamentId}:${contact.pengadil_id ?? `l${contact.pengadil_luar_id}`}:${batchKey}`,
+      { userId: contact.pengadil_id, luarId: contact.pengadil_luar_id, name: contact.nama, email: contact.email,
+        telegramChatId: contact.telegram_chat_id }, {
+        subject: `${added ? 'Dimasukkan ke' : 'Dikeluarkan daripada'} Pool Pengadil: ${tournament.nama}`,
+        title: added ? 'Pool Pengadil Kejohanan' : 'Dikeluarkan daripada Pool Pengadil',
+        accent: added ? '#111827' : '#6B7280',
+        mailType: 'lantikan',
+        paragraphs: [added
+          ? `Anda telah dimasukkan ke dalam pool pengadil bagi ${tournament.nama}. Lantikan perlawanan akan dimaklumkan secara berasingan.`
+          : `Anda telah dikeluarkan daripada pool pengadil bagi ${tournament.nama}.`],
+        rows: [['Kejohanan', tournament.nama],
+          ['Tarikh', `${tournament.tarikh_mula ?? '-'} hingga ${tournament.tarikh_akhir ?? '-'}`],
+          ['Tempat', tournament.tempat || '-']],
+        portal: { type: 'Pool Pengadil', subject: `${added ? 'Dimasukkan ke' : 'Dikeluarkan daripada'} pool: ${tournament.nama}`,
+          message: added ? `Anda telah dimasukkan ke dalam pool pengadil bagi ${tournament.nama}.`
+            : `Anda telah dikeluarkan daripada pool pengadil bagi ${tournament.nama}.` },
+      }, { kind: `pool_${change}` }));
+    if (statements.length) await env.DB.batch(statements);
+  } catch (error) {
+    console.error('[pool-pengadil.php] pool notice failed', error instanceof Error ? error.message : error);
+  }
+}
+
+interface PoolContact {
+  pengadil_id: number | null;
+  pengadil_luar_id: number | null;
+  nama: string;
+  email: string | null;
+  telegram_chat_id: string | number | null;
 }

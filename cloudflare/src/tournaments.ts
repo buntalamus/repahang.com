@@ -1,4 +1,6 @@
 import { authorizeAppointmentResource, districtOf } from './appointment-access';
+import { activeAdmins, contactRecipient, enqueueNoticeStatements, notifyAll } from './notify';
+import { baseUrl } from './php/email';
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
@@ -207,11 +209,14 @@ export async function tournaments(request: Request, env: Env): Promise<Response>
     `).bind(parsed.nama, parsed.jenis_kejohanan, parsed.peringkat_kejohanan,
       parsed.tarikh_mula, parsed.tarikh_akhir, parsed.tempat, parsed.anjuran,
       parsed.status, user.id, user.role==='PP Daerah' ? districtOf(user) : null).run();
+    if (user.role === 'PP Daerah') await notifyAdminsOfDistrictTournament(env, user.nama_penuh, tournamentInput(parsed));
     return json({ error: false, message: 'Kejohanan berjaya dicipta.', id: result.meta.last_row_id });
   }
   const raw = input as Record<string, unknown>;
   const id = typeof raw.id === 'number' && Number.isSafeInteger(raw.id) && raw.id > 0 ? raw.id : null;
   if (!id) return json({ error: true, message: 'ID diperlukan.' }, 400);
+  const before = await env.DB.prepare('SELECT nama,tarikh_mula,tarikh_akhir,tempat,status FROM kejohanan WHERE id=?')
+    .bind(id).first<TournamentDetails>();
   const result = await env.DB.prepare(`
     UPDATE kejohanan SET nama=?,jenis_kejohanan=?,peringkat_kejohanan=?,tarikh_mula=?,
       tarikh_akhir=?,tempat=?,anjuran=?,status=?,updated_at=datetime('now','+8 hours') WHERE id=?
@@ -219,5 +224,93 @@ export async function tournaments(request: Request, env: Env): Promise<Response>
     parsed.tarikh_mula, parsed.tarikh_akhir, parsed.tempat, parsed.anjuran,
     parsed.status, id).run();
   if (!wroteRow(result)) return json({ error: true, message: 'Kejohanan tidak dijumpai.' }, 404);
-  return json({ error: false, message: 'Kejohanan berjaya dikemaskini.' });
+  const queued = before ? await queueTournamentChange(env, id, before, tournamentInput(parsed)) : 0;
+  return json({ error: false, message: 'Kejohanan berjaya dikemaskini.', officials_notified: queued });
+}
+
+interface TournamentDetails {
+  nama: string;
+  tarikh_mula: string | null;
+  tarikh_akhir: string | null;
+  tempat: string | null;
+  status: string | null;
+}
+
+const TOURNAMENT_LABELS: Array<[keyof TournamentDetails, string]> = [
+  ['nama', 'Nama Kejohanan'], ['tarikh_mula', 'Tarikh Mula'], ['tarikh_akhir', 'Tarikh Akhir'],
+  ['tempat', 'Tempat'], ['status', 'Status'],
+];
+
+/** Officials already told about an upcoming match in this tournament hear about changed details (queued). */
+async function queueTournamentChange(env: Env, id: number, before: TournamentDetails,
+  after: TournamentDetails): Promise<number> {
+  const changed = TOURNAMENT_LABELS.filter(([field]) =>
+    String(before[field] ?? '').trim() !== String(after[field] ?? '').trim());
+  if (changed.length === 0) return 0;
+  try {
+    const officials = (await env.DB.prepare(`SELECT DISTINCT lp.pengadil_id,lp.pengadil_luar_id,
+        COALESCE(u.nama_penuh,pl.nama,'') AS nama,COALESCE(u.email,pl.emel) AS email,
+        COALESCE(u.telegram_chat_id,pl.telegram_chat_id) AS telegram_chat_id
+      FROM lantikan_pengadil lp
+      JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id
+      LEFT JOIN users u ON u.id=lp.pengadil_id
+      LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
+      WHERE jp.kejohanan_id=? AND lp.status IN ('Belum Jawab','Diterima')
+        AND (lp.notif_hantar=1 OR lp.tg_notif_hantar=1)
+        AND jp.tarikh>=date('now','+8 hours') AND COALESCE(jp.status,'') NOT IN ('Dibatalkan','Ditangguhkan')`)
+      .bind(id).all<{ pengadil_id: number | null; pengadil_luar_id: number | null; nama: string;
+        email: string | null; telegram_chat_id: string | number | null }>()).results;
+    if (officials.length === 0) return 0;
+    const batchKey = crypto.randomUUID();
+    const rows = changed.map(([field, label]): [string, string] =>
+      [label, `${String(after[field] ?? '') || '-'} (sebelum ini: ${String(before[field] ?? '') || '-'})`]);
+    const statements = officials.flatMap((official) => enqueueNoticeStatements(env,
+      `tournament_change:${id}:${official.pengadil_id ?? `l${official.pengadil_luar_id}`}:${batchKey}`,
+      { userId: official.pengadil_id, luarId: official.pengadil_luar_id, name: official.nama,
+        email: official.email, telegramChatId: official.telegram_chat_id }, {
+        subject: `Perubahan Kejohanan: ${after.nama}`,
+        title: 'Perubahan Maklumat Kejohanan',
+        accent: '#D97706',
+        mailType: 'lantikan',
+        paragraphs: [`Maklumat kejohanan ${after.nama}, yang anda dilantik untuk bertugas, telah dikemaskini.`,
+          'Sila semak butiran di bawah dan menu Tugasan untuk jadual terkini.'],
+        rows,
+        portal: { type: 'Perubahan Kejohanan', subject: `Perubahan Kejohanan: ${after.nama}`,
+          message: `Maklumat kejohanan ${after.nama} telah dikemaskini: ${rows.map(([l, v]) => `${l}: ${v}`).join('; ')}.` },
+      }, { kind: 'tournament_change' }));
+    await env.DB.batch(statements);
+    return officials.length;
+  } catch (error) {
+    console.error('[kejohanan.php] tournament change notice failed', error instanceof Error ? error.message : error);
+    return 0;
+  }
+}
+
+/** Admins hear when a PP Daerah creates a district tournament. */
+type TournamentInput = TournamentDetails & { jenis_kejohanan: string; peringkat_kejohanan: string };
+
+function tournamentInput(parsed: Record<string, string>): TournamentInput {
+  return { nama: parsed.nama, tarikh_mula: parsed.tarikh_mula, tarikh_akhir: parsed.tarikh_akhir,
+    tempat: parsed.tempat ?? null, status: parsed.status ?? null, jenis_kejohanan: parsed.jenis_kejohanan,
+    peringkat_kejohanan: parsed.peringkat_kejohanan };
+}
+
+async function notifyAdminsOfDistrictTournament(env: Env, ppName: string, tournament: TournamentInput):
+  Promise<void> {
+  try {
+    await notifyAll(env, (await activeAdmins(env)).map(contactRecipient), {
+      subject: `Kejohanan Daerah Baharu: ${tournament.nama}`,
+      title: 'Kejohanan Daerah Baharu',
+      paragraphs: [`${ppName} (Pegawai Pembangunan Daerah) telah mencipta kejohanan baharu.`],
+      rows: [['Nama', tournament.nama], ['Jenis', tournament.jenis_kejohanan],
+        ['Peringkat', tournament.peringkat_kejohanan],
+        ['Tarikh', `${tournament.tarikh_mula ?? '-'} hingga ${tournament.tarikh_akhir ?? '-'}`],
+        ['Tempat', tournament.tempat || '-'], ['Status', tournament.status || '-']],
+      actions: [{ label: 'Log Masuk ke Sistem', url: `${baseUrl(env)}/login` }],
+      portal: { type: 'Kejohanan Baharu', subject: `Kejohanan Daerah Baharu: ${tournament.nama}`,
+        message: `${ppName} telah mencipta kejohanan ${tournament.nama} (${tournament.jenis_kejohanan}).` },
+    });
+  } catch (error) {
+    console.error('[kejohanan.php] admin notice failed', error instanceof Error ? error.message : error);
+  }
 }

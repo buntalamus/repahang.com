@@ -4,6 +4,8 @@ import { auditMetaFrom } from './php/lantikan-audit';
 import { dispatchLaporanForPengerusi, getKejohananPengesahLaporan } from './php/laporan-pengesahan';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { notifyUser } from './notify';
+import type { Recipient } from './notify';
 
 interface Candidate {
   source: string;
@@ -99,7 +101,7 @@ async function assignChair(request: Request, env: Env, adminId: number): Promise
   try {
     const tournament = await env.DB.prepare(`
       SELECT id,nama,peringkat_kejohanan FROM kejohanan WHERE id=? LIMIT 1
-    `).bind(kejohananId).first<{ id: number; peringkat_kejohanan: string | null }>();
+    `).bind(kejohananId).first<{ id: number; nama: string | null; peringkat_kejohanan: string | null }>();
     if (!tournament) return json({ error: true, message: 'Kejohanan tidak dijumpai.' }, 404);
     const official = await env.DB.prepare(source === 'Berdaftar' ? `
       SELECT id,nama_penuh AS nama,negeri,email,no_telefon,telegram_chat_id FROM users
@@ -154,9 +156,24 @@ async function assignChair(request: Request, env: Env, adminId: number): Promise
           error instanceof Error ? error.message : error);
       }
     }
+    const sameChair = old && Number(old.pengesah_user_id ?? 0) === (source === 'Berdaftar' ? officialId : 0)
+      && Number(old.pengesah_luar_id ?? 0) === (source === 'Luar' ? officialId : 0);
+    let chairNotified = false;
+    if (!sameChair) {
+      chairNotified = await notifyChairChange(env, String(tournament.nama ?? ''), pending.results.length, {
+        userId: source === 'Berdaftar' ? officialId : null, luarId: source === 'Luar' ? officialId : null,
+        name: official.nama, email: official.email, telegramChatId: official.telegram_chat_id,
+      }, old ? {
+        userId: old.pengesah_user_id ? Number(old.pengesah_user_id) : null,
+        luarId: old.pengesah_luar_id ? Number(old.pengesah_luar_id) : null,
+        name: String(old.nama_snapshot ?? ''), email: old.email as string | null,
+        telegramChatId: old.telegram_chat_id as string | null,
+      } : null);
+    }
     return json({
       error: false,
       message: 'Pengerusi Pengadil berjaya ditetapkan untuk kejohanan ini.',
+      chair_notified: chairNotified,
       data: {
         current: await getKejohananPengesahLaporan(env, kejohananId),
         pending_dispatched: dispatched,
@@ -230,4 +247,40 @@ export async function chairConfig(request: Request, env: Env): Promise<Response>
     kejohanan: tournament, current: mappedCurrent,
     candidates: mappedCandidates, audit: mappedAudit,
   } });
+}
+
+/** The newly assigned chair is told about the role; a replaced chair is told it has ended. */
+async function notifyChairChange(env: Env, kejohanan: string, pendingReports: number, chair: Recipient,
+  previous: Recipient | null): Promise<boolean> {
+  try {
+    const result = await notifyUser(env, chair, {
+      subject: `Lantikan Pengerusi Pengadil: ${kejohanan}`,
+      title: 'Lantikan Pengerusi Pengadil',
+      mailType: 'lantikan',
+      paragraphs: [`Anda telah ditetapkan sebagai Pengerusi Pengadil bagi ${kejohanan}.`,
+        'Anda akan menerima pautan pengesahan setiap kali Penilai Pengadil menghantar laporan RA bagi kejohanan ini.',
+        pendingReports > 0 ? `${pendingReports} laporan bagi kejohanan ini sedang menunggu pengesahan.`
+          : 'Tiada laporan yang menunggu pengesahan buat masa ini.'],
+      rows: [['Kejohanan', kejohanan], ['Laporan Menunggu', String(pendingReports)]],
+      portal: { type: 'Pengerusi Pengadil', subject: `Lantikan Pengerusi Pengadil: ${kejohanan}`,
+        message: `Anda telah ditetapkan sebagai Pengerusi Pengadil bagi ${kejohanan}.` },
+    });
+    if (previous) {
+      await notifyUser(env, previous, {
+        subject: `Tugas Pengerusi Pengadil Tamat: ${kejohanan}`,
+        title: 'Tugas Pengerusi Pengadil Tamat',
+        accent: '#6B7280',
+        mailType: 'lantikan',
+        paragraphs: [`Anda tidak lagi ditetapkan sebagai Pengerusi Pengadil bagi ${kejohanan}.`,
+          'Sila jangan mengesahkan laporan RA bagi kejohanan ini lagi. Terima kasih atas khidmat anda.'],
+        rows: [['Kejohanan', kejohanan]],
+        portal: { type: 'Pengerusi Pengadil', subject: `Tugas Pengerusi Pengadil Tamat: ${kejohanan}`,
+          message: `Anda tidak lagi Pengerusi Pengadil bagi ${kejohanan}.` },
+      });
+    }
+    return result.email === 'sent' || result.telegram === 'sent';
+  } catch (error) {
+    console.error('[kejohanan-pengesah-laporan.php] chair notice failed', error instanceof Error ? error.message : error);
+    return false;
+  }
 }

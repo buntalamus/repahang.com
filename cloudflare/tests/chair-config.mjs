@@ -11,6 +11,8 @@ const source = readFileSync(new URL('../src/chair-config.ts', import.meta.url), 
   .replace("import { dispatchLaporanForPengerusi, getKejohananPengesahLaporan } from './php/laporan-pengesahan';",
     'const dispatchLaporanForPengerusi = () => { throw new Error(\'Unexpected write\'); };'
     + 'const getKejohananPengesahLaporan = dispatchLaporanForPengerusi;')
+  .replace("import { notifyUser } from './notify';", 'const notifyUser = async () => { throw new Error(\'Unexpected notice\'); };')
+  .replace("import type { Recipient } from './notify';", '')
   .replace("import { boundedJson } from './request';",
     'const boundedJson = async () => { throw new Error(\'Unexpected body read\'); };');
 const compiled = ts.transpileModule(source, {

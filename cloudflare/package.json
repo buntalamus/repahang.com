@@ -48,7 +48,8 @@
     "test:portal-dashboard": "node --no-warnings tests/portal-dashboard.mjs",
     "test:notify-lantikan": "node --no-warnings tests/notify-lantikan.mjs",
     "test:notify-akaun": "node --no-warnings tests/notify-akaun.mjs",
-    "test:notify-perlawanan": "node --no-warnings tests/notify-perlawanan.mjs"
+    "test:notify-perlawanan": "node --no-warnings tests/notify-perlawanan.mjs",
+    "test:notify-laporan": "node --no-warnings tests/notify-laporan.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

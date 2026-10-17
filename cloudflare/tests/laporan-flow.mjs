@@ -114,6 +114,17 @@ try {
   assert.ok(kupMail.html.includes('Tegas'));
   assert.equal(count(`SELECT count(*) FROM laporan_pengesahan_audit WHERE laporan_id=?
     AND event_type='kup_report_notification'`,reportId),kupOf(first.jadual_id).length*2);
+  // The RA who wrote the report hears it was confirmed; Admins get an in-app note.
+  const raEmail=one('SELECT email FROM users WHERE id=?',first.pengadil_id).email;
+  const raMail=emails.find((mail)=>mail.subject.startsWith('Laporan RA Disahkan: '));
+  assert.equal(raMail.to,raEmail);
+  assert.ok(raMail.html.includes('Pengerusi Pengadil'));
+  assert.equal(count(`SELECT count(*) FROM laporan_pengesahan_audit WHERE laporan_id=?
+    AND event_type='ra_author_notification' AND channel='email'`,reportId),1);
+  assert.equal(count(`SELECT count(*) FROM notifications WHERE type='Laporan RA' AND subject LIKE 'Laporan RA Disahkan:%'
+    AND user_id IN (SELECT id FROM users WHERE role='Admin' AND aktif=1)`),admins);
+  assert.ok(!emails.some((mail)=>mail.subject.startsWith('Laporan RA Disahkan:') && mail.to!==raEmail),
+    'Admins are not emailed');
   const again=await chairPage('POST',{token:approval.approval_token});
   assert.equal(again.status,409);
   assert.match(again.html,/Laporan ini telah disahkan atau di-override sebelum ini/);
@@ -147,6 +158,15 @@ try {
     AND event_type='report_admin_override'`,secondReport);
   assert.equal(JSON.parse(overrideAudit.details_json).reason,'Pengerusi bercuti');
   assert.ok(emails.some((mail)=>mail.html.includes('Catatan Override Admin')));
+  // On an override the RA hears the outcome and a chair who got the link is told it no longer applies.
+  const secondRaEmail=one('SELECT email FROM users WHERE id=?',second.pengadil_id).email;
+  assert.ok(emails.some((mail)=>mail.to===secondRaEmail && mail.subject.startsWith('Laporan RA Disahkan: ')));
+  const secondState=one('SELECT * FROM laporan_pengesahan_pengerusi WHERE laporan_id=?',secondReport);
+  if (secondState.email_sent_at) {
+    const voided=emails.find((mail)=>mail.subject.startsWith('Laporan RA Telah Disahkan Admin: '));
+    assert.equal(voided.to,secondState.email_recipient);
+    assert.ok(voided.html.includes('tidak lagi sah'));
+  }
   assert.equal((await put(adminCookie,{action:'sahkan',id:secondReport,override_reason:'x'})).status,409);
   console.log('RA report flow: submit, chair dispatch, confirm page, KUP notices, token submit and override follow PHP');
 } finally {close();}

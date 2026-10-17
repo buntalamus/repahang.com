@@ -13,6 +13,8 @@ import { NOW } from './lantikan-audit';
 import { randomHex } from './lantikan-helper';
 import { tgSend } from './telegram';
 import { wroteRow } from '../d1-changes';
+import { activeAdmins, contactRecipient, notifyUser } from '../notify';
+import type { NoticeResult } from '../notify';
 
 export class PhpInvalidArgument extends Error {}
 export class PhpDomainError extends Error {}
@@ -397,6 +399,11 @@ export async function confirmLaporanByPengerusi(env: Env, token: string, comment
   } catch (error) {
     console.error('[confirmLaporanByPengerusi] notification error', error instanceof Error ? error.message : error);
   }
+  try {
+    await notifyReportConfirmedParties(env, Number(state.laporan_id), state, 'chair', meta);
+  } catch (error) {
+    console.error('[confirmLaporanByPengerusi] RA/Admin notice error', error instanceof Error ? error.message : error);
+  }
   return state;
 }
 
@@ -430,5 +437,88 @@ export async function overrideLaporanByAdmin(env: Env, reportId: number, adminUs
   } catch (error) {
     console.error('[overrideLaporanByAdmin] notification error', error instanceof Error ? error.message : error);
   }
+  try {
+    await notifyReportConfirmedParties(env, reportId, locked, 'admin', meta);
+  } catch (error) {
+    console.error('[overrideLaporanByAdmin] RA/chair notice error', error instanceof Error ? error.message : error);
+  }
   return locked;
+}
+
+/**
+ * After a report is confirmed: the RA who wrote it hears the outcome; Admins
+ * get an in-app + Telegram note when the chair confirmed it; on an Admin
+ * override, a chair who already received the approval link is told it no
+ * longer applies.
+ */
+export async function notifyReportConfirmedParties(env: Env, reportId: number, state: Row,
+  mode: 'chair' | 'admin', meta: AuditMeta = { ip: null, userAgent: null }): Promise<void> {
+  const report = await env.DB.prepare(`SELECT jp.tarikh,jp.pasukan_home,jp.pasukan_away,k.nama AS nama_kejohanan,
+      ra.pengadil_id AS ra_user_id,ra.pengadil_luar_id AS ra_luar_id,
+      COALESCE(u.nama_penuh,pl.nama,'') AS ra_nama,COALESCE(u.email,pl.emel) AS ra_email,
+      COALESCE(u.telegram_chat_id,pl.telegram_chat_id) AS ra_telegram
+    FROM laporan_penilaian laporan
+    JOIN jadual_perlawanan jp ON jp.id=laporan.jadual_id
+    JOIN kejohanan k ON k.id=jp.kejohanan_id
+    JOIN lantikan_pengadil ra ON ra.id=laporan.lantikan_id
+    LEFT JOIN users u ON u.id=ra.pengadil_id
+    LEFT JOIN pengadil_luar pl ON pl.id=ra.pengadil_luar_id
+    WHERE laporan.id=?`).bind(reportId).first<Row>();
+  if (!report) return;
+  const pasukan = `${str(report.pasukan_home)} lwn ${str(report.pasukan_away)}`;
+  const tarikh = tarikhFmt(str(report.tarikh));
+  const kejohanan = str(report.nama_kejohanan);
+  const by = mode === 'chair' ? `Pengerusi Pengadil (${str(state.pengesah_nama) || '-'})` : 'Admin (override)';
+  const stateId = Number(state.id);
+  const auditResult = async (eventType: string, result: NoticeResult, details: Row) => {
+    for (const channel of ['email', 'telegram'] as const) {
+      if (result[channel] === 'skipped') continue;
+      await recordLaporanPengesahanAudit(env, stateId, reportId, eventType, channel,
+        result[channel] === 'sent' ? 'success' : 'failed', 'system', null, null, null, details, meta);
+    }
+  };
+  const rows: Array<[string, string]> = [['Kejohanan', kejohanan], ['Perlawanan', pasukan], ['Tarikh', tarikh],
+    ['Disahkan Oleh', by]];
+  const raResult = await notifyUser(env, { userId: report.ra_user_id ? Number(report.ra_user_id) : null,
+    luarId: report.ra_luar_id ? Number(report.ra_luar_id) : null, name: str(report.ra_nama),
+    email: report.ra_email as string | null, telegramChatId: report.ra_telegram as string | null }, {
+    subject: `Laporan RA Disahkan: ${pasukan} — ${tarikh}`,
+    title: 'Laporan Penilaian Disahkan',
+    accent: '#16A34A',
+    mailType: 'lantikan',
+    paragraphs: ['Laporan penilaian yang anda hantar telah disahkan.',
+      'Pegawai yang dinilai telah menerima keputusan penilaian masing-masing.'],
+    rows,
+    portal: { type: 'Laporan RA', subject: `Laporan RA Disahkan: ${pasukan}`,
+      message: `Laporan penilaian anda bagi ${pasukan} (${kejohanan}) pada ${tarikh} telah disahkan oleh ${by}.` },
+  });
+  await auditResult('ra_author_notification', raResult, { recipient: report.ra_email ?? null });
+  if (mode === 'chair') {
+    for (const admin of await activeAdmins(env)) {
+      await notifyUser(env, { ...contactRecipient(admin), email: null }, {
+        subject: `Laporan RA Disahkan: ${pasukan}`,
+        title: '✅ Laporan RA Disahkan Pengerusi',
+        paragraphs: [`Laporan RA bagi ${pasukan} (${kejohanan}) pada ${tarikh} telah disahkan oleh ${by}.`],
+        portal: { type: 'Laporan RA', subject: `Laporan RA Disahkan: ${pasukan}`,
+          message: `Laporan RA bagi ${pasukan} (${kejohanan}) pada ${tarikh} telah disahkan oleh ${by}.` },
+      });
+    }
+    return;
+  }
+  if (!state.email_sent_at && !state.telegram_sent_at) return;
+  const chairResult = await notifyUser(env, {
+    userId: state.pengesah_user_id ? Number(state.pengesah_user_id) : null,
+    name: str(state.pengesah_nama), email: state.email_sent_at ? state.email_recipient as string | null : null,
+    telegramChatId: state.telegram_sent_at ? state.telegram_chat_id as string | null : null }, {
+    subject: `Laporan RA Telah Disahkan Admin: ${pasukan} — ${tarikh}`,
+    title: 'Pengesahan Tidak Lagi Diperlukan',
+    accent: '#6B7280',
+    mailType: 'lantikan',
+    paragraphs: ['Laporan RA yang dihantar kepada anda untuk pengesahan telah disahkan oleh Admin melalui override.',
+      'Pautan pengesahan dalam mesej sebelum ini tidak lagi sah. Tiada tindakan lanjut diperlukan daripada anda.'],
+    rows: [['Kejohanan', kejohanan], ['Perlawanan', pasukan], ['Tarikh', tarikh]],
+    portal: { type: 'Laporan RA', subject: `Laporan RA disahkan Admin: ${pasukan}`,
+      message: `Laporan RA bagi ${pasukan} pada ${tarikh} telah disahkan oleh Admin. Pautan pengesahan anda tidak lagi sah.` },
+  });
+  await auditResult('chair_void_notification', chairResult, { recipient: state.email_recipient ?? null });
 }
