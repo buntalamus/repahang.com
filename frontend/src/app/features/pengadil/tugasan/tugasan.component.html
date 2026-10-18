@@ -121,7 +121,7 @@
                 }
               </td>
             </tr>
-            <tr @if (a.sebab_status || a.rakan_tugasan?.length) { class="bg-slate-50/70" }>
+            <tr [class.bg-slate-50/70]="a.sebab_status || a.rakan_tugasan?.length">
               <td colspan="6" class="px-4 pb-3 pt-0">
                 @if (a.sebab_status) {
                   <p class="text-xs text-red-700"><span class="font-semibold">Sebab {{ a.status === 'Ditangguhkan' ? 'penangguhan' : 'pembatalan' }}:</span> {{ a.sebab_status }}</p>

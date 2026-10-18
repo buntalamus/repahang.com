@@ -6,6 +6,7 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ## [18 Oktober 2026] — Website sebagai app iPhone (PWA) dengan notifikasi push
 
+- Pembetulan: halaman Tugasan Pengadil berhenti dipaparkan di iPhone (Safari dan app skrin utama) — butang penapis dan senarai lantikan tiada, jadi tidak boleh Terima/Tolak. Templat meletakkan `@if` di dalam tag `<tr>`, menghasilkan atribut bernama `(a.sebab_status`; Chrome menerimanya tetapi WebKit menolak. Ditukar kepada `[class.bg-slate-50/70]`. 59 laluan portal diimbas dalam WebKit; tiada corak sama ditemui.
 - Pembetulan: app skrin utama iPhone beku selepas membuka menu (☰). Menu mudah alih kini wujud hanya semasa dibuka (tiada lapisan `fixed` tersembunyi yang berubah bentuk), latar penutup ialah butang, dan menu ditutup apabila halaman bertukar atau Escape ditekan. Disahkan dengan WebKit (emulasi iPhone, mod Safari dan skrin utama).
 - Portal boleh dipasang ke skrin utama (manifest, ikon `pwa-*.png`, `sw.js`). Di iPhone (iOS 16.4+): Safari → Kongsi → Add to Home Screen, kemudian aktifkan notifikasi. Tiada akaun Apple atau App Store diperlukan.
 - Web Push: kad "Notifikasi Telefon" di halaman profil dan banner di atas portal (panduan iPhone, pautan APK untuk Android, butang aktifkan). Langganan dibuang sebelum log keluar supaya pengguna seterusnya di peranti sama tidak menerima notifikasi orang lain.
