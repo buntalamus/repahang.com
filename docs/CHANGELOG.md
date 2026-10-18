@@ -4,6 +4,15 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [18 Oktober 2026] — Keluarkan auto-tolak lantikan daripada cron
+
+- Cron lima minit tidak lagi menjalankan `autoTolakLantikanTertunggak`. Lantikan tidak ditolak automatik oleh tugas berjadual ini.
+- Tugas cron lain diteruskan: notifikasi KUP tertunda, peringatan jawapan, salinan daerah, outbox notifikasi, kempen emel dan penyegerakan peti emel.
+- Skop perubahan ini ialah cron sahaja. Peraturan tempoh jawapan dan auto-tolak melalui tindakan/halaman portal, emel atau Telegram masih menggunakan aliran sedia ada. Rekod lantikan lama tidak diubah.
+- Validasi: typecheck Worker, `test:notify-lantikan`, `test:mailbox-campaigns`, `test:appointment-deadline`, serta lapan senario runtime handler cron (kejayaan, setiap tugas gagal dan suis lantikan ditutup).
+
+---
+
 ## [18 Oktober 2026] — Chat Hubungi Admin
 
 - Tema chat menggunakan warna hitam dan kuning Pahang yang sama dengan portal.

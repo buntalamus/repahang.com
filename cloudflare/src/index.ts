@@ -22,7 +22,7 @@ import { announcementsWrite } from './announcements-write';
 import { refereeProfileWrite } from './profile-admin-write';
 import { GATES } from './php/gates';
 import { appointmentWritesEnabled } from './lantikan-write';
-import { autoTolakLantikanTertunggak, processQueuedKupCrewNotifications } from './php/lantikan-helper';
+import { processQueuedKupCrewNotifications } from './php/lantikan-helper';
 import { notificationOutboxEnabled, processNotificationOutbox } from './notify';
 import { sendAppointmentReminders } from './lantikan-notify';
 import { districtAssessments, refereeAssessments } from './assessments';
@@ -409,12 +409,8 @@ export default {
       if (appointmentWritesEnabled(env)) {
         try { await processQueuedKupCrewNotifications(env); }
         finally {
-          // Overdue answers expire on schedule, not only when someone opens a page.
-          try { await autoTolakLantikanTertunggak(env); }
-          finally {
-            try { await sendAppointmentReminders(env); }
-            finally { await processDistrictAppointmentMail(env); }
-          }
+          try { await sendAppointmentReminders(env); }
+          finally { await processDistrictAppointmentMail(env); }
         }
       }
     } finally {
