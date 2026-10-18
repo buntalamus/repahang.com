@@ -1,0 +1,27 @@
+<div class="conversation">
+  @if (error()) {
+    <div class="chat-error" role="alert">{{ error() }} <button type="button" (click)="refresh()">Muat semula</button></div>
+  }
+  <div #messageLog class="message-log" (scroll)="onScroll()" role="log" aria-label="Sejarah perbualan" aria-live="polite" aria-relevant="additions" tabindex="0">
+    @if (hasOlder()) { <button type="button" class="older" (click)="older()" [disabled]="loadingOlder()">{{ loadingOlder() ? 'Memuatkan…' : 'Lihat mesej terdahulu' }}</button> }
+    @if (loading()) { <p class="chat-hint" role="status">Memuatkan perbualan…</p> }
+    @for (message of messages(); track message.id) {
+      <article class="bubble" [class.mine]="(message.is_admin === 1) === admin()">
+        <p class="sender">{{ message.sender_name }}</p>
+        <p class="message-body">{{ message.body }}</p>
+        <time [attr.datetime]="message.created_at.replace(' ', 'T') + 'Z'">{{ (message.created_at.replace(' ', 'T') + 'Z') | date:'dd/MM/yyyy, HH:mm':'+0800' }}</time>
+      </article>
+    } @empty {
+      @if (!loading()) { <p class="chat-hint">Belum ada mesej. Tulis pertanyaan anda di bawah. Admin akan membalas di sini.</p> }
+    }
+  </div>
+  @if (newMessages()) { <button type="button" class="older" (click)="jumpToLatest()">Lihat mesej baharu ↓</button> }
+  <form class="composer" (submit)="$event.preventDefault(); send()">
+    <label for="support-message">{{ admin() ? 'Balasan kepada pengguna' : 'Mesej kepada Admin' }}</label>
+    <textarea #composerInput id="support-message" [formControl]="draft" rows="3" maxlength="2000" placeholder="Tulis mesej…" aria-describedby="support-message-help"></textarea>
+    <div class="composer-bottom">
+      <small id="support-message-help">Maksimum 2,000 aksara.</small>
+      <button type="submit" [disabled]="sending() || !draft.value.trim() || draft.value.length > 2000">{{ sending() ? 'Menghantar…' : 'Hantar' }}</button>
+    </div>
+  </form>
+</div>

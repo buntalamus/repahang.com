@@ -65,6 +65,7 @@ import { updateProfile, uploadProfileImage } from './profile-write';
 import { forgotPassword, resetPassword } from './password-reset';
 import { assessorDashboard, districtAnnouncements, districtOverview } from './role-dashboards';
 import { tournaments } from './tournaments';
+import { supportChat } from './support-chat';
 import { adminMailbox, receiveMailboxEmail } from './mailbox';
 import { syncAllShinjiruMailboxes } from './mailbox-imap';
 import type { Env } from './types';
@@ -246,6 +247,7 @@ async function privateMedia(request: Request, env: Env, pathname: string): Promi
 }
 
 async function api(request: Request, env: Env, pathname: string, ctx: ExecutionContext): Promise<Response> {
+  if (pathname === '/api/support-chat.php') return supportChat(request, env);
   if (pathname === '/api/portal-dashboard.php') return portalDashboard(request, env);
   if (pathname === '/api/__migration-health') {
     if (request.method !== 'GET') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);

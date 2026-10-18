@@ -212,6 +212,21 @@ Semua pengguna boleh mengemaskini maklumat profil mereka:
 
 ---
 
+## 2.8 Hubungi Admin melalui Chat
+
+Untuk semua kategori Pengadil dan Penilai Pengadil, butang **Hubungi Admin** tersedia di penjuru kanan bawah setiap halaman portal. Pegawai Pembangunan Daerah yang mempunyai keupayaan Pengadil atau Penilai juga boleh menggunakannya.
+
+1. Klik **Hubungi Admin**.
+2. Tulis pertanyaan dalam **Mesej kepada Admin**, kemudian klik **Hantar** (maksimum 2,000 aksara).
+3. Balasan Admin muncul dalam kotak yang sama. Jika chat ditutup, penanda kuning menunjukkan bilangan balasan belum dibaca.
+4. Klik **Lihat mesej terdahulu** untuk sejarah lama. Klik **Tutup chat** atau tekan Escape untuk menutup panel.
+
+Perbualan disimpan dan boleh dibaca semula selepas log masuk. Pengguna hanya boleh mengakses perbualan sendiri. Balasan datang daripada Admin; chat dikemas kini berkala ketika halaman aktif.
+
+**Untuk Admin:** Buka **Komunikasi → Chat Pengguna** (`/admin/chat`). Cari nama jika perlu, pilih perbualan, tulis dalam **Balasan kepada pengguna**, kemudian klik **Hantar**. Penanda belum dibaca dikongsi antara Admin. Pada telefon, gunakan **← Senarai** untuk kembali ke senarai perbualan. Pautan terapung **Chat Pengguna** pada halaman Admin lain memaparkan bilangan mesej belum dibaca.
+
+---
+
 # BAB 3: Manual Pengadil
 
 ## 3.1 Menu Utama Pengadil

@@ -54,6 +54,10 @@ export const routes: Routes = [
       import('./layouts/admin-layout/admin-layout.component').then((m) => m.AdminLayoutComponent),
     children: [
       {
+        path: 'chat',
+        loadComponent: () => import('./features/admin/support-chat/admin-support-chat.component').then(m => m.AdminSupportChatComponent),
+      },
+      {
         path: 'daftar/ra',
         loadComponent: () =>
           import('./features/pengadil/application/application.component').then((m) => m.PengadilApplicationComponent),

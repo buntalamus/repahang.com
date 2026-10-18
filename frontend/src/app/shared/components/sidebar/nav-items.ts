@@ -24,6 +24,7 @@ export const ADMIN_NAV: NavItem[] = [
     { label: 'Pengadil Luar', icon: 'person_add', route: '/admin/pengadil-luar' },
   ] },
   { label: 'Komunikasi', icon: 'forum', children: [
+    { label: 'Chat Pengguna', icon: 'chat', route: '/admin/chat' },
     { label: 'Pengumuman', icon: 'campaign', route: '/admin/pengumuman' },
     { label: 'Peti Emel', icon: 'mail', route: '/admin/emel' },
   ] },

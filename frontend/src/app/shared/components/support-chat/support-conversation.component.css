@@ -1,0 +1,22 @@
+:host { display: flex; flex: 1; min-height: 0; }
+.conversation { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; background: #f8fafc; }
+.message-log { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 1rem; }
+.bubble { width: fit-content; max-width: 90%; margin-bottom: .75rem; padding: .7rem .9rem; background: white; border: 1px solid #cbd5e1; border-radius: 1rem 1rem 1rem .2rem; color: #0f172a; overflow-wrap: anywhere; }
+.bubble.mine { margin-left: auto; background: var(--color-pahang-black); color: white; border-color: var(--color-pahang-black); border-radius: 1rem 1rem .2rem 1rem; }
+.bubble.mine .sender { color: var(--color-pahang-yellow); }
+.sender { font-size: .75rem; font-weight: 700; margin-bottom: .3rem; }
+.message-body { white-space: pre-wrap; font-size: .875rem; line-height: 1.5; }
+time { display: block; font-size: .65rem; margin-top: .4rem; opacity: .85; }
+.chat-hint { color: #475569; font-size: .875rem; text-align: center; padding: 1.5rem .5rem; }
+.composer { padding: .85rem 1rem; background: white; border-top: 1px solid #cbd5e1; }
+label { display: block; font-size: .8rem; font-weight: 600; color: #334155; margin-bottom: .35rem; }
+textarea { width: 100%; resize: vertical; min-height: 4rem; max-height: 9rem; border: 1px solid #94a3b8; border-radius: .5rem; padding: .5rem .65rem; color: #0f172a; font-size: .875rem; }
+.composer-bottom { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .4rem; }
+small { font-size: .7rem; color: #475569; }
+button { cursor: pointer; border-radius: .5rem; }
+button[type=submit] { background: var(--color-pahang-yellow); color: var(--color-pahang-black); padding: .5rem 1rem; font-size: .875rem; font-weight: 600; }
+button:disabled { cursor: default; opacity: .6; }
+.older { display: block; margin: 0 auto 1rem; padding: .4rem .75rem; color: #000; border: 1px solid #94a3b8; font-size: .8rem; background: white; }
+.chat-error { background: #fef2f2; color: #991b1b; padding: .65rem 1rem; font-size: .8rem; }
+.chat-error button { text-decoration: underline; padding: .25rem; font-weight: 600; }
+:is(button,textarea,.message-log):focus-visible { outline: 3px solid #8b7900; outline-offset: 2px; }

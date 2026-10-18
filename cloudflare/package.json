@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:support-chat": "node --no-warnings tests/support-chat.mjs",
     "typecheck": "tsc --noEmit",
     "test:appointment-audit": "node --no-warnings tests/appointment-audit.mjs",
     "test:admin-approve": "node --no-warnings tests/admin-approve.mjs",

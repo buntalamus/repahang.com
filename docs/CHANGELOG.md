@@ -4,6 +4,17 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [18 Oktober 2026] — Chat Hubungi Admin
+
+- Tema chat menggunakan warna hitam dan kuning Pahang yang sama dengan portal.
+- Butang terapung Hubungi Admin pada setiap halaman Portal Pengadil/Penilai, termasuk PP Daerah dengan keupayaan Pengadil atau Penilai. Semua kategori pengadil menggunakan perbualan akaun sendiri.
+- Admin membaca dan membalas melalui Komunikasi → Chat Pengguna (`/admin/chat`), dengan carian nama, pagination dan penanda belum dibaca. Penanda Admin dikongsi; pengguna hanya melihat perbualan sendiri.
+- Mesej teks sehingga 2,000 aksara disimpan di D1. ID permintaan mengelakkan pendua apabila penghantaran dicuba semula; had sepuluh mesej seminit per pengirim diperiksa dalam transaksi. Penanda baca hanya bergerak ke had mesej yang dimuatkan; mesej baharu kekal belum dibaca ketika pengguna membaca sejarah lama.
+- Chat terbuka dikemas kini setiap lapan saat; senarai Admin setiap 15 saat; penanda terapung setiap 45 saat. Polling berhenti apabila tab disembunyikan dan apabila komponen ditutup/dimusnahkan. Tiada emel atau Telegram dihantar oleh chat.
+- Migrasi baharu: `0026_support_chat.sql`. Ujian: `test:support-chat`, typecheck, build produksi, aliran pelayar Pengadil/Admin/Penilai pada pangkalan data ujian, serta AXE pada komponen chat dan peti Admin.
+
+---
+
 ## [18 Oktober 2026] — Peranan pendaftaran dan kategori pengadil
 
 - Borang `/daftar` mengasingkan Peranan (Pengadil / Penilai Pengadil) daripada Jenis Pengadil (Baharu / Negeri / Kebangsaan), yang hanya muncul untuk Pengadil.

@@ -1,0 +1,31 @@
+<h1 class="text-2xl font-bold text-slate-900">Chat Pengguna</h1>
+<p class="text-sm text-slate-600 mt-1 mb-5">Baca pertanyaan Pengadil dan Penilai Pengadil, kemudian balas dalam perbualan mereka.</p>
+@if (error()) { <p class="text-red-800 mb-3" role="alert">{{ error() }} <button type="button" class="underline" (click)="load()">Muat semula</button></p> }
+<div class="inbox" [class.has-selection]="!!selected()">
+  <section class="threads" aria-label="Senarai perbualan">
+    <form class="search" (submit)="$event.preventDefault(); find()">
+      <label for="chat-search">Cari nama pengguna</label>
+      <div><input id="chat-search" [formControl]="search" maxlength="100" type="search" /><button type="submit">Cari</button></div>
+    </form>
+    <div #threadList class="thread-list" tabindex="0" aria-label="Perbualan pengguna" role="region" [attr.aria-busy]="loading()">
+      @for (thread of threads(); track thread.user_id) {
+        <button type="button" class="thread" [class.selected]="selected()?.user_id === thread.user_id" [attr.aria-pressed]="selected()?.user_id === thread.user_id" (click)="select(thread)">
+          <span class="thread-name">{{ thread.nama_penuh }} @if (thread.unread_count) { <span class="unread">{{ thread.unread_count }} belum dibaca</span> }</span>
+          <span class="details">{{ roleLabel(thread.role) }} · {{ thread.daerah || 'Tiada daerah' }}</span>
+          <span class="preview">{{ thread.is_admin ? 'Admin: ' : '' }}{{ thread.preview }}</span>
+        </button>
+      } @empty { <p class="empty">{{ loading() ? 'Memuatkan…' : 'Tiada perbualan ditemui.' }}</p> }
+    </div>
+    <nav class="pages" aria-label="Halaman perbualan">
+      <button type="button" (click)="turnPage(-1)" [disabled]="page() <= 1">Sebelum</button>
+      <span>{{ page() }} · {{ total() }} perbualan</span>
+      <button type="button" (click)="turnPage(1)" [disabled]="page() * 30 >= total()">Seterusnya</button>
+    </nav>
+  </section>
+  <section class="conversation-pane" aria-label="Perbualan terpilih">
+    @if (selected(); as thread) {
+      <header><button type="button" class="back" (click)="back()">← Senarai</button><div><h2 #conversationHeading tabindex="-1">{{ thread.nama_penuh }}</h2><p>{{ roleLabel(thread.role) }}</p></div></header>
+      <app-support-conversation [userId]="thread.user_id" [admin]="true" (changed)="load()" />
+    } @else { <p class="empty">Pilih perbualan untuk membaca dan membalas mesej.</p> }
+  </section>
+</div>
