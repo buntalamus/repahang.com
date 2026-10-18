@@ -14,6 +14,7 @@ Semua perubahan penting sejak **11 Julai 2026**.
   - Butang Terima/Tolak disembunyikan selepas perlawanan bermula (server menolak jawapan selepas sepak mula dengan mesej "sudah dijawab" — kekal seperti PHP).
 - Android sahaja buat masa ini; iOS menunggu akaun Apple Developer dan konfigurasi Firebase iOS.
 - Muat turun APK: `https://refpahang.com/app/refpahang.apk` (objek R2 `app/refpahang.apk`, laluan Worker `/app/*`). `mobile-version.php` memaparkan `MOBILE_MIN_VERSION`/`MOBILE_LATEST_VERSION` 1.1.0 supaya APK ujian lama diminta naik taraf.
+- Ikon app: logo PBNP bulat tanpa latar (ikon adaptif berlatar lutsinar), keluaran 1.1.1+5.
 - Kemas kini OTA melalui Shorebird (app RefPahang, keluaran asas 1.1.0+4). Perubahan kod Dart dihantar dengan `shorebird patch android --release-version=1.1.0+4`; perubahan native (plugin, kebenaran, ikon) perlu keluaran dan APK baharu.
 - Setiap notifikasi portal (baris `notifications`) turut dihantar sebagai push FCM ke telefon yang log masuk melalui app. Tiada titik notifikasi sedia ada diubah; `processPushQueue()` mengikut jadual `notifications` dengan kursor selepas setiap tulisan dan dalam cron. Peringatan lantikan yang tiada baris portal tidak dihantar sebagai push.
 - Endpoint baharu: `mobile-login.php` (token sesi 90 hari untuk `Authorization: Bearer`), `mobile-logout.php`, `push-register.php`, `mobile-version.php`. `currentUser()` menerima Bearer selain kuki; log masuk website tidak berubah.
