@@ -7,6 +7,14 @@
   "name": "refpahang",
   "main": "./src/index.ts",
   "compatibility_date": "2026-10-13",
+  // Preserve the existing production Dashboard settings during CLI releases.
+  "placement": { "mode": "smart" },
+  "observability": {
+    "enabled": true,
+    "issues": { "enabled": true },
+    "logs": { "enabled": true },
+    "traces": { "enabled": true }
+  },
   "routes": [
     { "pattern": "refpahang.com", "custom_domain": true },
     { "pattern": "www.refpahang.com", "custom_domain": true }
