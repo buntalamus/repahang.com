@@ -6,6 +6,7 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ## [18 Oktober 2026] — Website sebagai app iPhone (PWA) dengan notifikasi push
 
+- Pembetulan: app skrin utama iPhone beku selepas membuka menu (☰). Menu mudah alih kini wujud hanya semasa dibuka (tiada lapisan `fixed` tersembunyi yang berubah bentuk), latar penutup ialah butang, dan menu ditutup apabila halaman bertukar atau Escape ditekan. Disahkan dengan WebKit (emulasi iPhone, mod Safari dan skrin utama).
 - Portal boleh dipasang ke skrin utama (manifest, ikon `pwa-*.png`, `sw.js`). Di iPhone (iOS 16.4+): Safari → Kongsi → Add to Home Screen, kemudian aktifkan notifikasi. Tiada akaun Apple atau App Store diperlukan.
 - Web Push: kad "Notifikasi Telefon" di halaman profil dan banner di atas portal (panduan iPhone, pautan APK untuk Android, butang aktifkan). Langganan dibuang sebelum log keluar supaya pengguna seterusnya di peranti sama tidak menerima notifikasi orang lain.
 - Server: `GET /api/webpush-key.php`, `POST/DELETE /api/webpush-subscribe.php` (hanya perkhidmatan push Apple, Google, Mozilla dan Microsoft diterima). Payload disulitkan RFC 8291 (aes128gcm) dan dibenarkan VAPID (ES256) dengan WebCrypto; setiap baris `notifications` dihantar ke langganan pengguna melalui kursor yang sama dengan app Android dan membuka halaman berkaitan ikut peranan.

@@ -1,4 +1,5 @@
-import { Component, Input, Output, EventEmitter, OnDestroy } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, viewChild } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
@@ -12,13 +13,18 @@ import {
 
 @Component({
   selector: 'app-sidebar',
-  imports: [RouterLink, RouterLinkActive],
+  imports: [RouterLink, RouterLinkActive, NgTemplateOutlet],
+  styles: `
+    /* Slide-in that ends untransformed: iOS Home Screen apps mis-hit-test fixed
+       layers left with a transform, which froze the whole app. */
+    @keyframes drawer-in { from { transform: translateX(-100%); } to { transform: none; } }
+    @keyframes backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+    .drawer-panel { animation: drawer-in 200ms ease-out; }
+    .drawer-backdrop { animation: backdrop-in 200ms ease-out; }
+    @media (prefers-reduced-motion: reduce) { .drawer-panel, .drawer-backdrop { animation: none; } }
+  `,
   template: `
-    <aside
-      class="bg-pahang-black text-white flex flex-col fixed inset-y-0 left-0 w-64 z-50 transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0"
-      [class.translate-x-0]="isOpen"
-      [class.-translate-x-full]="!isOpen"
-    >
+    <ng-template #panel>
       <!-- Header -->
       <div class="p-5 border-b border-white/10">
         <div class="flex items-center gap-3">
@@ -31,12 +37,13 @@ import {
       </div>
 
       <!-- Navigation -->
-      <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+      <nav class="flex-1 p-4 space-y-1 overflow-y-auto overscroll-contain">
         @for (item of navItems; track item.label) {
           @if (item.section) { <p class="px-4 pt-5 pb-2 text-[10px] font-bold uppercase tracking-wider text-white/70">{{ item.section }}</p> }
           @if (item.children) {
             <div>
               <button
+                type="button"
                 (click)="toggleSubmenu(item.label)"
                 [attr.aria-expanded]="!!openSubmenus[item.label]"
                 class="flex items-center justify-between w-full px-4 py-3 rounded-xl text-sm transition-colors text-white/60 hover:text-white/90 hover:bg-white/5"
@@ -86,18 +93,37 @@ import {
         <p class="text-xs text-white/70 text-center">Pertanyaan teknikal:</p>
         <p class="text-xs text-white/60 text-center">sokongan&#64;pbnppahang.my</p>
       </div>
+    </ng-template>
+
+    <!-- Desktop: always visible, no fixed layer. -->
+    <aside class="hidden lg:flex flex-col bg-pahang-black text-white w-64 shrink-0 sticky top-0 h-screen">
+      <ng-container [ngTemplateOutlet]="panel" />
     </aside>
 
-    <!-- Mobile overlay -->
+    <!-- Mobile: exists only while open, so nothing invisible can cover the app. -->
     @if (isOpen) {
-      <div
-        class="lg:hidden fixed inset-0 bg-black/50 z-40"
-        (click)="closeMobile()"
-      ></div>
+      <div class="lg:hidden fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="Menu navigasi">
+        <button
+          type="button"
+          aria-label="Tutup menu"
+          class="drawer-backdrop absolute inset-0 w-full h-full bg-black/50 cursor-pointer"
+          (click)="closeMobile()"
+        ></button>
+        <aside
+          #drawer
+          class="drawer-panel relative flex flex-col bg-pahang-black text-white w-64 max-w-[85vw] h-full"
+          style="padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom)"
+        >
+          <ng-container [ngTemplateOutlet]="panel" />
+        </aside>
+      </div>
     }
   `,
+  host: {
+    '(document:keydown.escape)': 'isOpen && closeMobile()',
+  },
 })
-export class SidebarComponent implements OnDestroy {
+export class SidebarComponent implements OnChanges, OnDestroy {
   @Input() isOpen = false;
   @Output() closed = new EventEmitter<void>();
   openSubmenus: Record<string, boolean> = {};
@@ -106,13 +132,28 @@ export class SidebarComponent implements OnDestroy {
   roleLabel = '';
   private sub: Subscription;
   private navigationSub: Subscription;
+  private readonly drawer = viewChild<ElementRef<HTMLElement>>('drawer');
+  private returnFocus: HTMLElement | null = null;
 
   constructor(private auth: AuthService, private router: Router) {
     this.updateNav();
     this.sub = this.auth.currentUser$.subscribe(() => this.updateNav());
     this.navigationSub = this.router.events.subscribe(event => {
-      if (event instanceof NavigationEnd) this.openActiveGroup(event.urlAfterRedirects);
+      if (!(event instanceof NavigationEnd)) return;
+      this.openActiveGroup(event.urlAfterRedirects);
+      if (this.isOpen) this.closeMobile();
     });
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!changes['isOpen'] || changes['isOpen'].firstChange) return;
+    if (this.isOpen) {
+      // Move focus into the drawer; remember the menu button to return to.
+      this.returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setTimeout(() => this.drawer()?.nativeElement.querySelector<HTMLElement>('a, button')?.focus());
+    } else {
+      this.restoreFocus();
+    }
   }
 
   ngOnDestroy(): void {
@@ -178,7 +219,15 @@ export class SidebarComponent implements OnDestroy {
   }
 
   closeMobile(): void {
+    if (!this.isOpen) return;
     this.isOpen = false;
     this.closed.emit();
+    this.restoreFocus();
+  }
+
+  private restoreFocus(): void {
+    const target = this.returnFocus;
+    this.returnFocus = null;
+    if (target?.isConnected) setTimeout(() => target.focus({ preventScroll: true }));
   }
 }
