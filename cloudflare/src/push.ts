@@ -8,6 +8,7 @@
 import { currentUser, json, requestTokenHash } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { sendWebPush, webPushEnabled, webPushUrl, type WebPushMessage } from './webpush';
 
 const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -20,6 +21,8 @@ interface ServiceAccount { project_id: string; client_email: string; private_key
 interface NotificationRow { id: number; user_id: number; type: string; subject: string; message: string }
 
 interface DeviceRow { user_id: number; token: string }
+
+interface WebSubscriptionRow { id: number; user_id: number; endpoint: string; p256dh: string; auth: string; role: string }
 
 export type PushResult = 'sent' | 'invalid' | 'failed';
 
@@ -171,36 +174,58 @@ export async function processPushQueue(env: Env, limit = 50):
   const upto = rows[rows.length - 1].id;
   const claim = await env.DB.prepare('UPDATE worker_push_state SET state_value=? WHERE state_key=? AND state_value=?')
     .bind(upto, CURSOR_KEY, from).run();
-  if (claim.meta.changes !== 1 || !pushEnabled(env)) return summary;
+  if (claim.meta.changes !== 1) return summary;
+  const fcm = pushEnabled(env);
+  const web = webPushEnabled(env);
+  if (!fcm && !web) return summary;
 
   const now = Math.floor(Date.now() / 1000);
-  const devices = (await env.DB.prepare(`SELECT d.user_id,d.token FROM worker_push_devices d
+  const devices = fcm ? (await env.DB.prepare(`SELECT d.user_id,d.token FROM worker_push_devices d
       JOIN worker_sessions s ON s.token_hash=d.session_token_hash AND s.expires_at>?
       JOIN users u ON u.id=d.user_id AND u.aktif=1
     WHERE d.user_id IN (SELECT user_id FROM notifications WHERE id>? AND id<=?)`)
-    .bind(now, from, upto).all<DeviceRow>()).results;
-  if (!devices.length) return summary;
+    .bind(now, from, upto).all<DeviceRow>()).results : [];
+  const subscriptions = web ? (await env.DB.prepare(`SELECT w.id,w.user_id,w.endpoint,w.p256dh,w.auth,u.role
+      FROM worker_webpush_subscriptions w JOIN users u ON u.id=w.user_id AND u.aktif=1
+    WHERE w.user_id IN (SELECT user_id FROM notifications WHERE id>? AND id<=?)`)
+    .bind(from, upto).all<WebSubscriptionRow>()).results : [];
+  if (!devices.length && !subscriptions.length) return summary;
   const unread = new Map((await env.DB.prepare(`SELECT user_id,count(*) AS n FROM notifications
     WHERE is_read=0 AND user_id IN (SELECT user_id FROM notifications WHERE id>? AND id<=?) GROUP BY user_id`)
     .bind(from, upto).all<{ user_id: number; n: number }>()).results.map((r) => [r.user_id, Number(r.n)]));
 
-  const jobs: Array<{ token: string; message: PushMessage }> = [];
+  // Each job sends one notice to one target and reports whether that target is gone.
+  type Job = { key: string; send: () => Promise<PushResult>; remove: D1PreparedStatement };
+  const jobs: Job[] = [];
   for (const row of rows) {
     const message = pushMessageFor(row, unread.get(row.user_id));
-    for (const device of devices) if (device.user_id === row.user_id) jobs.push({ token: device.token, message });
+    for (const device of devices) {
+      if (device.user_id !== row.user_id) continue;
+      jobs.push({ key: `fcm:${device.token}`, send: () => sendPush(env, device.token, message),
+        remove: env.DB.prepare('DELETE FROM worker_push_devices WHERE token=?').bind(device.token) });
+    }
+    for (const sub of subscriptions) {
+      if (sub.user_id !== row.user_id) continue;
+      const webMessage: WebPushMessage = {
+        title: message.title, body: message.body, tag: `n${row.id}`, badge: message.badge,
+        url: webPushUrl(sub.role, message.data.screen),
+      };
+      jobs.push({ key: `web:${sub.id}`, send: () => sendWebPush(env, sub, webMessage),
+        remove: env.DB.prepare('DELETE FROM worker_webpush_subscriptions WHERE id=?').bind(sub.id) });
+    }
   }
-  const invalid = new Set<string>();
+  const invalid = new Map<string, D1PreparedStatement>();
   for (let i = 0; i < jobs.length; i += SEND_CONCURRENCY) {
-    const batch = jobs.slice(i, i + SEND_CONCURRENCY).filter((job) => !invalid.has(job.token));
-    const results = await Promise.all(batch.map((job) => sendPush(env, job.token, job.message)));
+    const batch = jobs.slice(i, i + SEND_CONCURRENCY).filter((job) => !invalid.has(job.key));
+    const results = await Promise.all(batch.map((job) => job.send()));
     results.forEach((result, index) => {
       if (result === 'sent') summary.sent += 1;
-      else if (result === 'invalid') invalid.add(batch[index].token);
+      else if (result === 'invalid') invalid.set(batch[index].key, batch[index].remove);
       else summary.failed += 1;
     });
   }
-  for (const token of invalid) {
-    await env.DB.prepare('DELETE FROM worker_push_devices WHERE token=?').bind(token).run();
+  for (const statement of invalid.values()) {
+    await statement.run();
     summary.removed += 1;
   }
   return summary;

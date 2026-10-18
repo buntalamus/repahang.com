@@ -4,6 +4,7 @@ import { processDistrictAppointmentMail } from './district-appointment-mail';
 import { portalDashboard } from './portal-dashboard';
 import { currentUser, json, login, logout, mobileLogin, mobileLogout, session } from './auth';
 import { mobileApk, mobileBroadcast, mobileVersion, processPushQueue, pushRegister } from './push';
+import { webPushKey, webPushSubscribe } from './webpush';
 import { adminUsers } from './admin-users';
 import { adminUserMasterData } from './user-master-data';
 import { adminSettings, maintenanceEnabled } from './admin-settings';
@@ -238,6 +239,8 @@ async function api(request: Request, env: Env, pathname: string, ctx: ExecutionC
   if (pathname === '/api/mobile-version.php') return mobileVersion(request, env);
   if (pathname === '/api/push-register.php') return pushRegister(request, env);
   if (pathname === '/api/mobile-broadcast.php') return mobileBroadcast(request, env);
+  if (pathname === '/api/webpush-key.php') return webPushKey(request, env);
+  if (pathname === '/api/webpush-subscribe.php') return webPushSubscribe(request, env);
   if (pathname === '/api/admin-mail-campaigns.php') return adminMailboxCampaigns(request, env);
   if (pathname === '/api/admin-mailbox.php') return adminMailbox(request, env);
   if (pathname === '/api/register.php') return register(request, env);

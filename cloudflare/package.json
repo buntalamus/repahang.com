@@ -9,6 +9,8 @@
     "test:appointment-expiry-policy": "node --no-warnings tests/appointment-expiry-policy.mjs",
     "test:support-chat": "node --no-warnings tests/support-chat.mjs",
     "typecheck": "tsc --noEmit",
+    "test:mobile-push": "node --no-warnings tests/mobile-push.mjs",
+    "test:web-push": "node --no-warnings tests/web-push.mjs",
     "test:appointment-audit": "node --no-warnings tests/appointment-audit.mjs",
     "test:admin-approve": "node --no-warnings tests/admin-approve.mjs",
     "test:match-stats-current-year": "node --no-warnings tests/match-stats-current-year.mjs",
@@ -69,6 +71,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261013.1",
+    "http_ece": "^1.2.0",
     "typescript": "~5.9.3",
     "wrangler": "4.150.0"
   }

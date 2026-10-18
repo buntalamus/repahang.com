@@ -4,6 +4,14 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [18 Oktober 2026] — Website sebagai app iPhone (PWA) dengan notifikasi push
+
+- Portal boleh dipasang ke skrin utama (manifest, ikon `pwa-*.png`, `sw.js`). Di iPhone (iOS 16.4+): Safari → Kongsi → Add to Home Screen, kemudian aktifkan notifikasi. Tiada akaun Apple atau App Store diperlukan.
+- Web Push: kad "Notifikasi Telefon" di halaman profil dan banner di atas portal (panduan iPhone, pautan APK untuk Android, butang aktifkan). Langganan dibuang sebelum log keluar supaya pengguna seterusnya di peranti sama tidak menerima notifikasi orang lain.
+- Server: `GET /api/webpush-key.php`, `POST/DELETE /api/webpush-subscribe.php` (hanya perkhidmatan push Apple, Google, Mozilla dan Microsoft diterima). Payload disulitkan RFC 8291 (aes128gcm) dan dibenarkan VAPID (ES256) dengan WebCrypto; setiap baris `notifications` dihantar ke langganan pengguna melalui kursor yang sama dengan app Android dan membuka halaman berkaitan ikut peranan.
+- Migrasi baharu: `0029_webpush_subscriptions.sql` (dipasang di produksi melalui `d1 execute`). `VAPID_PUBLIC_KEY` dalam konfigurasi, `VAPID_PRIVATE_KEY` sebagai secret.
+- Ujian: `tests/web-push.mjs` (payload dinyahsulit oleh pustaka bebas `http_ece`), ujian push mudah alih dan auth berkaitan, build frontend, smoke test produksi, dan semakan tandatangan VAPID terhadap perkhidmatan push Apple sebenar.
+
 ## [18 Oktober 2026] — App mobile Android dan notifikasi push
 
 - App Flutter baharu dalam `mobile/` mengikut tema website (Inter, hitam/kuning PBNP, kad dan status yang sama). Fungsi ikut peranan, menggunakan API website yang sama:

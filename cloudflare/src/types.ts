@@ -28,4 +28,8 @@ export interface Env extends EmailEnv {
   MOBILE_IOS_URL?: string;
   /** Secret for /api/mobile-broadcast.php (release update pushes). */
   MOBILE_BROADCAST_TOKEN?: string;
+  /** VAPID key pair for Web Push: public = raw P-256 point, private = JWK `d` (secret); both base64url. */
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
 }
