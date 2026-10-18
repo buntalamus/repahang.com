@@ -1,7 +1,7 @@
 name: refpahang
 description: "RefPahang mobile app: lantikan, permohonan, sejarah dan notifikasi."
 publish_to: 'none'
-version: 1.0.2+3
+version: 1.1.0+4
 
 environment:
   sdk: ^3.13.5
@@ -30,6 +30,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - shorebird.yaml
   # Inter, the website's font (SIL Open Font License).
   fonts:
     - family: Inter

@@ -23,7 +23,7 @@
     "directory": "../frontend/dist/frontend/browser",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/uploads/*"]
+    "run_worker_first": ["/api/*", "/uploads/*", "/app/*"]
   },
   "d1_databases": [
     {
@@ -75,7 +75,12 @@
     "MAILBOX_SEND_ENABLED": "1",
     "MAILBOX_IMAP_ENABLED": "1",
     // Mobile app push (FCM). Also needs the FCM_SERVICE_ACCOUNT secret.
-    "PUSH_ENABLED": "1"
+    "PUSH_ENABLED": "1",
+    // Android app download; the app's update prompt links here.
+    "MOBILE_ANDROID_URL": "https://refpahang.com/app/refpahang.apk",
+    // Raise for native releases only; Dart changes ship as Shorebird patches.
+    "MOBILE_MIN_VERSION": "1.1.0",
+    "MOBILE_LATEST_VERSION": "1.1.0"
   },
   "triggers": {
     "crons": ["*/5 * * * *"]

@@ -253,3 +253,25 @@ export function mobileVersion(request: Request, env: Env): Response {
     ios_url: env.MOBILE_IOS_URL ?? null,
   });
 }
+
+/** Public Android download, served from R2 key app/refpahang.apk. */
+export async function mobileApk(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
+  }
+  if (new URL(request.url).pathname !== '/app/refpahang.apk') {
+    return json({ error: true, message: 'Fail tidak dijumpai.' }, 404);
+  }
+  const object = request.method === 'HEAD' ? await env.MEDIA.head('app/refpahang.apk') : await env.MEDIA.get('app/refpahang.apk');
+  if (!object) return json({ error: true, message: 'App belum tersedia untuk dimuat turun.' }, 404);
+  return new Response(request.method === 'HEAD' ? null : (object as R2ObjectBody).body, {
+    headers: {
+      'Content-Type': 'application/vnd.android.package-archive',
+      'Content-Disposition': 'attachment; filename="RefPahang.apk"',
+      'Content-Length': String(object.size),
+      'Cache-Control': 'no-cache',
+      ETag: object.httpEtag,
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+}

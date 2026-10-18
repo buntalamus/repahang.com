@@ -3,7 +3,7 @@ import { adminMailboxCampaigns, processMailboxCampaigns } from './mailbox-campai
 import { processDistrictAppointmentMail } from './district-appointment-mail';
 import { portalDashboard } from './portal-dashboard';
 import { currentUser, json, login, logout, mobileLogin, mobileLogout, session } from './auth';
-import { mobileVersion, processPushQueue, pushRegister } from './push';
+import { mobileApk, mobileVersion, processPushQueue, pushRegister } from './push';
 import { adminUsers } from './admin-users';
 import { adminUserMasterData } from './user-master-data';
 import { adminSettings, maintenanceEnabled } from './admin-settings';
@@ -373,6 +373,7 @@ export default {
         }
         return response;
       }
+      if (pathname.startsWith('/app/')) return await mobileApk(request, env);
       if (pathname.startsWith('/uploads/')) {
         if (request.method !== 'GET' && request.method !== 'HEAD') {
           return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
