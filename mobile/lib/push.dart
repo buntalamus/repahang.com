@@ -27,20 +27,14 @@ class PushService {
   final _local = FlutterLocalNotificationsPlugin();
   StreamSubscription<String>? _refresh;
   bool _ready = false;
+  bool _localReady = false;
 
   bool get available => _ready;
 
   Future<void> init() async {
-    try {
-      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    } catch (error) {
-      debugPrint('Push disabled: Firebase is not configured ($error)');
-      return;
-    }
-    _ready = true;
     await _local.initialize(
       settings: const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        android: AndroidInitializationSettings('@drawable/ic_notification'),
         iOS: DarwinInitializationSettings(
           requestAlertPermission: false, requestBadgePermission: false, requestSoundPermission: false),
       ),
@@ -49,6 +43,16 @@ class PushService {
     await _local
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(_channel);
+    _localReady = true;
+    final launch = await _local.getNotificationAppLaunchDetails();
+    if (launch?.didNotificationLaunchApp == true) openScreen.value = launch!.notificationResponse?.payload;
+    try {
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    } catch (error) {
+      debugPrint('Push disabled: Firebase is not configured ($error)');
+      return;
+    }
+    _ready = true;
     final messaging = FirebaseMessaging.instance;
     // iOS shows foreground pushes itself; Android needs a local notification.
     await messaging.setForegroundNotificationPresentationOptions(alert: true, badge: true, sound: true);
@@ -70,6 +74,22 @@ class PushService {
             channelDescription: _channel.description, importance: Importance.high, priority: Priority.high),
       ),
       payload: message.data['screen'] as String?,
+    );
+  }
+
+  /// Shows a phone notification from the app itself (e.g. an update is ready).
+  Future<void> showLocal(String title, String body, {String? payload}) async {
+    if (!_localReady) return;
+    await _local.show(
+      id: title.hashCode,
+      title: title,
+      body: body,
+      notificationDetails: NotificationDetails(
+        android: AndroidNotificationDetails(_channel.id, _channel.name,
+            channelDescription: _channel.description, importance: Importance.high, priority: Priority.high),
+        iOS: const DarwinNotificationDetails(),
+      ),
+      payload: payload,
     );
   }
 

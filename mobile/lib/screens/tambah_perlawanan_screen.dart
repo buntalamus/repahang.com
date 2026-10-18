@@ -110,27 +110,28 @@ class _TambahPerlawananScreenState extends State<TambahPerlawananScreen> {
     final picked = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: Colors.white,
       builder: (_) => _RefereePicker(referees: _referees.where((r) => !excluded.contains(r['id'])).toList()),
     );
     if (picked != null) setState(() => slot.referee = picked);
   }
 
-  Widget _text(String key, String label, {bool required = false}) => Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          FieldLabel(label, required: required),
-          TextField(controller: _fields[key], style: const TextStyle(fontSize: 14)),
-        ]),
+  Widget _label(String label, {bool required = false}) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text.rich(TextSpan(children: [
+          TextSpan(text: label),
+          if (required) const TextSpan(text: ' *', style: TextStyle(color: Tw.rose500)),
+        ]), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Tw.slate700)),
       );
+
+  Widget _text(String key, String label, {bool required = false}) =>
+      LabeledField(label: label, controller: _fields[key], required: required);
 
   Widget _dropdown(String label, String? value, List<(String, String)> options, ValueChanged<String?> onChanged,
           {bool required = false}) =>
       Padding(
         padding: const EdgeInsets.only(bottom: 16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          FieldLabel(label, required: required),
+          _label(label, required: required),
           DropdownButtonFormField<String>(
             initialValue: value,
             isExpanded: true,
@@ -144,10 +145,10 @@ class _TambahPerlawananScreenState extends State<TambahPerlawananScreen> {
   Widget _picker(String label, String value, VoidCallback onTap, {bool required = false}) => Padding(
         padding: const EdgeInsets.only(bottom: 16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          FieldLabel(label, required: required),
+          _label(label, required: required),
           InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             child: InputDecorator(
               decoration: const InputDecoration(suffixIcon: Icon(Icons.expand_more, color: Tw.gray400)),
               child: Text(value, style: TextStyle(fontSize: 14, color: value.startsWith('--') ? Tw.gray400 : Tw.gray900)),
@@ -159,7 +160,7 @@ class _TambahPerlawananScreenState extends State<TambahPerlawananScreen> {
   Widget _scoreRow(String label, String prefix) => Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: Row(children: [
-          SizedBox(width: 110, child: Text(label, style: const TextStyle(fontSize: 13, color: Tw.gray700))),
+          SizedBox(width: 110, child: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Tw.slate700))),
           Expanded(child: TextField(controller: _fields['${prefix}_home'], keyboardType: TextInputType.number,
               textAlign: TextAlign.center, decoration: const InputDecoration(hintText: 'Tuan rumah'))),
           const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('-')),
@@ -172,9 +173,9 @@ class _TambahPerlawananScreenState extends State<TambahPerlawananScreen> {
   Widget build(BuildContext context) {
     String two(int v) => v.toString().padLeft(2, '0');
     return Scaffold(
-      appBar: AppBar(title: const Text('Tambah Perlawanan Baharu', style: TextStyle(fontSize: 18))),
+      appBar: AppBar(title: const Text('Tambah perlawanan', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800))),
       body: ListView(padding: const EdgeInsets.all(16), children: [
-        WebCard(
+        AppCard(
           padding: const EdgeInsets.all(20),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             _text('home_team', 'Pasukan Tuan Rumah', required: true),
@@ -199,10 +200,10 @@ class _TambahPerlawananScreenState extends State<TambahPerlawananScreen> {
             _dropdown('Cuaca', _cuaca, [for (final c in _cuacaOptions) (c, c)], (v) => setState(() => _cuaca = v)),
           ]),
         ),
-        WebCard(
+        AppCard(
           padding: const EdgeInsets.all(20),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            const CardTitle('Keputusan', icon: Icons.scoreboard_outlined),
+            const Text('Keputusan', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
             const SizedBox(height: 12),
             _scoreRow('Separuh masa', 'skor_ht'),
             _scoreRow('Penuh masa', 'skor_ft'),
@@ -210,20 +211,20 @@ class _TambahPerlawananScreenState extends State<TambahPerlawananScreen> {
             _scoreRow('Sepakan penalti', 'skor_ps'),
           ]),
         ),
-        WebCard(
+        AppCard(
           padding: const EdgeInsets.all(20),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            const CardTitle('Pegawai Perlawanan', icon: Icons.groups_outlined),
+            const Text('Pegawai perlawanan', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             for (final o in _officials)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Row(children: [
-                  SizedBox(width: 130, child: Text(o.jawatan, style: const TextStyle(fontSize: 13, color: Tw.gray700))),
+                  SizedBox(width: 120, child: Text(o.jawatan, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Tw.slate700))),
                   Expanded(
                     child: InkWell(
                       onTap: () => _pickReferee(o),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                       child: InputDecorator(
                         decoration: InputDecoration(
                           suffixIcon: o.referee == null
@@ -243,10 +244,19 @@ class _TambahPerlawananScreenState extends State<TambahPerlawananScreen> {
               ),
           ]),
         ),
-        YellowButton(label: _submitting ? 'Menghantar...' : 'Hantar untuk Pengesahan', expand: true,
-            onPressed: _submitting ? null : _submit),
-        const SizedBox(height: 24),
+        const SizedBox(height: 8),
       ]),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: FilledButton(
+            onPressed: _submitting ? null : _submit,
+            child: _submitting
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Tw.pahangYellow))
+                : const Text('Hantar untuk pengesahan'),
+          ),
+        ),
+      ),
     );
   }
 }

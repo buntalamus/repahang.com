@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import {hash} from 'bcryptjs';
 import {bundle,openDatabase} from './_harness.mjs';
 
-const {mobileLogin,mobileLogout,currentUser,pushRegister,processPushQueue,pushScreen}=await bundle(
+const {mobileLogin,mobileLogout,currentUser,pushRegister,processPushQueue,pushScreen,mobileBroadcast}=await bundle(
   "export {mobileLogin,mobileLogout,currentUser} from '../src/auth';"
-  +"export {pushRegister,processPushQueue,pushScreen} from '../src/push';");
+  +"export {pushRegister,processPushQueue,pushScreen,mobileBroadcast} from '../src/push';");
 const {db,DB,close}=openDatabase(['0001_worker_sessions','0028_push_devices']);
 
 const keys=await crypto.subtle.generateKey({name:'RSASSA-PKCS1-v1_5',modulusLength:2048,
@@ -122,10 +122,24 @@ try {
   notify(testId,'Lantikan','Tamat','Sesi tamat.');
   assert.deepEqual(await processPushQueue(env),{sent:0,failed:0,removed:0});
 
+  // Release broadcast: secret-guarded, reaches live devices only.
+  const live=await (await mobileLogin(post('mobile-login.php',{email:'mobile-other@example.invalid',password}),env)).json();
+  await pushRegister(post('push-register.php',{token:'device-f',platform:'android'},{Authorization:`Bearer ${live.token}`}),env);
+  env.MOBILE_BROADCAST_TOKEN='x'.repeat(40);
+  assert.equal((await mobileBroadcast(post('mobile-broadcast.php',{},{'X-Refpahang-Broadcast-Token':'wrong'}),env)).status,403);
+  delete env.MOBILE_BROADCAST_TOKEN;
+  assert.equal((await mobileBroadcast(post('mobile-broadcast.php',{},{'X-Refpahang-Broadcast-Token':''}),env)).status,403);
+  env.MOBILE_BROADCAST_TOKEN='x'.repeat(40);
+  sent.length=0;
+  const broadcast=await (await mobileBroadcast(post('mobile-broadcast.php',{},{'X-Refpahang-Broadcast-Token':'x'.repeat(40)}),env)).json();
+  assert.deepEqual({sent:broadcast.sent,removed:broadcast.removed,next:broadcast.next_offset},{sent:1,removed:0,next:null});
+  assert.deepEqual(sent.map((m)=>m.token),['device-f']);
+  assert.equal(sent[0].data.screen,'update');
+
   assert.equal(pushScreen('Lantikan Diterima'),'lantikan');
   assert.equal(pushScreen('Perubahan Perlawanan'),'lantikan');
   assert.equal(pushScreen('PP Disahkan'),'permohonan');
   assert.equal(pushScreen('Pengesahan Perlawanan'),'sejarah');
   assert.equal(pushScreen('Profil Dikemaskini'),'notifikasi');
-  console.log('Mobile push: bearer login, device registration, cursor delivery, invalid-token cleanup and logout passed');
+  console.log('Mobile push: bearer login, device registration, cursor delivery, invalid-token cleanup, logout and update broadcast passed');
 } finally {close();}

@@ -4,7 +4,7 @@ import '../api.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
-/// In-app notices, styled like the website header's notification panel.
+/// In-app notices (/api/notifications.php), the same list pushes come from.
 class NotifikasiScreen extends StatefulWidget {
   const NotifikasiScreen({super.key});
 
@@ -14,6 +14,28 @@ class NotifikasiScreen extends StatefulWidget {
 
 class _NotifikasiScreenState extends State<NotifikasiScreen> {
   final _view = GlobalKey<AsyncViewState<Map<String, dynamic>>>();
+
+  static String _plain(String html) => html
+      .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+      .replaceAll(RegExp(r'<[^>]*>'), '')
+      .replaceAll('&nbsp;', ' ')
+      .replaceAll('&amp;', '&')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&quot;', '"');
+
+  static (IconData, Color) _icon(String type) {
+    final t = type.toLowerCase();
+    if (t.contains('lantikan') || t.contains('perlawanan baru') || t.contains('status perlawanan')) {
+      return (Icons.event_note_rounded, Tw.blue600);
+    }
+    if (t.contains('tolak') || t.contains('batal')) return (Icons.cancel_rounded, Tw.rose600);
+    if (t.contains('permohonan') || t.contains('pp disahkan') || t.contains('keputusan') || t.contains('pendaftaran')) {
+      return (Icons.description_rounded, Tw.amber600);
+    }
+    if (t.contains('pengesahan') || t.contains('rekod') || t.contains('laporan')) return (Icons.fact_check_rounded, Tw.emerald600);
+    return (Icons.notifications_rounded, Tw.slate500);
+  }
 
   Future<void> _markAll() async {
     try {
@@ -30,100 +52,65 @@ class _NotifikasiScreenState extends State<NotifikasiScreen> {
           (_) => mounted ? setState(() => n['is_read'] = 1) : null,
           onError: (_) {});
     }
-    showWebModal<void>(
-      context,
-      title: text(n['subject'] ?? n['title'], 'Notifikasi'),
-      body: (_) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(text(n['created_at']), style: const TextStyle(fontSize: 12, color: Tw.slate600)),
-        const SizedBox(height: 12),
-        Text(_plain(text(n['message'], '')), style: const TextStyle(fontSize: 14, color: Tw.slate800, height: 1.5)),
-      ]),
-    );
+    showAppSheet<void>(context, builder: (context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text(text(n['subject']), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+      const SizedBox(height: 6),
+      Text('${text(n['type'])} · ${text(n['created_at'])}', style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+      const Divider(height: 28),
+      Text(_plain(text(n['message'], '')), style: const TextStyle(fontSize: 15, height: 1.6)),
+    ]));
   }
-
-  static String _plain(String html) => html
-      .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
-      .replaceAll(RegExp(r'<[^>]*>'), '')
-      .replaceAll('&nbsp;', ' ')
-      .replaceAll('&amp;', '&')
-      .replaceAll('&lt;', '<')
-      .replaceAll('&gt;', '>')
-      .replaceAll('&quot;', '"');
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Notifikasi')),
+      appBar: AppBar(
+        title: const Text('Notifikasi'),
+        actions: [
+          TextButton(onPressed: _markAll, child: const Text('Tandai dibaca')),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: AsyncView<Map<String, dynamic>>(
         key: _view,
-        loadingMessage: 'Memuatkan notifikasi...',
         load: () => Api.instance.get('/api/notifications.php'),
         builder: (context, body, reload) {
           final items = (body['notifications'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-          final unread = int.tryParse('${body['unread_count']}') ?? 0;
-          return RefreshIndicator(
-            color: Tw.pahangBlack,
-            onRefresh: reload,
-            child: ListView(padding: const EdgeInsets.all(16), children: [
-              WebCard(
+          return RefreshList(onRefresh: reload, children: [
+            if (items.isEmpty) const EmptyState(icon: Icons.notifications_off_outlined, title: 'Tiada notifikasi'),
+            if (items.isNotEmpty)
+              AppCard(
                 padding: EdgeInsets.zero,
-                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: const BoxDecoration(
-                      color: Tw.slate50,
-                      border: Border(bottom: BorderSide(color: Tw.slate200)),
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-                    ),
-                    child: Row(children: [
-                      const Expanded(
-                        child: Text('Notifikasi', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                      ),
-                      if (unread > 0)
-                        GestureDetector(
-                          onTap: _markAll,
-                          child: const Text('Tandai semua dibaca',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Tw.slate700)),
-                        ),
-                    ]),
-                  ),
-                  if (items.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 32),
-                      child: Center(child: Text('Tiada notifikasi.', style: TextStyle(fontSize: 14, color: Tw.slate600))),
-                    ),
-                  for (var i = 0; i < items.length; i++) _item(i, items[i], i == items.length - 1),
+                child: Column(children: [
+                  for (var i = 0; i < items.length; i++) ...[
+                    if (i > 0) const Divider(indent: 72),
+                    _tile(items[i]),
+                  ],
                 ]),
               ),
-            ]),
-          );
+          ]);
         },
       ),
     );
   }
 
-  Widget _item(int index, Map<String, dynamic> n, bool last) {
+  Widget _tile(Map<String, dynamic> n) {
     final unread = '${n['is_read']}' != '1';
-    return Material(
-      color: unread ? Tw.blue50 : Colors.white,
-      borderRadius: last ? const BorderRadius.vertical(bottom: Radius.circular(12)) : null,
-      child: InkWell(
-        onTap: () => _open(n),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(border: last ? null : const Border(bottom: BorderSide(color: Tw.slate200))),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(text(n['subject'] ?? n['title'] ?? n['message']),
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tw.slate800)),
-            const SizedBox(height: 4),
-            Text(_plain(text(n['message'], '')), maxLines: 3, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12, color: Tw.slate600)),
-            const SizedBox(height: 4),
-            Text(text(n['created_at']), style: const TextStyle(fontSize: 12, color: Tw.slate600)),
-          ]),
-        ),
+    final (icon, color) = _icon(text(n['type'], ''));
+    return ListTile(
+      onTap: () => _open(n),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      leading: CircleAvatar(backgroundColor: color.withValues(alpha: 0.12), child: Icon(icon, color: color, size: 22)),
+      title: Text(text(n['subject']), maxLines: 2, overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 14, fontWeight: unread ? FontWeight.w700 : FontWeight.w500)),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: Text('${_plain(text(n['message'], ''))}\n${text(n['created_at'])}', maxLines: 3, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: AppColors.muted, height: 1.4)),
       ),
+      trailing: unread
+          ? Container(width: 10, height: 10, decoration: const BoxDecoration(color: Tw.blue600, shape: BoxShape.circle))
+          : null,
     );
   }
 }

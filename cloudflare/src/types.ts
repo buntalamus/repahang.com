@@ -26,4 +26,6 @@ export interface Env extends EmailEnv {
   MOBILE_LATEST_VERSION?: string;
   MOBILE_ANDROID_URL?: string;
   MOBILE_IOS_URL?: string;
+  /** Secret for /api/mobile-broadcast.php (release update pushes). */
+  MOBILE_BROADCAST_TOKEN?: string;
 }

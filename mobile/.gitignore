@@ -51,3 +51,6 @@ app.*.map.json
 # (launcher icons, logo, login background, test goldens).
 !*.png
 !*.jpg
+
+# Release secrets (broadcast token for tool/publish_patch.sh).
+.release.env

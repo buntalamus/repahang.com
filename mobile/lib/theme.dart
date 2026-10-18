@@ -89,53 +89,138 @@ class Tw {
   static const shadowSm = [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))];
 }
 
+/// App surfaces: the website's black and yellow on a light, card-based mobile layout.
+class AppColors {
+  static const black = Color(0xFF111111);
+  static const yellow = Tw.pahangYellow;
+  static const yellowSoft = Color(0xFFFFF6C2);
+  static const background = Color(0xFFF3F4F6);
+  static const line = Color(0xFFE8EAEE);
+  static const text = Tw.slate900;
+  static const muted = Tw.slate500;
+  static const faint = Tw.slate400;
+}
+
 ThemeData buildTheme() {
-  const radius = BorderRadius.all(Radius.circular(8));
+  const r12 = BorderRadius.all(Radius.circular(12));
   final base = ThemeData(
     useMaterial3: true,
     fontFamily: 'Inter',
     colorScheme: ColorScheme.fromSeed(
       seedColor: Tw.pahangYellow,
-      primary: Tw.pahangBlack,
+      primary: AppColors.black,
       onPrimary: Tw.pahangYellow,
       secondary: Tw.pahangYellow,
-      onSecondary: Tw.pahangBlack,
+      onSecondary: AppColors.black,
       surface: Colors.white,
       error: Tw.red600,
     ),
-    scaffoldBackgroundColor: Tw.slate100,
+    scaffoldBackgroundColor: AppColors.background,
   );
+  final buttonShape = WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: r12));
+  const buttonText = WidgetStatePropertyAll(TextStyle(fontFamily: 'Inter', fontSize: 15, fontWeight: FontWeight.w600));
   return base.copyWith(
-    textTheme: base.textTheme.apply(bodyColor: Tw.gray900, displayColor: Tw.slate900),
+    textTheme: base.textTheme.apply(bodyColor: AppColors.text, displayColor: AppColors.text),
     appBarTheme: const AppBarTheme(
-      backgroundColor: Colors.white,
-      foregroundColor: Tw.slate900,
-      surfaceTintColor: Colors.white,
+      backgroundColor: AppColors.background,
+      foregroundColor: AppColors.text,
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
-      scrolledUnderElevation: 0,
-      shape: Border(bottom: BorderSide(color: Tw.slate200)),
-      iconTheme: IconThemeData(color: Tw.slate600),
-      titleTextStyle: TextStyle(fontFamily: 'Inter', fontSize: 20, fontWeight: FontWeight.w700, color: Tw.slate900),
+      scrolledUnderElevation: 0.5,
+      centerTitle: false,
+      titleTextStyle: TextStyle(fontFamily: 'Inter', fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.text),
     ),
-    progressIndicatorTheme: const ProgressIndicatorThemeData(color: Tw.pahangYellow),
+    progressIndicatorTheme: const ProgressIndicatorThemeData(color: AppColors.black),
+    filledButtonTheme: FilledButtonThemeData(
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith(
+            (s) => s.contains(WidgetState.disabled) ? Tw.slate300 : AppColors.black),
+        foregroundColor: const WidgetStatePropertyAll(Tw.pahangYellow),
+        minimumSize: const WidgetStatePropertyAll(Size(64, 48)),
+        shape: buttonShape,
+        textStyle: buttonText,
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: ButtonStyle(
+        foregroundColor: const WidgetStatePropertyAll(AppColors.text),
+        side: const WidgetStatePropertyAll(BorderSide(color: Tw.slate300)),
+        minimumSize: const WidgetStatePropertyAll(Size(64, 48)),
+        shape: buttonShape,
+        textStyle: buttonText,
+      ),
+    ),
+    textButtonTheme: const TextButtonThemeData(
+      style: ButtonStyle(foregroundColor: WidgetStatePropertyAll(AppColors.text), textStyle: buttonText),
+    ),
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: Tw.pahangYellow,
+      foregroundColor: AppColors.black,
+      elevation: 2,
+      extendedTextStyle: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700, fontSize: 15),
+    ),
     inputDecorationTheme: const InputDecorationTheme(
-      isDense: true,
       filled: true,
       fillColor: Colors.white,
-      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      hintStyle: TextStyle(color: Tw.gray400, fontSize: 14),
-      border: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: Tw.gray300)),
-      enabledBorder: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: Tw.gray300)),
-      focusedBorder: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: Tw.pahangYellow, width: 2)),
-      errorBorder: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: Tw.rose500)),
+      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      hintStyle: TextStyle(color: Tw.slate400, fontSize: 15),
+      labelStyle: TextStyle(color: Tw.slate500),
+      border: OutlineInputBorder(borderRadius: r12, borderSide: BorderSide(color: AppColors.line)),
+      enabledBorder: OutlineInputBorder(borderRadius: r12, borderSide: BorderSide(color: AppColors.line)),
+      focusedBorder: OutlineInputBorder(borderRadius: r12, borderSide: BorderSide(color: AppColors.black, width: 1.5)),
+      errorBorder: OutlineInputBorder(borderRadius: r12, borderSide: BorderSide(color: Tw.rose500)),
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: Colors.white,
+      selectedColor: AppColors.black,
+      side: const BorderSide(color: AppColors.line),
+      labelStyle: const TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text),
+      secondaryLabelStyle: const TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.w600, color: Tw.pahangYellow),
+      checkmarkColor: Tw.pahangYellow,
+      shape: const StadiumBorder(),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+    ),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        backgroundColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? AppColors.black : Colors.white),
+        foregroundColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? Tw.pahangYellow : AppColors.text),
+        side: const WidgetStatePropertyAll(BorderSide(color: AppColors.line)),
+        textStyle: buttonText,
+      ),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      indicatorColor: Tw.pahangYellow,
+      elevation: 3,
+      height: 70,
+      labelTextStyle: WidgetStateProperty.resolveWith((s) => TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 12,
+            fontWeight: s.contains(WidgetState.selected) ? FontWeight.w700 : FontWeight.w500,
+            color: s.contains(WidgetState.selected) ? AppColors.text : AppColors.muted,
+          )),
+      iconTheme: WidgetStateProperty.resolveWith(
+          (s) => IconThemeData(color: s.contains(WidgetState.selected) ? AppColors.black : AppColors.muted)),
+    ),
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      showDragHandle: true,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
     ),
     dialogTheme: const DialogThemeData(
       backgroundColor: Colors.white,
-      surfaceTintColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(20))),
     ),
-    bottomSheetTheme: const BottomSheetThemeData(backgroundColor: Colors.white, surfaceTintColor: Colors.white),
-    dividerTheme: const DividerThemeData(color: Tw.slate100, space: 1),
-    snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
+    listTileTheme: const ListTileThemeData(iconColor: AppColors.text),
+    dividerTheme: const DividerThemeData(color: AppColors.line, space: 1, thickness: 1),
+    snackBarTheme: const SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: AppColors.black,
+      contentTextStyle: TextStyle(fontFamily: 'Inter', color: Colors.white, fontSize: 14),
+      shape: RoundedRectangleBorder(borderRadius: r12),
+    ),
   );
 }

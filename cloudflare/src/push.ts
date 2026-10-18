@@ -275,3 +275,51 @@ export async function mobileApk(request: Request, env: Env): Promise<Response> {
     },
   });
 }
+
+const BROADCAST_BATCH = 400;
+
+/**
+ * Release tool: pushes one message (default: app update ready) to every
+ * registered device with a live session. Guarded by the MOBILE_BROADCAST_TOKEN
+ * secret, not a user session. Call again with next_offset until it is null.
+ */
+export async function mobileBroadcast(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
+  const secret = env.MOBILE_BROADCAST_TOKEN ?? '';
+  const given = request.headers.get('X-Refpahang-Broadcast-Token') ?? '';
+  const digest = async (value: string) => new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)));
+  const [a, b] = await Promise.all([digest(secret), digest(given)]);
+  if (secret.length < 32 || a.some((byte, i) => byte !== b[i])) {
+    return json({ error: true, message: 'Akses ditolak.' }, 403);
+  }
+  if (!pushEnabled(env)) return json({ error: true, message: 'Push tidak diaktifkan.' }, 503);
+  const input = await boundedJson(request);
+  if (input instanceof Response) return input;
+  const body = (input && typeof input === 'object' && !Array.isArray(input) ? input : {}) as Record<string, unknown>;
+  const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim().slice(0, 100) : 'Kemas kini RefPahang tersedia';
+  const message = typeof body.body === 'string' && body.body.trim() ? body.body.trim().slice(0, 240)
+    : 'Buka app untuk memuat turun versi terkini.';
+  const screen = typeof body.screen === 'string' && /^[a-z]{1,20}$/.test(body.screen) ? body.screen : 'update';
+  const offset = Math.max(0, Number.parseInt(String(body.offset ?? 0), 10) || 0);
+  const devices = (await env.DB.prepare(`SELECT d.id,d.token FROM worker_push_devices d
+      JOIN worker_sessions s ON s.token_hash=d.session_token_hash AND s.expires_at>?
+      JOIN users u ON u.id=d.user_id AND u.aktif=1
+    ORDER BY d.id LIMIT ? OFFSET ?`).bind(Math.floor(Date.now() / 1000), BROADCAST_BATCH, offset)
+    .all<{ id: number; token: string }>()).results;
+  const summary = { sent: 0, failed: 0, removed: 0 };
+  const push: PushMessage = { title, body: message, data: { type: 'Kemas Kini App', screen } };
+  for (let i = 0; i < devices.length; i += SEND_CONCURRENCY) {
+    const batch = devices.slice(i, i + SEND_CONCURRENCY);
+    const results = await Promise.all(batch.map((device) => sendPush(env, device.token, push)));
+    for (let j = 0; j < results.length; j++) {
+      if (results[j] === 'sent') summary.sent += 1;
+      else if (results[j] === 'invalid') {
+        await env.DB.prepare('DELETE FROM worker_push_devices WHERE id=?').bind(batch[j].id).run();
+        summary.removed += 1;
+      } else summary.failed += 1;
+    }
+  }
+  // Removed rows shift later devices down, so the next page starts that much earlier.
+  const next = devices.length === BROADCAST_BATCH ? offset + BROADCAST_BATCH - summary.removed : null;
+  return json({ error: false, ...summary, next_offset: next });
+}

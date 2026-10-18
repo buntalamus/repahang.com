@@ -1,21 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
 import '../push.dart';
 import '../theme.dart';
+import '../updater.dart';
 import '../widgets/common.dart';
-
-/// Profile, following features/pengadil/profile: photo with the yellow ring
-/// and camera badge, missing-field notice, details, Telegram and password.
-class ProfilScreen extends StatefulWidget {
-  const ProfilScreen({super.key});
-
-  @override
-  State<ProfilScreen> createState() => _ProfilScreenState();
-}
+import 'home_shell.dart' show AppPage;
+import 'notifikasi_screen.dart';
 
 String profileWebPath(SessionUser? user) => switch (user?.role) {
       'Admin' => '/admin/profil',
@@ -24,45 +19,78 @@ String profileWebPath(SessionUser? user) => switch (user?.role) {
       _ => '/pengadil/profil',
     };
 
+/// Website pages listed under "Di website" for each role.
+List<(String, IconData, String)> webLinksFor(SessionUser user) => switch (user.role) {
+      'Admin' => [
+          ('Dashboard penuh', Icons.dashboard_outlined, '/admin'),
+          ('Pengguna', Icons.people_outline, '/admin/pengguna'),
+          ('Statistik', Icons.insights_outlined, '/admin/statistik'),
+          ('Pengumuman', Icons.campaign_outlined, '/admin/pengumuman'),
+        ],
+      'PP Daerah' => [
+          ('Dashboard penuh', Icons.dashboard_outlined, '/pp-daerah'),
+          ('Statistik daerah', Icons.insights_outlined, '/pp-daerah/statistik'),
+        ],
+      'Penilai' => [
+          ('Dashboard penuh', Icons.dashboard_outlined, '/penilai'),
+          ('Statistik', Icons.bar_chart_outlined, '/penilai/statistik'),
+        ],
+      _ => [
+          ('Dashboard penuh', Icons.dashboard_outlined, '/pengadil'),
+          ('Statistik saya', Icons.insights_outlined, '/pengadil/statistik'),
+        ],
+    };
+
+/// Profile and settings: photo, account, website links, app version, logout.
+class ProfilScreen extends StatefulWidget {
+  const ProfilScreen({super.key, this.extraPages = const [], this.onOpenPage});
+  final List<AppPage> extraPages;
+  final void Function(String id, {bool refresh})? onOpenPage;
+
+  @override
+  State<ProfilScreen> createState() => _ProfilScreenState();
+}
+
 class _ProfilScreenState extends State<ProfilScreen> {
   final _view = GlobalKey<AsyncViewState<Map<String, dynamic>>>();
   bool _uploading = false;
   int _photoVersion = 0;
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    Future.wait([PackageInfo.fromPlatform(), AppUpdater.instance.currentPatch()]).then((r) {
+      final info = r[0] as PackageInfo;
+      final patch = r[1] as int?;
+      if (mounted) setState(() => _version = '${info.version}${patch == null ? '' : ' (patch $patch)'}');
+    }, onError: (_) {});
+  }
 
   Future<void> _changePhoto() async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(Icons.photo_camera_outlined, color: Tw.slate700),
-            title: const Text('Ambil gambar'),
-            onTap: () => Navigator.pop(context, ImageSource.camera),
-          ),
-          ListTile(
-            leading: const Icon(Icons.photo_library_outlined, color: Tw.slate700),
-            title: const Text('Pilih dari galeri'),
-            onTap: () => Navigator.pop(context, ImageSource.gallery),
-          ),
-          const SizedBox(height: 8),
-        ]),
+    final source = await showAppSheet<ImageSource>(context, title: 'Gambar profil', builder: (context) => Column(children: [
+      ListTile(
+        leading: const Icon(Icons.photo_camera_outlined),
+        title: const Text('Ambil gambar'),
+        onTap: () => Navigator.pop(context, ImageSource.camera),
       ),
-    );
+      ListTile(
+        leading: const Icon(Icons.photo_library_outlined),
+        title: const Text('Pilih dari galeri'),
+        onTap: () => Navigator.pop(context, ImageSource.gallery),
+      ),
+    ]));
     if (source == null) return;
     XFile? picked;
     try {
-      // The system camera/gallery asks for its own permission when needed.
       picked = await ImagePicker().pickImage(source: source, maxWidth: 1600, maxHeight: 1600,
           preferredCameraDevice: CameraDevice.front);
     } catch (_) {
-      if (mounted) {
-        showToast(context, 'Kebenaran kamera/galeri diperlukan untuk menukar gambar profil.', ToastType.error);
-      }
+      if (mounted) showToast(context, 'Kebenaran kamera/galeri diperlukan untuk menukar gambar.', ToastType.error);
       return;
     }
     if (picked == null) return;
-    // Square 400×400 JPEG, the same output as the website's image-crop.
+    // Square 400×400 JPEG, the same output as the website's cropper.
     final cropped = await ImageCropper().cropImage(
       sourcePath: picked.path,
       aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
@@ -71,16 +99,15 @@ class _ProfilScreenState extends State<ProfilScreen> {
       compressQuality: 85,
       uiSettings: [
         AndroidUiSettings(
-          toolbarTitle: 'Pangkas Gambar',
-          toolbarColor: Tw.pahangBlack,
+          toolbarTitle: 'Pangkas gambar',
+          toolbarColor: AppColors.black,
           toolbarWidgetColor: Tw.pahangYellow,
           activeControlsWidgetColor: Tw.pahangYellow,
           lockAspectRatio: true,
-          hideBottomControls: false,
           initAspectRatio: CropAspectRatioPreset.square,
           aspectRatioPresets: const [CropAspectRatioPreset.square],
         ),
-        IOSUiSettings(title: 'Pangkas Gambar', aspectRatioLockEnabled: true, resetAspectRatioEnabled: false),
+        IOSUiSettings(title: 'Pangkas gambar', aspectRatioLockEnabled: true, resetAspectRatioEnabled: false),
       ],
     );
     if (cropped == null || !mounted) return;
@@ -88,7 +115,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
     try {
       final result = await Api.instance.upload('/api/upload-profile-image.php', 'image', cropped.path, 'profile.jpg');
       if (!mounted) return;
-      showToast(context, text(result['message'], 'Gambar profil berjaya dimuat naik.'));
+      showToast(context, text(result['message'], 'Gambar profil dikemas kini.'));
       imageCache.clear();
       imageCache.clearLiveImages();
       _photoVersion += 1;
@@ -115,173 +142,173 @@ class _ProfilScreenState extends State<ProfilScreen> {
     }
   }
 
+  void _details(Map<String, dynamic> u) {
+    showAppSheet<void>(context, title: 'Maklumat saya', builder: (context) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DetailRow(Icons.mail_outline, 'Emel', text(u['email'])),
+        DetailRow(Icons.phone_outlined, 'No. telefon', text(u['no_telefon'])),
+        DetailRow(Icons.badge_outlined, 'No. KP', text(u['no_ic'])),
+        DetailRow(Icons.groups_outlined, 'Persatuan', text(u['persatuan_bolasepak_daerah'])),
+        DetailRow(Icons.home_outlined, 'Alamat', [u['alamat1'], u['alamat2'], u['poskod'], u['daerah'], u['negeri']]
+            .map((e) => text(e, '')).where((e) => e.isNotEmpty).join(', ')),
+        DetailRow(Icons.calendar_month_outlined, 'Tahun mula aktif', text(u['tahun_mula_aktif'])),
+        DetailRow(Icons.checkroom_outlined, 'Saiz baju', text(u['saiz_baju'])),
+        DetailRow(Icons.family_restroom_outlined, 'Waris',
+            '${text(u['nama_waris'])} (${text(u['hubungan_waris'], '-')}) ${text(u['telefon_waris'], '')}'),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () => openWebsite(context, profileWebPath(Api.instance.user.value)),
+          icon: const Icon(Icons.edit_outlined, size: 18),
+          label: const Text('Kemaskini di website'),
+        ),
+      ],
+    ));
+  }
+
+  Future<void> _logout() async {
+    final ok = await confirmSheet(context, title: 'Log keluar?',
+        message: 'Notifikasi tidak akan dihantar ke telefon ini selepas anda log keluar.', confirmLabel: 'Log keluar',
+        color: Tw.rose600, textColor: Colors.white);
+    if (!ok) return;
+    await PushService.instance.stop();
+    await Api.instance.logout();
+  }
+
+  Future<void> _checkUpdate() async {
+    final updater = AppUpdater.instance;
+    if (!updater.available) {
+      showToast(context, 'Kemas kini automatik tidak tersedia pada pemasangan ini.', ToastType.info);
+      return;
+    }
+    showToast(context, 'Menyemak kemas kini...', ToastType.info);
+    final ready = await updater.check(force: true);
+    if (!mounted) return;
+    if (!ready) {
+      showToast(context, 'App anda sudah versi terkini.');
+      return;
+    }
+    final restart = await confirmSheet(context, title: 'Kemas kini sedia',
+        message: 'Versi terkini telah dimuat turun. Mula semula app untuk menggunakannya.', confirmLabel: 'Mula semula');
+    if (restart) await updater.restart();
+  }
+
+  Widget _group(List<Widget> tiles) => AppCard(
+        padding: EdgeInsets.zero,
+        child: Column(children: [
+          for (var i = 0; i < tiles.length; i++) ...[if (i > 0) const Divider(indent: 56), tiles[i]],
+        ]),
+      );
+
+  ListTile _tile(IconData icon, String title, {String? subtitle, Widget? trailing, VoidCallback? onTap, Color? color}) =>
+      ListTile(
+        leading: Icon(icon, color: color),
+        title: Text(title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: color)),
+        subtitle: subtitle == null ? null : Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+        trailing: trailing ?? (onTap == null ? null : const Icon(Icons.chevron_right_rounded, color: AppColors.faint)),
+        onTap: onTap,
+      );
+
   @override
   Widget build(BuildContext context) {
-    final user = Api.instance.user.value;
+    final user = Api.instance.user.value!;
     return AsyncView<Map<String, dynamic>>(
       key: _view,
-      loadingMessage: 'Memuatkan profil...',
-      load: () async {
-        final results = await Future.wait([
-          Api.instance.get('/api/get-user-profile.php'),
-          Api.instance.get('/api/notifications.php').catchError((_) => <String, dynamic>{}),
-        ]);
-        return {...results[0], 'unread_count': results[1]['unread_count'] ?? 0};
-      },
+      load: () => Api.instance.get('/api/get-user-profile.php'),
       builder: (context, body, reload) {
         final u = Map<String, dynamic>.from(body['user'] as Map? ?? {});
         final missing = (body['profile_missing_labels'] as List? ?? []).map((e) => '$e').toList();
-        final unread = int.tryParse('${body['unread_count']}') ?? 0;
-        final photo = text(u['url_gambar_profil'], '');
         final linked = '${u['telegram_linked']}' == '1';
-        return RefreshIndicator(
-          color: Tw.pahangBlack,
-          onRefresh: reload,
-          child: ListView(padding: const EdgeInsets.all(16), children: [
-            if (missing.isNotEmpty)
-              Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Tw.amber50,
-                  border: Border.all(color: Tw.amber300),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Profil belum lengkap', style: TextStyle(fontWeight: FontWeight.w600, color: Tw.amber900)),
-                  const SizedBox(height: 4),
-                  const Text('Lengkapkan maklumat berikut sebelum memohon pendaftaran tahunan pengadil:',
-                      style: TextStyle(fontSize: 14, color: Tw.amber800)),
-                  const SizedBox(height: 8),
-                  for (final label in missing) Text('•  $label', style: const TextStyle(fontSize: 14, color: Tw.amber900)),
-                ]),
-              ),
-            WebCard(
-              borderColor: Colors.transparent,
-              padding: const EdgeInsets.all(24),
-              margin: const EdgeInsets.only(bottom: 16),
-              child: Column(children: [
-                Stack(clipBehavior: Clip.none, children: [
-                  Container(
-                    width: 112,
-                    height: 112,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Tw.gray200,
-                      border: photo.isEmpty ? null : Border.all(color: Tw.pahangYellow, width: 4),
-                    ),
-                    child: ClipOval(
-                      child: photo.isEmpty
-                          ? const Icon(Icons.person, size: 56, color: Tw.gray400)
-                          : Image.network(
-                              '${Api.instance.absoluteUrl(photo)}${photo.contains('?') ? '&' : '?'}v=$_photoVersion',
-                              headers: Api.instance.imageHeaders,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, _, _) => const Icon(Icons.person, size: 56, color: Tw.gray400),
-                            ),
-                    ),
-                  ),
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Material(
-                      color: Tw.pahangYellow,
-                      shape: const CircleBorder(),
-                      elevation: 2,
-                      child: InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: _uploading ? null : _changePhoto,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: _uploading
-                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
-                              : const Icon(Icons.camera_alt, size: 16, color: Colors.black, semanticLabel: 'Ubah gambar profil'),
-                        ),
+        return RefreshList(onRefresh: reload, children: [
+          AppCard(
+            padding: const EdgeInsets.all(20),
+            child: Row(children: [
+              Stack(clipBehavior: Clip.none, children: [
+                Avatar(name: text(u['nama_penuh'], user.name), photo: u['url_gambar_profil'] as String?, radius: 36,
+                    version: _photoVersion),
+                Positioned(
+                  right: -4,
+                  bottom: -4,
+                  child: Material(
+                    color: AppColors.black,
+                    shape: const CircleBorder(side: BorderSide(color: Colors.white, width: 2)),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: _uploading ? null : _changePhoto,
+                      child: Padding(
+                        padding: const EdgeInsets.all(7),
+                        child: _uploading
+                            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Tw.pahangYellow))
+                            : const Icon(Icons.photo_camera_rounded, size: 14, color: Tw.pahangYellow,
+                                semanticLabel: 'Tukar gambar profil'),
                       ),
                     ),
                   ),
-                ]),
-                const SizedBox(height: 12),
-                Text(text(u['nama_penuh']), textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-                Text(text(u['email']), style: const TextStyle(fontSize: 14, color: Tw.gray500)),
-                const SizedBox(height: 4),
-                StatusBadge(text(u['jenis_pengadil'], user?.role == 'Pengadil' ? 'Pengadil' : user?.role ?? ''),
-                    (Tw.yellow100, Tw.yellow800), pill: true),
-              ]),
-            ),
-            if (unread > 0)
-              Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Tw.yellow50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: const Border(left: BorderSide(color: Tw.pahangYellow, width: 4)),
-                ),
-                child: Row(children: [
-                  const Icon(Icons.notifications_active, color: Tw.pahangYellow),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text('Anda mempunyai $unread pemberitahuan belum dibaca.',
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                  ),
-                ]),
-              ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: YellowButton(label: 'Kemaskini', icon: Icons.open_in_new,
-                    onPressed: () => openWebsite(context, profileWebPath(user))),
-              ),
-            ),
-            WebCard(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.all(20),
-              child: Column(children: [
-                InfoRow('No. telefon', text(u['no_telefon'])),
-                InfoRow('No. KP', text(u['no_ic'])),
-                InfoRow('Persatuan', text(u['persatuan_bolasepak_daerah'])),
-                InfoRow('Alamat', [u['alamat1'], u['alamat2'], u['poskod'], u['daerah'], u['negeri']]
-                    .map((e) => text(e, '')).where((e) => e.isNotEmpty).join(', ')),
-                InfoRow('Tahun mula aktif', text(u['tahun_mula_aktif'])),
-                InfoRow('Saiz baju', text(u['saiz_baju'])),
-                InfoRow('Waris', '${text(u['nama_waris'])} (${text(u['hubungan_waris'], '')}) ${text(u['telefon_waris'], '')}'),
-              ]),
-            ),
-            WebCard(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.all(20),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const CardTitle('Notifikasi Telegram', icon: Icons.send_outlined),
-                const SizedBox(height: 8),
-                Text(linked ? 'Akaun Telegram anda telah dihubungkan.' : 'Hubungkan Telegram untuk menerima lantikan.',
-                    style: TextStyle(fontSize: 14, color: linked ? Tw.emerald700 : Tw.slate600)),
-                if (!linked) ...[
-                  const SizedBox(height: 12),
-                  YellowButton(label: 'Hubungkan Telegram', onPressed: _linkTelegram),
-                ],
-                const SizedBox(height: 12),
-                Text(
-                  PushService.instance.available
-                      ? 'Notifikasi telefon: aktif pada peranti ini.'
-                      : 'Notifikasi telefon: tidak tersedia pada peranti ini.',
-                  style: const TextStyle(fontSize: 12, color: Tw.slate500),
                 ),
               ]),
-            ),
-            WebCard(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.all(20),
-              onTap: () => showWebModal<void>(context, title: 'Tukar Kata Laluan', body: (_) => const _PasswordForm()),
-              child: const Row(children: [
-                Expanded(child: CardTitle('Tukar Kata Laluan', icon: Icons.lock_outline)),
-                Icon(Icons.chevron_right, color: Tw.slate400),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(text(u['nama_penuh'], user.name), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  Text(text(u['email'], user.email), style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+                  const SizedBox(height: 6),
+                  Pill(text(u['jenis_pengadil'], user.role), (Tw.pahangYellow, AppColors.black)),
+                ]),
+              ),
+            ]),
+          ),
+          if (missing.isNotEmpty)
+            AppCard(
+              color: Tw.amber50,
+              onTap: () => openWebsite(context, profileWebPath(user)),
+              child: Row(children: [
+                const Icon(Icons.warning_amber_rounded, color: Tw.amber700),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Profil belum lengkap', style: TextStyle(fontWeight: FontWeight.w700, color: Tw.amber900)),
+                    Text(missing.join(', '), style: const TextStyle(fontSize: 13, color: Tw.amber800)),
+                  ]),
+                ),
+                const Icon(Icons.chevron_right_rounded, color: Tw.amber700),
               ]),
             ),
+          const SectionTitle('Akaun'),
+          _group([
+            _tile(Icons.person_outline, 'Maklumat saya', onTap: () => _details(u)),
+            _tile(Icons.send_outlined, 'Telegram',
+                subtitle: linked ? 'Dihubungkan' : 'Belum dihubungkan — tekan untuk hubungkan',
+                trailing: Icon(linked ? Icons.check_circle_rounded : Icons.link_rounded,
+                    color: linked ? Tw.emerald600 : Tw.amber600),
+                onTap: linked ? null : _linkTelegram),
+            _tile(Icons.notifications_none_rounded, 'Notifikasi',
+                subtitle: PushService.instance.available ? 'Notifikasi telefon aktif' : 'Notifikasi telefon tidak tersedia',
+                onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const NotifikasiScreen()))),
+            _tile(Icons.lock_outline_rounded, 'Tukar kata laluan',
+                onTap: () => showAppSheet<void>(context, title: 'Tukar kata laluan', builder: (_) => const _PasswordForm())),
           ]),
-        );
+          if (widget.extraPages.isNotEmpty) ...[
+            const SectionTitle('Lagi'),
+            _group([
+              for (final p in widget.extraPages) _tile(p.icon, p.title, onTap: () => widget.onOpenPage?.call(p.id)),
+            ]),
+          ],
+          const SectionTitle('Di website'),
+          _group([
+            for (final (label, icon, path) in webLinksFor(user))
+              _tile(icon, label, trailing: const Icon(Icons.open_in_new_rounded, size: 18, color: AppColors.faint),
+                  onTap: () => openWebsite(context, path)),
+          ]),
+          const SectionTitle('App'),
+          _group([
+            _tile(Icons.system_update_rounded, 'Semak kemas kini', subtitle: _version.isEmpty ? null : 'Versi $_version',
+                onTap: _checkUpdate),
+            _tile(Icons.logout_rounded, 'Log keluar', color: Tw.rose600, trailing: const SizedBox.shrink(), onTap: _logout),
+          ]),
+          const SizedBox(height: 8),
+          const Text('Pertanyaan teknikal: sokongan@pbnppahang.my', textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: AppColors.faint)),
+        ]);
       },
     );
   }
@@ -326,25 +353,18 @@ class _PasswordFormState extends State<_PasswordForm> {
     }
   }
 
-  Widget _field(String label, TextEditingController controller) => Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          FieldLabel(label),
-          TextField(controller: controller, obscureText: true),
-        ]),
-      );
-
   @override
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      _field('Kata Laluan Semasa', _current),
-      _field('Kata Laluan Baharu', _next),
-      _field('Sahkan Kata Laluan Baharu', _confirm),
-      Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-        OutlineButton(label: 'Batal', onPressed: _busy ? null : () => Navigator.pop(context)),
-        const SizedBox(width: 12),
-        YellowButton(label: _busy ? 'Menyimpan...' : 'Simpan', onPressed: _busy ? null : _submit),
-      ]),
+      LabeledField(label: 'Kata laluan semasa', controller: _current, obscure: true),
+      LabeledField(label: 'Kata laluan baharu', controller: _next, obscure: true),
+      LabeledField(label: 'Sahkan kata laluan baharu', controller: _confirm, obscure: true),
+      FilledButton(
+        onPressed: _busy ? null : _submit,
+        child: _busy
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Tw.pahangYellow))
+            : const Text('Simpan'),
+      ),
     ]);
   }
 }

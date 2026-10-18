@@ -4,9 +4,8 @@ import '../api.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
-/// Assessor (RA) duties: accepted "Penilai Pengadil" appointments with the
-/// status of their report, as features/penilai/assessments lists them.
-/// Reports are written on the website.
+/// Assessor (RA) duties: accepted "Penilai Pengadil" appointments with their
+/// report status. Reports are written on the website.
 class LaporanRaScreen extends StatelessWidget {
   const LaporanRaScreen({super.key});
 
@@ -15,7 +14,6 @@ class LaporanRaScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AsyncView<(List<Map<String, dynamic>>, List<Map<String, dynamic>>)>(
-      loadingMessage: 'Memuatkan tugasan penilaian...',
       load: () async {
         final results = await Future.wait([
           Api.instance.get('/api/tugasan.php'),
@@ -23,36 +21,27 @@ class LaporanRaScreen extends StatelessWidget {
         ]);
         List<Map<String, dynamic>> rows(Map<String, dynamic> body) =>
             (body['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-        final duties = rows(results[0]).where((a) => a['status'] == 'Diterima' && a['jawatan'] == 'Penilai Pengadil').toList();
+        final duties = rows(results[0]).where((a) => a['status'] == 'Diterima' && a['jawatan'] == 'Penilai Pengadil').toList()
+          ..sort((a, b) => '${b['tarikh']}'.compareTo('${a['tarikh']}'));
         return (duties, rows(results[1]));
       },
       builder: (context, data, reload) {
         final (duties, reports) = data;
         Map<String, dynamic>? reportFor(Map<String, dynamic> a) =>
             reports.where((r) => '${r['lantikan_id']}' == '${a['id']}').firstOrNull;
-        final unfinished = duties.where((a) {
-          final report = reportFor(a);
-          return report == null || report['status'] == 'Draf';
-        }).length;
-        return RefreshIndicator(
-          color: Tw.pahangBlack,
-          onRefresh: reload,
-          child: ListView(padding: const EdgeInsets.all(16), children: [
-            WebCard(
-              borderColor: unfinished > 0 ? Tw.amber200 : Tw.emerald200,
-              child: Row(children: [
-                Expanded(
-                  child: Text(unfinished > 0 ? 'Laporan belum dihantar' : 'Semua laporan telah dihantar',
-                      style: TextStyle(fontSize: 14, color: unfinished > 0 ? Tw.amber600 : Tw.emerald600)),
-                ),
-                Text('$unfinished',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: unfinished > 0 ? Tw.amber600 : Tw.emerald600)),
-              ]),
-            ),
-            if (duties.isEmpty) const EmptyCard(icon: Icons.rate_review_outlined, message: 'Tiada tugasan penilaian.'),
-            for (final a in duties) _card(context, a, reportFor(a)),
+        final unfinished = duties.where((a) => reportFor(a) == null || reportFor(a)!['status'] == 'Draf').length;
+        return RefreshList(onRefresh: reload, children: [
+          Row(children: [
+            Expanded(child: StatTile(label: 'Laporan belum dihantar', value: unfinished, icon: Icons.edit_note_rounded,
+                color: unfinished > 0 ? Tw.amber600 : Tw.emerald600)),
+            const SizedBox(width: 12),
+            Expanded(child: StatTile(label: 'Tugasan penilaian', value: duties.length, icon: Icons.rate_review_outlined)),
           ]),
-        );
+          const SizedBox(height: 8),
+          const SectionTitle('Perlawanan dinilai'),
+          if (duties.isEmpty) const EmptyState(icon: Icons.rate_review_outlined, title: 'Tiada tugasan penilaian'),
+          for (final a in duties) _card(context, a, reportFor(a)),
+        ]);
       },
     );
   }
@@ -67,29 +56,34 @@ class LaporanRaScreen extends StatelessWidget {
       _ => (Tw.amber50, Tw.amber700),
     };
     final needsWork = report == null || report['status'] == 'Draf';
-    return WebCard(
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    return AppCard(
+      accent: needsWork ? Tw.pahangYellow : null,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          DateBlock(a['tarikh'], highlight: needsWork),
+          const SizedBox(width: 14),
           Expanded(
-            child: Text(text(a['nama_kejohanan']),
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Tw.slate900)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(text(a['nama_kejohanan']), maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.muted)),
+              Text('${text(a['pasukan_home'])} vs ${text(a['pasukan_away'])}',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              Text('${formatTime(a['masa'])} · ${text(a['tempat'])}', maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+            ]),
           ),
-          StatusBadge(status, tone, pill: true),
+          Pill(status, tone),
         ]),
-        const SizedBox(height: 6),
-        Text('${text(a['pasukan_home'])} vs ${text(a['pasukan_away'])}',
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Tw.slate800)),
-        Text('${formatDate(a['tarikh'])}, ${formatTime(a['masa'])} · ${text(a['tempat'])}',
-            style: const TextStyle(fontSize: 12, color: Tw.slate500)),
-        if (report != null && text(report['catatan_admin'], '').isNotEmpty)
-          Text('Catatan Admin: ${report['catatan_admin']}', style: const TextStyle(fontSize: 12, color: Tw.red700)),
+        if (report != null && text(report['catatan_admin'], '').isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text('Catatan Admin: ${report['catatan_admin']}', style: const TextStyle(fontSize: 13, color: Tw.rose700)),
+        ],
         if (needsWork) ...[
           const SizedBox(height: 12),
-          YellowButton(
-            label: report == null ? 'Isi laporan di website' : 'Sambung draf di website',
-            icon: Icons.open_in_new,
-            expand: true,
+          FilledButton.icon(
             onPressed: () => openWebsite(context, _webPath),
+            icon: const Icon(Icons.open_in_new_rounded, size: 18),
+            label: Text(report == null ? 'Isi laporan' : 'Sambung draf'),
           ),
         ],
       ]),

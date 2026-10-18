@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:refpahang/api.dart';
 import 'package:refpahang/main.dart';
 import 'package:refpahang/screens/notifikasi_screen.dart';
+import 'package:refpahang/theme.dart';
 
 final _today = DateTime.now();
 String _day(int offset) => _today.add(Duration(days: offset)).toIso8601String().substring(0, 10);
@@ -207,27 +208,27 @@ void main() {
     await _show(tester, 'login');
   });
 
-  testWidgets('pengadil tabs', (tester) async {
+  testWidgets('pengadil', (tester) async {
     _login('Pengadil');
     await tester.pumpWidget(const RefPahangApp());
-    await _show(tester, 'tugasan');
-    await tester.ensureVisible(find.text('Terima Tugasan'));
-    await tester.pump(const Duration(milliseconds: 300));
-    await _show(tester, 'tugasan_kad');
-    await _show(tester, 'tugasan_terima', then: () => tester.tap(find.text('Terima Tugasan')));
-    await tester.tap(find.byIcon(Icons.close));
-    await tester.pump(const Duration(milliseconds: 300));
-    await _show(tester, 'perlawanan', then: () => tester.tap(find.text('Perlawanan').last));
-    await _show(tester, 'permohonan', then: () => tester.tap(find.text('Permohonan').last));
-    await _show(tester, 'penilaian', then: () => tester.tap(find.text('Penilaian').last));
-    await _show(tester, 'profil', then: () => tester.tap(find.text('Profil').last));
-    await _show(tester, 'drawer', then: () => tester.tap(find.byTooltip('Buka menu navigasi')));
+    await _show(tester, 'pengadil_utama');
+    await _show(tester, 'pengadil_tugasan', then: () => tester.tap(find.text('Tugasan').last));
+    await _show(tester, 'pengadil_tugasan_detail', then: () => tester.tap(find.text('KUANTAN FC vs BERA UTD').first));
+    await tester.tapAt(const Offset(20, 20));
+    await tester.pump(const Duration(milliseconds: 400));
+    await _show(tester, 'pengadil_terima', then: () => tester.tap(find.text('Terima').first));
+    await tester.tap(find.text('Batal'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await _show(tester, 'pengadil_rekod', then: () => tester.tap(find.text('Rekod').last));
+    await _show(tester, 'pengadil_penilaian', then: () => tester.tap(find.text('Penilaian').last));
+    await _show(tester, 'pengadil_permohonan', then: () => tester.tap(find.text('Permohonan').last));
+    await _show(tester, 'pengadil_profil', then: () => tester.tap(find.text('Profil').last));
   });
 
   testWidgets('admin', (tester) async {
     _login('Admin');
     await tester.pumpWidget(const RefPahangApp());
-    await _show(tester, 'admin_dashboard');
+    await _show(tester, 'admin_utama');
     await _show(tester, 'admin_kelulusan', then: () => tester.tap(find.text('Kelulusan').last));
     await _show(tester, 'admin_lantikan', then: () => tester.tap(find.text('Lantikan').last));
     await _show(tester, 'admin_jadual', then: () => tester.tap(find.text('Liga Pahang 2026')));
@@ -237,22 +238,20 @@ void main() {
   testWidgets('pp daerah', (tester) async {
     _login('PP Daerah');
     await tester.pumpWidget(const RefPahangApp());
-    await _show(tester, 'pp_pengesahan', then: () => tester.tap(find.text('Pengesahan').last));
-    await _show(tester, 'pp_pengesahan_modal', then: () => tester.tap(find.text('GAMBANG FC vs SRI DAMAI')));
-    await tester.tap(find.byIcon(Icons.close));
-    await tester.pump(const Duration(milliseconds: 300));
+    await _show(tester, 'pp_utama');
     await _show(tester, 'pp_semakan', then: () => tester.tap(find.text('Semakan').last));
+    await _show(tester, 'pp_pengesahan_sheet', then: () => tester.tap(find.text('GAMBANG FC vs SRI DAMAI')));
   });
 
   testWidgets('penilai', (tester) async {
     _login('Penilai');
     await tester.pumpWidget(const RefPahangApp());
-    await _show(tester, 'penilai_laporan', then: () => tester.tap(find.text('Laporan RA').last));
+    await _show(tester, 'penilai_laporan', then: () => tester.tap(find.text('Laporan').last));
   });
 
   testWidgets('notifikasi', (tester) async {
     _login('Pengadil');
-    await tester.pumpWidget(const MaterialApp(home: NotifikasiScreen()));
+    await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: const NotifikasiScreen()));
     await _show(tester, 'notifikasi');
   });
 }

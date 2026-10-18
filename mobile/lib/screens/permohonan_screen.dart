@@ -22,116 +22,116 @@ String formLabel(Object? raw) {
   return words.isEmpty ? 'Permohonan' : words.join(' ');
 }
 
-/// Application history, following the "Sejarah Permohonan" table of
-/// features/pengadil/application. New applications are made on the website.
+/// The user's applications and their status. New applications need uploads
+/// and payment, so the form opens on the website.
 class PermohonanScreen extends StatelessWidget {
   const PermohonanScreen({super.key});
 
-  List<(String, IconData, String)> _forms() {
+  List<(String, String, IconData, String)> _forms() {
     final user = Api.instance.user.value;
     if (user?.isDistrict == true) {
       return [
-        ('Pendaftaran Pengadil Saya', Icons.badge_outlined, '/pengadil/permohonan/berdaftar'),
-        ('Kelas III FAM', Icons.quiz_outlined, '/pp-daerah/daftar/kelas3'),
-        ('Kelas I FAM', Icons.military_tech_outlined, '/pp-daerah/daftar/kelas1'),
+        ('Pendaftaran Pengadil', 'Pendaftaran tahunan pengadil', Icons.badge_outlined, '/pengadil/permohonan/berdaftar'),
+        ('Kelas III FAM', 'Kursus pengadil Kelas III', Icons.quiz_outlined, '/pp-daerah/daftar/kelas3'),
+        ('Kelas I FAM', 'Ujian pengadil Kelas I', Icons.military_tech_outlined, '/pp-daerah/daftar/kelas1'),
       ];
     }
     if (user?.role == 'Penilai') {
-      return [('Pendaftaran Tahunan (R1)', Icons.how_to_reg_outlined, '/penilai/permohonan/tahunan')];
+      return [('Pendaftaran Tahunan (R1)', 'Pendaftaran penilai pengadil', Icons.how_to_reg_outlined, '/penilai/permohonan/tahunan')];
     }
     return [
-      ('Pendaftaran Tahunan (R1)', Icons.badge_outlined, '/pengadil/permohonan/berdaftar'),
-      ('Kelas III FAM', Icons.quiz_outlined, '/pengadil/permohonan/kelas3'),
-      ('Ujian Kelas I FAM', Icons.military_tech_outlined, '/pengadil/permohonan/kelas1'),
+      ('Pendaftaran Tahunan (R1)', 'Pendaftaran tahunan pengadil', Icons.badge_outlined, '/pengadil/permohonan/berdaftar'),
+      ('Kelas III FAM', 'Kursus pengadil Kelas III', Icons.quiz_outlined, '/pengadil/permohonan/kelas3'),
+      ('Ujian Kelas I FAM', 'Ujian pengadil Kelas I', Icons.military_tech_outlined, '/pengadil/permohonan/kelas1'),
     ];
+  }
+
+  void _newApplication(BuildContext context) {
+    showAppSheet<void>(context, title: 'Permohonan baharu', builder: (context) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text('Borang dan muat naik dokumen dibuat di website.', style: TextStyle(color: AppColors.muted)),
+        const SizedBox(height: 12),
+        for (final (title, subtitle, icon, path) in _forms())
+          AppCard(
+            color: AppColors.background,
+            onTap: () => openWebsite(context, path),
+            child: Row(children: [
+              CircleAvatar(backgroundColor: Tw.pahangYellow, foregroundColor: AppColors.black, child: Icon(icon)),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  Text(subtitle, style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+                ]),
+              ),
+              const Icon(Icons.open_in_new_rounded, size: 18, color: AppColors.faint),
+            ]),
+          ),
+      ],
+    ));
+  }
+
+  void _details(BuildContext context, Map<String, dynamic> p) {
+    final status = text(p['status_workflow'] ?? p['status']);
+    showAppSheet<void>(context, builder: (context) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Align(alignment: Alignment.centerLeft, child: Pill(status, applicationTone(status))),
+      const SizedBox(height: 10),
+      Text(formLabel(p['jenis_borang']), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+      const SizedBox(height: 8),
+      DetailRow(Icons.calendar_month_outlined, 'Sesi', text(p['tahun_permohonan'])),
+      DetailRow(Icons.send_outlined, 'Tarikh hantar', text(p['tarikh_hantar'])),
+      DetailRow(Icons.groups_outlined, 'Persatuan', text(p['district_name'])),
+      if (text(p['status_ujian'], '').isNotEmpty) DetailRow(Icons.quiz_outlined, 'Status ujian', text(p['status_ujian'])),
+      if (text(p['fitness_status'], '').isNotEmpty) DetailRow(Icons.directions_run, 'Ujian kecergasan', text(p['fitness_status'])),
+      if (text(p['status_seminar'], '').isNotEmpty) DetailRow(Icons.school_outlined, 'Seminar', text(p['status_seminar'])),
+      if (text(p['payment_amount'], '').isNotEmpty) DetailRow(Icons.payments_outlined, 'Bayaran', 'RM ${text(p['payment_amount'])}'),
+      if (text(p['pp_notes'], '').isNotEmpty) DetailRow(Icons.comment_outlined, 'Catatan PP Daerah', text(p['pp_notes'])),
+      if (text(p['admin_notes'], '').isNotEmpty) DetailRow(Icons.comment_outlined, 'Catatan Admin', text(p['admin_notes'])),
+    ]));
   }
 
   @override
   Widget build(BuildContext context) {
-    return AsyncView<List<Map<String, dynamic>>>(
-      loadingMessage: 'Memuatkan permohonan...',
-      load: () async {
-        final body = await Api.instance.get('/api/pengadil-application-history.php');
-        return (body['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      },
-      builder: (context, items, reload) => RefreshIndicator(
-        color: Tw.pahangBlack,
-        onRefresh: reload,
-        child: ListView(padding: const EdgeInsets.all(16), children: [
-          WebCard(
-            padding: EdgeInsets.zero,
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 16, 20, 12),
-                child: CardTitle('Permohonan Baharu', icon: Icons.description_outlined),
-              ),
-              for (final (label, icon, path) in _forms())
-                InkWell(
-                  onTap: () => openWebsite(context, path),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                    decoration: const BoxDecoration(border: Border(top: BorderSide(color: Tw.slate100))),
-                    child: Row(children: [
-                      Icon(icon, size: 20, color: Tw.slate600),
-                      const SizedBox(width: 12),
-                      Expanded(child: Text(label, style: const TextStyle(fontSize: 14, color: Tw.slate700))),
-                      const Icon(Icons.open_in_new, size: 16, color: Tw.slate400),
-                    ]),
-                  ),
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _newApplication(context),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Mohon'),
+      ),
+      body: AsyncView<List<Map<String, dynamic>>>(
+        load: () async => ((await Api.instance.get('/api/pengadil-application-history.php'))['data'] as List? ?? [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList(),
+        builder: (context, items, reload) => RefreshList(onRefresh: reload, bottomPadding: 96, children: [
+          if (items.isEmpty)
+            const EmptyState(icon: Icons.description_outlined, title: 'Tiada permohonan',
+                subtitle: 'Tekan "Mohon" untuk membuat permohonan baharu.'),
+          for (final p in items)
+            AppCard(
+              onTap: () => _details(context, p),
+              child: Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.description_outlined),
                 ),
-            ]),
-          ),
-          WebCard(
-            padding: EdgeInsets.zero,
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Container(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
-                decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Tw.slate100))),
-                child: const CardTitle('Sejarah Permohonan', icon: Icons.history),
-              ),
-              if (items.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 48),
-                  child: Column(children: [
-                    Icon(Icons.description_outlined, size: 40, color: Tw.slate400),
-                    SizedBox(height: 8),
-                    Text('Tiada sejarah permohonan.', style: TextStyle(color: Tw.slate400, fontSize: 14)),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(formLabel(p['jenis_borang']), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                    Text('Sesi ${text(p['tahun_permohonan'])} · ${text(p['tarikh_hantar'])}',
+                        style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+                    const SizedBox(height: 6),
+                    Pill(text(p['status_workflow'] ?? p['status']), applicationTone(text(p['status_workflow'] ?? p['status']))),
                   ]),
                 ),
-              for (var i = 0; i < items.length; i++) _row(i, items[i]),
-            ]),
-          ),
+                const Icon(Icons.chevron_right_rounded, color: AppColors.faint),
+              ]),
+            ),
         ]),
       ),
-    );
-  }
-
-  Widget _row(int index, Map<String, dynamic> a) {
-    final status = text(a['status_workflow'] ?? a['status']);
-    final notes = text(a['pp_notes'] ?? a['admin_notes'], '—');
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-      decoration: BoxDecoration(border: index == 0 ? null : const Border(top: BorderSide(color: Tw.slate100))),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(width: 24, child: Text('${index + 1}', style: const TextStyle(color: Tw.slate400, fontSize: 14))),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(formLabel(a['jenis_borang']),
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Tw.slate800)),
-            const SizedBox(height: 2),
-            Text('${text(a['tarikh_hantar'])} · Sesi ${text(a['tahun_permohonan'], '—')}',
-                style: const TextStyle(fontSize: 13, color: Tw.slate700)),
-            if (notes != '—')
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(notes, maxLines: 2, overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12, color: Tw.slate500)),
-              ),
-          ]),
-        ),
-        const SizedBox(width: 8),
-        StatusBadge(status, applicationTone(status), pill: true),
-      ]),
     );
   }
 }
