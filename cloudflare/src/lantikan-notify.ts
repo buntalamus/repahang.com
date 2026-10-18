@@ -4,7 +4,7 @@
  * cancellations and Admin acceptance overrides.
  */
 import type { Env } from './types';
-import { appointmentDeadline, baseUrl, getDeadlineHours } from './php/email';
+import { appointmentDeadline, baseUrl } from './php/email';
 import { getMatchKickoffTimestamp, klTimestamp, masaFmt, noMatchFmt, phpDate, tarikhFmt } from './php/format';
 import { buildAppointmentDirectLinks, recordLantikanAudit } from './php/lantikan-audit';
 import type { LantikanSnapshot } from './php/lantikan-audit';
@@ -12,6 +12,7 @@ import { tgLantikanKeyboard } from './php/telegram';
 import { activeAdmins, contactRecipient, districtPPs, enqueueNoticeStatements, notifyUser,
   processNotificationOutbox } from './notify';
 import type { Notice, Recipient } from './notify';
+import { responseDeadline } from '../../shared/appointment-deadline';
 
 export interface MatchDetails {
   tarikh: string;
@@ -181,6 +182,23 @@ export function autoRejectRecipient(snapshot: LantikanSnapshot): Recipient {
     email: snapshot.emel_pegawai, telegramChatId: snapshot.telegram_chat_id };
 }
 
+/** The account that made the appointment receives the replacement request. */
+export function autoRejectOwnerNotice(env: Env, snapshot: LantikanSnapshot, role: string): Notice {
+  const match = `${snapshot.pasukan_home} lwn ${snapshot.pasukan_away}`;
+  return {
+    subject: `Perlu Lantik Pengganti: ${snapshot.kejohanan} — ${match} — ${tarikhFmt(snapshot.tarikh)}`,
+    title: 'Lantikan Ditolak Automatik — Pengganti Diperlukan', mailType: 'lantikan',
+    paragraphs: [`${snapshot.nama_pegawai} belum menjawab lantikan sebagai ${snapshot.jawatan} sebelum tarikh akhir. Lantikan tersebut telah ditolak secara automatik.`,
+      'Sila buat lantikan baharu bagi pengganti untuk jawatan ini.'],
+    rows: [['Kejohanan', snapshot.kejohanan], ['No. Perlawanan', noMatchFmt(String(snapshot.no_perlawanan ?? ''))],
+      ['Perlawanan', match], ['Tarikh', tarikhFmt(snapshot.tarikh)], ['Masa', `${masaFmt(snapshot.masa)} MYT`],
+      ['Pegawai', snapshot.nama_pegawai], ['Jawatan', snapshot.jawatan]],
+    actions: [{ label: 'Lantik Pengganti', url: `${baseUrl(env)}/${role === 'PP Daerah' ? 'pp-daerah' : 'admin'}/lantikan` }],
+    portal: { type: 'Pengganti Diperlukan', subject: `Lantik pengganti: ${match}`,
+      message: `${snapshot.nama_pegawai} (${snapshot.jawatan}) ditolak automatik. Sila lantik pengganti untuk ${match} (${snapshot.kejohanan}).` },
+  };
+}
+
 /**
  * Admin and PP Daerah digests (in-app + Telegram, no email) for one auto-reject
  * run, queued so page loads that trigger auto-reject never wait on delivery.
@@ -249,8 +267,9 @@ export function reminderWindow(jenisKejohanan: string, tarikhNotif: string, tari
   const notif = klTimestamp(tarikhNotif);
   if (notif === null || notif <= 0) return null;
   const kickoff = getMatchKickoffTimestamp(tarikh, masa);
-  const windowEnd = notif + getDeadlineHours(jenisKejohanan) * 3600_000;
-  const answerBy = kickoff === null ? windowEnd : Math.min(windowEnd, kickoff);
+  const deadline = responseDeadline(jenisKejohanan, kickoff, notif);
+  if (!deadline) return null;
+  const answerBy = deadline.at;
   const lead = (jenisKejohanan.toLowerCase() === 'liga' ? REMINDER_LEAD_HOURS.liga : REMINDER_LEAD_HOURS.other)
     * 3600_000;
   const remindAt = answerBy - lead;

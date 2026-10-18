@@ -5,7 +5,8 @@
  */
 import { appointmentWritesEnabled } from './lantikan-write';
 import { EMAIL_LOGO_URL } from '../mail';
-import { calcDeadlineFromNotif, getDeadlineHours } from './php/email';
+import { appointmentDeadline } from './php/email';
+import { responseDeadline } from '../../shared/appointment-deadline';
 import { h, klTimestamp, phpDate, tarikhFmt } from './php/format';
 import { auditMetaFrom } from './php/lantikan-audit';
 import { LANTIKAN_AUTO_TOLAK_KOMEN, autoTolakLantikanTertunggak, createPortalNotification,
@@ -137,9 +138,9 @@ export async function appointmentEmailLink(request: Request, env: Env): Promise<
       const notif = row.tarikh_notif ? klTimestamp(String(row.tarikh_notif)) : null;
       const kickoff = getMatchKickoffTimestamp(String(row.tarikh), String(row.masa ?? ''));
       if (notif !== null && notif > 0 && kickoff !== null) {
-        const deadline = notif + getDeadlineHours(row.jenis_kejohanan) * 3600_000;
-        if (deadline <= Date.now() && deadline < kickoff) {
-          const deadlineDt = calcDeadlineFromNotif(row.jenis_kejohanan, notif);
+        const deadline = responseDeadline(row.jenis_kejohanan, kickoff, notif);
+        if (deadline && deadline.at <= Date.now()) {
+          const deadlineDt = phpDate('d M Y, H:i', deadline.at);
           return renderPage('Tempoh Menjawab Tamat', '⏰', '#F59E0B', 'Tempoh Menjawab Telah Tamat',
             `Tempoh menjawab telah tamat pada <strong>${deadlineDt}</strong>. Sila hubungi pentadbir jika anda masih boleh bertugas.`,
             dashUrl);
@@ -158,12 +159,10 @@ export async function appointmentEmailLink(request: Request, env: Env): Promise<
     const meta = auditMetaFrom(request);
     const expiredNow = await autoTolakLantikanTertunggak(env, { id: row.id }, meta);
     if (expiredNow > 0 || (row.status === 'Ditolak' && (row.komen ?? '') === LANTIKAN_AUTO_TOLAK_KOMEN)) {
-      const deadlineHours = getDeadlineHours(row.jenis_kejohanan);
-      const deadlineDt = row.tarikh_notif
-        ? calcDeadlineFromNotif(row.jenis_kejohanan, klTimestamp(String(row.tarikh_notif)) ?? 0) : '';
-      const deadlineLine = deadlineDt ? ` pada <strong>${deadlineDt}</strong>` : '';
+      const deadline = appointmentDeadline(row.jenis_kejohanan, row.tarikh, row.masa ?? '',
+        row.tarikh_notif ? klTimestamp(String(row.tarikh_notif)) ?? 0 : 0);
       return renderPage('Tempoh Menjawab Tamat', '⏰', '#F59E0B', 'Tempoh Menjawab Telah Tamat',
-        `Tempoh menjawab (${deadlineHours} jam selepas notifikasi) telah tamat${deadlineLine}.
+        `Tempoh menjawab telah tamat. Tarikh akhir ialah ${deadline.html}.
              Lantikan ini telah <strong>DITOLAK secara automatik</strong>.
              Sila hubungi pentadbir jika anda masih boleh bertugas.`, dashUrl);
     }

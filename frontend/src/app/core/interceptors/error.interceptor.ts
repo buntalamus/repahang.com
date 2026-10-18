@@ -3,6 +3,7 @@ import { inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { ToastService } from '../services/toast.service';
+import { BACKGROUND_REQUEST } from '../services/background-request';
 
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const toast = inject(ToastService);
@@ -11,6 +12,9 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(req).pipe(
     catchError((error: HttpErrorResponse) => {
+      if (req.context.get(BACKGROUND_REQUEST) && (error.status === 0 || error.status >= 500)) {
+        return throwError(() => error);
+      }
       if ((error as any)?.name === 'TimeoutError') {
         toast.error('Permintaan mengambil masa terlalu lama. Sila cuba semula.');
         return throwError(() => error);

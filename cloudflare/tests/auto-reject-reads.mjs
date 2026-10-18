@@ -21,7 +21,7 @@ function overdue() {
     WHERE u.aktif=1 AND u.role='Pengadil' AND lp.status<>'Belum Jawab' ORDER BY lp.id DESC LIMIT 1`).get();
   db.prepare(`UPDATE lantikan_pengadil SET status='Belum Jawab',komen=NULL,notif_hantar=1,
     tarikh_notif='2026-01-01 08:00:00' WHERE id=?`).run(row.id);
-  db.prepare("UPDATE jadual_perlawanan SET tarikh='2099-01-01',masa='20:00:00' WHERE id=?").run(row.jadual_id);
+  db.prepare("UPDATE jadual_perlawanan SET tarikh=date('now','+8 hours','+2 hours'),masa=time('now','+8 hours','+2 hours') WHERE id=?").run(row.jadual_id);
   return row;
 }
 const statusOf=(id)=>({...db.prepare('SELECT status,komen FROM lantikan_pengadil WHERE id=?').get(id)});

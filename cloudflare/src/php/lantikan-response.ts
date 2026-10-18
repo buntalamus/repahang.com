@@ -8,6 +8,7 @@ import { guardStatement, runGuarded } from './guard';
 import type { AuditMeta } from './lantikan-audit';
 import { NOW, getLantikanAuditSnapshot, lantikanAuditStatement } from './lantikan-audit';
 import { historySyncStatements, isAcceptedKupCrewComplete, isKupPosition } from './lantikan-helper';
+import { getMatchKickoffTimestamp } from './format';
 
 export interface ResponseChange {
   lantikanId: number;
@@ -27,6 +28,8 @@ export async function applyAppointmentResponse(env: Env, change: ResponseChange,
   meta: AuditMeta): Promise<{ updated: boolean; shouldNotifyCompleteKup: boolean }> {
   const snapshot = await getLantikanAuditSnapshot(env, change.lantikanId);
   if (!snapshot) throw new Error('Snapshot audit jawapan lantikan tidak dijumpai.');
+  const kickoff = getMatchKickoffTimestamp(snapshot.tarikh, snapshot.masa ?? '');
+  if (kickoff !== null && kickoff <= Date.now()) return { updated: false, shouldNotifyCompleteKup: false };
   const setKomen = change.komen !== undefined ? 'komen=?,' : '';
   const done = await runGuarded(env, [
     guardStatement(env, 'lantikan_response',

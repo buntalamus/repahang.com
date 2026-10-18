@@ -1,4 +1,5 @@
-import { Component, Output, EventEmitter, Input, OnInit, OnDestroy, ElementRef, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, Output, EventEmitter, Input, OnInit, OnDestroy, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../core/services/auth.service';
 import { ApiService } from '../../../core/services/api.service';
 
@@ -11,6 +12,7 @@ interface NotificationResponse {
 
 @Component({
   selector: 'app-header',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-6 py-4 bg-white border-b border-slate-200">
       <div class="flex items-center gap-4">
@@ -50,6 +52,11 @@ interface NotificationResponse {
                 <button type="button" (click)="closeNotifications(true)" aria-label="Tutup notifikasi" class="p-1 rounded hover:bg-slate-200"><span class="material-icons text-base" aria-hidden="true">close</span></button>
               </div>
               <div tabindex="0" role="region" aria-label="Senarai notifikasi" class="min-h-0 max-h-[min(26rem,calc(100dvh-12rem))] overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:outline-blue-600 focus-visible:-outline-offset-2">
+                @if (notificationError()) {
+                  <div class="px-4 py-3 bg-amber-50 text-amber-900 text-sm" role="status">
+                    {{ notificationError() }} <button type="button" (click)="loadNotifications(true)" class="underline font-semibold">Cuba semula</button>
+                  </div>
+                }
                 @for (n of notifications; track n.id) {
                   <div class="px-4 py-3 border-b last:border-0 hover:bg-slate-50 transition"
                     [class.bg-blue-50]="!n.is_read">
@@ -58,7 +65,9 @@ interface NotificationResponse {
                     <p class="text-xs text-slate-600 mt-1">{{ n.created_at }}</p>
                   </div>
                 } @empty {
+                  @if (!notificationError()) {
                   <div class="px-4 py-8 text-center text-slate-600 text-sm">Tiada notifikasi.</div>
+                  }
                 }
               </div>
             </section>
@@ -94,6 +103,13 @@ export class HeaderComponent implements OnInit, OnDestroy {
   unreadCount = 0;
   showNotifications = false;
   private pollInterval: ReturnType<typeof setInterval> | null = null;
+  readonly notificationError = signal('');
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private loadingNotifications = false;
+  private failures = 0;
+  private retryAfter = 0;
+  private readonly visibilityRefresh = () => { if (!document.hidden) this.loadNotifications(true); };
   private notificationButton = viewChild<ElementRef<HTMLButtonElement>>('notificationButton');
 
   constructor(
@@ -104,25 +120,46 @@ export class HeaderComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadNotifications();
     this.pollInterval = setInterval(() => this.loadNotifications(), 30000);
+    document.addEventListener('visibilitychange', this.visibilityRefresh);
   }
 
   ngOnDestroy(): void {
     if (this.pollInterval) clearInterval(this.pollInterval);
+    document.removeEventListener('visibilitychange', this.visibilityRefresh);
   }
 
-  loadNotifications(): void {
-    this.api.get<NotificationResponse>('notifications.php').subscribe({
+  loadNotifications(force = false): void {
+    if (document.hidden || this.loadingNotifications || (!force && Date.now() < this.retryAfter)) return;
+    this.loadingNotifications = true;
+    this.api.get<NotificationResponse>('notifications.php', undefined, { background: true })
+      .pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
-        if (!res.error) {
+        this.loadingNotifications = false;
+        this.cdr.markForCheck();
+        if (res.error) {
+          this.notificationFailed();
+        } else {
+          this.failures = 0; this.retryAfter = 0; this.notificationError.set('');
           this.notifications = (res.data || res.notifications || []).slice(0, 10);
           this.unreadCount = res.unread_count || 0;
         }
       },
+      error: () => {
+        this.loadingNotifications = false;
+        this.notificationFailed();
+      },
     });
+  }
+
+  private notificationFailed(): void {
+    this.failures++;
+    this.retryAfter = Date.now() + Math.min(120000, 30000 * 2 ** (this.failures - 1));
+    this.notificationError.set('Notifikasi belum dapat dikemas kini. Sistem akan mencuba semula.');
   }
 
   toggleNotifications(): void {
     this.showNotifications = !this.showNotifications;
+    if (this.showNotifications) this.loadNotifications(true);
   }
 
   closeNotifications(restoreFocus = false): void {
@@ -137,6 +174,7 @@ export class HeaderComponent implements OnInit, OnDestroy {
         if (!res.error) {
           this.unreadCount = 0;
           this.notifications = this.notifications.map(n => ({ ...n, is_read: 1 }));
+          this.cdr.markForCheck();
         }
       },
     });

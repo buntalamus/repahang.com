@@ -123,6 +123,7 @@ try {
     VALUES (?,'R02','2026-12-04','12:07:00','A','B','C','Belum Lantik','2026-10-01 10:00:00','2026-10-01 10:00:00')`)
     .run(tournament).lastInsertRowid);
   await adminCall({jadual_id:late,pengadil_id:kup[3].id,jawatan:'Pengadil'});
+  db.prepare("UPDATE jadual_perlawanan SET tarikh=date('now','+8 hours','+2 hours'),masa=time('now','+8 hours','+2 hours') WHERE id=?").run(late);
   db.prepare(`UPDATE lantikan_pengadil SET notif_hantar=1,email_token='e1e1',
     tarikh_notif=datetime('now','+8 hours','-4 hours') WHERE jadual_id=?`).run(late);
   assert.match((await link('GET',{token:'e1e1',action:'accept'})).html,/Tempoh menjawab telah tamat pada/);

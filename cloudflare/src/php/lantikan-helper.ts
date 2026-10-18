@@ -11,8 +11,9 @@ import type { LantikanSnapshot } from './lantikan-audit';
 import { NOW, getLantikanAuditSnapshot, recordLantikanAudit } from './lantikan-audit';
 import { tgKupCrewCompleteMessage, tgSend } from './telegram';
 import { wroteRow } from '../d1-changes';
-import { enqueueNoticeStatements } from '../notify';
-import { autoRejectNotice, autoRejectRecipient, queueAutoRejectDigests } from '../lantikan-notify';
+import { contactRecipient, enqueueNoticeStatements } from '../notify';
+import { autoRejectNotice, autoRejectOwnerNotice, autoRejectRecipient, queueAutoRejectDigests } from '../lantikan-notify';
+import { responseDeadline } from '../../../shared/appointment-deadline';
 
 export const LANTIKAN_AUTO_TOLAK_KOMEN = 'Ditolak automatik - tiada jawapan dalam tempoh';
 export const KUP_POSITIONS = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4'];
@@ -630,6 +631,7 @@ export async function autoTolakLantikanTertunggak(env: Env,
     JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id
     LEFT JOIN kejohanan kj ON kj.id=jp.kejohanan_id
     WHERE lp.status='Belum Jawab' AND lp.notif_hantar=1 AND lp.tarikh_notif IS NOT NULL
+      AND COALESCE(jp.status,'') NOT IN ('Dibatalkan','Ditangguhkan')
       ${where.map((clause) => `AND ${clause}`).join(' ')}`).bind(...binds)
     .all<{ id: number; jadual_id: number; jawatan: string; tarikh_notif: string;
       jenis_kejohanan: string; tarikh: string; masa: string | null }>();
@@ -637,19 +639,25 @@ export async function autoTolakLantikanTertunggak(env: Env,
   const expired = pending.results.flatMap((row) => {
     const notif = klTimestamp(String(row.tarikh_notif));
     const kickoff = getMatchKickoffTimestamp(String(row.tarikh ?? ''), String(row.masa ?? ''));
-    if (notif === null || notif <= 0 || kickoff === null) return [];
-    const hours = String(row.jenis_kejohanan).toLowerCase() === 'liga' ? 48 : 3;
-    const deadline = Math.floor(notif / 1000) * 1000 + hours * 3600_000;
-    return deadline <= now && deadline < kickoff ? [{ ...row, deadline, upcoming: kickoff > now }] : [];
-  });
+    const deadline = responseDeadline(String(row.jenis_kejohanan), kickoff, notif);
+    // Historical fixtures are never retrospectively rejected by this policy.
+    return deadline?.autoReject && kickoff !== null && kickoff > now && deadline.at <= now
+      ? [{ ...row, deadline: deadline.at, upcoming: true }] : [];
+  }).slice(0, 50);
   if (expired.length === 0) return 0;
   const batchKey = `worker-auto-reject-${crypto.randomUUID()}`;
+  const prefix = `${batchKey}-`;
+  const upper = `${batchKey}.`;
   const statements: D1PreparedStatement[] = [];
   for (const row of expired) {
     const deadline = localDateTime(row.deadline);
     statements.push(env.DB.prepare(`UPDATE lantikan_pengadil SET status='Ditolak',komen=?,
         tarikh_jawab=?,status_dikemaskini_at=?,tg_token=NULL,email_token=NULL
-      WHERE id=? AND status='Belum Jawab'`).bind(LANTIKAN_AUTO_TOLAK_KOMEN, deadline, deadline, row.id));
+      WHERE id=? AND status='Belum Jawab' AND tarikh_notif=? AND notif_hantar=1
+        AND EXISTS(SELECT 1 FROM jadual_perlawanan WHERE id=? AND tarikh=? AND COALESCE(masa,'')=?
+          AND COALESCE(status,'') NOT IN ('Dibatalkan','Ditangguhkan'))`)
+      .bind(LANTIKAN_AUTO_TOLAK_KOMEN, deadline, deadline, row.id, row.tarikh_notif,
+        row.jadual_id, row.tarikh, row.masa ?? ''));
     const snapshot = await getLantikanAuditSnapshot(env, row.id);
     if (!snapshot) throw new Error('Snapshot audit auto-tolak tidak dijumpai.');
     // Written only when the UPDATE above changed the appointment; the audit
@@ -661,10 +669,22 @@ export async function autoTolakLantikanTertunggak(env: Env,
       SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,${NOW} WHERE changes()=1`)
       .bind(...auditValues(snapshot, row.id, row.deadline, meta, `${batchKey}-${row.id}`)));
     // Queued with the rejection itself; delivered by cron or waitUntil, never inside this request.
-    // A match that has already kicked off is only tidied up: nobody can act on it any more.
+    // Only upcoming matches enter this batch; historical fixtures stay untouched.
     if (row.upcoming) statements.push(...enqueueNoticeStatements(env, `auto_reject:${row.id}:${row.tarikh_notif}`,
       autoRejectRecipient(snapshot), autoRejectNotice(snapshot), {
         kind: 'auto_reject_notification', lantikanId: row.id,
+        guardSql: 'EXISTS(SELECT 1 FROM lantikan_audit_log WHERE event_key=?)',
+        guardBinds: [`${batchKey}-${row.id}`],
+      }));
+    const owner = await env.DB.prepare(`SELECT u.id,u.nama_penuh,u.email,u.telegram_chat_id,u.role
+      FROM lantikan_pengadil lp JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id
+      LEFT JOIN kejohanan kj ON kj.id=jp.kejohanan_id
+      JOIN users u ON u.id=COALESCE(NULLIF(lp.created_by,0),kj.created_by) AND u.aktif=1
+      WHERE lp.id=?`).bind(row.id).first<{ id: number; nama_penuh: string; email: string | null;
+        telegram_chat_id: string | number | null; role: string }>();
+    if (owner) statements.push(...enqueueNoticeStatements(env, `auto_reject_owner:${row.id}:${row.tarikh_notif}`,
+      contactRecipient(owner), autoRejectOwnerNotice(env, snapshot, owner.role), {
+        kind: 'auto_reject_owner', lantikanId: row.id,
         guardSql: 'EXISTS(SELECT 1 FROM lantikan_audit_log WHERE event_key=?)',
         guardBinds: [`${batchKey}-${row.id}`],
       }));
@@ -672,23 +692,26 @@ export async function autoTolakLantikanTertunggak(env: Env,
   const matches = [...new Set(expired.map((row) => row.jadual_id))];
   for (const jadualId of matches) {
     statements.push(...historySyncStatements(env, jadualId, {
-      sql: `EXISTS(SELECT 1 FROM lantikan_audit_log WHERE event_key LIKE ? AND jadual_id=?)`,
-      binds: [`${batchKey}-%`, jadualId],
+      sql: `EXISTS(SELECT 1 FROM lantikan_audit_log WHERE event_key>=? AND event_key<? AND jadual_id=?)`,
+      binds: [prefix, upper, jadualId],
     }));
   }
   await env.DB.batch(statements);
   const changed = await env.DB.prepare(`SELECT lantikan_id,jadual_id,jawatan FROM lantikan_audit_log
-    WHERE event_key LIKE ?`).bind(`${batchKey}-%`).all<{ jadual_id: number; jawatan: string }>();
+    WHERE event_key>=? AND event_key<?`).bind(prefix, upper).all<{ jadual_id: number; jawatan: string }>();
   try {
     const upcoming = new Set(expired.filter((row) => row.upcoming).map((row) => row.id));
     const digestRows = await env.DB.prepare(`SELECT al.lantikan_id,al.nama_pegawai AS nama,al.jawatan,
         jp.pasukan_home||' lwn '||jp.pasukan_away AS pasukan,COALESCE(kj.nama,'') AS kejohanan,jp.tarikh,
         u.persatuan_id
       FROM lantikan_audit_log al
+      JOIN lantikan_pengadil lp ON lp.id=al.lantikan_id
       JOIN jadual_perlawanan jp ON jp.id=al.jadual_id
       LEFT JOIN kejohanan kj ON kj.id=jp.kejohanan_id
       LEFT JOIN users u ON u.id=al.pengadil_id
-      WHERE al.event_key LIKE ? ORDER BY jp.tarikh,jp.masa,al.id`).bind(`${batchKey}-%`)
+      LEFT JOIN users owner ON owner.id=COALESCE(NULLIF(lp.created_by,0),kj.created_by) AND owner.aktif=1
+      WHERE al.event_key>=? AND al.event_key<? AND owner.id IS NULL
+      ORDER BY jp.tarikh,jp.masa,al.id`).bind(prefix, upper)
       .all<{ lantikan_id: number; nama: string; jawatan: string; pasukan: string; kejohanan: string;
         tarikh: string; persatuan_id: number | null }>();
     await queueAutoRejectDigests(env, batchKey, digestRows.results.filter((row) => upcoming.has(Number(row.lantikan_id))));

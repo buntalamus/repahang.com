@@ -386,6 +386,9 @@ Di setiap halaman permohonan, bahagian **"Sejarah Permohonan"** memaparkan:
 
 ## 3.8 Tugasan Lantikan
 
+**Tarikh akhir jawapan:** Liga 48 jam sebelum perlawanan; Karnival dan jenis lain 3 jam sebelum perlawanan. Lantikan lewat/pengganti yang dihantar selepas had itu boleh dijawab sehingga perlawanan bermula. Cron menyemak setiap lima minit. Jika lantikan biasa tidak dijawab sebelum deadline, status ditukar kepada Ditolak dan pelantik dimaklumkan melalui emel/Telegram untuk melantik pengganti. Rekod perlawanan lampau tidak diproses semula.
+
+
 ### Tujuan:
 Menerima dan menjawab tugasan lantikan rasmi dari Admin untuk kejohanan/perlawanan.
 
@@ -1622,7 +1625,7 @@ Pengadil melihat markah di "Penilaian Saya" + boleh muat turun PDF
 |---------|-------|-------------|
 | Tidak terima notifikasi lantikan | Telegram tidak dihubungkan / emel dalam spam | 1) Hubungkan Telegram 2) Semak folder spam |
 | Pautan terima/tolak "Pautan Tidak Sah" | Tugasan telah dijawab melalui saluran lain atau lantikan dikemaskini oleh pentadbir | Log masuk ke sistem dan semak melalui "Tugasan Lantikan" |
-| "Tempoh Menjawab Telah Tamat" | Tidak menjawab dalam tempoh ditetapkan (Liga: 48 jam, lain: 3 jam selepas notifikasi) — lantikan ditolak secara automatik | Hubungi Admin jika masih boleh bertugas (Admin boleh lantik semula dan hantar notifikasi baru) |
+| "Tempoh Menjawab Telah Tamat" | Tidak menjawab dalam tempoh ditetapkan (Liga: 48 jam, lain: 3 jam sebelum perlawanan bermula) — lantikan ditolak secara automatik | Hubungi Admin jika masih boleh bertugas (Admin boleh lantik semula dan hantar notifikasi baru) |
 | "Tugasan Sudah Dijawab" | Sudah menjawab melalui saluran lain | Tiada tindakan perlu — jawapan telah direkodkan |
 | Ingin tukar jawapan selepas menjawab | Jawapan tidak boleh diubah | Hubungi Admin untuk bantuan |
 

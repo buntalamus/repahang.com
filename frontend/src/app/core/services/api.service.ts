@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpParams } from '@angular/common/http';
+import { BACKGROUND_REQUEST } from './background-request';
 import { Observable } from 'rxjs';
 import { map, timeout } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
@@ -80,7 +81,7 @@ export class ApiService {
 
   constructor(private http: HttpClient) {}
 
-  get<T>(endpoint: string, params?: Record<string, string>): Observable<T> {
+  get<T>(endpoint: string, params?: Record<string, string>, options?: { background: boolean }): Observable<T> {
     let httpParams = new HttpParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -89,6 +90,7 @@ export class ApiService {
     }
     return this.http.get<T>(`${this.baseUrl}/${endpoint}`, {
       params: httpParams,
+      context: new HttpContext().set(BACKGROUND_REQUEST, options?.background ?? false),
       withCredentials: true,
     }).pipe(
       timeout(this.requestTimeoutMs),

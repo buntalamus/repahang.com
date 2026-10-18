@@ -4,6 +4,18 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [18 Oktober 2026] — Auto-tolak sebelum perlawanan dan notis pelantik
+
+- Semakan auto-tolak dikembalikan ke cron lima minit. Deadline biasa: Liga 48 jam sebelum kickoff; Karnival/jenis lain 3 jam sebelum kickoff. Satu fungsi dikongsi oleh Worker dan portal; emel, Telegram, halaman jawapan dan peringatan menggunakan deadline yang sama.
+- Lantikan lewat/pengganti yang dimaklumkan pada atau selepas cutoff diberi peluang menjawab sehingga kickoff. Perlawanan lampau, dibatalkan/ditangguhkan dan lantikan yang belum dimaklumkan tidak ditolak oleh semakan ini. Tiada pemprosesan semula sejarah lama.
+- Akaun `lantikan_pengadil.created_by` menerima emel, Telegram (jika dipaut) dan notis portal untuk membuat lantikan pengganti. Jika pencipta lantikan tiada, pencipta kejohanan digunakan; rekod tanpa pelantik aktif mengekalkan ringkasan Admin/PP. Pelantik ini berasingan daripada Pengerusi Pengadil yang mengesahkan laporan RA.
+- Notis pelantik dan pegawai ditulis bersama status/audit dalam transaksi yang sama, dengan dedupe bagi setiap notifikasi lantikan. Guard mengelakkan penolakan apabila tarikh perlawanan atau notifikasi berubah semasa proses.
+- Query batch audit menggunakan julat awalan berindeks; corak LIKE 57 bait yang melanggar had 50 bait D1 dibuang. Had 50 lantikan setiap semakan.
+- Polling notifikasi berhenti apabila tab tersembunyi, mencegah permintaan bertindih dan menggunakan backoff sehingga dua minit. Kegagalan sementara ditunjukkan dalam panel dengan Cuba semula; notifikasi lama dikekalkan, tanpa popup berulang. Semakan sesi dan akses masih aktif.
+- Ujian: expiry policy (sebelum cutoff, lewat, sejarah, dibatalkan, pemilik, concurrency/reschedule dan dedupe), deadline, notify-lantikan, appointment-response, lantikan-write, Telegram, district appointments, typecheck dan build produksi. Tiada migrasi D1 diperlukan.
+
+---
+
 ## [18 Oktober 2026] — Keluarkan auto-tolak lantikan daripada cron
 
 - Cron lima minit tidak lagi menjalankan `autoTolakLantikanTertunggak`. Lantikan tidak ditolak automatik oleh tugas berjadual ini.

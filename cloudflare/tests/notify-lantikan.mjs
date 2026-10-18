@@ -151,27 +151,30 @@ try {
   assert.equal(emails.filter((mail)=>/^Perlawanan Ditangguhkan: /.test(mail.subject)).length,0);
 
   // --- Auto-reject: queued with the rejection, delivered by the outbox ------
+  db.prepare('UPDATE users SET telegram_chat_id=123456789 WHERE id=?').run(admin.id);
   const m3=insertMatch('2099-05-01','10:00:00');
   const rows3=await appointAndNotify(m3,kup.slice(6,9));
   db.prepare(`UPDATE lantikan_pengadil SET tarikh_notif=? WHERE jadual_id=?`).run(kl(Date.now()-4*3600_000),m3);
+  db.prepare("UPDATE jadual_perlawanan SET tarikh=date('now','+8 hours','+2 hours'),masa=time('now','+8 hours','+2 hours') WHERE id=?").run(m3);
   reset();
   assert.equal(await worker.autoTolakLantikanTertunggak(env,{jadual_id:m3}),3);
   assert.equal(emails.length+telegrams.length,0,'nothing is sent inside the request');
   assert.equal(count(`SELECT count(*) FROM worker_notification_outbox WHERE kind='auto_reject_notification'
     AND lantikan_id IN (SELECT id FROM lantikan_pengadil WHERE jadual_id=?)`,m3),6);
-  const digestRows=all(`SELECT * FROM worker_notification_outbox WHERE kind='auto_reject_digest'`);
+  const digestRows=all(`SELECT * FROM worker_notification_outbox WHERE kind='auto_reject_owner'`);
   assert.ok(digestRows.length>0);
-  assert.ok(digestRows.every((row)=>row.channel==='telegram'),'digests never email Admin or PP Daerah');
+  assert.ok(digestRows.some((row)=>row.channel==='email'),'pelantik gets email');
+  assert.ok(digestRows.some((row)=>row.channel==='telegram'),'pelantik gets Telegram');
   assert.equal(count(`SELECT count(*) FROM notifications WHERE user_id=? AND type='Lantikan Ditolak'`,kup[6].id),1);
   assert.ok(count(`SELECT count(*) FROM notifications WHERE user_id=? AND type='Lantikan Ditolak'`,admin.id)>=1);
   assert.equal(await worker.autoTolakLantikanTertunggak(env,{jadual_id:m3}),0);
   const drained=await worker.processNotificationOutbox(env,200);
   assert.equal(drained.failed,0);
-  assert.deepEqual(emails.map((mail)=>mail.to).sort(),kup.slice(6,9).map((o)=>o.email).sort());
-  assert.ok(emails.every((mail)=>/^Lantikan Ditolak Automatik: /.test(mail.subject)));
+  assert.deepEqual(emails.filter(mail=>/^Lantikan Ditolak Automatik: /.test(mail.subject)).map(mail=>mail.to).sort(),kup.slice(6,9).map(o=>o.email).sort());
+  assert.ok(emails.some(mail=>/^Perlu Lantik Pengganti: /.test(mail.subject)));
   const adminChats=all("SELECT telegram_chat_id FROM users WHERE role='Admin' AND aktif=1 AND telegram_chat_id IS NOT NULL")
     .map((r)=>String(r.telegram_chat_id));
-  assert.ok(adminChats.every((chat)=>telegrams.some((t)=>t.chatId===chat && t.text.includes('3 lantikan'))));
+  assert.ok(telegrams.some(t=>t.text.includes('Pengganti Diperlukan')));
   assert.equal(count(`SELECT count(*) FROM worker_notification_outbox WHERE status='pending'`),0);
   assert.equal(count(`SELECT count(*) FROM lantikan_audit_log WHERE lantikan_id=? AND event_type='auto_reject_notification'
     AND event_status='success'`,rows3[0].id),2);
@@ -186,20 +189,24 @@ try {
     db.prepare(`UPDATE lantikan_pengadil SET status='Belum Jawab',notif_hantar=1,tarikh_notif=datetime('now','+8 hours','-8 days')
       WHERE jadual_id=?`).run(m5);
     const queuedBefore=count('SELECT count(*) FROM worker_notification_outbox');
-    assert.equal(await worker.autoTolakLantikanTertunggak(env,{jadual_id:m5}),pastRows.length);
+    assert.equal(await worker.autoTolakLantikanTertunggak(env,{jadual_id:m5}),0);
     assert.equal(count('SELECT count(*) FROM worker_notification_outbox'),queuedBefore,'no notices for past matches');
   }
 
   // --- Answer reminder: once per dispatch, skipped once answered ------------
   const day=3600_000;
-  assert.ok(worker.reminderWindow('Liga',kl(Date.now()-37*day),'2099-01-01','10:00:00'));
-  assert.equal(worker.reminderWindow('Liga',kl(Date.now()-30*day),'2099-01-01','10:00:00'),null);
-  assert.ok(worker.reminderWindow('Karnival',kl(Date.now()-2.5*day),'2099-01-01','10:00:00'));
-  assert.equal(worker.reminderWindow('Karnival',kl(Date.now()-1*day),'2099-01-01','10:00:00'),null);
+  const league=kl(Date.now()+59*day); const carnival=kl(Date.now()+3.5*day);
+  assert.ok(worker.reminderWindow('Liga',kl(Date.now()-37*day),league.slice(0,10),league.slice(11)));
+  const far=kl(Date.now()+80*day);
+  assert.equal(worker.reminderWindow('Liga',kl(Date.now()-30*day),far.slice(0,10),far.slice(11)),null);
+  assert.ok(worker.reminderWindow('Karnival',kl(Date.now()-2.5*day),carnival.slice(0,10),carnival.slice(11)));
+  const early=kl(Date.now()+6*day);
+  assert.equal(worker.reminderWindow('Karnival',kl(Date.now()-1*day),early.slice(0,10),early.slice(11)),null);
   const m4=insertMatch('2099-06-01','10:00:00');
   db.prepare("UPDATE lantikan_pengadil SET status='Ditolak' WHERE jadual_id=?").run(m1);
   const rows4=await appointAndNotify(m4,kup.slice(0,3));
   db.prepare(`UPDATE lantikan_pengadil SET tarikh_notif=? WHERE jadual_id=?`).run(kl(Date.now()-2.5*day),m4);
+  db.prepare("UPDATE jadual_perlawanan SET tarikh=date('now','+8 hours','+210 minutes'),masa=time('now','+8 hours','+210 minutes') WHERE id=?").run(m4);
   reset();
   assert.equal(await worker.sendAppointmentReminders(env),3);
   assert.equal(await worker.sendAppointmentReminders(env),0,'no duplicate reminder');

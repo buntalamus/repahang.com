@@ -6,6 +6,7 @@
 import { renderEmailLayout, sendRefpahangEmail } from '../../mail';
 import type { MailAttachment, MailType } from '../../mail';
 import type { Env } from '../types';
+import { responseDeadline } from '../../../shared/appointment-deadline';
 import { getMatchKickoffTimestamp, h, klTimestamp, masaFmt, noMatchFmt, phpDate, plainTextFromHtml, tarikhFmt } from './format';
 
 export interface InlineImage { cid: string; mime: string; data: ArrayBuffer }
@@ -252,43 +253,40 @@ async function makeLogo(env: Env, logoPath: string, namaTeam: string, cidName: s
 }
 
 export function getDeadlineHours(jenisKejohanan: string): number {
-  return jenisKejohanan.toLowerCase() === 'liga' ? 48 : 3;
+  return jenisKejohanan.trim().toLowerCase() === 'liga' ? 48 : 3;
 }
 
 export function getDeadlineRuleText(jenisKejohanan: string): string {
   const hours = getDeadlineHours(jenisKejohanan);
-  return `Anda perlu menjawab lantikan ini dalam masa ${hours} jam selepas notifikasi dihantar. `
+  return `Anda perlu menjawab lantikan ini selewat-lewatnya ${hours} jam sebelum perlawanan bermula. `
     + 'Jika tidak dijawab dalam tempoh tersebut, lantikan akan DITOLAK secara automatik.';
 }
 
-export function calcDeadlineFromNotif(jenisKejohanan: string, notifMs = Date.now()): string {
-  return phpDate('d M Y, H:i', notifMs + getDeadlineHours(jenisKejohanan) * 3600_000);
-}
-
 /**
- * The answer deadline shown to an official. Auto-reject applies only when the
- * answer window ends before kick-off; when the match starts first, the official
- * is asked to answer before kick-off instead, without an auto-reject warning.
+ * Deadline before kickoff, shared with the cron and portal. Late replacements
+ * keep the existing opportunity to answer until kickoff.
  */
 export function appointmentDeadline(jenisKejohanan: string, tarikh: string, masa: string,
   notifMs = Date.now()): { sentence: string; rule: string; html: string; label: string } {
   const hours = getDeadlineHours(jenisKejohanan);
-  const windowEnd = notifMs + hours * 3600_000;
   const kickoff = getMatchKickoffTimestamp(tarikh, masa);
-  if (kickoff !== null && kickoff <= windowEnd) {
+  const deadline = responseDeadline(jenisKejohanan, kickoff, notifMs);
+  if (!deadline || !deadline.autoReject) {
+    if (kickoff === null) return { sentence: 'sebelum perlawanan bermula',
+      rule: 'Sila semak masa perlawanan dengan pelantik.', html: 'sebelum perlawanan bermula', label: 'Tempoh Menjawab' };
     const at = phpDate('d M Y, H:i', kickoff);
     return {
       sentence: `sebelum perlawanan bermula (${at})`,
-      rule: `Perlawanan ini bermula sebelum tempoh menjawab ${hours} jam tamat, jadi sila jawab sebelum perlawanan bermula.`,
+      rule: `Lantikan ini dihantar selepas had ${hours} jam sebelum perlawanan. Sila jawab sebelum perlawanan bermula.`,
       html: `sebelum perlawanan bermula (<strong>${at}</strong>)`,
       label: 'Tempoh Menjawab',
     };
   }
-  const at = phpDate('d M Y, H:i', windowEnd);
+  const at = phpDate('d M Y, H:i', deadline.at);
   return {
-    sentence: `sebelum ${at} (${hours} jam selepas notifikasi ini dihantar)`,
+    sentence: `sebelum ${at} (${hours} jam sebelum perlawanan bermula)`,
     rule: getDeadlineRuleText(jenisKejohanan),
-    html: `<strong>sebelum ${at}</strong> (${hours} jam selepas notifikasi ini dihantar)`,
+    html: `<strong>sebelum ${at}</strong> (${hours} jam sebelum perlawanan bermula)`,
     label: 'Peraturan Auto-Tolak',
   };
 }

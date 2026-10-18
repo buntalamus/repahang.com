@@ -1,4 +1,5 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { responseDeadline } from '../../../../../../shared/appointment-deadline';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { DatePipe, SlicePipe } from '@angular/common';
@@ -8,11 +9,12 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
 
 @Component({
   selector: 'app-pengadil-tugasan',
-  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FormsModule, DatePipe, SlicePipe, LoadingComponent],
   templateUrl: './tugasan.component.html',
 })
 export class PengadilTugasanComponent implements OnInit {
+  private readonly cdr = inject(ChangeDetectorRef);
   loading = true;
   assignments: any[] = [];
   filtered: any[] = [];
@@ -41,8 +43,9 @@ export class PengadilTugasanComponent implements OnInit {
         this.stats = res.stats || this.stats;
         this.applyFilter();
         this.loading = false;
+        this.cdr.markForCheck();
       },
-      error: () => this.loading = false,
+      error: () => { this.loading = false; this.cdr.markForCheck(); },
     });
   }
 
@@ -76,11 +79,13 @@ export class PengadilTugasanComponent implements OnInit {
         this.toast.show(res.message, 'success');
         this.showModal = false;
         this.saving = false;
+        this.cdr.markForCheck();
         this.load();
       },
       error: (err) => {
         this.toast.show(err?.error?.message || 'Ralat.', 'error');
         this.saving = false;
+        this.cdr.markForCheck();
       },
     });
   }
@@ -99,15 +104,16 @@ export class PengadilTugasanComponent implements OnInit {
 
   getDeadlineText(a: any): string {
     if (!a.tarikh_notif) return '';
-    const hours = this.getDeadlineHours(a.jenis_kejohanan || 'Persahabatan');
-    const notifDt = new Date(String(a.tarikh_notif).replace(' ', 'T'));
-    const deadline = new Date(notifDt.getTime() + hours * 3600000);
-    return deadline.toLocaleDateString('ms-MY', { day: '2-digit', month: 'short', year: 'numeric' })
-      + ', ' + deadline.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const notified = Date.parse(String(a.tarikh_notif).replace(' ', 'T') + '+08:00');
+    const kickoff = Date.parse(`${String(a.tarikh).slice(0, 10)}T${a.masa || '00:00:00'}+08:00`);
+    const deadline = responseDeadline(a.jenis_kejohanan || '', kickoff, notified);
+    if (!deadline) return '';
+    return new Intl.DateTimeFormat('ms-MY', { timeZone: 'Asia/Kuala_Lumpur', day: '2-digit',
+      month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(deadline.at);
   }
 
   getAutoRejectRule(jenis: string): string {
     const hours = this.getDeadlineHours(jenis || 'Persahabatan');
-    return `Jika tidak dijawab dalam masa ${hours} jam selepas notifikasi dihantar, lantikan akan ditolak secara automatik.`;
+    return `Jawab selewat-lewatnya ${hours} jam sebelum perlawanan bermula. Lantikan lewat/pengganti boleh dijawab sehingga perlawanan bermula.`;
   }
 }

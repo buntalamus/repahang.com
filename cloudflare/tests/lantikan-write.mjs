@@ -116,7 +116,7 @@ try {
   assert.equal(firstEmail.images[0].cid,'logo_home');
   assert.match(firstEmail.html,/Krew KUP Perlawanan/);
   // The answer window ends long before kick-off, so the auto-reject rule is shown.
-  assert.match(firstEmail.html,/jam selepas notifikasi ini dihantar/);
+  assert.match(firstEmail.html,/jam sebelum perlawanan bermula/);
   assert.match(firstEmail.html,/Peraturan Auto-Tolak/);
   // Each PP Daerah hears once per match, with all their district's officials listed.
   const ppMails=emails.filter((mail)=>/^Lantikan Pengadil Daerah: Home FC lwn Away FC/.test(mail.subject));
@@ -225,6 +225,7 @@ try {
   const lazy=insertMatch('2026-12-02','10:21:00','U04');
   await call({jadual_id:lazy,pengadil_id:kup[0].id,jawatan:'Pengadil'});
   const lazyRow=one('SELECT id FROM lantikan_pengadil WHERE jadual_id=?',lazy);
+  db.prepare("UPDATE jadual_perlawanan SET tarikh=date('now','+8 hours','+2 hours'),masa=time('now','+8 hours','+2 hours') WHERE id=?").run(lazy);
   db.prepare(`UPDATE lantikan_pengadil SET notif_hantar=1,tarikh_notif=datetime('now','+8 hours','-4 hours')
     WHERE id=?`).run(lazyRow.id);
   assert.equal(await worker.autoTolakLantikanTertunggak(env,{jadual_id:lazy}),1);

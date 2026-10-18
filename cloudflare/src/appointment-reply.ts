@@ -35,9 +35,6 @@ export async function appointmentReply(request: Request, env: Env): Promise<Resp
     return json({ error: true, message: 'Sila berikan sebab penolakan.' }, 400);
   }
   const meta = auditMetaFrom(request);
-  if (await autoTolakLantikanTertunggak(env, { id: lantikanId }, meta) > 0) {
-    return json({ error: true, message: 'Tempoh menjawab telah tamat. Lantikan ini telah ditolak secara automatik.' }, 400);
-  }
   const assignment = await env.DB.prepare(`
     SELECT lp.id,lp.jadual_id,lp.status,lp.komen,lp.jawatan,
       jp.tarikh,jp.masa,jp.tempat,jp.pasukan_home,jp.pasukan_away,jp.no_perlawanan,
@@ -48,6 +45,9 @@ export async function appointmentReply(request: Request, env: Env): Promise<Resp
     WHERE lp.id=? AND lp.pengadil_id=?`).bind(lantikanId, actor.id).first<Assignment>();
   if (!assignment) {
     return json({ error: true, message: 'Lantikan tidak dijumpai atau bukan milik anda.' }, 404);
+  }
+  if (await autoTolakLantikanTertunggak(env, { id: lantikanId }, meta) > 0) {
+    return json({ error: true, message: 'Tempoh menjawab telah tamat. Lantikan ini telah ditolak secara automatik.' }, 400);
   }
   if (assignment.status !== 'Belum Jawab') {
     return json({ error: true, message: assignment.status === 'Ditolak' && (assignment.komen ?? '') === LANTIKAN_AUTO_TOLAK_KOMEN
