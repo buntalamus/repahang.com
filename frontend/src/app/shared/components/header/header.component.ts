@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, Outp
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../core/services/auth.service';
 import { ApiService } from '../../../core/services/api.service';
+import { SupportWidgetComponent } from '../support-chat/support-widget.component';
 
 interface NotificationEntry {
   id: number; subject?: string; title?: string; message: string; is_read: number; created_at: string;
@@ -12,6 +13,7 @@ interface NotificationResponse {
 
 @Component({
   selector: 'app-header',
+  imports: [SupportWidgetComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 px-6 py-4 bg-white border-b border-slate-200">
@@ -31,7 +33,7 @@ interface NotificationResponse {
           }
         </div>
       </div>
-      <div class="flex items-center space-x-4">
+      <div class="flex flex-wrap items-center gap-3">
         <!-- Notification Bell -->
         <div class="relative" data-notification-panel>
           <button #notificationButton (click)="toggleNotifications()" aria-label="Buka notifikasi" [attr.aria-expanded]="showNotifications" [attr.aria-controls]="showNotifications ? 'header-notifications' : null" class="relative p-2 rounded-lg hover:bg-slate-100 transition">
@@ -73,6 +75,8 @@ interface NotificationResponse {
             </section>
           }
         </div>
+
+        <app-support-widget />
 
         <div class="text-right hidden sm:block">
           <p class="text-xs text-slate-600">Log masuk sebagai</p>

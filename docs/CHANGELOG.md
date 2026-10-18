@@ -4,6 +4,14 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [18 Oktober 2026] — Butang chat tidak menutup kandungan portal
+
+- Butang Hubungi Admin dan pautan Chat Pengguna dipindahkan daripada penjuru bawah terapung ke bar atas, bersama notifikasi. Butang mengikut aliran susun atur; pada telefon bar atas membalut ke baris baharu tanpa menindih kandungan.
+- Tema hitam-kuning dan penanda belum dibaca dikekalkan. Kotak chat hanya muncul apabila dibuka dan ditutup apabila pengguna menekan di luar atau bertukar halaman. Butang Tutup dan Escape masih tersedia.
+- Validasi: build production, browser Pengadil/Admin, penghantaran mesej pada data ujian, penutupan luar panel serta AXE desktop/telefon 390px. Tiada perubahan API atau migrasi diperlukan.
+
+---
+
 ## [18 Oktober 2026] — Profil lengkap dan status Telegram yang konsisten
 
 - Profil sendiri Pengadil, Penilai, PP Daerah dan Admin, borang edit Pengguna/senarai berdaftar serta modal profil global menggunakan medan yang sama: identiti, persatuan, pakaian, alamat kediaman, pekerjaan dan alamat majikan lengkap, waris dan kelayakan.

@@ -208,16 +208,16 @@ Klik **Simpan Profil** / **Simpan** untuk menyimpan. **Batal** membuang perubaha
 
 ## 2.8 Hubungi Admin melalui Chat
 
-Untuk semua kategori Pengadil dan Penilai Pengadil, butang **Hubungi Admin** tersedia di penjuru kanan bawah setiap halaman portal. Pegawai Pembangunan Daerah yang mempunyai keupayaan Pengadil atau Penilai juga boleh menggunakannya.
+Untuk semua kategori Pengadil dan Penilai Pengadil, butang **Hubungi Admin** tersedia di bar atas setiap halaman portal, bersama butang notifikasi. Pegawai Pembangunan Daerah yang mempunyai keupayaan Pengadil atau Penilai juga boleh menggunakannya.
 
 1. Klik **Hubungi Admin**.
 2. Tulis pertanyaan dalam **Mesej kepada Admin**, kemudian klik **Hantar** (maksimum 2,000 aksara).
 3. Balasan Admin muncul dalam kotak yang sama. Jika chat ditutup, penanda kuning menunjukkan bilangan balasan belum dibaca.
-4. Klik **Lihat mesej terdahulu** untuk sejarah lama. Klik **Tutup chat** atau tekan Escape untuk menutup panel.
+4. Klik **Lihat mesej terdahulu** untuk sejarah lama. Klik **Tutup chat**, tekan Escape atau tekan di luar panel untuk menutupnya. Panel turut ditutup apabila bertukar halaman.
 
 Perbualan disimpan dan boleh dibaca semula selepas log masuk. Pengguna hanya boleh mengakses perbualan sendiri. Balasan datang daripada Admin; chat dikemas kini berkala ketika halaman aktif.
 
-**Untuk Admin:** Buka **Komunikasi → Chat Pengguna** (`/admin/chat`). Cari nama jika perlu, pilih perbualan, tulis dalam **Balasan kepada pengguna**, kemudian klik **Hantar**. Penanda belum dibaca dikongsi antara Admin. Pada telefon, gunakan **← Senarai** untuk kembali ke senarai perbualan. Pautan terapung **Chat Pengguna** pada halaman Admin lain memaparkan bilangan mesej belum dibaca.
+**Untuk Admin:** Buka **Komunikasi → Chat Pengguna** (`/admin/chat`). Cari nama jika perlu, pilih perbualan, tulis dalam **Balasan kepada pengguna**, kemudian klik **Hantar**. Penanda belum dibaca dikongsi antara Admin. Pada telefon, gunakan **← Senarai** untuk kembali ke senarai perbualan. Pautan **Chat Pengguna** di bar atas pada halaman Admin lain memaparkan bilangan mesej belum dibaca.
 
 ---
 

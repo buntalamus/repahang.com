@@ -1,13 +1,12 @@
-import { Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { SidebarComponent } from '../../shared/components/sidebar/sidebar.component';
 import { HeaderComponent } from '../../shared/components/header/header.component';
-import { SupportWidgetComponent } from '../../shared/components/support-chat/support-widget.component';
 
 @Component({
   selector: 'app-admin-layout',
-  standalone: true,
-  imports: [RouterOutlet, SidebarComponent, HeaderComponent, SupportWidgetComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [RouterOutlet, SidebarComponent, HeaderComponent],
   template: `
     <div class="min-h-screen flex">
       <app-sidebar [isOpen]="sidebarOpen" (closed)="sidebarOpen = false" />
@@ -21,7 +20,6 @@ import { SupportWidgetComponent } from '../../shared/components/support-chat/sup
           <router-outlet />
         </section>
       </main>
-      <app-support-widget />
     </div>
   `,
 })
