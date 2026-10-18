@@ -1,65 +1,88 @@
 @if (loading) {
   <app-loading [message]="'Memuatkan senarai ' + typeLabel.toLowerCase() + '...'" />
 } @else {
-  <!-- Kad Statistik -->
-  <div class="grid grid-cols-3 gap-4 mb-6">
-    <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-      <p class="text-sm text-gray-500 font-medium mb-1">Jumlah {{ typeLabel }}</p>
-      <p class="text-2xl font-bold text-gray-900">{{ stats.total }}</p>
-      <p class="text-[10px] text-gray-400 mt-1">{{ typeLabelFull }} tahun {{ yearFilter }}.</p>
+  <section aria-label="Statistik senarai ditapis" class="grid grid-cols-3 gap-3 mb-4">
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <p class="text-sm text-slate-600 font-medium mb-1">Jumlah {{ typeLabel }}</p>
+      <p class="text-2xl font-bold text-slate-900">{{ stats.total }}</p>
+      <p class="text-xs text-slate-600 mt-1">Mengikut penapis tahun {{ yearFilter }}.</p>
     </div>
-    <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-      <p class="text-sm text-gray-500 font-medium mb-1">Lelaki</p>
-      <p class="text-2xl font-bold text-blue-600">{{ stats.lelaki }}</p>
-      <p class="text-[10px] text-gray-400 mt-1">{{ typeLabel }} lelaki berdaftar.</p>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <p class="text-sm text-slate-600 font-medium mb-1">Lelaki</p>
+      <p class="text-2xl font-bold text-slate-900">{{ stats.lelaki }}</p>
     </div>
-    <div class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-      <p class="text-sm text-gray-500 font-medium mb-1">Perempuan</p>
-      <p class="text-2xl font-bold text-pink-600">{{ stats.perempuan }}</p>
-      <p class="text-[10px] text-gray-400 mt-1">{{ typeLabel }} perempuan berdaftar.</p>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <p class="text-sm text-slate-600 font-medium mb-1">Perempuan</p>
+      <p class="text-2xl font-bold text-slate-900">{{ stats.perempuan }}</p>
     </div>
-  </div>
+  </section>
 
-  <!-- Penapis -->
-  <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
-    <div class="flex flex-col lg:flex-row gap-3">
-      <div class="relative flex-1">
-        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
-        <input type="text" [(ngModel)]="searchQuery" (ngModelChange)="applyFilter()"
-          placeholder="Cari nama, No. KP, persatuan, jenis..."
-          class="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-      </div>
-      <select [(ngModel)]="yearFilter" (ngModelChange)="loadReferees()"
-        class="px-4 py-2.5 border border-slate-300 rounded-lg text-sm bg-white">
-        @for (y of years; track y) {
-          <option [value]="y">{{ y }}</option>
+  @if (listType === 'pengadil_berdaftar') {
+    <section aria-labelledby="exam-summary-title" class="mb-6">
+      <h2 id="exam-summary-title" class="text-sm font-semibold text-slate-900 mb-2">Keputusan ujian tahun {{ yearFilter }}</h2>
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-3">
+        @for (exam of examSummary(); track exam.key) {
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <h3 class="font-semibold text-sm text-slate-900 mb-3">{{ exam.label }}</h3>
+            <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+              @for (result of exam.results; track result.label) {
+                <div class="flex justify-between gap-2"><dt class="text-slate-600">{{ result.label }}</dt><dd class="font-bold text-slate-900">{{ result.count }}</dd></div>
+              }
+            </dl>
+          </div>
         }
-      </select>
-      <select [(ngModel)]="genderFilter" (ngModelChange)="applyFilter()"
-        class="px-4 py-2.5 border border-slate-300 rounded-lg text-sm bg-white">
-        <option value="all">Semua Jantina</option>
-        <option value="LELAKI">Lelaki</option>
-        <option value="PEREMPUAN">Perempuan</option>
-      </select>
-      <div class="flex gap-2">
-        <button (click)="downloadExcel()" title="Muat Turun Excel"
-          class="inline-flex items-center gap-2 px-4 py-2.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition">
-          <span class="material-symbols-outlined text-lg">download</span>
-          <span class="hidden sm:inline">Excel</span>
-        </button>
-        <button (click)="printList()" title="Cetak"
-          class="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-600 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition print:hidden">
-          <span class="material-symbols-outlined text-lg">print</span>
-          <span class="hidden sm:inline">Cetak</span>
-        </button>
+      </div>
+      <p class="text-xs text-slate-600 mt-2">Statistik mengikut semua penapis aktif. Tiada rekod bermaksud tiada permohonan ujian tahun ini; belum direkodkan bermaksud keputusan masih kosong.</p>
+    </section>
+  }
+
+  <section aria-label="Penapis senarai pengadil" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+      <div class="sm:col-span-2">
+        <label for="referee-search" class="block text-xs font-semibold text-slate-700 mb-1">Carian</label>
+        <input id="referee-search" type="search" [(ngModel)]="searchQuery" (ngModelChange)="applyFilter()"
+          placeholder="Nama, No. KP, persatuan atau jenis pengadil"
+          class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-pahang-yellow" />
+      </div>
+      <div>
+        <label for="referee-year" class="block text-xs font-semibold text-slate-700 mb-1">Tahun pendaftaran / ujian</label>
+        <select id="referee-year" [(ngModel)]="yearFilter" (ngModelChange)="loadReferees()" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white">
+          @for (y of years; track y) { <option [value]="y">{{ y }}</option> }
+        </select>
+      </div>
+      <div>
+        <label for="referee-gender" class="block text-xs font-semibold text-slate-700 mb-1">Jantina</label>
+        <select id="referee-gender" [(ngModel)]="genderFilter" (ngModelChange)="applyFilter()" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white">
+          <option value="all">Semua Jantina</option><option value="LELAKI">Lelaki</option><option value="PEREMPUAN">Perempuan</option>
+        </select>
+      </div>
+      @if (listType === 'pengadil_berdaftar') {
+        <div>
+          <label for="referee-class" class="block text-xs font-semibold text-slate-700 mb-1">Kelayakan kelas hingga {{ yearFilter }}</label>
+          <select id="referee-class" [ngModel]="qualificationFilter()" (ngModelChange)="qualificationFilter.set($event); applyFilter()" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white">
+            <option value="all">Semua kelas</option><option value="class3">Kelas III FAM</option><option value="class1">Kelas I FAM</option><option value="unrecorded">Belum ada rekod kelulusan kelas</option>
+          </select>
+        </div>
+        @for (exam of examKinds; track exam.key) {
+          <div>
+            <label [for]="'referee-' + exam.key" class="block text-xs font-semibold text-slate-700 mb-1">{{ exam.label }} · {{ yearFilter }}</label>
+            <select [id]="'referee-' + exam.key" [ngModel]="resultFilters()[exam.key]" (ngModelChange)="setResultFilter(exam.key, $event)" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white">
+              <option value="all">Semua keputusan</option>
+              @for (result of examResults; track result) { <option [value]="result">{{ result }}</option> }
+            </select>
+          </div>
+        }
+      }
+    </div>
+    <div class="flex flex-wrap items-center justify-between gap-3 mt-4">
+      <p class="text-xs text-slate-600" role="status">Menunjukkan {{ filtered.length }} daripada {{ referees.length }} {{ typeLabel.toLowerCase() }} berdaftar.</p>
+      <div class="flex flex-wrap gap-2">
+        @if (hasFilters) { <button type="button" (click)="resetFilters()" class="px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-700 hover:bg-slate-50">Kosongkan penapis</button> }
+        <button type="button" (click)="downloadExcel()" class="inline-flex items-center gap-2 px-4 py-2 bg-pahang-yellow text-pahang-black text-sm font-semibold rounded-lg hover:brightness-95"><span class="material-symbols-outlined text-lg" aria-hidden="true">download</span>Excel</button>
+        <button type="button" (click)="printList()" class="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-semibold rounded-lg hover:bg-slate-800 print:hidden"><span class="material-symbols-outlined text-lg" aria-hidden="true">print</span>Cetak</button>
       </div>
     </div>
-    @if (searchQuery || genderFilter !== 'all') {
-      <div class="mt-3 text-xs text-slate-500">
-        Menunjukkan {{ filtered.length }} daripada {{ referees.length }} {{ typeLabel.toLowerCase() }}
-      </div>
-    }
-  </div>
+  </section>
 
   <!-- Bar tindakan batch taraf (melekat di bawah pada mobile) -->
   @if (selectedIds.size > 0) {
@@ -68,7 +91,7 @@
                 max-md:rounded-none max-md:rounded-t-xl max-md:mb-0 max-md:shadow-2xl">
       <div class="flex items-center justify-between gap-3 mb-2 md:mb-0 md:hidden">
         <span class="text-sm font-semibold">{{ selectedIds.size }} dipilih</span>
-        <button (click)="selectedIds.clear()" class="text-xs text-slate-400 hover:text-white underline">
+        <button (click)="selectedIds.clear()" class="text-xs text-slate-600 hover:text-white underline">
           Batal pilihan
         </button>
       </div>
@@ -88,7 +111,7 @@
           class="flex-1 md:flex-none px-3 py-2 md:py-1.5 bg-slate-600 text-white text-xs font-semibold rounded-lg hover:bg-slate-500 transition disabled:opacity-50 whitespace-nowrap">
           Buang
         </button>
-        <button (click)="selectedIds.clear()" class="ml-auto text-xs text-slate-400 hover:text-white underline hidden md:inline">
+        <button (click)="selectedIds.clear()" class="ml-auto text-xs text-slate-600 hover:text-white underline hidden md:inline">
           Batal pilihan
         </button>
       </div>
@@ -103,7 +126,7 @@
           <tr>
             <th class="px-3 py-3 w-10 print:hidden">
               <input type="checkbox" [checked]="allPagedSelected()" (change)="toggleSelectAll()"
-                class="w-4 h-4 rounded border-slate-300" title="Pilih semua di halaman ini" />
+                class="w-4 h-4 rounded border-slate-300" aria-label="Pilih semua di halaman ini" />
             </th>
             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase w-12">#</th>
             <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Nama</th>
@@ -121,13 +144,13 @@
             <tr class="hover:bg-slate-50 transition-colors" [class.bg-amber-50]="isSelected(ref.user_id)">
               <td class="px-3 py-3 print:hidden">
                 <input type="checkbox" [checked]="isSelected(ref.user_id)" (change)="toggleSelect(ref.user_id)"
-                  class="w-4 h-4 rounded border-slate-300" />
+                  class="w-4 h-4 rounded border-slate-300" [attr.aria-label]="'Pilih ' + ref.nama_penuh" />
               </td>
-              <td class="px-4 py-3 text-slate-400 text-xs">{{ getGlobalIndex(i) }}</td>
+              <td class="px-4 py-3 text-slate-600 text-xs">{{ getGlobalIndex(i) }}</td>
               <td class="px-4 py-3">
                 <div class="flex items-center gap-3">
                   @if (ref.url_gambar_profil) {
-                    <img [src]="getProfileImage(ref.url_gambar_profil)" class="w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+                    <img alt="" [src]="getProfileImage(ref.url_gambar_profil)" class="w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
                       onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
                     <div class="w-10 h-10 rounded-full bg-slate-200 items-center justify-center text-xs font-medium text-slate-600 hidden shrink-0">
                       {{ (ref.nama_penuh || '?')[0] }}
@@ -145,7 +168,7 @@
                         <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-amber-400 text-slate-900 leading-none">KEBANGSAAN</span>
                       }
                       @if (+ref.pengadil_negeri) {
-                        <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-blue-500 text-white leading-none">NEGERI</span>
+                        <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-blue-700 text-white leading-none">NEGERI</span>
                       }
                       @if (+ref.pengadil_daerah) {
                         <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-slate-500 text-white leading-none">DAERAH</span>
@@ -169,7 +192,13 @@
                 </span>
               </td>
               <td class="px-4 py-3 text-slate-600 text-xs">{{ getUmurFromIC(ref.no_kp) || '-' }} tahun</td>
-              <td class="px-4 py-3 text-slate-600 text-xs">{{ ref.jenis_pengadil || '-' }}</td>
+              <td class="px-4 py-3 text-slate-600 text-xs">
+                {{ ref.jenis_pengadil || '-' }}
+                @if (listType === 'pengadil_berdaftar') {
+                  <p class="font-semibold text-slate-900 mt-1">{{ qualificationLabel(ref) }}</p>
+                  @for (exam of examKinds; track exam.key) { <p class="mt-1">{{ exam.label }}: {{ examResult(ref, exam.key) }}</p> }
+                }
+              </td>
               <td class="px-4 py-3 text-slate-600 text-xs">{{ ref.persatuan || '-' }}</td>
               <td class="px-4 py-3 text-slate-600 text-xs">{{ ref.no_telefon }}</td>
               <td class="px-4 py-3 text-center print:hidden">
@@ -190,7 +219,7 @@
             <tr>
               <td colspan="10" class="px-4 py-16 text-center">
                 <span class="material-symbols-outlined text-4xl text-slate-300 mb-2">person_off</span>
-                <p class="text-slate-400 text-sm">Tiada {{ typeLabel.toLowerCase() }} berdaftar ditemui.</p>
+                <p class="text-slate-600 text-sm">Tiada {{ typeLabel.toLowerCase() }} berdaftar ditemui.</p>
               </td>
             </tr>
           }
@@ -211,7 +240,7 @@
             <input type="checkbox" [checked]="isSelected(ref.user_id)" (change)="toggleSelect(ref.user_id)"
               class="w-5 h-5 rounded border-slate-300 shrink-0" [attr.aria-label]="'Pilih ' + ref.nama_penuh" />
             @if (ref.url_gambar_profil) {
-              <img [src]="getProfileImage(ref.url_gambar_profil)" class="w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
+              <img alt="" [src]="getProfileImage(ref.url_gambar_profil)" class="w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
               <div class="w-10 h-10 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 items-center justify-center text-sm font-medium text-slate-600 hidden shrink-0">
                 {{ (ref.nama_penuh || '?')[0] }}
@@ -230,7 +259,7 @@
                   <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-amber-400 text-slate-900 leading-none">KEBANGSAAN</span>
                 }
                 @if (+ref.pengadil_negeri) {
-                  <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-blue-500 text-white leading-none">NEGERI</span>
+                  <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-blue-700 text-white leading-none">NEGERI</span>
                 }
                 @if (+ref.pengadil_daerah) {
                   <span class="px-1 py-0.5 rounded text-[8px] font-bold bg-slate-500 text-white leading-none">DAERAH</span>
@@ -245,12 +274,16 @@
               }
             </div>
           </div>
-          <span class="text-xs text-slate-400 shrink-0">#{{ getGlobalIndex(i) }}</span>
+          <span class="text-xs text-slate-600 shrink-0">#{{ getGlobalIndex(i) }}</span>
         </div>
         <div class="grid grid-cols-2 gap-2 text-xs mb-3">
           <div><span class="text-slate-500">Jantina:</span> <span class="font-medium">{{ getJantinaLabel(ref.jantina) }}</span></div>
           <div><span class="text-slate-500">Umur:</span> <span class="font-medium">{{ getUmurFromIC(ref.no_kp) || '-' }} tahun</span></div>
-          <div><span class="text-slate-500">Jenis:</span> <span class="font-medium">{{ ref.jenis_pengadil || '-' }}</span></div>
+          <div><span class="text-slate-600">Jenis:</span> <span class="font-medium">{{ ref.jenis_pengadil || '-' }}</span></div>
+          @if (listType === 'pengadil_berdaftar') {
+            <div class="col-span-2 text-slate-900 font-semibold">{{ qualificationLabel(ref) }}</div>
+            @for (exam of examKinds; track exam.key) { <div class="col-span-2 text-slate-700">{{ exam.label }}: {{ examResult(ref, exam.key) }}</div> }
+          }
           <div><span class="text-slate-500">PBD:</span> <span class="font-medium">{{ ref.persatuan || '-' }}</span></div>
           <div class="col-span-2"><span class="text-slate-500">No. Tel:</span> <span class="font-medium">{{ ref.no_telefon }}</span></div>
         </div>
@@ -263,7 +296,7 @@
     } @empty {
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
         <span class="material-symbols-outlined text-4xl text-slate-300 mb-2">person_off</span>
-        <p class="text-slate-400 text-sm">Tiada {{ typeLabel.toLowerCase() }} berdaftar ditemui.</p>
+        <p class="text-slate-600 text-sm">Tiada {{ typeLabel.toLowerCase() }} berdaftar ditemui.</p>
       </div>
     }
     <app-pagination [totalItems]="filtered.length" [pageSize]="pageSize" [currentPage]="currentPage"
@@ -315,7 +348,7 @@
           <!-- Close -->
           <div class="shrink-0">
             <button (click)="showDetailModal = false"
-              class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition">
+              class="p-1.5 rounded-lg text-gray-600 hover:text-gray-600 hover:bg-gray-100 transition">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
           </div>
@@ -327,23 +360,23 @@
         <div class="flex gap-6">
           <button (click)="detailTab = 'maklumat'"
             class="py-3 text-sm font-medium border-b-2 -mb-px transition"
-            [class]="detailTab === 'maklumat' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'">
+            [class]="detailTab === 'maklumat' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-600 hover:text-gray-600'">
             Maklumat
           </button>
           <button (click)="detailTab = 'sejarah'"
             class="py-3 text-sm font-medium border-b-2 -mb-px transition"
-            [class]="detailTab === 'sejarah' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'">
+            [class]="detailTab === 'sejarah' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-600 hover:text-gray-600'">
             Sejarah
             @if (selectedReferee.approved_applications?.length) {
-              <span class="ml-1.5 text-[10px] text-gray-400">({{ selectedReferee.approved_applications.length }})</span>
+              <span class="ml-1.5 text-[10px] text-gray-600">({{ selectedReferee.approved_applications.length }})</span>
             }
           </button>
           <button (click)="detailTab = 'perlawanan'"
             class="py-3 text-sm font-medium border-b-2 -mb-px transition"
-            [class]="detailTab === 'perlawanan' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'">
+            [class]="detailTab === 'perlawanan' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-600 hover:text-gray-600'">
             Perlawanan
             @if (selectedReferee.perlawanan?.length) {
-              <span class="ml-1.5 text-[10px] text-gray-400">({{ selectedReferee.perlawanan.length }})</span>
+              <span class="ml-1.5 text-[10px] text-gray-600">({{ selectedReferee.perlawanan.length }})</span>
             }
           </button>
         </div>
@@ -357,22 +390,22 @@
           <div class="p-6 space-y-6">
             <!-- Maklumat Peribadi -->
             <div>
-              <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Maklumat Peribadi</h4>
+              <h4 class="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">Maklumat Peribadi</h4>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <p class="text-xs text-gray-400 mb-0.5">No. Kad Pengenalan</p>
+                  <p class="text-xs text-gray-600 mb-0.5">No. Kad Pengenalan</p>
                   <p class="text-sm font-medium text-gray-900 font-mono">{{ selectedReferee.no_kp || '-' }}</p>
                 </div>
                 <div>
-                  <p class="text-xs text-gray-400 mb-0.5">Tarikh Lahir</p>
+                  <p class="text-xs text-gray-600 mb-0.5">Tarikh Lahir</p>
                   <p class="text-sm font-medium text-gray-900">{{ getTarikhLahirFromIC(selectedReferee.no_kp) }}</p>
                 </div>
                 <div>
-                  <p class="text-xs text-gray-400 mb-0.5">No. Telefon</p>
+                  <p class="text-xs text-gray-600 mb-0.5">No. Telefon</p>
                   <p class="text-sm font-medium text-gray-900">{{ selectedReferee.no_telefon || '-' }}</p>
                 </div>
                 <div>
-                  <p class="text-xs text-gray-400 mb-0.5">Persatuan Bola Sepak Daerah</p>
+                  <p class="text-xs text-gray-600 mb-0.5">Persatuan Bola Sepak Daerah</p>
                   <p class="text-sm font-medium text-gray-900">{{ selectedReferee.persatuan || '-' }}</p>
                 </div>
               </div>
@@ -382,7 +415,7 @@
 
             <!-- Alamat -->
             <div>
-              <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Alamat</h4>
+              <h4 class="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">Alamat</h4>
               <p class="text-sm text-gray-900">{{ selectedReferee.alamat1 || '-' }}{{ selectedReferee.alamat2 ? ', ' + selectedReferee.alamat2 : '' }}</p>
               <p class="text-sm text-gray-500 mt-0.5">{{ selectedReferee.poskod || '' }} <span class="uppercase">{{ selectedReferee.daerah || '' }}</span>{{ selectedReferee.negeri ? ', ' + selectedReferee.negeri : '' }}</p>
             </div>
@@ -391,18 +424,18 @@
 
             <!-- Pekerjaan -->
             <div>
-              <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Pekerjaan</h4>
+              <h4 class="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">Pekerjaan</h4>
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <p class="text-xs text-gray-400 mb-0.5">Status</p>
+                  <p class="text-xs text-gray-600 mb-0.5">Status</p>
                   <p class="text-sm font-medium text-gray-900">{{ selectedReferee.status_kerja || '-' }}</p>
                 </div>
                 <div>
-                  <p class="text-xs text-gray-400 mb-0.5">Jawatan</p>
+                  <p class="text-xs text-gray-600 mb-0.5">Jawatan</p>
                   <p class="text-sm font-medium text-gray-900">{{ selectedReferee.jawatan || '-' }}</p>
                 </div>
                 <div>
-                  <p class="text-xs text-gray-400 mb-0.5">Majikan</p>
+                  <p class="text-xs text-gray-600 mb-0.5">Majikan</p>
                   <p class="text-sm font-medium text-gray-900">{{ selectedReferee.nama_majikan || '-' }}</p>
                 </div>
               </div>
@@ -412,18 +445,18 @@
 
             <!-- Waris -->
             <div>
-              <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Waris</h4>
+              <h4 class="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">Waris</h4>
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <p class="text-xs text-gray-400 mb-0.5">Nama</p>
+                  <p class="text-xs text-gray-600 mb-0.5">Nama</p>
                   <p class="text-sm font-medium text-gray-900">{{ selectedReferee.nama_waris || '-' }}</p>
                 </div>
                 <div>
-                  <p class="text-xs text-gray-400 mb-0.5">Hubungan</p>
+                  <p class="text-xs text-gray-600 mb-0.5">Hubungan</p>
                   <p class="text-sm font-medium text-gray-900">{{ selectedReferee.hubungan_waris || '-' }}</p>
                 </div>
                 <div>
-                  <p class="text-xs text-gray-400 mb-0.5">No. Telefon</p>
+                  <p class="text-xs text-gray-600 mb-0.5">No. Telefon</p>
                   <p class="text-sm font-medium text-gray-900">{{ selectedReferee.telefon_waris || '-' }}</p>
                 </div>
               </div>
@@ -431,7 +464,7 @@
 
             <!-- Notifikasi Telegram -->
             <div>
-              <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Notifikasi Telegram</h4>
+              <h4 class="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">Notifikasi Telegram</h4>
               <div class="flex items-center gap-3">
                 @if (selectedReferee.telegram_chat_id) {
                   <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg text-xs font-medium text-green-700">
@@ -457,10 +490,10 @@
                 <table class="w-full text-sm">
                   <thead>
                     <tr class="border-b border-gray-200">
-                      <th class="text-left py-2 pr-4 text-xs font-semibold text-gray-400 uppercase">Tahun</th>
-                      <th class="text-left py-2 pr-4 text-xs font-semibold text-gray-400 uppercase">Permohonan</th>
-                      <th class="text-left py-2 pr-4 text-xs font-semibold text-gray-400 uppercase">Keputusan</th>
-                      <th class="text-left py-2 text-xs font-semibold text-gray-400 uppercase">Catatan</th>
+                      <th class="text-left py-2 pr-4 text-xs font-semibold text-gray-600 uppercase">Tahun</th>
+                      <th class="text-left py-2 pr-4 text-xs font-semibold text-gray-600 uppercase">Permohonan</th>
+                      <th class="text-left py-2 pr-4 text-xs font-semibold text-gray-600 uppercase">Keputusan</th>
+                      <th class="text-left py-2 text-xs font-semibold text-gray-600 uppercase">Catatan</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -476,7 +509,7 @@
                                 class="text-xs text-gray-500 hover:text-gray-700 underline underline-offset-2 transition">Resit</a>
                             }
                             @if (app.admin_notes) {
-                              <span class="text-xs text-gray-400">{{ app.admin_notes }}</span>
+                              <span class="text-xs text-gray-600">{{ app.admin_notes }}</span>
                             }
                             @if (!app.url_resit && !app.admin_notes) {
                               <span class="text-xs text-gray-300">-</span>
@@ -490,7 +523,7 @@
               </div>
             } @else {
               <div class="py-16 text-center">
-                <p class="text-sm text-gray-400">Tiada sejarah permohonan.</p>
+                <p class="text-sm text-gray-600">Tiada sejarah permohonan.</p>
               </div>
             }
           </div>
@@ -511,22 +544,22 @@
               <table class="w-full text-xs">
                 <thead>
                   <tr class="border-b border-gray-200">
-                    <th class="text-center py-1.5 pr-2 font-semibold text-gray-400 uppercase w-8">#</th>
-                    <th class="text-left py-1.5 pr-2 font-semibold text-gray-400 uppercase">Tarikh</th>
-                    <th class="text-left py-1.5 pr-2 font-semibold text-gray-400 uppercase">Jenis / Perlawanan</th>
-                    <th class="text-left py-1.5 pr-2 font-semibold text-gray-400 uppercase">Tempat</th>
-                    <th class="text-left py-1.5 font-semibold text-gray-400 uppercase">Jawatan</th>
+                    <th class="text-center py-1.5 pr-2 font-semibold text-gray-600 uppercase w-8">#</th>
+                    <th class="text-left py-1.5 pr-2 font-semibold text-gray-600 uppercase">Tarikh</th>
+                    <th class="text-left py-1.5 pr-2 font-semibold text-gray-600 uppercase">Jenis / Perlawanan</th>
+                    <th class="text-left py-1.5 pr-2 font-semibold text-gray-600 uppercase">Tempat</th>
+                    <th class="text-left py-1.5 font-semibold text-gray-600 uppercase">Jawatan</th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (m of visibleMatches; track m.id; let i = $index) {
                     <tr class="border-b border-gray-50">
-                      <td class="py-2 pr-2 text-center text-gray-400">{{ i + 1 }}</td>
+                      <td class="py-2 pr-2 text-center text-gray-600">{{ i + 1 }}</td>
                       <td class="py-2 pr-2 text-gray-500 whitespace-nowrap">{{ formatDate(m.tarikh) }}</td>
                       <td class="py-2 pr-2">
                         <p class="font-medium text-gray-900">{{ m.jenis || '-' }}</p>
                         @if (m.home_team && m.away_team) {
-                          <p class="text-gray-400 mt-0.5">{{ m.home_team }} vs {{ m.away_team }}</p>
+                          <p class="text-gray-600 mt-0.5">{{ m.home_team }} vs {{ m.away_team }}</p>
                         }
                       </td>
                       <td class="py-2 pr-2 text-gray-500">{{ m.tempat || '-' }}</td>
@@ -537,7 +570,7 @@
               </table>
             } @else {
               <div class="py-16 text-center">
-                <p class="text-sm text-gray-400">Tiada rekod perlawanan untuk tahun ini.</p>
+                <p class="text-sm text-gray-600">Tiada rekod perlawanan untuk tahun ini.</p>
               </div>
             }
           </div>
@@ -553,12 +586,12 @@
     <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
       <div class="p-5 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl">
         <h3 class="text-base font-semibold text-gray-900">Kemaskini Profil {{ typeLabel }}</h3>
-        <button (click)="showEditModal = false" class="text-gray-400 hover:text-gray-600">✕</button>
+        <button (click)="showEditModal = false" class="text-gray-600 hover:text-gray-600">✕</button>
       </div>
 
       <div class="p-5 space-y-5">
         <div>
-          <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Maklumat Asas</h4>
+          <h4 class="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">Maklumat Asas</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs text-gray-500 mb-1">Nama Penuh</label>
@@ -606,7 +639,7 @@
         </div>
 
         <div>
-          <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Alamat</h4>
+          <h4 class="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">Alamat</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div class="sm:col-span-2">
               <label class="block text-xs text-gray-500 mb-1">Alamat 1</label>
@@ -628,7 +661,7 @@
         </div>
 
         <div>
-          <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Pekerjaan & Waris</h4>
+          <h4 class="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">Pekerjaan & Waris</h4>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs text-gray-500 mb-1">Status Kerja</label>

@@ -1093,21 +1093,26 @@ Melihat dan mengurus senarai semua pengadil / penilai berdaftar.
 ### Kad Statistik:
 | Kad | Penerangan |
 |-----|-----------|
-| Jumlah | Keseluruhan berdaftar |
+| Jumlah | Jumlah mengikut penapis aktif |
 | Lelaki | Bilangan lelaki |
 | Perempuan | Bilangan perempuan |
 
 ### Penapis:
 - Cari mengikut nama, No. KP, persatuan, jenis pengadil
-- Tapis mengikut tahun (5 tahun terkini)
+- Tapis mengikut tahun (tahun semasa dan tiga tahun sebelumnya)
 - Tapis mengikut jantina
+- Untuk Pengadil: pilih kelas tertinggi yang pernah lulus hingga tahun dipilih (Kelas III FAM / Kelas I FAM / belum ada rekod kelulusan kelas)
+- Tapis keputusan ujian kecergasan tahunan, Kelas III dan Kelas I pada tahun dipilih: Lulus / Tidak Lulus / Tidak Hadir / Belum direkodkan / Tiada rekod
+- Penapis boleh digabungkan; **Kosongkan penapis** mengembalikan semua keputusan pada tahun sama
+
+Ringkasan setiap ujian menunjukkan bilangan mengikut semua penapis aktif. Tiada rekod bermaksud tiada permohonan ujian pada tahun tersebut; belum direkodkan bermaksud keputusan belum diisi. Kelayakan kelas terdahulu kekal walaupun tiada ujian pada tahun dipilih. Kelulusan pendaftaran tahunan dan keputusan kecergasan ialah dua perkara berasingan.
 
 ### Tindakan:
 - **Lihat Profil** — Modal butiran penuh (3 tab: Maklumat, Sejarah, Perlawanan)
 - **Edit** — Kemaskini maklumat pengadil
-- **Padam** — Padam rekod (dengan pengesahan)
-- **Muat Turun Excel** — Eksport senarai
-- **Cetak** — Susun atur mesra cetakan
+- **Nyahaktif** — Nyahaktif akaun dengan pengesahan; sejarah dikekalkan
+- **Muat Turun Excel** — Eksport senarai mengikut penapis aktif, termasuk kelas dan keputusan ujian
+- **Cetak** — Cetak senarai dan statistik mengikut penapis aktif
 
 ---
 

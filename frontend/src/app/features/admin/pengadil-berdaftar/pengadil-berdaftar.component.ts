@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
@@ -8,11 +8,12 @@ import { PaginationComponent } from '../../../shared/components/pagination/pagin
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
 import { ProfileModalService } from '../../../core/services/profile-modal.service';
 import { environment } from '../../../../environments/environment';
+import { examKinds, examResults, filterReferees, refereeExamResult, refereeQualificationLabel, type ExamKind, type RefereeFilters } from '../../../../../../shared/referee-filters';
 import { jenisPengadilOptions } from '../../../shared/data/jenis-pengadil';
 
 @Component({
   selector: 'app-pengadil-berdaftar',
-  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FormsModule, LoadingComponent, PaginationComponent, ConfirmModalComponent],
   templateUrl: './pengadil-berdaftar.component.html',
 })
@@ -25,6 +26,12 @@ export class PengadilBerdaftarComponent implements OnInit {
   searchQuery = '';
   yearFilter = new Date().getFullYear().toString();
   genderFilter = 'all';
+  readonly qualificationFilter = signal('all');
+  readonly resultFilters = signal({ annual: 'all', class3: 'all', class1: 'all' });
+  readonly examKinds = examKinds;
+  readonly examResults = examResults;
+  readonly examSummary = signal<{ key: ExamKind; label: string; results: { label: string; count: number }[] }[]>([]);
+  private readonly cdr = inject(ChangeDetectorRef);
   currentPage = 1;
   pageSize = 10;
 
@@ -90,9 +97,11 @@ export class PengadilBerdaftarComponent implements OnInit {
   private loadPersatuanList(): void {
     this.api.get<any>('admin-users.php').subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         this.persatuanList = res.persatuan || [];
       },
       error: () => {
+        this.cdr.markForCheck();
         this.persatuanList = [];
       },
     });
@@ -100,7 +109,7 @@ export class PengadilBerdaftarComponent implements OnInit {
 
   private generateYears(): void {
     const current = new Date().getFullYear();
-    for (let y = current; y >= current - 5; y--) {
+    for (let y = current; y >= current - 3; y--) {
       this.years.push(y);
     }
   }
@@ -109,42 +118,57 @@ export class PengadilBerdaftarComponent implements OnInit {
     this.loading = true;
     this.api.get<any>('referees.php', { year: this.yearFilter, type: this.listType }).subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         this.referees = res.data || [];
-        this.updateStats();
         this.applyFilter();
         this.loading = false;
       },
       error: () => {
+        this.cdr.markForCheck();
         this.loading = false;
         this.toast.error('Gagal memuatkan senarai pengadil.');
       },
     });
   }
 
-  private updateStats(): void {
-    this.stats.total = this.referees.length;
-    this.stats.lelaki = this.referees.filter((r) => (r.jantina || '').toUpperCase() === 'LELAKI').length;
-    this.stats.perempuan = this.referees.filter((r) => (r.jantina || '').toUpperCase() === 'PEREMPUAN').length;
+  get activeFilters(): RefereeFilters {
+    return { q: this.searchQuery, gender: this.genderFilter, qualification: this.qualificationFilter(), ...this.resultFilters() };
+  }
+
+  get hasFilters(): boolean {
+    return Object.entries(this.activeFilters).some(([key, value]) => key === 'q' ? Boolean(value.trim()) : value !== 'all');
   }
 
   applyFilter(): void {
-    let data = [...this.referees];
-    if (this.genderFilter !== 'all') {
-      data = data.filter((r) => (r.jantina || '').toUpperCase() === this.genderFilter.toUpperCase());
-    }
-    if (this.searchQuery) {
-      const q = this.searchQuery.toLowerCase();
-      data = data.filter(
-        (r) =>
-          (r.nama_penuh || '').toLowerCase().includes(q) ||
-          (r.no_kp || '').includes(q) ||
-          (r.persatuan || '').toLowerCase().includes(q) ||
-          (r.jenis_pengadil || '').toLowerCase().includes(q),
-      );
-    }
-    this.filtered = data;
+    this.filtered = filterReferees(this.referees, this.activeFilters, Number(this.yearFilter));
+    this.stats = { total: this.filtered.length,
+      lelaki: this.filtered.filter(r => (r.jantina || '').toUpperCase() === 'LELAKI').length,
+      perempuan: this.filtered.filter(r => (r.jantina || '').toUpperCase() === 'PEREMPUAN').length };
+    this.examSummary.set(examKinds.map(exam => ({ ...exam, results: examResults.map(label => ({ label,
+      count: this.filtered.filter(r => refereeExamResult(r, exam.key, Number(this.yearFilter)) === label).length })) })));
+    // Hidden rows must not remain selected for batch updates after a filter changes.
+    this.selectedIds.clear();
     this.currentPage = 1;
     this.updatePaged();
+  }
+
+  setResultFilter(kind: ExamKind, value: string): void {
+    this.resultFilters.update(filters => ({ ...filters, [kind]: value }));
+    this.applyFilter();
+  }
+
+  resetFilters(): void {
+    this.searchQuery = ''; this.genderFilter = 'all'; this.qualificationFilter.set('all');
+    this.resultFilters.set({ annual: 'all', class3: 'all', class1: 'all' });
+    this.applyFilter();
+  }
+
+  qualificationLabel(ref: Parameters<typeof refereeQualificationLabel>[0]): string {
+    return refereeQualificationLabel(ref, Number(this.yearFilter));
+  }
+
+  examResult(ref: Parameters<typeof refereeExamResult>[0], kind: ExamKind): string {
+    return refereeExamResult(ref, kind, Number(this.yearFilter));
   }
 
   updatePaged(): void {
@@ -199,12 +223,14 @@ export class PengadilBerdaftarComponent implements OnInit {
       value,
     }).subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         this.toast.show(res.message || 'Taraf dikemaskini.', 'success');
         this.selectedIds.clear();
         this.batchSaving = false;
         this.loadReferees();
       },
       error: (err) => {
+        this.cdr.markForCheck();
         this.toast.show(err?.error?.message || 'Ralat mengemaskini taraf.', 'error');
         this.batchSaving = false;
       },
@@ -259,6 +285,7 @@ export class PengadilBerdaftarComponent implements OnInit {
   editReferee(ref: any): void {
     this.api.get<any>('admin-users.php', { id: ref.user_id.toString() }).subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         const user = res.user || {};
         this.editUser = {
           ...user,
@@ -268,6 +295,7 @@ export class PengadilBerdaftarComponent implements OnInit {
         this.showEditModal = true;
       },
       error: () => {
+        this.cdr.markForCheck();
         const persatuanId = this.findPersatuanIdByName(ref.persatuan);
         this.editUser = {
           userId: ref.user_id,
@@ -316,6 +344,7 @@ export class PengadilBerdaftarComponent implements OnInit {
     this.savingEdit = true;
     this.api.put<any>('admin-users.php', this.editUser).subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         this.savingEdit = false;
         if (!res.error) {
           this.toast.success('Profil pengadil berjaya dikemaskini.');
@@ -326,6 +355,7 @@ export class PengadilBerdaftarComponent implements OnInit {
         }
       },
       error: () => {
+        this.cdr.markForCheck();
         this.savingEdit = false;
         this.toast.error('Gagal mengemaskini profil pengadil.');
       },
@@ -349,10 +379,10 @@ export class PengadilBerdaftarComponent implements OnInit {
     this.showDeleteModal = false;
     this.api.delete<any>(`admin-delete-referee.php?id=${id}`).subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         if (!res.error) {
           this.toast.success(res.message || 'Akaun pengadil dinyahaktifkan.');
           this.referees = this.referees.filter((r) => r.user_id !== id);
-          this.updateStats();
           this.applyFilter();
         } else {
           this.toast.error(res.message);
@@ -369,7 +399,8 @@ export class PengadilBerdaftarComponent implements OnInit {
   }
 
   downloadExcel(): void {
-    window.open(`${environment.apiUrl}/download-referees-excel.php?year=${this.yearFilter}&type=${this.listType}`, '_blank');
+    const params = new URLSearchParams({ year: this.yearFilter, type: this.listType, ...this.activeFilters });
+    window.open(`${environment.apiUrl}/download-referees-excel.php?${params}`, '_blank');
   }
 
   private escHtml(str: string): string {
@@ -385,6 +416,7 @@ export class PengadilBerdaftarComponent implements OnInit {
     const filterLabel =
       this.genderFilter === 'LELAKI' ? 'Lelaki' :
       this.genderFilter === 'PEREMPUAN' ? 'Perempuan' : 'Semua Jantina';
+    const extraFilters = this.listType === 'pengadil_berdaftar' ? ` | Kelas: ${this.escHtml({ all: 'Semua', class3: 'Kelas III FAM', class1: 'Kelas I FAM', unrecorded: 'Belum ada rekod' }[this.qualificationFilter()] || '')}${examKinds.map(exam => ` | ${exam.label}: ${this.escHtml(this.resultFilters()[exam.key])}`).join('')}` : '';
     const searchLabel = this.searchQuery ? ` | Carian: "${this.escHtml(this.searchQuery)}"` : '';
 
     const rows = this.filtered.map((ref, i) => {
@@ -396,7 +428,7 @@ export class PengadilBerdaftarComponent implements OnInit {
         <td style="font-family:monospace">${this.escHtml(ref.no_kp || '-')}</td>
         <td>${this.escHtml(jantina)}</td>
         <td>${umur ? umur + ' thn' : '-'}</td>
-        <td>${this.escHtml(ref.jenis_pengadil || '-')}</td>
+        <td>${this.escHtml(ref.jenis_pengadil || '-')}${this.listType === 'pengadil_berdaftar' ? `<br>${this.escHtml(this.qualificationLabel(ref))}<br>${examKinds.map(exam => `${exam.label}: ${this.examResult(ref, exam.key)}`).map(text => this.escHtml(text)).join('<br>')}` : ''}</td>
         <td>${this.escHtml(ref.persatuan || '-')}</td>
         <td>${this.escHtml(ref.no_telefon || '-')}</td>
       </tr>`;
@@ -431,7 +463,7 @@ export class PengadilBerdaftarComponent implements OnInit {
   <div class="header">
     <h1>Persatuan Bola Sepak Pahang</h1>
     <h2>Senarai ${this.typeLabelFull} Tahun ${this.yearFilter}</h2>
-    <p>Jantina: ${filterLabel}${searchLabel}</p>
+    <p>Jantina: ${filterLabel}${searchLabel}${extraFilters}</p>
   </div>
   <div class="meta">
     <span>Jumlah ditunjukkan: <strong>${this.filtered.length} orang</strong></span>
@@ -481,10 +513,11 @@ export class PengadilBerdaftarComponent implements OnInit {
   }
 
   getKeputusan(app: any): string {
-    const isUjian = ['ujian_kecergasan', 'ujian_bertulis', 'ujian_kelas1_fam'].includes(app.jenis_borang);
+    const isUjian = ['ujian_kecergasan', 'kelas3_fam', 'ujian_bertulis', 'ujian_kelas1_fam'].includes(app.jenis_borang);
     if (isUjian && app.status_ujian) {
       return app.status_ujian === 'Lulus' ? 'Lulus' : app.status_ujian === 'Tidak Lulus' ? 'Tidak Lulus' : 'Tidak Hadir';
     }
+    if (isUjian) return 'Belum direkodkan';
     if (app.status === 'Approved') return 'Diluluskan';
     if (app.status === 'Rejected') return 'Ditolak';
     return 'Dalam Proses';

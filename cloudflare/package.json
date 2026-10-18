@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:referee-filters": "node --no-warnings tests/referee-filters.mjs",
     "test:appointment-expiry-policy": "node --no-warnings tests/appointment-expiry-policy.mjs",
     "test:support-chat": "node --no-warnings tests/support-chat.mjs",
     "typecheck": "tsc --noEmit",

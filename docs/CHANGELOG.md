@@ -4,6 +4,16 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [18 Oktober 2026] — Penapis kelas dan keputusan ujian pengadil berdaftar
+
+- Halaman Pengadil Berdaftar boleh ditapis mengikut kelas tertinggi yang pernah lulus hingga tahun dipilih, serta keputusan ujian kecergasan tahunan, Kelas III FAM dan Kelas I FAM pada tahun itu. Keputusan ujian berasingan daripada kelulusan pendaftaran.
+- Status Lulus, Tidak Lulus, Tidak Hadir, Belum direkodkan dan Tiada rekod dibezakan. Ujian bertulis legasi dikelaskan sebagai Kelas III; kelayakan kelas pada tahun kemudian tidak digunakan untuk tahun terdahulu.
+- Kad jumlah/jantina dan ringkasan keputusan mengikut semua penapis aktif. Excel dan cetakan mematuhi penapis yang sama; Excel menyertakan kelas dan keputusan ujian. Senarai eksport menggunakan skop akaun aktif yang sama dengan portal.
+- Pilihan batch dikosongkan apabila penapis berubah; penapis boleh dikosongkan sekali klik. Label pembaca skrin dan kontras pada senarai/pagination diperbaiki.
+- Validasi: ujian penapis/eksport, annual-licensing, referee-audit, typecheck, build production dan AXE pada paparan desktop/telefon. Tiada migrasi atau perubahan rekod diperlukan.
+
+---
+
 ## [18 Oktober 2026] — Auto-tolak sebelum perlawanan dan notis pelantik
 
 - Semakan auto-tolak dikembalikan ke cron lima minit. Deadline biasa: Liga 48 jam sebelum kickoff; Karnival/jenis lain 3 jam sebelum kickoff. Satu fungsi dikongsi oleh Worker dan portal; emel, Telegram, halaman jawapan dan peringatan menggunakan deadline yang sama.

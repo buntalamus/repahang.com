@@ -1,3 +1,5 @@
+import { registeredReferees } from './registered-referees';
+import { refereeExamResult, refereeQualificationLabel, type RefereeFilterRow } from '../../shared/referee-filters';
 import { currentUser, json } from './auth';
 import { APPLICATION_CATEGORY_SQL } from './application-category';
 import type { Env } from './types';
@@ -71,52 +73,25 @@ export async function adminRefereeExport(request: Request, env: Env): Promise<Re
     return json({ error: true, message: 'Tahun tidak sah.' }, 422);
   }
   const ra = params.get('type') === 'penilai_berdaftar';
-  const filter = 'a.id IS NOT NULL';
-  const result = await env.DB.prepare(`
-    SELECT DISTINCT u.id AS user_id, u.nama_penuh, u.no_ic AS no_kp, u.jantina,
-      u.email AS emel, u.no_telefon, u.saiz_baju,
-      CASE WHEN u.role='Penilai' OR u.jenis_pengadil='Penilai Pengadil' THEN 'Penilai Pengadil'
-           ELSE a.jenis_pengadil END AS jenis_pengadil,
-      COALESCE(a.alamat1,u.alamat1) AS alamat1, COALESCE(a.alamat2,u.alamat2) AS alamat2,
-      COALESCE(a.poskod,u.poskod) AS poskod, COALESCE(a.daerah,u.daerah) AS daerah,
-      COALESCE(a.negeri,u.negeri) AS negeri, COALESCE(a.status_kerja,u.status_kerja) AS status_kerja,
-      COALESCE(a.jawatan,u.jawatan) AS jawatan, COALESCE(a.nama_majikan,u.nama_majikan) AS nama_majikan,
-      COALESCE(a.nama_waris,u.nama_waris) AS nama_waris,
-      COALESCE(a.hubungan_waris,u.hubungan_waris) AS hubungan_waris,
-      COALESCE(a.telefon_waris,u.telefon_waris) AS telefon_waris,
-      ${ra ? 'NULL' : 'a.status_seminar'} AS status_seminar,
-      ${ra ? 'NULL' : `CASE WHEN a.tahun_permohonan>=2027 THEN a.status_ujian
-        ELSE (SELECT f.status_ujian FROM permohonan f WHERE f.user_id=a.user_id
-          AND f.tahun_permohonan=a.tahun_permohonan AND f.jenis_borang='ujian_kecergasan'
-          ORDER BY f.id DESC LIMIT 1) END`} AS fitness_status,
-      ${ra ? 'NULL' : `CASE WHEN a.tahun_permohonan>=2027 THEN
-        CASE WHEN a.status_ujian='Lulus' THEN 'Layak patch' ELSE 'Tiada lesen negeri' END
-        WHEN EXISTS (SELECT 1 FROM permohonan f WHERE f.user_id=a.user_id
-          AND f.tahun_permohonan=a.tahun_permohonan AND f.jenis_borang='ujian_kecergasan'
-          AND f.status_ujian='Lulus') THEN 'Layak patch'
-        ELSE 'Tiada lesen negeri' END`} AS license_status,
-      p.nama_persatuan AS persatuan
-    FROM users u
-    LEFT JOIN permohonan a ON a.user_id=u.id
-      AND ${ra ? "(a.jenis_borang='penilai_berdaftar' OR (a.jenis_borang='pengadil_berdaftar' AND UPPER(TRIM(COALESCE(a.jenis_pengadil,'')))='PENILAI PENGADIL'))"
-        : "a.jenis_borang='pengadil_berdaftar' AND UPPER(TRIM(COALESCE(a.jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')"}
-      AND a.status='Approved'
-      AND a.tahun_permohonan=?
-    LEFT JOIN persatuan_bolasepak_daerah p ON p.id=COALESCE(a.persatuan_id,u.persatuan_id)
-    WHERE ${filter} ORDER BY u.nama_penuh ASC
-  `).bind(year).all<ExportRow>();
+  // Use the same authorized roster and filters as the screen, including active accounts.
+  const rosterResponse = await registeredReferees(request, env);
+  if (!rosterResponse.ok) return rosterResponse;
+  const result = await rosterResponse.json<{ data: (ExportRow & RefereeFilterRow)[] }>();
   const headers = ['Bil','Nama Penuh','No. K/P','Jantina','Umur','Jenis Pengadil',
     'Persatuan Bola Sepak Daerah','Emel','No. Telefon','Alamat 1','Alamat 2','Poskod',
     'Daerah','Negeri','Saiz Baju','Status Kerja','Jawatan','Nama Majikan',
     'Nama Waris','Hubungan Waris','Telefon Waris',...(ra ? [] : ['Kehadiran Seminar']),
-    'Keputusan Ujian Kecergasan','Kelayakan Patch/Lesen Negeri'];
-  const rows = result.results.map((r, i) => [i + 1, r.nama_penuh, r.no_kp,
+    'Keputusan Ujian Kecergasan','Kelayakan Patch/Lesen Negeri',
+    ...(ra ? [] : ['Kelayakan Kelas', 'Keputusan Ujian Kelas III FAM', 'Keputusan Ujian Kelas I FAM'])];
+  const rows = result.data.map((r, i) => [i + 1, r.nama_penuh, r.no_kp,
     String(r.jantina ?? '').toUpperCase() === 'LELAKI' ? 'Lelaki'
       : String(r.jantina ?? '').toUpperCase() === 'PEREMPUAN' ? 'Perempuan' : r.jantina,
     ageFromIc(r.no_kp, today), r.jenis_pengadil, r.persatuan, r.emel, r.no_telefon,
     r.alamat1, r.alamat2, r.poskod, r.daerah, r.negeri, r.saiz_baju,
     r.status_kerja, r.jawatan, r.nama_majikan, r.nama_waris, r.hubungan_waris,
-    r.telefon_waris, ...(ra ? [] : [r.status_seminar]), r.fitness_status, r.license_status]);
+    r.telefon_waris, ...(ra ? [] : [r.status_seminar]), ra ? r.fitness_status : refereeExamResult(r, 'annual', year),
+    ra ? '' : Number(r['patch_eligible']) === 1 ? 'Layak patch' : 'Tiada lesen negeri',
+    ...(ra ? [] : [refereeQualificationLabel(r, year), refereeExamResult(r, 'class3', year), refereeExamResult(r, 'class1', year)])]);
   return csv(headers, rows, `senarai-${ra ? 'penilai-pengadil' : 'pengadil'}-${year}.csv`);
 }
 

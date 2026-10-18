@@ -1,6 +1,7 @@
 import { currentUser, json } from './auth';
 import { notifyAccountDeactivated } from './account-notify';
 import type { Env } from './types';
+import { filterReferees, refereeFiltersFromParams, type RefereeFilterRow } from '../../shared/referee-filters';
 import { wroteRow } from './d1-changes';
 
 function positiveId(value: string | null): number | null {
@@ -9,7 +10,7 @@ function positiveId(value: string | null): number | null {
   return Number.isSafeInteger(number) ? number : null;
 }
 
-type RefereeRow = Record<string, unknown> & { user_id: number };
+type RefereeRow = Record<string, unknown> & RefereeFilterRow & { user_id: number };
 
 export async function registeredReferees(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'GET') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
@@ -100,7 +101,7 @@ export async function registeredReferees(request: Request, env: Env): Promise<Re
       }
     }
   }
-  return json({ error: false, data: rows.results });
+  return json({ error: false, data: filterReferees(rows.results, refereeFiltersFromParams(query), year) });
 }
 
 export async function deactivateReferee(request: Request, env: Env): Promise<Response> {

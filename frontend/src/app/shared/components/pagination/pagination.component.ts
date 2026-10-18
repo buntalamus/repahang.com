@@ -1,8 +1,8 @@
-import { Component, EventEmitter, Input, Output, OnChanges } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, OnChanges } from '@angular/core';
 
 @Component({
   selector: 'app-pagination',
-  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (totalItems > 0) {
       <div class="px-6 py-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -10,21 +10,21 @@ import { Component, EventEmitter, Input, Output, OnChanges } from '@angular/core
           Menunjukkan {{ startIndex }} hingga {{ endIndex }} dari {{ totalItems }} hasil
         </div>
         <div class="flex items-center space-x-2">
-          <select [value]="pageSize" (change)="onPageSizeChange($event)"
+          <select aria-label="Bilangan hasil per halaman" [value]="pageSize" (change)="onPageSizeChange($event)"
             class="px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400">
             <option value="10">10 per halaman</option>
             <option value="20">20 per halaman</option>
             <option value="50">50 per halaman</option>
             <option value="100">100 per halaman</option>
           </select>
-          <button (click)="prev()" [disabled]="currentPage === 1"
+          <button aria-label="Halaman sebelumnya" (click)="prev()" [disabled]="currentPage === 1"
             class="px-3 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
           <span class="px-3 py-2 text-sm text-slate-600">{{ currentPage }} dari {{ totalPages }}</span>
-          <button (click)="next()" [disabled]="currentPage === totalPages"
+          <button aria-label="Halaman seterusnya" (click)="next()" [disabled]="currentPage === totalPages"
             class="px-3 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
