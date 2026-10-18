@@ -2,7 +2,8 @@ import { userProfile } from './self-profile';
 import { adminMailboxCampaigns, processMailboxCampaigns } from './mailbox-campaigns';
 import { processDistrictAppointmentMail } from './district-appointment-mail';
 import { portalDashboard } from './portal-dashboard';
-import { currentUser, json, login, logout, session } from './auth';
+import { currentUser, json, login, logout, mobileLogin, mobileLogout, session } from './auth';
+import { mobileVersion, processPushQueue, pushRegister } from './push';
 import { adminUsers } from './admin-users';
 import { adminUserMasterData } from './user-master-data';
 import { adminSettings, maintenanceEnabled } from './admin-settings';
@@ -80,7 +81,9 @@ export function qaWriteAllowed(request: Request, env: Env): boolean {
   if (!env.STAGING_QA_WRITE_TOKEN || ['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return true;
   const pathname = new URL(request.url).pathname;
   // A test user must still be able to obtain a session through the normal UI.
-  if (pathname === '/api/login.php' || pathname === '/api/logout.php') return true;
+  if (['/api/login.php', '/api/logout.php', '/api/mobile-login.php', '/api/mobile-logout.php'].includes(pathname)) {
+    return true;
+  }
   return request.headers.get('X-Refpahang-QA-Write-Token') === env.STAGING_QA_WRITE_TOKEN;
 }
 
@@ -230,6 +233,10 @@ async function api(request: Request, env: Env, pathname: string, ctx: ExecutionC
     if (denied) return denied;
   }
   if (pathname === '/api/login.php') return login(request, env);
+  if (pathname === '/api/mobile-login.php') return mobileLogin(request, env);
+  if (pathname === '/api/mobile-logout.php') return mobileLogout(request, env);
+  if (pathname === '/api/mobile-version.php') return mobileVersion(request, env);
+  if (pathname === '/api/push-register.php') return pushRegister(request, env);
   if (pathname === '/api/admin-mail-campaigns.php') return adminMailboxCampaigns(request, env);
   if (pathname === '/api/admin-mailbox.php') return adminMailbox(request, env);
   if (pathname === '/api/register.php') return register(request, env);
@@ -359,6 +366,11 @@ export default {
           ctx.waitUntil(processNotificationOutbox(env,15).then(()=>undefined)
             .catch(()=>console.error('Notification outbox retry pending.')));
         }
+        // In-app notices written by this request are pushed to the mobile app.
+        if (response.ok && (request.method!=='GET' || pathname==='/api/tugasan.php')) {
+          ctx.waitUntil(processPushQueue(env).then(()=>undefined)
+            .catch(()=>console.error('Push queue retry pending.')));
+        }
         return response;
       }
       if (pathname.startsWith('/uploads/')) {
@@ -390,7 +402,10 @@ export default {
       try { await processNotificationOutbox(env); }
       finally {
         try { await processMailboxCampaigns(env); }
-        finally { await syncAllShinjiruMailboxes(env); }
+        finally {
+          try { await processPushQueue(env); }
+          finally { await syncAllShinjiruMailboxes(env); }
+        }
       }
     }
   },

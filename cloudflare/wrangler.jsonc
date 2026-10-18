@@ -45,7 +45,9 @@
     "APPOINTMENT_DELIVERY_ENABLED": "0",
     "REPORT_DELIVERY_ENABLED": "0",
     "BULK_EMAIL_ENABLED": "0",
-    "MAILBOX_SEND_ENABLED": "0"
+    "MAILBOX_SEND_ENABLED": "0",
+    // Mobile app push (FCM). Also needs the FCM_SERVICE_ACCOUNT secret.
+    "PUSH_ENABLED": "0"
   },
   "triggers": {
     "crons": ["*/5 * * * *"]

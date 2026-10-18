@@ -4,6 +4,20 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [18 Oktober 2026] — App mobile Android dan notifikasi push
+
+- App Flutter baharu dalam `mobile/` mengikut tema website (Inter, hitam/kuning PBNP, kad dan status yang sama). Fungsi ikut peranan, menggunakan API website yang sama:
+  - Pengadil: Tugasan (terima/tolak), Rekod Perlawanan (+ tambah rekod), Penilaian Saya, Permohonan, Profil (tukar gambar melalui kamera/galeri).
+  - Penilai: Tugasan, Tugasan Penilai (status laporan; isi laporan di website), Permohonan, Profil.
+  - PP Daerah: Tugasan, Lantikan Daerah (lantik/buang/hantar notifikasi), Pengesahan Perlawanan, Semakan Permohonan, Profil.
+  - Admin: Dashboard ringkas, Kelulusan Permohonan, Lantikan Pegawai, Profil.
+  - Butang Terima/Tolak disembunyikan selepas perlawanan bermula (server menolak jawapan selepas sepak mula dengan mesej "sudah dijawab" — kekal seperti PHP).
+- Android sahaja buat masa ini; iOS menunggu akaun Apple Developer dan konfigurasi Firebase iOS.
+- Setiap notifikasi portal (baris `notifications`) turut dihantar sebagai push FCM ke telefon yang log masuk melalui app. Tiada titik notifikasi sedia ada diubah; `processPushQueue()` mengikut jadual `notifications` dengan kursor selepas setiap tulisan dan dalam cron. Peringatan lantikan yang tiada baris portal tidak dihantar sebagai push.
+- Endpoint baharu: `mobile-login.php` (token sesi 90 hari untuk `Authorization: Bearer`), `mobile-logout.php`, `push-register.php`, `mobile-version.php`. `currentUser()` menerima Bearer selain kuki; log masuk website tidak berubah.
+- Migrasi baharu: `0028_push_devices.sql` (dipasang di produksi melalui `d1 execute`; kursor bermula pada notifikasi terakhir, jadi notifikasi lama tidak dihantar). Secret `FCM_SERVICE_ACCOUNT` (projek Firebase `refpahangmobile`) dan `PUSH_ENABLED=1` di produksi; staging `0`.
+- Ujian: `tests/mobile-push.mjs`, typecheck, ujian auth/QA/lantikan berkaitan, semakan kelayakan FCM sebenar, dan smoke test endpoint produksi.
+
 ## [18 Oktober 2026] — Pulihkan borang rasmi dan kandungan emel sebelum migrasi
 
 - Hapus penjana HTML/CSS yang mereka semula R1/R2/R4/R11, laporan RA, Futsal, kecergasan dan jadual lantikan. Worker menggunakan terus template PHP dan TCPDF asal melalui perkhidmatan dalaman `refpahang-original-templates`; tiada hos PHP/cPanel atau laluan awam tambahan.

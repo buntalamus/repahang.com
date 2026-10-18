@@ -19,4 +19,11 @@ export interface Env extends EmailEnv {
   IMAP_HOST?: string;
   TELEGRAM_BOT_USERNAME?: string;
   TELEGRAM_BOT_TOKEN?: string;
+  PUSH_ENABLED?: string;
+  /** Firebase service account JSON (secret) for FCM HTTP v1. */
+  FCM_SERVICE_ACCOUNT?: string;
+  MOBILE_MIN_VERSION?: string;
+  MOBILE_LATEST_VERSION?: string;
+  MOBILE_ANDROID_URL?: string;
+  MOBILE_IOS_URL?: string;
 }
