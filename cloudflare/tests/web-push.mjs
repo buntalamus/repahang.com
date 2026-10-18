@@ -69,7 +69,7 @@ try {
   // Decrypted with an independent RFC 8291 implementation (http_ece).
   const plain=JSON.parse(ece.decrypt(Buffer.from(init.body),{version:'aes128gcm',privateKey:ua,authSecret}).toString());
   assert.deepEqual(plain,{title:'Lantikan: Pahang lwn Kedah',body:'Anda dilantik sebagai Pengadil & sila jawab.',
-    url:'/pengadil/tugasan',tag:`n${id}`,badge:1});
+    url:'/pengadil/tugasan',screen:'lantikan',tag:`n${id}`,badge:1});
 
   // A subscription the push service no longer knows is removed.
   sent.length=0;status=410;

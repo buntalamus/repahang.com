@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/web_push_card.dart';
 import 'permohonan_screen.dart' show formLabel;
 
 /// Home tab: greeting header and what needs attention for this role.
@@ -82,6 +83,7 @@ class _UtamaScreenState extends State<UtamaScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                const WebPushCard(),
                 if (user.hasAssignments) ..._officialSection(pending, upcoming),
                 if (user.role == 'Pengadil' && home.matchStats != null) _matchProgress(home.matchStats!),
                 if (user.isDistrict) _districtTiles(home),

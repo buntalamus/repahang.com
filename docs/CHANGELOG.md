@@ -4,6 +4,15 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [18 Oktober 2026] — App RefPahang untuk iPhone di refpahang.com/app
+
+- App Flutter yang sama dengan Android kini dibina untuk web dan dihidangkan di `/app/` (paparan, tab dan aliran sama seperti app Android). Pengguna iPhone: Safari → `refpahang.com/app` → Kongsi → Add to Home Screen; notifikasi diaktifkan dari kad di tab Utama/Profil. Tiada akaun Apple diperlukan.
+- Web Push dalam app web melalui `mobile/web/sw.js` (skop `/app/`); payload kini membawa `screen` supaya notifikasi membuka tab berkaitan. `flutter_bootstrap.js` sendiri tanpa service worker Flutter (yang memadam pendaftaran skop yang sama).
+- Gambar profil di web: dikecilkan ke 400px oleh pemilih gambar (tiada pemangkas natif). Semakan versi dan Shorebird dilangkau di web kerana setiap pembukaan memuat versi terkini.
+- Build: `mobile/tool/build_web.sh` (dijalankan oleh `deploy:production`/`deploy:staging`) menyalin build web ke `frontend/dist/.../app` tanpa simbol nyahpepijat dan renderer skwasm (21MB). Worker menghidangkan `/app/refpahang.apk` dari R2 dan selebihnya `/app/*` dari aset statik.
+- Banner portal untuk iPhone kini menunjuk ke `/app/`.
+- Ujian: WebKit emulasi iPhone — log masuk, tab Utama, Tugasan, Terima tugasan (POST `lantikan-jawab.php` dan muat semula); production `/app/` dimuatkan tanpa ralat dengan hanya `sw.js` berdaftar; ujian web-push dan mobile-push lulus.
+
 ## [18 Oktober 2026] — Website sebagai app iPhone (PWA) dengan notifikasi push
 
 - Pembetulan: halaman Tugasan Pengadil berhenti dipaparkan di iPhone (Safari dan app skrin utama) — butang penapis dan senarai lantikan tiada, jadi tidak boleh Terima/Tolak. Templat meletakkan `@if` di dalam tag `<tr>`, menghasilkan atribut bernama `(a.sebab_status`; Chrome menerimanya tetapi WebKit menolak. Ditukar kepada `[class.bg-slate-50/70]`. 59 laluan portal diimbas dalam WebKit; tiada corak sama ditemui.

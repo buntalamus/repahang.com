@@ -1,5 +1,4 @@
-import 'dart:io';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -196,10 +195,12 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   }
 
   Future<void> _checkVersion() async {
+    // The web build is always the deployed version.
+    if (kIsWeb) return;
     try {
       final body = await Api.instance.get('/api/mobile-version.php');
       final info = await PackageInfo.fromPlatform();
-      final url = '${Platform.isIOS ? body['ios_url'] ?? '' : body['android_url'] ?? ''}';
+      final url = '${defaultTargetPlatform == TargetPlatform.iOS ? body['ios_url'] ?? '' : body['android_url'] ?? ''}';
       final required = _older(info.version, '${body['min_version']}');
       if (!mounted || (!required && !_older(info.version, '${body['latest_version']}')) || url.isEmpty) return;
       await showModalBottomSheet<void>(

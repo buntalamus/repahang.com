@@ -25,10 +25,10 @@ import { WebPushService } from '../../../core/services/web-push.service';
         @case ('needs-install') {
           <p class="font-semibold text-slate-900">Pasang portal ke skrin utama iPhone dahulu.</p>
           <ol class="text-sm text-slate-700 mt-2 list-decimal list-inside space-y-1">
-            <li>Buka refpahang.com dalam <strong>Safari</strong>.</li>
+            <li>Buka <a href="/app/" class="font-semibold underline">refpahang.com/app</a> dalam <strong>Safari</strong>.</li>
             <li>Tekan butang <strong>Kongsi</strong> (kotak dengan anak panah ke atas).</li>
             <li>Pilih <strong>Add to Home Screen</strong> / <strong>Tambah ke Skrin Utama</strong>.</li>
-            <li>Buka RefPahang dari skrin utama, kemudian aktifkan notifikasi di sini.</li>
+            <li>Buka RefPahang dari skrin utama, kemudian tekan <strong>Aktifkan</strong>.</li>
           </ol>
           <p class="text-xs text-slate-600 mt-2">Memerlukan iOS 16.4 atau lebih baharu.</p>
         }

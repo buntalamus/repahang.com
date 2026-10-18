@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
@@ -9,6 +10,7 @@ import '../push.dart';
 import '../theme.dart';
 import '../updater.dart';
 import '../widgets/common.dart';
+import '../widgets/web_push_card.dart';
 import 'home_shell.dart' show AppPage;
 import 'notifikasi_screen.dart';
 
@@ -83,13 +85,19 @@ class _ProfilScreenState extends State<ProfilScreen> {
     if (source == null) return;
     XFile? picked;
     try {
-      picked = await ImagePicker().pickImage(source: source, maxWidth: 1600, maxHeight: 1600,
-          preferredCameraDevice: CameraDevice.front);
+      // The web build has no native cropper: let the picker shrink the photo
+      // to the website's 400px limit instead.
+      picked = await ImagePicker().pickImage(source: source, maxWidth: kIsWeb ? 400 : 1600,
+          maxHeight: kIsWeb ? 400 : 1600, imageQuality: kIsWeb ? 85 : null, preferredCameraDevice: CameraDevice.front);
     } catch (_) {
       if (mounted) showToast(context, 'Kebenaran kamera/galeri diperlukan untuk menukar gambar.', ToastType.error);
       return;
     }
     if (picked == null) return;
+    if (kIsWeb) {
+      await _upload(await picked.readAsBytes());
+      return;
+    }
     // Square 400×400 JPEG, the same output as the website's cropper.
     final cropped = await ImageCropper().cropImage(
       sourcePath: picked.path,
@@ -110,10 +118,15 @@ class _ProfilScreenState extends State<ProfilScreen> {
         IOSUiSettings(title: 'Pangkas gambar', aspectRatioLockEnabled: true, resetAspectRatioEnabled: false),
       ],
     );
-    if (cropped == null || !mounted) return;
+    if (cropped == null) return;
+    await _upload(await cropped.readAsBytes());
+  }
+
+  Future<void> _upload(List<int> bytes) async {
+    if (!mounted) return;
     setState(() => _uploading = true);
     try {
-      final result = await Api.instance.upload('/api/upload-profile-image.php', 'image', cropped.path, 'profile.jpg');
+      final result = await Api.instance.upload('/api/upload-profile-image.php', 'image', bytes, 'profile.jpg');
       if (!mounted) return;
       showToast(context, text(result['message'], 'Gambar profil dikemas kini.'));
       imageCache.clear();
@@ -273,6 +286,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                 const Icon(Icons.chevron_right_rounded, color: Tw.amber700),
               ]),
             ),
+          if (kIsWeb) const WebPushCard(showWhenOn: true),
           const SectionTitle('Akaun'),
           _group([
             _tile(Icons.person_outline, 'Maklumat saya', onTap: () => _details(u)),
@@ -282,7 +296,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                     color: linked ? Tw.emerald600 : Tw.amber600),
                 onTap: linked ? null : _linkTelegram),
             _tile(Icons.notifications_none_rounded, 'Notifikasi',
-                subtitle: PushService.instance.available ? 'Notifikasi telefon aktif' : 'Notifikasi telefon tidak tersedia',
+                subtitle: kIsWeb ? 'Senarai notifikasi' : (PushService.instance.available ? 'Notifikasi telefon aktif' : 'Notifikasi telefon tidak tersedia'),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const NotifikasiScreen()))),
             _tile(Icons.lock_outline_rounded, 'Tukar kata laluan',
                 onTap: () => showAppSheet<void>(context, title: 'Tukar kata laluan', builder: (_) => const _PasswordForm())),
@@ -301,8 +315,10 @@ class _ProfilScreenState extends State<ProfilScreen> {
           ]),
           const SectionTitle('App'),
           _group([
-            _tile(Icons.system_update_rounded, 'Semak kemas kini', subtitle: _version.isEmpty ? null : 'Versi $_version',
-                onTap: _checkUpdate),
+            // The web build updates itself on every load.
+            if (!kIsWeb)
+              _tile(Icons.system_update_rounded, 'Semak kemas kini', subtitle: _version.isEmpty ? null : 'Versi $_version',
+                  onTap: _checkUpdate),
             _tile(Icons.logout_rounded, 'Log keluar', color: Tw.rose600, trailing: const SizedBox.shrink(), onTap: _logout),
           ]),
           const SizedBox(height: 8),

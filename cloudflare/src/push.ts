@@ -208,7 +208,7 @@ export async function processPushQueue(env: Env, limit = 50):
       if (sub.user_id !== row.user_id) continue;
       const webMessage: WebPushMessage = {
         title: message.title, body: message.body, tag: `n${row.id}`, badge: message.badge,
-        url: webPushUrl(sub.role, message.data.screen),
+        url: webPushUrl(sub.role, message.data.screen), screen: message.data.screen,
       };
       jobs.push({ key: `web:${sub.id}`, send: () => sendWebPush(env, sub, webMessage),
         remove: env.DB.prepare('DELETE FROM worker_webpush_subscriptions WHERE id=?').bind(sub.id) });
@@ -279,14 +279,13 @@ export function mobileVersion(request: Request, env: Env): Response {
   });
 }
 
-/** Public Android download, served from R2 key app/refpahang.apk. */
+/** /app/: the Android download (R2 key app/refpahang.apk) and the app's web build. */
 export async function mobileApk(request: Request, env: Env): Promise<Response> {
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
   }
-  if (new URL(request.url).pathname !== '/app/refpahang.apk') {
-    return json({ error: true, message: 'Fail tidak dijumpai.' }, 404);
-  }
+  // Everything else under /app/ is the web build of the app (static assets).
+  if (new URL(request.url).pathname !== '/app/refpahang.apk') return env.ASSETS.fetch(request);
   const object = request.method === 'HEAD' ? await env.MEDIA.head('app/refpahang.apk') : await env.MEDIA.get('app/refpahang.apk');
   if (!object) return json({ error: true, message: 'App belum tersedia untuk dimuat turun.' }, 404);
   return new Response(request.method === 'HEAD' ? null : (object as R2ObjectBody).body, {

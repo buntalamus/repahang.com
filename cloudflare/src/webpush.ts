@@ -26,6 +26,8 @@ export interface WebPushMessage {
   title: string;
   body: string;
   url: string;
+  /** App tab for the web build (/app/): lantikan, permohonan, sejarah or notifikasi. */
+  screen: string;
   tag: string;
   badge?: number;
 }

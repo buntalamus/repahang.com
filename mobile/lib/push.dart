@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -9,6 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import 'api.dart';
 import 'firebase_options.dart';
+import 'web/web_push.dart';
 
 /// Push notifications: registers this device's FCM token with the server and
 /// turns a tapped notification into the app tab to open.
@@ -29,9 +29,16 @@ class PushService {
   bool _ready = false;
   bool _localReady = false;
 
-  bool get available => _ready;
+  bool get available => kIsWeb ? WebPush.instance.state == WebPushState.on : _ready;
 
   Future<void> init() async {
+    if (kIsWeb) {
+      // The web build (iPhone Home Screen app) uses Web Push; a tapped
+      // notification opens ./?screen=<tab> (see web/sw.js).
+      openScreen.value = Uri.base.queryParameters['screen'];
+      await WebPush.instance.init();
+      return;
+    }
     await _local.initialize(
       settings: const InitializationSettings(
         android: AndroidInitializationSettings('@drawable/ic_notification'),
@@ -64,7 +71,7 @@ class PushService {
 
   void _showForeground(RemoteMessage message) {
     final notification = message.notification;
-    if (notification == null || !Platform.isAndroid) return;
+    if (notification == null || defaultTargetPlatform != TargetPlatform.android) return;
     _local.show(
       id: notification.hashCode,
       title: notification.title,
@@ -79,7 +86,7 @@ class PushService {
 
   /// Shows a phone notification from the app itself (e.g. an update is ready).
   Future<void> showLocal(String title, String body, {String? payload}) async {
-    if (!_localReady) return;
+    if (kIsWeb || !_localReady) return;
     await _local.show(
       id: title.hashCode,
       title: title,
@@ -95,6 +102,12 @@ class PushService {
 
   /// Asks for permission and sends the device token to the server. Call after login.
   Future<void> register() async {
+    if (kIsWeb) {
+      // Permission needs a tap on the web, so only re-send an existing
+      // subscription here; the profile/home card turns it on.
+      await WebPush.instance.refresh(syncWithServer: true);
+      return;
+    }
     if (!_ready) return;
     final messaging = FirebaseMessaging.instance;
     final settings = await messaging.requestPermission(alert: true, badge: true, sound: true);
@@ -114,7 +127,7 @@ class PushService {
     try {
       await Api.instance.post('/api/push-register.php', {
         'token': token,
-        'platform': Platform.isIOS ? 'ios' : 'android',
+        'platform': defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android',
         'app_version': info.version,
       });
     } on ApiException catch (error) {
@@ -124,6 +137,7 @@ class PushService {
 
   /// The server drops this session's devices on logout; also stop listening here.
   Future<void> stop() async {
+    if (kIsWeb) await WebPush.instance.disable();
     await _refresh?.cancel();
     _refresh = null;
   }

@@ -132,9 +132,9 @@ class Api {
       _send(() => _dio.delete(path, data: body, queryParameters: query));
 
   /// Multipart upload of one file, as the website's forms send it.
-  Future<Map<String, dynamic>> upload(String path, String field, String filePath, String filename) =>
-      _send(() async => _dio.post(path, data: FormData.fromMap({
-            field: await MultipartFile.fromFile(filePath, filename: filename),
+  Future<Map<String, dynamic>> upload(String path, String field, List<int> bytes, String filename) =>
+      _send(() => _dio.post(path, data: FormData.fromMap({
+            field: MultipartFile.fromBytes(bytes, filename: filename),
           })));
 
   Future<Map<String, dynamic>> _send(Future<Response<dynamic>> Function() request) async {

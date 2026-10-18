@@ -20,9 +20,10 @@ const DISMISS_DAYS = 7;
         <div class="flex-1 min-w-0">
           @switch (kind) {
             @case ('ios') {
-              <p class="font-semibold">Terima notifikasi lantikan terus di iPhone</p>
-              <p class="mt-1">Tekan <strong>Kongsi</strong> di Safari, kemudian pilih <strong>Add to Home Screen</strong>.
-                Buka RefPahang dari skrin utama untuk mengaktifkan notifikasi.</p>
+              <p class="font-semibold">Pasang app RefPahang di iPhone</p>
+              <p class="mt-1">Buka <a href="/app/" class="font-semibold underline">refpahang.com/app</a> di Safari,
+                tekan <strong>Kongsi</strong>, kemudian pilih <strong>Add to Home Screen</strong>.
+                Notifikasi lantikan akan sampai terus ke telefon.</p>
             }
             @case ('android') {
               <p class="font-semibold">Guna app RefPahang untuk Android</p>
@@ -56,7 +57,8 @@ export class PwaPromptComponent {
   readonly kind = computed<'ios' | 'android' | 'enable' | null>(() => {
     if (this.dismissed()) return null;
     const state = this.push.state();
-    if (state === 'needs-install') return 'ios';
+    // iPhone: point to the app at /app/, also for an older Home Screen copy of the portal.
+    if (state === 'needs-install' || (this.push.isIos && state === 'off')) return 'ios';
     if (this.push.isAndroid && !this.push.isStandalone) return 'android';
     if (state === 'off' && (this.push.isStandalone || this.push.isIos)) return 'enable';
     return null;
