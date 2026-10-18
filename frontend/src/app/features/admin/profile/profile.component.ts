@@ -1,4 +1,6 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { ProfileFieldsComponent } from '../../../shared/components/profile-fields/profile-fields.component';
+import { TelegramProfileComponent } from '../../../shared/components/telegram-profile/telegram-profile.component';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, ViewChild, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthService } from '../../../core/services/auth.service';
@@ -9,8 +11,8 @@ import { ImageCropComponent } from '../../../shared/components/image-crop/image-
 
 @Component({
   selector: 'app-admin-profile',
-  standalone: true,
-  imports: [FormsModule, LoadingComponent, ChangePasswordComponent, ImageCropComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [ProfileFieldsComponent, TelegramProfileComponent, FormsModule, LoadingComponent, ChangePasswordComponent, ImageCropComponent],
   templateUrl: './profile.component.html',
 })
 export class AdminProfileComponent implements OnInit {
@@ -20,8 +22,10 @@ export class AdminProfileComponent implements OnInit {
   editing = false;
   saving = false;
   profile: any = {};
+  draft: any = {};
+  associations: { id: number; nama_persatuan: string }[] = [];
+  private readonly cdr = inject(ChangeDetectorRef);
   profileImageUrl = '';
-  generatingTgLink = false;
 
   constructor(
     private api: ApiService,
@@ -31,11 +35,13 @@ export class AdminProfileComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadProfile();
+    this.api.get<{data:{id:number;nama_persatuan:string}[]}>('public-persatuan.php').subscribe({next:res=>{this.associations=res.data||[];this.cdr.markForCheck();}});
   }
 
   loadProfile(): void {
     this.api.get<any>('get-user-profile.php').subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         if (!res.error) {
           this.profile = res.user || res.data || res;
           if (this.profile.url_gambar_profil) {
@@ -44,27 +50,31 @@ export class AdminProfileComponent implements OnInit {
         }
         this.loading = false;
       },
-      error: () => (this.loading = false),
+      error: () => {this.loading = false; this.cdr.markForCheck();},
     });
   }
 
   toggleEdit(): void {
     this.editing = !this.editing;
+    this.draft = this.editing ? structuredClone(this.profile) : {};
   }
 
   saveProfile(): void {
     this.saving = true;
-    this.api.post<any>('update-profile.php', this.profile).subscribe({
+    this.api.post<any>('update-profile.php', this.draft).subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         this.saving = false;
         if (!res.error) {
           this.toast.success('Profil dikemaskini.');
           this.editing = false;
+          this.loadProfile();
         } else {
           this.toast.error(res.message);
         }
       },
       error: (err: any) => {
+        this.cdr.markForCheck();
         this.saving = false;
         this.toast.error(err?.error?.message || 'Gagal mengemaskini profil.');
       },
@@ -83,6 +93,7 @@ export class AdminProfileComponent implements OnInit {
     fd.append('image', blob, 'profile.jpg');
     this.api.postFormData<any>('upload-profile-image.php', fd).subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         if (!res.error) {
           this.toast.success('Gambar profil dikemaskini.');
           this.profileImageUrl = res.data?.url || res.url || '';
@@ -94,24 +105,4 @@ export class AdminProfileComponent implements OnInit {
     });
   }
 
-  generateTelegramLink(): void {
-    this.generatingTgLink = true;
-    this.api.post<any>('telegram-link-self.php', {}).subscribe({
-      next: (res) => {
-        this.generatingTgLink = false;
-        if (!res.error && res.link_url) {
-          window.location.href = res.link_url;
-        } else if (res.linked) {
-          this.loadProfile();
-          this.toast.success('Telegram telah dihubungkan.');
-        } else {
-          this.toast.error(res.message || 'Gagal mendapatkan pautan Telegram.');
-        }
-      },
-      error: (err: any) => {
-        this.generatingTgLink = false;
-        this.toast.error(err?.error?.message || 'Gagal mendapatkan pautan Telegram.');
-      },
-    });
-  }
 }

@@ -182,33 +182,27 @@ Telegram membolehkan anda menerima notifikasi segera untuk lantikan, permohonan,
 
 ## 2.7 Kemaskini Profil
 
-Semua pengguna boleh mengemaskini maklumat profil mereka:
+Semua pengguna membuka **Profil Saya**, kemudian **Kemaskini** (Pengadil) atau **Edit Profil** (Admin/Penilai/PP Daerah).
 
-### Maklumat Yang Boleh Dikemaskini:
+Maklumat yang boleh dilengkapkan:
 
-**Maklumat Peribadi:**
-- Nama Penuh, No. Telefon, Saiz Baju, Tahun Mula Aktif
-- Alamat Penuh (Alamat 1, Alamat 2, Poskod, Daerah)
+- **Peribadi:** Nama, No. Kad Pengenalan, emel, telefon, jantina, umur dan saiz baju.
+- **Alamat Kediaman:** Alamat 1/2, poskod, daerah dan negeri.
+- **Pekerjaan:** Status pekerjaan, jawatan, nama majikan serta alamat majikan lengkap (baris 1/2, poskod, daerah dan negeri).
+- **Waris:** Nama, hubungan dan telefon waris.
+- **Kelayakan:** Jenis penilai, tahun mula aktif, tahun mohon/lulus Kelas III FAM dan tahun mohon/lulus Kelas I FAM.
 
-**Maklumat Pekerjaan:**
-- Status Kerja, Jawatan, Nama Majikan
-- Alamat Majikan (Alamat 1, Alamat 2, Poskod, Daerah, Negeri)
+Persatuan dan jenis pengadil sedia ada boleh dilihat; pengguna menghubungi Admin untuk menukarnya. Rekod pengguna yang belum mempunyai kedua-duanya boleh dilengkapkan mengikut peranan. PP Daerah tidak boleh memindahkan daerah pentadbirannya sendiri.
 
-**Maklumat Waris:**
-- Nama Waris, Hubungan (Ibu Bapa/Pasangan/Anak/Adik-beradik/Lain-lain), No. Telefon Waris
+Tahun mohon/lulus boleh dikosongkan jika belum berkenaan. Tahun mestilah empat digit; tahun lulus tidak boleh sebelum tahun mohon. Sejarah permohonan mengisi paparan tahun yang belum direkodkan; kelulusan kelas hanya disimpulkan daripada keputusan **Lulus**. Mengisi sejarah profil tidak mengubah keputusan ujian tahunan atau kelulusan permohonan.
 
-**Gambar Profil:**
-- Klik ikon kamera pada gambar profil → pilih gambar → potong (crop) → simpan
-- Format diterima: JPEG, PNG, WebP
-- Saiz maksimum: 5MB
+Klik **Simpan Profil** / **Simpan** untuk menyimpan. **Batal** membuang perubahan belum disimpan dan memaparkan semula nilai asal.
 
-### Langkah-langkah:
-1. Pergi ke **Profil Saya**
-2. Klik butang **"Edit"** (ikon pensel)
-3. Kemaskini maklumat yang diperlukan
-4. Klik **"Simpan"**
+**Gambar Profil:** Klik ikon kamera/pensel, pilih gambar JPEG/PNG/WebP (maksimum 5MB sebelum pemampatan), potong dan simpan.
 
-> **Maklumat yang TIDAK boleh diubah:** No. Kad Pengenalan, Emel, Jantina, Negeri (ditetapkan Pahang)
+**Telegram:** Bahagian Pemautan Telegram memaparkan pautan sebenar akaun. Klik **Hubungkan Telegram**, tekan **Mula / Start** pada bot, kemudian kembali ke portal. Status disemak semula apabila halaman aktif; **Semak Status Pemautan** boleh digunakan pada bila-bila masa. Jika semakan gagal, sistem meminta cuba semula dan tidak menganggap akaun belum dipaut.
+
+**Admin dan PP Daerah:** Klik nama untuk membuka modal profil, kemudian **Kemaskini**. Admin boleh mengubah persatuan dan status akaun; PP mengurus profil daerah sendiri. Borang **Pengguna → Edit Profil** serta **Pengadil/RA Berdaftar → Edit** menyediakan medan profil yang sama. Modal **Lihat Profil** menyemak data terkini semasa dibuka; gunakan **Semak status terkini** untuk muat semula.
 
 ---
 

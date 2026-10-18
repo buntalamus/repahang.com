@@ -1,3 +1,6 @@
+import { ModalFocusDirective } from '../../../shared/directives/modal-focus.directive';
+import type { ProfileRecord } from '../../../../../../shared/profile-fields';
+import { ProfileFieldsComponent } from '../../../shared/components/profile-fields/profile-fields.component';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -14,7 +17,7 @@ import { jenisPengadilOptions } from '../../../shared/data/jenis-pengadil';
 @Component({
   selector: 'app-pengadil-berdaftar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [FormsModule, LoadingComponent, PaginationComponent, ConfirmModalComponent],
+  imports: [ModalFocusDirective, ProfileFieldsComponent, FormsModule, LoadingComponent, PaginationComponent, ConfirmModalComponent],
   templateUrl: './pengadil-berdaftar.component.html',
 })
 export class PengadilBerdaftarComponent implements OnInit {
@@ -40,6 +43,9 @@ export class PengadilBerdaftarComponent implements OnInit {
 
   showDetailModal = false;
   selectedReferee: any = null;
+  readonly detailProfile = signal<ProfileRecord | null>(null);
+  readonly detailTelegram = signal<'loading' | 'linked' | 'unlinked' | 'error'>('loading');
+  private detailTelegramRequest = 0;
   detailTab: 'maklumat' | 'sejarah' | 'perlawanan' = 'maklumat';
   matchYearFilter = 'all';
 
@@ -280,6 +286,34 @@ export class PengadilBerdaftarComponent implements OnInit {
     this.detailTab = 'maklumat';
     this.matchYearFilter = 'all';
     this.showDetailModal = true;
+    this.detailProfile.set(null);
+    this.refreshDetailTelegram();
+  }
+
+  refreshDetailTelegram(): void {
+    const id = Number(this.selectedReferee?.user_id);
+    if (!id || !this.showDetailModal) return;
+    const request = ++this.detailTelegramRequest;
+    this.detailTelegram.set('loading');
+    this.api.get<{ error: boolean; profil?: ProfileRecord & { id: number; telegram_linked: number } }>('profil-pengadil.php', { id: String(id) })
+      .subscribe({
+        next: (res) => {
+          if (request !== this.detailTelegramRequest || !this.showDetailModal || Number(this.selectedReferee?.user_id) !== id) return;
+          const linked = res.profil?.telegram_linked;
+          if (res.error || Number(res.profil?.id) !== id || (linked !== 0 && linked !== 1)) {
+            this.detailTelegram.set('error'); return;
+          }
+          const profile=res.profil!;
+          this.detailProfile.set(profile);
+          this.selectedReferee={...this.selectedReferee,nama_penuh:profile['nama_penuh'],emel:profile['email'],
+            no_kp:profile['no_ic'],jenis_pengadil:profile['jenis_pengadil'],saiz_baju:profile['saiz_baju'],
+            url_gambar_profil:profile['url_gambar_profil'],approved_applications:profile['permohonan'],perlawanan:profile['perlawanan']};
+          this.detailTelegram.set(linked === 1 ? 'linked' : 'unlinked');
+        },
+        error: () => {
+          if (request === this.detailTelegramRequest && this.showDetailModal && Number(this.selectedReferee?.user_id) === id) this.detailTelegram.set('error');
+        },
+      });
   }
 
   editReferee(ref: any): void {
@@ -295,38 +329,7 @@ export class PengadilBerdaftarComponent implements OnInit {
         this.showEditModal = true;
       },
       error: () => {
-        this.cdr.markForCheck();
-        const persatuanId = this.findPersatuanIdByName(ref.persatuan);
-        this.editUser = {
-          userId: ref.user_id,
-          user_role: ref.user_role || 'Pengadil',
-          nama_penuh: ref.nama_penuh || '',
-          no_ic: ref.no_kp || '',
-          email: ref.emel || '',
-          no_telefon: ref.no_telefon || '',
-          jantina: ref.jantina || '',
-          jenis_pengadil: ref.jenis_pengadil || '',
-          persatuan_id: ref.persatuan_id || persatuanId,
-          alamat1: ref.alamat1 || '',
-          alamat2: ref.alamat2 || '',
-          poskod: ref.poskod || '',
-          daerah: ref.daerah || '',
-          negeri: ref.negeri || 'Pahang',
-          status_kerja: ref.status_kerja || '',
-          jawatan: ref.jawatan || '',
-          nama_majikan: ref.nama_majikan || '',
-          alamat_majikan1: ref.alamat_majikan1 || '',
-          alamat_majikan2: ref.alamat_majikan2 || '',
-          poskod_majikan: ref.poskod_majikan || '',
-          daerah_majikan: ref.daerah_majikan || '',
-          negeri_majikan: ref.negeri_majikan || '',
-          nama_waris: ref.nama_waris || '',
-          hubungan_waris: ref.hubungan_waris || '',
-          telefon_waris: ref.telefon_waris || '',
-          url_gambar_profil: ref.url_gambar_profil || '',
-          umur: this.getUmurFromIC(ref.no_kp),
-        };
-        this.showEditModal = true;
+        this.toast.error('Gagal membaca profil penuh. Sila cuba semula.');
       },
     });
   }

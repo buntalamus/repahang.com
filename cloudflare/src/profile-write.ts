@@ -1,15 +1,9 @@
+import { normalizeProfileInput } from './profile-contract';
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
 import { wroteRow } from './d1-changes';
 
-const editable = [
-  'nama_penuh', 'no_ic', 'umur', 'email', 'no_telefon', 'jantina',
-  'alamat1', 'alamat2', 'poskod', 'daerah', 'negeri', 'status_kerja',
-  'jawatan', 'nama_majikan', 'alamat_majikan1', 'alamat_majikan2',
-  'poskod_majikan', 'daerah_majikan', 'negeri_majikan', 'nama_waris',
-  'hubungan_waris', 'telefon_waris', 'tahun_mula_aktif', 'saiz_baju',
-] as const;
 const requiredForMembers = [
   'alamat1', 'poskod', 'daerah', 'negeri', 'status_kerja',
   'nama_waris', 'hubungan_waris', 'telefon_waris',
@@ -89,40 +83,29 @@ export async function updateProfile(request: Request, env: Env): Promise<Respons
       }
     }
   }
-  const updates: string[] = [];
-  const values: (string | number | null)[] = [];
-  for (const key of editable) {
-    if (!(key in input)) continue;
-    const raw = input[key];
-    if (key === 'umur') {
-      if (raw !== null && raw !== '' && (typeof raw !== 'number' && typeof raw !== 'string')) {
-        return json({ error: true, message: 'Umur tidak sah.' }, 400);
-      }
-      const age = raw === null || raw === '' ? null : Number(raw);
-      if (age !== null && (!Number.isInteger(age) || age < 0 || age > 120)) {
-        return json({ error: true, message: 'Umur tidak sah.' }, 400);
-      }
-      values.push(age);
-    } else {
-      if (raw !== null && typeof raw !== 'string') return json({ error: true, message: `Medan '${key}' tidak sah.` }, 400);
-      const text = typeof raw === 'string' ? raw.trim() : null;
-      if (text && text.length > (key.startsWith('alamat') ? 500 : 255)) {
-        return json({ error: true, message: `Medan '${key}' terlalu panjang.` }, 400);
-      }
-      values.push(key === 'email' ? email : key === 'nama_penuh' ? name : text);
+  const stored = await env.DB.prepare(`SELECT nama_penuh,email,role,persatuan_id,jenis_pengadil,
+    tahun_mula_aktif,tahun_mohon_kelas3,tahun_lulus_kelas3,tahun_mohon_kelas1,tahun_lulus_kelas1
+    FROM users WHERE id=?`).bind(user.id).first<Record<string, unknown>>();
+  if (!stored) return json({ error: true, message: 'Pengguna tidak ditemui.' }, 404);
+  const normalized = normalizeProfileInput(input, stored);
+  if (normalized.error) return json({ error: true, message: normalized.error }, 400);
+  if (user.role !== 'Admin') {
+    if (Object.hasOwn(input, 'persatuan_id') && Number(input.persatuan_id) !== Number(stored.persatuan_id) &&
+        (stored.persatuan_id || user.role === 'PP Daerah'))
+      return json({ error: true, message: 'Perubahan persatuan perlu dibuat oleh Admin.' }, 403);
+    if (Object.hasOwn(input, 'jenis_pengadil') && String(input.jenis_pengadil ?? '') !== String(stored.jenis_pengadil ?? '') && stored.jenis_pengadil)
+      return json({ error: true, message: 'Perubahan jenis pengadil perlu dibuat oleh Admin.' }, 403);
+    if (!stored.jenis_pengadil && normalized.values.jenis_pengadil) {
+      const value=String(normalized.values.jenis_pengadil);
+      const allowed=user.role==='Penilai'?['Penilai Pengadil']:['Pengadil Baharu','Pengadil Negeri','Pengadil Kebangsaan'];
+      if (!allowed.includes(value)) return json({ error: true, message: 'Jenis pengadil tidak sah untuk peranan ini.' }, 400);
     }
-    updates.push(`${key}=?`);
   }
-  if (user.role === 'Admin' && 'jenis_pengadil' in input) {
-    const value = input.jenis_pengadil;
-    if (value !== null && (typeof value !== 'string' || value.length > 100)) {
-      return json({ error: true, message: 'Jenis pengadil tidak sah.' }, 400);
-    }
-    updates.push('jenis_pengadil=?');
-    values.push(value);
-  }
-  if (!updates.includes('nama_penuh=?')) { updates.push('nama_penuh=?'); values.push(name); }
-  if (!updates.includes('email=?')) { updates.push('email=?'); values.push(email); }
+  const association=normalized.values.persatuan_id;
+  if (association && !await env.DB.prepare('SELECT 1 FROM persatuan_bolasepak_daerah WHERE id=?').bind(association).first())
+    return json({ error: true, message: 'Persatuan tidak dijumpai.' }, 400);
+  const updates = Object.keys(normalized.values).map(key => `${key}=?`);
+  const values = Object.values(normalized.values);
   const duplicate = await env.DB.prepare('SELECT 1 FROM users WHERE lower(email)=? AND id<>? LIMIT 1')
     .bind(email, user.id).first();
   if (duplicate) return json({ error: true, message: 'Emel sudah digunakan oleh akaun lain.' }, 409);

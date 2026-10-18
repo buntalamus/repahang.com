@@ -1,3 +1,4 @@
+import { qualificationYearsSql } from './profile-years';
 import { currentUser, json } from './auth';
 import type { Env } from './types';
 
@@ -6,7 +7,8 @@ type Row = Record<string, unknown>;
 const SENSITIVE = [
   'email', 'no_telefon', 'no_ic', 'alamat1', 'alamat2', 'poskod',
   'status_kerja', 'jawatan', 'nama_majikan', 'nama_waris',
-  'hubungan_waris', 'telefon_waris',
+  'hubungan_waris', 'telefon_waris', 'alamat_majikan1', 'alamat_majikan2',
+  'poskod_majikan', 'daerah_majikan', 'negeri_majikan',
 ];
 
 /** Global referee profile modal. PP Daerah sees private data in their own district. */
@@ -24,13 +26,14 @@ export async function refereeProfile(request: Request, env: Env): Promise<Respon
 
   const profile = await env.DB.prepare(`
     SELECT u.id, u.nama_penuh, u.url_gambar_profil, u.role,
-           u.jenis_pengadil, u.jenis_penilai, u.tahun_mula_aktif,
-           u.tahun_mohon_kelas3, u.tahun_lulus_kelas3,
+           u.jenis_pengadil, u.jenis_penilai, NULLIF(NULLIF(trim(u.tahun_mula_aktif),''),'0000') AS tahun_mula_aktif,
+           ${qualificationYearsSql()},
            u.pengadil_kebangsaan, u.pengadil_negeri, u.pengadil_daerah,
            u.aktif, u.jantina, u.saiz_baju, u.umur, u.telegram_chat_id,
            u.email, u.no_telefon, u.no_ic, u.persatuan_id,
            u.alamat1, u.alamat2, u.poskod, u.daerah, u.negeri,
            u.status_kerja, u.jawatan, u.nama_majikan,
+           u.alamat_majikan1,u.alamat_majikan2,u.poskod_majikan,u.daerah_majikan,u.negeri_majikan,
            u.nama_waris, u.hubungan_waris, u.telefon_waris,
            pbd.nama_persatuan, pbd.daerah AS daerah_persatuan
     FROM users u
@@ -49,7 +52,7 @@ export async function refereeProfile(request: Request, env: Env): Promise<Respon
   result.pengadil_kebangsaan = Number(result.pengadil_kebangsaan ?? 0);
   result.pengadil_negeri = Number(result.pengadil_negeri ?? 0);
   result.pengadil_daerah = Number(result.pengadil_daerah ?? 0);
-  result.telegram_linked = result.telegram_chat_id ? 1 : 0;
+  result.telegram_linked = String(result.telegram_chat_id ?? '').trim() ? 1 : 0;
   delete result.telegram_chat_id;
   result.boleh_kemaskini = user.role === 'Admin' || sameDistrict ? 1 : 0;
 
@@ -75,7 +78,9 @@ export async function refereeProfile(request: Request, env: Env): Promise<Respon
              COALESCE(CAST(substr(tarikh_hantar,1,4) AS INTEGER),tahun_permohonan)
                AS tahun_sebenar
       FROM permohonan WHERE user_id=?
-        AND (jenis_borang='ujian_kecergasan' OR jenis_permohonan='ujian_kecergasan')
+        AND (jenis_borang='ujian_kecergasan' OR jenis_permohonan='ujian_kecergasan'
+          OR (jenis_borang='pengadil_berdaftar' AND tahun_permohonan>=2027
+            AND UPPER(TRIM(COALESCE(jenis_pengadil,''))) NOT IN ('PENILAI PENGADIL','PEGAWAI PEMBANGUNAN')))
       ORDER BY tahun_sebenar DESC, tarikh_hantar DESC
     `).bind(id).all(),
     env.DB.prepare(`

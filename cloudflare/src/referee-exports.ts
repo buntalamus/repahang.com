@@ -82,7 +82,7 @@ export async function adminRefereeExport(request: Request, env: Env): Promise<Re
     'Daerah','Negeri','Saiz Baju','Status Kerja','Jawatan','Nama Majikan',
     'Nama Waris','Hubungan Waris','Telefon Waris',...(ra ? [] : ['Kehadiran Seminar']),
     'Keputusan Ujian Kecergasan','Kelayakan Patch/Lesen Negeri',
-    ...(ra ? [] : ['Kelayakan Kelas', 'Keputusan Ujian Kelas III FAM', 'Keputusan Ujian Kelas I FAM'])];
+    ...(ra ? [] : ['Kelayakan Kelas', 'Keputusan Ujian Kelas III FAM', 'Keputusan Ujian Kelas I FAM', 'Tahun Mohon Kelas III', 'Tahun Lulus Kelas III', 'Tahun Mohon Kelas I', 'Tahun Lulus Kelas I'])];
   const rows = result.data.map((r, i) => [i + 1, r.nama_penuh, r.no_kp,
     String(r.jantina ?? '').toUpperCase() === 'LELAKI' ? 'Lelaki'
       : String(r.jantina ?? '').toUpperCase() === 'PEREMPUAN' ? 'Perempuan' : r.jantina,
@@ -91,7 +91,7 @@ export async function adminRefereeExport(request: Request, env: Env): Promise<Re
     r.status_kerja, r.jawatan, r.nama_majikan, r.nama_waris, r.hubungan_waris,
     r.telefon_waris, ...(ra ? [] : [r.status_seminar]), ra ? r.fitness_status : refereeExamResult(r, 'annual', year),
     ra ? '' : Number(r['patch_eligible']) === 1 ? 'Layak patch' : 'Tiada lesen negeri',
-    ...(ra ? [] : [refereeQualificationLabel(r, year), refereeExamResult(r, 'class3', year), refereeExamResult(r, 'class1', year)])]);
+    ...(ra ? [] : [refereeQualificationLabel(r, year), refereeExamResult(r, 'class3', year), refereeExamResult(r, 'class1', year), r['tahun_mohon_kelas3'], r['tahun_lulus_kelas3'], r['tahun_mohon_kelas1'], r['tahun_lulus_kelas1']])]);
   return csv(headers, rows, `senarai-${ra ? 'penilai-pengadil' : 'pengadil'}-${year}.csv`);
 }
 

@@ -1,3 +1,4 @@
+import { qualificationYearsSql } from './profile-years';
 import { currentUser, json } from './auth';
 import { notifyAccountDeactivated } from './account-notify';
 import type { Env } from './types';
@@ -27,6 +28,7 @@ export async function registeredReferees(request: Request, env: Env): Promise<Re
   const roleCondition = 'a.id IS NOT NULL';
   const rows = await env.DB.prepare(`SELECT DISTINCT u.id AS user_id,u.role AS user_role,
     u.nama_penuh,u.no_ic AS no_kp,u.jantina,u.email AS emel,u.no_telefon,u.saiz_baju,
+    CASE WHEN trim(COALESCE(u.telegram_chat_id,''))<>'' THEN 1 ELSE 0 END AS telegram_linked,
     COALESCE(NULLIF(a.url_gambar_profil,''),u.url_gambar_profil) AS url_gambar_profil,
     a.id,COALESCE(a.persatuan_id,u.persatuan_id) AS persatuan_id,
     COALESCE(a.umur,u.umur) AS umur,
@@ -55,7 +57,7 @@ export async function registeredReferees(request: Request, env: Env): Promise<Re
       THEN 1 ELSE 0 END`} AS patch_eligible,
     a.url_resit,a.status_kemaskini,a.tarikh_hantar,
     a.status_seminar,
-    u.tahun_mohon_kelas3,u.tahun_lulus_kelas3,
+    ${qualificationYearsSql()},
     u.pengadil_kebangsaan,u.pengadil_negeri,u.pengadil_daerah,
     p.nama_persatuan AS persatuan,
     CASE WHEN a.id IS NOT NULL THEN 'Permohonan Penilai Pengadil'

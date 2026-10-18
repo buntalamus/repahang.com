@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
@@ -6,7 +6,7 @@ import { ApiResponse } from '../../../core/models/user.model';
 
 @Component({
   selector: 'app-change-password',
-  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [FormsModule],
   template: `
     <div class="max-w-md mx-auto bg-white rounded-xl shadow p-6">
@@ -14,17 +14,17 @@ import { ApiResponse } from '../../../core/models/user.model';
       <form (ngSubmit)="onSubmit()" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Kata Laluan Semasa</label>
-          <input type="password" [(ngModel)]="current" name="current" required
+          <input aria-label="Kata Laluan Semasa" autocomplete="current-password" type="password" [(ngModel)]="current" name="current" required
             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pahang-yellow" />
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Kata Laluan Baharu</label>
-          <input type="password" [(ngModel)]="newPass" name="newPass" required minlength="8"
+          <input aria-label="Kata Laluan Baharu" autocomplete="new-password" type="password" [(ngModel)]="newPass" name="newPass" required minlength="8"
             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pahang-yellow" />
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Sahkan Kata Laluan Baharu</label>
-          <input type="password" [(ngModel)]="confirm" name="confirm" required
+          <input aria-label="Sahkan Kata Laluan Baharu" autocomplete="new-password" type="password" [(ngModel)]="confirm" name="confirm" required
             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pahang-yellow" />
         </div>
         @if (error) {
@@ -39,6 +39,7 @@ import { ApiResponse } from '../../../core/models/user.model';
   `,
 })
 export class ChangePasswordComponent {
+  private readonly cdr = inject(ChangeDetectorRef);
   current = '';
   newPass = '';
   confirm = '';
@@ -70,6 +71,7 @@ export class ChangePasswordComponent {
       })
       .subscribe({
         next: (res) => {
+          this.cdr.markForCheck();
           this.loading = false;
           if (res.error) {
             this.error = res.message;
@@ -79,6 +81,7 @@ export class ChangePasswordComponent {
           }
         },
         error: (err: any) => {
+          this.cdr.markForCheck();
           this.loading = false;
           this.error = err?.error?.message || 'Ralat pelayan.';
         },

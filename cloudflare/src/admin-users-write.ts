@@ -1,3 +1,4 @@
+import { normalizeProfileInput } from './profile-contract';
 /**
  * Write half of api/admin-users.php (POST create, PUT update, PATCH password
  * actions, DELETE). GET stays in admin-users.ts.
@@ -124,12 +125,6 @@ async function createUser(request: Request, env: Env): Promise<Response> {
   return json({ error: false, message: 'Pengguna berjaya ditambah.', generatedPassword: password, email_sent: emailSent });
 }
 
-const PROFILE_FIELDS = [
-  'no_ic', 'jantina', 'alamat1', 'alamat2', 'poskod', 'daerah', 'negeri', 'status_kerja', 'jawatan',
-  'nama_majikan', 'alamat_majikan1', 'alamat_majikan2', 'poskod_majikan', 'daerah_majikan',
-  'negeri_majikan', 'nama_waris', 'hubungan_waris', 'telefon_waris', 'url_gambar_profil',
-] as const;
-
 async function updateUser(request: Request, env: Env): Promise<Response> {
   const parsed = await boundedJson(request, 64 * 1024);
   if (parsed instanceof Response) return parsed;
@@ -152,15 +147,19 @@ async function updateUser(request: Request, env: Env): Promise<Response> {
   if (await emailTaken(env, email, userId)) {
     return json({ error: true, message: 'Email sudah digunakan oleh pengguna lain.' }, 400);
   }
-  // Like PHP, every profile column is written; a field missing from the
-  // request becomes ''. All current callers send the full GET ?id= record.
-  const previous = await env.DB.prepare('SELECT email,role,telegram_chat_id FROM users WHERE id=?')
-    .bind(userId).first<{ email: string | null; role: string; telegram_chat_id: string | number | null }>();
-  const umur = input.umur === undefined || input.umur === null || input.umur === '' ? null : phpInt(input.umur);
-  const sets = ['nama_penuh=?', 'email=?', 'no_telefon=?', ...PROFILE_FIELDS.map((f) => `${f}=?`),
-    'umur=?', 'role=?', 'persatuan_id=?', 'jenis_pengadil=?'];
-  const values: unknown[] = [namaPenuh, email, text(input, 'no_telefon'),
-    ...PROFILE_FIELDS.map((f) => text(input, f)), umur, role, persatuanId, text(input, 'jenis_pengadil')];
+  const previous = await env.DB.prepare(`SELECT email,role,telegram_chat_id,
+    tahun_mula_aktif,tahun_mohon_kelas3,tahun_lulus_kelas3,tahun_mohon_kelas1,tahun_lulus_kelas1
+    FROM users WHERE id=?`).bind(userId).first<Record<string, unknown> & {email:string|null;role:string;telegram_chat_id:string|number|null}>();
+  if (!previous) return json({error:true,message:'Pengguna tidak ditemui.'},404);
+  const normalized=normalizeProfileInput(input,previous);
+  if (normalized.error) return json({error:true,message:normalized.error},400);
+  if (persatuanId && !await env.DB.prepare('SELECT 1 FROM persatuan_bolasepak_daerah WHERE id=?').bind(persatuanId).first())
+    return json({error:true,message:'Persatuan tidak dijumpai.'},400);
+  const sets=Object.keys(normalized.values).map(field=>`${field}=?`);
+  const values:unknown[]=Object.values(normalized.values);
+  // Partial profile edits preserve every property that was not submitted.
+  sets.push('role=?');values.push(role);
+  if (Object.hasOwn(input,'url_gambar_profil')) {sets.push('url_gambar_profil=?');values.push(text(input,'url_gambar_profil'));}
   if (password) {
     sets.push('password=?', 'password_changed=0');
     values.push(await hash(password, 12));

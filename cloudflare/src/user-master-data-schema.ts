@@ -138,6 +138,8 @@ daerah_persatuan|Daerah Persatuan|text|24`,
     `jenis_penilai|Jenis Penilai|text|25
 tahun_mohon_kelas3|Tahun Mohon Kelas III|number|22
 tahun_lulus_kelas3|Tahun Lulus Kelas III|number|22
+tahun_mohon_kelas1|Tahun Mohon Kelas I|number|22
+tahun_lulus_kelas1|Tahun Lulus Kelas I|number|22
 pengadil_kebangsaan|Pengadil Kebangsaan|boolean|22
 pengadil_negeri|Pengadil Negeri|boolean|20
 pengadil_daerah|Pengadil Daerah|boolean|20`,

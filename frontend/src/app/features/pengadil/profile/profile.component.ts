@@ -1,4 +1,6 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { ProfileFieldsComponent } from '../../../shared/components/profile-fields/profile-fields.component';
+import { TelegramProfileComponent } from '../../../shared/components/telegram-profile/telegram-profile.component';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, ViewChild, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthService } from '../../../core/services/auth.service';
@@ -9,8 +11,8 @@ import { ImageCropComponent } from '../../../shared/components/image-crop/image-
 
 @Component({
   selector: 'app-pengadil-profile',
-  standalone: true,
-  imports: [FormsModule, LoadingComponent, ChangePasswordComponent, ImageCropComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [ProfileFieldsComponent, TelegramProfileComponent, FormsModule, LoadingComponent, ChangePasswordComponent, ImageCropComponent],
   templateUrl: './profile.component.html',
 })
 export class PengadilProfileComponent implements OnInit {
@@ -18,11 +20,13 @@ export class PengadilProfileComponent implements OnInit {
   editing = false;
   saving = false;
   profile: any = {};
+  draft: any = {};
+  associations: { id: number; nama_persatuan: string }[] = [];
+  private readonly cdr = inject(ChangeDetectorRef);
   profileMissing: string[] = [];
   profileImageUrl = '';
   notifications: any[] = [];
   unreadCount = 0;
-  generatingTgLink = false;
 
   @ViewChild('imageCrop') imageCrop!: ImageCropComponent;
 
@@ -34,12 +38,14 @@ export class PengadilProfileComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadProfile();
+    this.api.get<{data:{id:number;nama_persatuan:string}[]}>('public-persatuan.php').subscribe({next:res=>{this.associations=res.data||[];this.cdr.markForCheck();}});
     this.loadNotifications();
   }
 
   loadProfile(): void {
     this.api.get<any>('get-user-profile.php').subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         if (!res.error) {
           this.profile = res.user || res.data || {};
           this.profileMissing = res.profile_missing_labels || [];
@@ -47,13 +53,14 @@ export class PengadilProfileComponent implements OnInit {
         }
         this.loading = false;
       },
-      error: () => (this.loading = false),
+      error: () => {this.loading = false; this.cdr.markForCheck();},
     });
   }
 
   loadNotifications(): void {
     this.api.get<any>('notifications.php').subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         if (!res.error) {
           this.notifications = res.data || [];
           this.unreadCount = this.notifications.filter((n: any) => !n.read).length;
@@ -64,12 +71,14 @@ export class PengadilProfileComponent implements OnInit {
 
   toggleEdit(): void {
     this.editing = !this.editing;
+    this.draft = this.editing ? structuredClone(this.profile) : {};
   }
 
   saveProfile(): void {
     this.saving = true;
-    this.api.post<any>('update-profile.php', this.profile).subscribe({
+    this.api.post<any>('update-profile.php', this.draft).subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         this.saving = false;
         if (!res.error) {
           this.toast.success('Profil dikemaskini.');
@@ -80,6 +89,7 @@ export class PengadilProfileComponent implements OnInit {
         }
       },
       error: (err: any) => {
+        this.cdr.markForCheck();
         this.saving = false;
         this.toast.error(err?.error?.message || 'Gagal mengemaskini profil.');
       },
@@ -98,6 +108,7 @@ export class PengadilProfileComponent implements OnInit {
     fd.append('image', blob, 'profile.jpg');
     this.api.postFormData<any>('upload-profile-image.php', fd).subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         if (!res.error) {
           this.toast.success('Gambar dikemaskini.');
           this.profileImageUrl = res.data?.url || '';
@@ -110,24 +121,4 @@ export class PengadilProfileComponent implements OnInit {
     });
   }
 
-  generateTelegramLink(): void {
-    this.generatingTgLink = true;
-    this.api.post<any>('telegram-link-self.php', {}).subscribe({
-      next: (res) => {
-        this.generatingTgLink = false;
-        if (!res.error && res.link_url) {
-          window.location.href = res.link_url;
-        } else if (res.linked) {
-          this.profile.telegram_chat_id = 'linked';
-          this.toast.success('Telegram telah dihubungkan.');
-        } else {
-          this.toast.error(res.message || 'Gagal menjana pautan.');
-        }
-      },
-      error: (err: any) => {
-        this.generatingTgLink = false;
-        this.toast.error(err?.error?.message || 'Gagal menyambung ke pelayan.');
-      },
-    });
-  }
 }

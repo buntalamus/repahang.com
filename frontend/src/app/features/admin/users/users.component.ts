@@ -1,4 +1,6 @@
-import { Component, OnInit } from '@angular/core';
+import { ModalFocusDirective } from '../../../shared/directives/modal-focus.directive';
+import { ProfileFieldsComponent } from '../../../shared/components/profile-fields/profile-fields.component';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
@@ -11,11 +13,12 @@ import { jenisPengadilOptions } from '../../../shared/data/jenis-pengadil';
 
 @Component({
   selector: 'app-admin-users',
-  standalone: true,
-  imports: [FormsModule, LoadingComponent, PaginationComponent, ConfirmModalComponent, UserMasterDataExportComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [ModalFocusDirective, ProfileFieldsComponent, FormsModule, LoadingComponent, PaginationComponent, ConfirmModalComponent, UserMasterDataExportComponent],
   templateUrl: './users.component.html',
 })
 export class AdminUsersComponent implements OnInit {
+  private readonly cdr=inject(ChangeDetectorRef);
   readonly jenisPengadilOptions = jenisPengadilOptions;
   loading = true;
   users: any[] = [];
@@ -60,13 +63,14 @@ export class AdminUsersComponent implements OnInit {
     this.loading = true;
     this.api.get<any>('admin-users.php', { year: String(this.yearFilter) }).subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         this.users = res.data || res.users || [];
         this.persatuanList = res.persatuan || [];
         this.applyFilter();
         this.updateStats();
         this.loading = false;
       },
-      error: () => (this.loading = false),
+      error: () => {this.loading=false;this.cdr.markForCheck();},
     });
   }
 
@@ -162,6 +166,7 @@ export class AdminUsersComponent implements OnInit {
     this.confirmAction = () => {
       this.api.put<any>('profil-pengadil.php', { id: user.id, aktif: 1 }).subscribe({
         next: (res) => {
+        this.cdr.markForCheck();
           if (!res.error) {
             this.toast.success('Akaun diaktifkan semula.');
             this.loadUsers();
@@ -207,13 +212,13 @@ export class AdminUsersComponent implements OnInit {
     // Load full user profile
     this.api.get<any>('admin-users.php', { id: user.id.toString() }).subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         this.editUser = { ...res.user, userId: res.user.id };
         this.editUser.user_role = this.editUser.role || this.editUser.user_role;
         this.showEditModal = true;
       },
       error: () => {
-        this.editUser = { ...user, userId: user.id, user_role: user.user_role || user.role };
-        this.showEditModal = true;
+        this.toast.error('Gagal membaca profil penuh. Sila cuba semula.');
       },
     });
   }
@@ -221,6 +226,7 @@ export class AdminUsersComponent implements OnInit {
   saveUser(): void {
     this.api.put<any>('admin-users.php', this.editUser).subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         if (!res.error) {
           this.toast.success('Pengguna dikemaskini.');
           this.showEditModal = false;
@@ -243,6 +249,7 @@ export class AdminUsersComponent implements OnInit {
     this.showDeleteModal = false;
     this.api.delete<any>(`admin-users.php?id=${id}`).subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         if (!res.error) {
           this.toast.success(res.message || 'Akaun pengguna dinyahaktifkan.');
           this.loadUsers();
@@ -259,6 +266,7 @@ export class AdminUsersComponent implements OnInit {
     this.confirmAction = () => {
       this.api.patch<any>('admin-users.php', { userId: user.id, action: 'reset_password' }).subscribe({
         next: (res) => {
+        this.cdr.markForCheck();
           if (!res.error) {
             this.toast.success(res.message);
           } else {
@@ -276,6 +284,7 @@ export class AdminUsersComponent implements OnInit {
     this.confirmAction = () => {
       this.api.patch<any>('admin-users.php', { userId: user.id, action: 'resend_notification' }).subscribe({
         next: (res) => {
+        this.cdr.markForCheck();
           if (!res.error) {
             this.toast.success(res.message);
           } else {
@@ -308,6 +317,7 @@ export class AdminUsersComponent implements OnInit {
 
     this.api.postFormData<any>('admin-users.php', formData).subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         if (!res.error) {
           this.toast.success(res.message + (res.generatedPassword ? ` Kata laluan: ${res.generatedPassword}` : ''));
           this.showAddModal = false;

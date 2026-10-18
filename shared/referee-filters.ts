@@ -3,6 +3,7 @@ export type ExamResult = 'Lulus' | 'Tidak Lulus' | 'Tidak Hadir' | 'Belum direko
 export interface RefereeFilterRow {
   nama_penuh?: string | null; no_kp?: string | null; persatuan?: string | null;
   jenis_pengadil?: string | null; jantina?: string | null; fitness_status?: string | null;
+  tahun_lulus_kelas1?: string | number | null;
   tahun_lulus_kelas3?: string | number | null;
   approved_applications?: { id?: number; jenis_borang?: string; tahun_permohonan?: string | number;
     status_ujian?: string | null }[];
@@ -37,7 +38,8 @@ function normalizeResult(value: string | null | undefined, exists: boolean): Exa
 export function refereeQualification(row: RefereeFilterRow, year: number): 'class1' | 'class3' | 'unrecorded' {
   const passed = (kind: 'class1' | 'class3') => (row.approved_applications ?? []).some(app =>
     Number(app.tahun_permohonan) <= year && examTypes[kind].includes(app.jenis_borang ?? '') && app.status_ujian === 'Lulus');
-  if (passed('class1')) return 'class1';
+  const seniorYear = Number(row.tahun_lulus_kelas1);
+  if (passed('class1') || (seniorYear >= 1900 && seniorYear <= year)) return 'class1';
   const legacyYear = Number(row.tahun_lulus_kelas3);
   if (passed('class3') || (legacyYear >= 1900 && legacyYear <= year)) return 'class3';
   return 'unrecorded';

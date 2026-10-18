@@ -1,4 +1,7 @@
+import { profileYearLabels } from '../../shared/profile-fields';
 export const profileLabels: Record<string, string> = {
+  ...profileYearLabels, jenis_penilai: 'Jenis penilai', umur: 'Umur', aktif: 'Status akaun',
+  alamat2: 'Alamat kediaman (baris 2)', alamat_majikan2: 'Alamat majikan (baris 2)',
   nama_penuh: 'Nama penuh', no_ic: 'No. Kad Pengenalan', email: 'Emel',
   no_telefon: 'No. telefon', jantina: 'Jantina', jenis_pengadil: 'Jenis pengadil',
   persatuan_id: 'Persatuan bola sepak', alamat1: 'Alamat kediaman',

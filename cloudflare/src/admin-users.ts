@@ -1,3 +1,4 @@
+import { qualificationYearsSql } from './profile-years';
 import { currentUser, json } from './auth';
 import type { Env } from './types';
 
@@ -22,8 +23,8 @@ export async function adminUsers(request: Request, env: Env): Promise<Response> 
              u.daerah_majikan, u.negeri_majikan,
              u.nama_waris, u.hubungan_waris, u.telefon_waris,
              u.url_gambar_profil, u.jenis_pengadil, u.jenis_penilai,
-             u.tahun_mula_aktif, u.saiz_baju, u.aktif,
-             u.tahun_mohon_kelas3, u.tahun_lulus_kelas3,
+             NULLIF(NULLIF(trim(u.tahun_mula_aktif),''),'0000') AS tahun_mula_aktif, u.saiz_baju, u.aktif,
+             ${qualificationYearsSql()},
              u.pengadil_kebangsaan, u.pengadil_negeri, u.pengadil_daerah,
              u.password_changed, u.last_login, u.created_at, u.updated_at,
              u.umur, u.telegram_chat_id,
@@ -93,10 +94,10 @@ export function usersOverviewStatement(env: Env, year: number): D1PreparedStatem
             AND p.status='Approved'
             THEN 1 ELSE 0 END) AS ra_approved,
           MAX(CASE WHEN p.jenis_borang IN ('kelas3_fam','ujian_bertulis')
-            AND p.status_ujian='Lulus'
+            AND p.status_ujian='Lulus' AND p.tahun_permohonan<=?
             THEN 1 ELSE 0 END) AS class3_passed,
           MAX(CASE WHEN p.jenis_borang='ujian_kelas1_fam'
-            AND p.status_ujian='Lulus'
+            AND p.status_ujian='Lulus' AND p.tahun_permohonan<=?
             THEN 1 ELSE 0 END) AS class1_passed
         FROM permohonan p GROUP BY p.user_id
       )
@@ -116,13 +117,13 @@ export function usersOverviewStatement(env: Env, year: number): D1PreparedStatem
                THEN 1 ELSE 0 END AS is_referee,
              CASE WHEN u.role='Penilai' OR COALESCE(a.ra_approved,0)=1
                OR u.jenis_pengadil='Penilai Pengadil' THEN 1 ELSE 0 END AS is_ra,
-             CASE WHEN u.tahun_lulus_kelas3 IS NOT NULL OR COALESCE(a.class3_passed,0)=1
+             CASE WHEN CAST(u.tahun_lulus_kelas3 AS INTEGER) BETWEEN 1900 AND ? OR COALESCE(a.class3_passed,0)=1
                THEN 1 ELSE 0 END AS class3_passed,
-             COALESCE(a.class1_passed,0) AS class1_passed,
+             CASE WHEN CAST(u.tahun_lulus_kelas1 AS INTEGER) BETWEEN 1900 AND ? OR COALESCE(a.class1_passed,0)=1 THEN 1 ELSE 0 END AS class1_passed,
              p.nama_persatuan AS persatuan_nama, p.kod_persatuan
       FROM users u
       LEFT JOIN annual a ON a.user_id=u.id
       LEFT JOIN persatuan_bolasepak_daerah p ON p.id=u.persatuan_id
       ORDER BY u.created_at DESC
-    `).bind(year, year, year, year, year);
+    `).bind(year, year, year, year, year, year, year, year, year);
 }

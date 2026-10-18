@@ -26,7 +26,7 @@ export function openDatabase(migrations) {
   copyFileSync(snapshot,path);
   const db=new DatabaseSync(path);
   // Every Worker write path may queue notices, so the outbox is always present.
-  for (const file of [...migrations.filter((name)=>name!=='0024_notification_outbox'),'0024_notification_outbox']) {
+  for (const file of [...migrations.filter((name)=>name!=='0024_notification_outbox'),'0024_notification_outbox',...(!migrations.includes('0027_profile_class1_years')?['0027_profile_class1_years']:[])]) {
     db.exec(readFileSync(new URL(`../migrations/${file}.sql`,import.meta.url),'utf8'));
   }
   // Imported flag value can predate the file-based PHP maintenance state.

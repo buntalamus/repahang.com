@@ -1,3 +1,4 @@
+import { normalizeProfileInput } from './profile-contract';
 /** PUT half of api/profil-pengadil.php: Admin edits anyone, PP Daerah its own district. */
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
@@ -5,23 +6,6 @@ import { phpInt } from './lantikan-write';
 import type { Env } from './types';
 import { notifyProfileEdited } from './account-notify';
 import { profileLabels } from './referee-profile';
-
-const FIELDS = [
-  'nama_penuh', 'no_ic', 'jantina', 'no_telefon', 'email', 'saiz_baju',
-  'alamat1', 'alamat2', 'poskod', 'daerah', 'negeri',
-  'status_kerja', 'jawatan', 'nama_majikan',
-  'nama_waris', 'hubungan_waris', 'telefon_waris',
-  'jenis_pengadil', 'jenis_penilai', 'tahun_mula_aktif',
-  'tahun_mohon_kelas3', 'tahun_lulus_kelas3',
-];
-const ADMIN_FIELDS = ['persatuan_id', 'aktif'];
-const EXTRA_LABELS: Record<string, string> = {
-  alamat2: 'Alamat kediaman (baris 2)', jenis_penilai: 'Jenis penilai',
-  tahun_mohon_kelas3: 'Tahun mohon Kelas III', tahun_lulus_kelas3: 'Tahun lulus Kelas III', aktif: 'Status akaun',
-};
-const INT_FIELDS = new Set(['tahun_mula_aktif', 'tahun_mohon_kelas3', 'tahun_lulus_kelas3', 'persatuan_id', 'aktif']);
-// MySQL YEAR columns became TEXT in D1 ('2019'); a bound JS number could be stored as '2019.0'.
-const YEAR_FIELDS = new Set(['tahun_mula_aktif', 'tahun_mohon_kelas3', 'tahun_lulus_kelas3']);
 
 export async function refereeProfileWrite(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
@@ -38,27 +22,26 @@ export async function refereeProfileWrite(request: Request, env: Env): Promise<R
   const input = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as Record<string, unknown>;
   const id = phpInt(input.id ?? 0);
   if (!id) return json({ error: true, message: 'id diperlukan.' }, 400);
-  const target = await env.DB.prepare('SELECT persatuan_id FROM users WHERE id=?')
-    .bind(id).first<{ persatuan_id: number | null }>();
+  const target = await env.DB.prepare('SELECT persatuan_id,tahun_mula_aktif,tahun_mohon_kelas3,tahun_lulus_kelas3,tahun_mohon_kelas1,tahun_lulus_kelas1 FROM users WHERE id=?')
+    .bind(id).first<Record<string, unknown> & { persatuan_id: number | null }>();
   if (!target) return json({ error: true, message: 'Pengguna tidak dijumpai.' }, 404);
   if (user.role === 'PP Daerah' && phpInt(target.persatuan_id ?? 0) !== phpInt(user.persatuan_id ?? -1)) {
     return json({ error: true, message: 'Anda hanya boleh kemaskini pengadil di bawah pentadbiran daerah anda.' }, 403);
   }
-  const allowed = user.role === 'Admin' ? [...FIELDS, ...ADMIN_FIELDS] : FIELDS;
-  const sets: string[] = [];
-  const values: unknown[] = [];
-  for (const field of allowed) {
-    if (!Object.prototype.hasOwnProperty.call(input, field)) continue;
-    let value = input[field];
-    if (typeof value === 'string') value = value.trim();
-    if (value === '' || value === null || value === undefined) value = null;
-    else if (YEAR_FIELDS.has(field)) value = String(phpInt(value));
-    else if (INT_FIELDS.has(field)) value = phpInt(value);
-    else if (typeof value === 'boolean') value = value ? 1 : 0;
-    else if (typeof value !== 'number') value = String(value);
-    sets.push(`${field}=?`);
-    values.push(value);
+  if (user.role === 'PP Daerah' && Object.hasOwn(input,'persatuan_id') && Number(input.persatuan_id)!==Number(target.persatuan_id))
+    return json({error:true,message:'Perubahan persatuan perlu dibuat oleh Admin.'},403);
+  const normalized=normalizeProfileInput(input,target);
+  if (normalized.error) return json({error:true,message:normalized.error},400);
+  if (Object.hasOwn(normalized.values,'email') && await env.DB.prepare('SELECT 1 FROM users WHERE lower(email)=lower(?) AND id<>?').bind(normalized.values.email,id).first())
+    return json({error:true,message:'Emel sudah digunakan oleh akaun lain.'},409);
+  if (normalized.values.persatuan_id && !await env.DB.prepare('SELECT 1 FROM persatuan_bolasepak_daerah WHERE id=?').bind(normalized.values.persatuan_id).first())
+    return json({error:true,message:'Persatuan tidak dijumpai.'},400);
+  if (user.role==='Admin' && Object.hasOwn(input,'aktif')) {
+    if (![0,1,'0','1'].includes(input.aktif as number)) return json({error:true,message:'Status akaun tidak sah.'},400);
+    normalized.values.aktif=Number(input.aktif);
   }
+  const sets=Object.keys(normalized.values).map(field=>`${field}=?`);
+  const values=Object.values(normalized.values);
   if (!sets.length) return json({ error: true, message: 'Tiada perubahan untuk disimpan.' }, 400);
   const fields = sets.map((set) => set.slice(0, -2));
   const before = await env.DB.prepare(`SELECT nama_penuh,email,${fields.join(',')} FROM users WHERE id=?`)
@@ -68,7 +51,7 @@ export async function refereeProfileWrite(request: Request, env: Env): Promise<R
   if (before) {
     const same = (a: unknown, b: unknown) => String(a ?? '').trim() === String(b ?? '').trim();
     const changed = fields.filter((field, index) => !same(before[field], values[index]));
-    const labels = changed.map((field) => EXTRA_LABELS[field] ?? profileLabels[field] ?? field);
+    const labels = changed.map((field) => profileLabels[field] ?? field);
     const newEmail = changed.includes('email') ? String(values[fields.indexOf('email')] ?? '') : String(before.email ?? '');
     const newName = changed.includes('nama_penuh') ? String(values[fields.indexOf('nama_penuh')] ?? '')
       : String(before.nama_penuh ?? '');

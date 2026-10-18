@@ -4,6 +4,18 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [18 Oktober 2026] — Profil lengkap dan status Telegram yang konsisten
+
+- Profil sendiri Pengadil, Penilai, PP Daerah dan Admin, borang edit Pengguna/senarai berdaftar serta modal profil global menggunakan medan yang sama: identiti, persatuan, pakaian, alamat kediaman, pekerjaan dan alamat majikan lengkap, waris dan kelayakan.
+- Tahun mohon/lulus Kelas III dan Kelas I boleh diisi atau dikosongkan. Migrasi `0027_profile_class1_years.sql` menambah dua medan Kelas I tanpa mengubah keputusan permohonan. Sejarah permohonan mengisi paparan tahun yang belum direkodkan; tahun lulus hanya diambil daripada keputusan `Lulus`. Nilai legasi `0000` dipaparkan sebagai kosong.
+- API menerima tahun sebagai nombor atau teks empat digit, menyemak julat dan turutan mohon/lulus. Perubahan profil tidak mengubah kelulusan pendaftaran atau keputusan kecergasan. Kelayakan kelas dalam penapis dan eksport turut membaca tahun profil yang disimpan.
+- Batal menggunakan salinan borang dan memulihkan nilai asal. Edit Admin hanya menulis medan yang dihantar, mengelakkan data tidak dipaparkan dikosongkan. Jika bacaan profil penuh gagal, edit tidak membuka rekod ringkas sebagai fallback. Persatuan/jenis pengadil sedia ada memerlukan Admin untuk ditukar oleh pemilik akaun; PP hanya mengurus daerah sendiri.
+- Status Telegram dalam modal senarai berdaftar kini menggunakan flag daripada profil terkini, termasuk kes Wan Hanafi. Kegagalan semakan dipaparkan sebagai ralat, bukannya belum dipaut. Semakan manual disediakan; profil sendiri menyemak semula apabila kembali dari Telegram. Respons profil yang lambat tidak menimpa profil pengguna lain.
+- Medan profil peribadi termasuk alamat majikan dilindungi mengikut hak akses sedia ada. Modal mengurus fokus papan kekunci dan Escape; label input dan kontras diperbaiki.
+- Ujian: `profile-completeness`, `telegram-profile-status`, `referee-filters`, `referee-audit`, `annual-licensing`, `profile-registration`, `telegram-webhook`, `notify-akaun`, master data/workbook, typecheck, build production serta ujian browser/AXE. Rekod pautan Telegram tidak dipadam atau dipindahkan.
+
+---
+
 ## [18 Oktober 2026] — Penapis kelas dan keputusan ujian pengadil berdaftar
 
 - Halaman Pengadil Berdaftar boleh ditapis mengikut kelas tertinggi yang pernah lulus hingga tahun dipilih, serta keputusan ujian kecergasan tahunan, Kelas III FAM dan Kelas I FAM pada tahun itu. Keputusan ujian berasingan daripada kelulusan pendaftaran.

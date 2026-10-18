@@ -248,127 +248,14 @@
 <!-- Edit Modal -->
 @if (showEditModal) {
   <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" (click)="showEditModal = false">
-    <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
+    <div role="dialog" aria-modal="true" aria-label="Kemaskini profil" appModalFocus (modalDismiss)="showEditModal = false" class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
       <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl">
         <h3 class="text-base font-semibold text-slate-900">Kemaskini Pengguna</h3>
-        <button (click)="showEditModal = false" class="text-slate-400 hover:text-slate-600 text-lg leading-none">&#x2715;</button>
+        <button aria-label="Tutup borang kemaskini" (click)="showEditModal = false" class="text-slate-400 hover:text-slate-600 text-lg leading-none">&#x2715;</button>
       </div>
-      <div class="p-6 space-y-6">
-        <div>
-          <h4 class="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wide">Maklumat Asas</h4>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">Nama Penuh</label>
-              <input type="text" [(ngModel)]="editUser.nama_penuh" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">No. KP</label>
-              <input type="text" [(ngModel)]="editUser.no_ic" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">Emel</label>
-              <input type="email" [(ngModel)]="editUser.email" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">No. Telefon</label>
-              <input type="text" [(ngModel)]="editUser.no_telefon" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">Peranan</label>
-              <select [(ngModel)]="editUser.user_role" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                @for (role of roles; track role) {
-                  <option [value]="role">{{ displayRole(role) }}</option>
-                }
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">FA Daerah</label>
-              <select [(ngModel)]="editUser.persatuan_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                <option [ngValue]="null">- Tiada -</option>
-                @for (p of persatuanList; track p.id) {
-                  <option [ngValue]="p.id">{{ p.nama_persatuan }}</option>
-                }
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">Jantina</label>
-              <select [(ngModel)]="editUser.jantina" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                <option value="">-</option>
-                <option value="Lelaki">Lelaki</option>
-                <option value="Perempuan">Perempuan</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">Jenis Pengadil</label>
-              <select [(ngModel)]="editUser.jenis_pengadil" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white">
-                <option value="">— Pilih —</option>
-                @for (j of jenisPengadilOptions(editUser.jenis_pengadil); track j) {
-                  <option [value]="j">{{ j }}</option>
-                }
-              </select>
-            </div>
-          </div>
-        </div>
-        <hr class="border-slate-100" />
-        <div>
-          <h4 class="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wide">Alamat</h4>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="sm:col-span-2">
-              <label class="block text-xs text-gray-500 mb-1">Alamat 1</label>
-              <input type="text" [(ngModel)]="editUser.alamat1" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div class="sm:col-span-2">
-              <label class="block text-xs text-gray-500 mb-1">Alamat 2</label>
-              <input type="text" [(ngModel)]="editUser.alamat2" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">Poskod</label>
-              <input type="text" [(ngModel)]="editUser.poskod" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">Daerah</label>
-              <input type="text" [(ngModel)]="editUser.daerah" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">Negeri</label>
-              <input type="text" [(ngModel)]="editUser.negeri" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-          </div>
-        </div>
-        <hr class="border-slate-100" />
-        <div>
-          <h4 class="text-xs font-semibold text-slate-500 mb-3 uppercase tracking-wide">Pekerjaan &amp; Waris</h4>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">Status Kerja</label>
-              <input type="text" [(ngModel)]="editUser.status_kerja" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">Jawatan</label>
-              <input type="text" [(ngModel)]="editUser.jawatan" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">Nama Majikan</label>
-              <input type="text" [(ngModel)]="editUser.nama_majikan" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">Alamat Majikan</label>
-              <input type="text" [(ngModel)]="editUser.alamat_majikan1" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">Nama Waris</label>
-              <input type="text" [(ngModel)]="editUser.nama_waris" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">Hubungan Waris</label>
-              <input type="text" [(ngModel)]="editUser.hubungan_waris" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs text-gray-500 mb-1">Telefon Waris</label>
-              <input type="text" [(ngModel)]="editUser.telefon_waris" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
-            </div>
-          </div>
-        </div>
+      <div class="p-5 space-y-6">
+        <div><label for="edit-account-role" class="block text-xs font-medium text-slate-700 mb-1">Peranan Akaun</label><select id="edit-account-role" [(ngModel)]="editUser.user_role" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm">@for (role of roles; track role) {<option [value]="role">{{ displayRole(role) }}</option>}</select></div>
+        <app-profile-fields [record]="editUser" [editing]="true" [adminMode]="true" [associations]="persatuanList" />
         <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
           <button (click)="showEditModal = false"
             class="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Batal</button>
