@@ -234,7 +234,7 @@
             Lihat Jadual
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
           </button>
-          <button (click)="selectedKejohanan = null; selectedKejohananId = null; poolList = []; jadualList = []; jadualSearch = ''; closeTelegramOnboardingModal()"
+          <button (click)="onKejohananSelect(null)"
             class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-blue-100 rounded-lg transition" title="Tutup">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -455,6 +455,12 @@
       </div>
     } @else if (loadingJadual) {
       <app-loading message="Memuatkan jadual..." />
+    } @else if (jadualError()) {
+      <div role="alert" class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <p>{{ jadualError() }}</p>
+        <button type="button" (click)="loadJadual(selectedKejohananId!)"
+          class="mt-3 rounded-lg border border-rose-300 bg-white px-3 py-2 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2">Cuba semula</button>
+      </div>
     } @else {
       <!-- Bulk action toolbar -->
       @if (selectedJadualIds.size > 0) {
@@ -1166,6 +1172,12 @@
       </div>
     } @else if (loadingJadualLantikan) {
       <app-loading message="Memuatkan jadual lantikan..." />
+    } @else if (jadualLantikanError()) {
+      <div role="alert" class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <p>{{ jadualLantikanError() }}</p>
+        <button type="button" (click)="loadJadualLantikan()"
+          class="mt-3 rounded-lg border border-rose-300 bg-white px-3 py-2 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2">Cuba semula</button>
+      </div>
     } @else if (jadualLantikanData) {
 
       @let stats = jadualLantikanData.stats;

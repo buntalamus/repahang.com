@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:page-loading": "node --no-warnings tests/schedule-loading.mjs",
     "test:profile-completeness": "node --no-warnings tests/profile-completeness.mjs",
     "test:telegram-profile-status": "node --no-warnings tests/telegram-profile-status.mjs",
     "test:referee-filters": "node --no-warnings tests/referee-filters.mjs",

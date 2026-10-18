@@ -1,13 +1,15 @@
 import { HttpInterceptorFn, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { catchError, throwError } from 'rxjs';
+import { catchError, finalize, throwError } from 'rxjs';
 import { ToastService } from '../services/toast.service';
 import { BACKGROUND_REQUEST } from '../services/background-request';
+import { HttpViewRefreshService } from '../services/http-view-refresh.service';
 
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const toast = inject(ToastService);
   const router = inject(Router);
+  const viewRefresh = inject(HttpViewRefreshService);
   const isLoginRequest = req.url.includes('/login.php');
 
   return next(req).pipe(
@@ -34,5 +36,7 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       }
       return throwError(() => error);
     }),
+    // Runs after subscribers have applied success/error state to their views.
+    finalize(() => viewRefresh.notify()),
   );
 };
