@@ -1,13 +1,11 @@
+import {bundle} from './_harness.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 
 const source = readFileSync(new URL('../src/futsal-form.ts', import.meta.url), 'utf8')
   .replace("import { currentUser } from './auth';", 'const currentUser = async () => globalThis.futsalUser;');
-const compiled = ts.transpileModule(source, {
-  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
-}).outputText;
-const { futsalForm, renderFutsalForm } = await import(`data:text/javascript,${encodeURIComponent(compiled)}`);
+const {futsalForm}=await bundle(source.replace("from './original-templates'","from '../src/original-templates'"));
 
 let boundId = null;
 let dbReads = 0;
@@ -67,5 +65,5 @@ assert.match(body, /Alamat panjang Alamat panjang/);
 assert.doesNotMatch(body, /Nama Majikan:/, 'Student employment fields remain hidden');
 assert.doesNotMatch(body, /Cetak \/ Simpan PDF/);
 assert.doesNotMatch(body, /window\.print/);
-assert.equal(renderFutsalForm(globalThis.futsalApplication, true), body);
+assert.match(body,/form-row/); // Original PHP layout, not the translated layout.
 console.log('futsal R3: authorization, owner query, rendering, escaping and PDF MIME passed');

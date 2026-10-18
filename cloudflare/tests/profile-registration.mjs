@@ -61,7 +61,7 @@ async function post(data) {
 async function checkLogin(email, role) {
   const recipientOf = message => typeof message.to === 'string' ? message.to : message.to.email;
   const mail = emails.find(message => recipientOf(message) === email);
-  const password = mail.text.match(/Kata laluan sementara: (\S+)/)?.[1];
+  const password = mail.text.match(/Kata Laluan\s+([A-Za-z0-9]+)/)?.[1];
   assert.ok(password, 'welcome email provides the temporary password');
   const response = await login(new Request(env.BASE_URL + '/api/login.php', {
     method: 'POST', body: JSON.stringify({ email, password }),
@@ -125,8 +125,8 @@ try {
   const reviewerMails = emails.filter((message) => /^Pendaftaran Pengadil Baharu: /.test(message.subject));
   assert.ok(reviewerMails.length >= 1);
   assert.equal(emails.length, 1 + reviewerMails.length);
-  assert.match(emails[0].text, /Wajib: Hubungkan Telegram sebelum anda boleh menerima lantikan/);
-  assert.match(emails[0].html, /Hubungkan Telegram \(Wajib\)/);
+  assert.ok(emails[0].text.replace(/\s+/g,' ').includes('Wajib: Hubungkan Telegram sebelum anda boleh menerima lantikan'));
+  assert.ok(emails[0].html.includes('Hubungkan Telegram (Wajib)'));
   assert.equal((await post(form())).status, 409);
   assert.equal(objects.size, 1);
   await checkLogin('pengadil.ujian@example.invalid', 'Pengadil');

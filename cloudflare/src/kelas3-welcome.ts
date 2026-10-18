@@ -1,5 +1,6 @@
+import {originalEmail} from './original-templates';
 import {hash} from 'bcryptjs';
-import {buildRefpahangEmail,sendRefpahangEmail} from '../mail';
+import {sendRefpahangEmail} from '../mail';
 import {json} from './auth';
 import {guardStatement,runGuarded} from './php/guard';
 import type {Env} from './types';
@@ -68,16 +69,9 @@ export async function blastKelas3Welcome(env:Env,actorId:number):Promise<Respons
     }
     let delivered=false;
     try {
-      const {html,text}=buildRefpahangEmail('Akaun Berjaya Didaftarkan',
-        recipient.nama_penuh,[
-          'Akaun anda didaftarkan untuk Peperiksaan Kelas III FAM 2026.',
-          `Alamat emel log masuk: ${email}`,
-          `Kata laluan sementara: ${password}`,
-          'Permohonan anda masih dalam semakan. Log masuk, tukar kata laluan sementara, lengkapkan profil dan semak keputusan ujian dalam sistem.',
-          'Jika ada pertanyaan, hubungi admin@refpahang.com.',
-        ],{label:'Log Masuk Sekarang',url:login.toString()});
-      await sendRefpahangEmail(env,'daftar',email,recipient.nama_penuh,
-        'Akaun Sistem RefPahang — Peperiksaan Kelas III FAM 2026',html,text);
+      const {html,text,subject}=await originalEmail(env,'kelas3Welcome',
+        [email,recipient.nama_penuh,email,password,login.toString()]);
+      await sendRefpahangEmail(env,'daftar',email,recipient.nama_penuh,subject,html,text);
       delivered=true;
     } catch {
       // Provider exception text may contain recipient or authentication data.

@@ -8,7 +8,7 @@ const {db,DB,hooks,close}=openDatabase(['0001_worker_sessions','0011_application
 const objects=new Map();
 const emails=[];
 // The applicant's copy carries the PDF; reviewers get a "Menunggu Semakan" notice.
-const reviewSubject=/^Permohonan Baharu Menunggu Semakan/;
+const reviewSubject=/^(?:Permohonan Baharu Menunggu Semakan:|Permohonan Baru Memerlukan Pengesahan -)/;
 const applicantEmails=()=>emails.filter(message=>!reviewSubject.test(message.subject));
 const reviewerEmails=()=>emails.filter(message=>reviewSubject.test(message.subject));
 const pdf=new TextEncoder().encode('%PDF-1.7\n% test');
@@ -78,7 +78,7 @@ try {
   assert.equal(copy.attachments.length,1);
   assert.match(copy.attachments[0].filename,/R1_R2_R4/);
   assert.equal(copy.attachments[0].type,'application/pdf');
-  assert.match(copy.text,/Status: Menunggu Semakan PP Daerah/);
+  assert.match(copy.text,/Menunggu Semakan PP Daerah/);
   // The applicant's PP Daerah review it first, so they (not Admin) are told.
   const districtPp=db.prepare(`SELECT id,email FROM users WHERE role='PP Daerah' AND aktif=1
     AND COALESCE(NULLIF(persatuan_id,0),district_id)=(SELECT persatuan_id FROM users WHERE id=80)`).all();

@@ -58,7 +58,7 @@ try {
   const body=await response.json();
   assert.equal(response.status,200,JSON.stringify(body));
   assert.equal(workflow(body.application_id),'Menunggu Admin');
-  assert.match(emails.at(-1).text,/Status: Menunggu Kelulusan Admin/);
+  assert.match(emails.at(-1).text,/Menunggu Kelulusan Admin/);
 
   // An own application still waiting at district level (filed before this
   // rule) cannot be verified by its applicant, only by another PP Daerah.

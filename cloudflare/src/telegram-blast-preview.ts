@@ -1,4 +1,5 @@
-import {buildRefpahangEmail,sendRefpahangEmail} from '../mail';
+import {originalEmail} from './original-templates';
+import {sendRefpahangEmail} from '../mail';
 import {currentUser,json} from './auth';
 import {guardStatement,runGuarded} from './php/guard';
 import {mysqlTextOrder} from './php/mysql-order';
@@ -235,11 +236,8 @@ async function sendExternalTelegramBlast(request:Request,env:Env,id:number,
         freshLink,null,actorId,meta).run();
       let delivered=false;
       try {
-        const {html,text}=buildRefpahangEmail('Pautkan Telegram Sebelum Lantikan',recipient.nama,[
-          `Nama anda telah dimasukkan dalam pool pengadil luar bagi ${tournament.nama}. Sila pautkan akaun Telegram anda sebelum lantikan perlawanan dihantar.`,
-          'INI BUKAN LANTIKAN PERLAWANAN. Tiada tindakan Terima atau Tolak diperlukan sekarang dan tempoh jawapan lantikan belum bermula.',
-          `Klik pautan, buka bot @${bot}, kemudian tekan START. Pautan ini peribadi; jangan kongsikan dengan orang lain.`,
-        ],{label:'Pautkan Telegram Sekarang',url:freshLink});
+        const {html,text}=await originalEmail(env,'externalTelegram',
+          [recipient.nama,tournament.nama,freshLink]);
         await sendRefpahangEmail(env,'lantikan',email,recipient.nama,
           `Pautkan Telegram Sebelum Lantikan — ${tournament.nama}`,html,text);
         delivered=true;

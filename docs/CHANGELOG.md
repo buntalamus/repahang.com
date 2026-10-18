@@ -4,6 +4,19 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [18 Oktober 2026] — Pulihkan borang rasmi dan kandungan emel sebelum migrasi
+
+- Hapus penjana HTML/CSS yang mereka semula R1/R2/R4/R11, laporan RA, Futsal, kecergasan dan jadual lantikan. Worker menggunakan terus template PHP dan TCPDF asal melalui perkhidmatan dalaman `refpahang-original-templates`; tiada hos PHP/cPanel atau laluan awam tambahan.
+- Bentuk, koordinat, font, jadual skala penilaian, penerangan kesukaran, warna markah, kotak Nasihat, perakuan dan ruang tandatangan kembali daripada sumber asal. Logo menggunakan imej dan soft mask yang sama seperti pemprosesan TCPDF/GD asal.
+- Emel alu-aluan, lupa kata laluan, permohonan dihantar, semakan PP/Admin, keputusan ujian, Kelas III dan pautan Telegram kembali menggunakan fungsi dan isi PHP asal. Maklumat, kotak amaran, arahan rayuan, langkah susulan dan arahan Tidak Hadir tujuh hari dipulihkan.
+- Kelulusan permohonan ujian dilabel Diluluskan/Ditolak, bukan Lulus/Tidak Lulus peperiksaan. Pautan kelulusan RA mengikut peranan asal. Muat turun Kelas I membaca rekod permohonan semasa dan menggunakan R11 asal.
+- Kekalkan peraturan yang dipersetujui kemudian: tempoh jawapan sebelum kickoff, peranan berasingan, Telegram sebelum lantikan, penerima semakan PP/Admin, serta pemisahan pendaftaran/seminar/kecergasan/lesen. Tahun borang diisi daripada sesi permohonan; URL logo dihoskan sendiri.
+- Pengesahan setempat: 36 contoh dokumen/emel dibandingkan antara PHP asal dan PHP dalam workerd; 20 halaman PDF dirender dan diperiksa. Ujian akses dokumen, token RA/KUP, permohonan, aliran RA, emel simulasi, Telegram, lesen tahunan, penerima serentak dan pemulihan ralat lulus. Sifar emel sebenar dihantar sebagai ujian. Tiada migrasi D1 diperlukan.
+
+Rujukan binaan/pelepasan: `cloudflare/legacy-renderer/README.md`. Sebarang perubahan borang rasmi mesti menggunakan sumber asal dan melalui perbandingan hasil; tidak boleh diganti dengan reka bentuk anggaran.
+
+---
+
 ## [18 Oktober 2026] — Butang chat tidak menutup kandungan portal
 
 - Butang Hubungi Admin dan pautan Chat Pengguna dipindahkan daripada penjuru bawah terapung ke bar atas, bersama notifikasi. Butang mengikut aliran susun atur; pada telefon bar atas membalut ke baris baharu tanpa menindih kandungan.

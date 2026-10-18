@@ -1,4 +1,5 @@
-import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
+import {originalEmail} from './original-templates';
+import { sendRefpahangEmail } from '../mail';
 import { notifyVerifierOfRecordChange } from './match-notify';
 import type { MatchSummary } from './match-notify';
 import { currentUser, json } from './auth';
@@ -189,16 +190,13 @@ async function addMatch(input: Record<string, unknown>, env: Env,
   for (const approver of districtApprovers.results) {
     if (!approver.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(approver.email)) continue;
     try {
-      const details = [message,
-        `Pegawai: ${officials.map((official) => {
-          const name = users.results.find((user) => user.id === official.user_id)?.nama_penuh ?? '';
-          return `${name} (${official.jawatan})`;
-        }).join(', ')}`];
-      const { html, text } = buildRefpahangEmail('Perlawanan Baru Untuk Pengesahan',
-        approver.nama_penuh, details,
-        { label: 'Semak Perlawanan', url: new URL('/pp-daerah/pengesahan-perlawanan', env.BASE_URL).toString() });
-      await sendRefpahangEmail(env, 'pengesahan', approver.email, approver.nama_penuh,
-        'Perlawanan Baru Untuk Pengesahan - PBNP', html, text);
+      const emailOfficials=officials.map(official=>({...official,
+        nama:users.results.find(user=>user.id===official.user_id)?.nama_penuh || ''}));
+      const {html,text}=await originalEmail(env,'groupMatch',[approver.nama_penuh,actorName,
+        {home_team:home,away_team:away,tarikh:date,masa:time,jenis:kind,nama_kejohanan:tournament,
+          tempat:venue},emailOfficials,district.nama]);
+      await sendRefpahangEmail(env,'pengesahan',approver.email,approver.nama_penuh,
+        'Perlawanan Persahabatan Baru - Pengesahan Diperlukan',html,text);
       emailsSent++;
     } catch {
       console.error('Match verification email could not be sent');

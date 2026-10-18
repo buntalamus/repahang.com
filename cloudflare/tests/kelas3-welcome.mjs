@@ -53,7 +53,7 @@ try {
   assert.ok(messages[0].text.includes('https://staging.example.test/login'));
   assert.equal(db.prepare('SELECT password FROM users WHERE id=?').get(ids[1]).password,old[1]);
   assert.equal(db.prepare('SELECT count(*) AS n FROM worker_sessions WHERE user_id=?').get(ids[0]).n,0);
-  const pw=messages[0].text.match(/Kata laluan sementara: ([A-Za-z0-9]+)/)?.[1];
+  const pw=messages[0].text.match(/Kata Laluan Sementara\s+([A-Za-z0-9]+)/)?.[1];
   assert.ok(pw);
   assert.equal(await compare(pw,db.prepare('SELECT password FROM users WHERE id=?').get(ids[0]).password),true);
   failing=null;

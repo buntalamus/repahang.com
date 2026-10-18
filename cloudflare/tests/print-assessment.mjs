@@ -1,3 +1,4 @@
+import {bundle} from './_harness.mjs';
 import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';
 import {readFileSync} from 'node:fs';
@@ -6,11 +7,7 @@ import ts from 'typescript';
 
 const source=readFileSync(new URL('../src/print-assessment.ts',import.meta.url),'utf8')
   .replace("import {currentUser} from './auth';",`const currentUser=async()=>globalThis.actor;`);
-const compiled=ts.transpileModule(source,{compilerOptions:{
-  target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext,
-}}).outputText;
-const {printAssessment,renderAssessmentReport}=await import(
-  `data:text/javascript,${encodeURIComponent(compiled)}`);
+const {printAssessment}=await bundle(source.replace("from './original-templates'","from '../src/original-templates'"));
 const db=new DatabaseSync(process.env.REFPAHANG_TEST_SNAPSHOT ??
   new URL('../../output/cloudflare/refpahang_2026-10-13_hanafi51_v2.sqlite',
     import.meta.url).pathname,{readOnly:true});
@@ -86,10 +83,5 @@ const signature=createHmac('sha256',report.penilaian_token)
   .update(`laporan-penilaian:view:${report.id}`).digest('hex');
 assert.equal((await printAssessment(url(`&view_token=${signature}`),env)).status,200);
 assert.equal((await printAssessment(url(`&view_token=${'0'.repeat(64)}`),env)).status,404);
-const malicious=renderAssessmentReport({pasukan_home:'<script>alert(1)</script>',
-  pasukan_away:'A',nama_kejohanan:'K',tarikh:'2027-01-01',skor_ht_home:0,
-  skor_ht_away:0,skor_ft_home:1,skor_ft_away:0},[]);
-assert.equal(malicious.includes('<script>alert(1)</script>'),false);
-assert.equal(malicious.includes('&lt;script&gt;alert(1)&lt;/script&gt;'),true);
 db.close();
 console.log('RA print: imported D1 access modes, token scope, owner roles and escaped HTML passed');

@@ -1,4 +1,6 @@
-import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
+import {originalEmail} from './original-templates';
+import {plainTextFromHtml} from './php/format';
+import { sendRefpahangEmail } from '../mail';
 import type { MailAttachment } from '../mail';
 import { currentUser, json } from './auth';
 import { registrationPdf } from './registration-pdf';
@@ -305,12 +307,16 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
     const applicationId = Number(saved.id);
 
     await Promise.allSettled(reviewers.filter((reviewer) => reviewer.email).map(async (reviewer) => {
-      const {html, text} = buildRefpahangEmail('Permohonan Baharu Menunggu Semakan', reviewer.nama_penuh,
-        [reviewMessage, `No. Rujukan: REF-${String(applicationId).padStart(6, '0')}. Sesi: ${year}.`],
-        {label: 'Semak Permohonan', url: new URL(reviewerPage, env.BASE_URL).toString()});
+      const rendered=await originalEmail(env,'reviewer',
+        [Number(profile.persatuan_id || 0),{nama_penuh:fromProfile('nama_penuh'),
+          no_kp:fromProfile('no_ic'),emel:fromProfile('email'),jenis_pengadil:fromProfile('jenis_pengadil')},''],[reviewer],{REVIEWER_ROLE:districtReviewers.length?'PP Daerah':'Admin'});
+      // The original message targets PP. Current workflow may instead require Admin.
+      const html=rendered.html.replaceAll(new URL('/pp-daerah',env.BASE_URL).toString(),
+        new URL(reviewerPage,env.BASE_URL).toString());
+      const text=plainTextFromHtml(html);
       try {
         await sendRefpahangEmail(env, 'daftar', reviewer.email!, reviewer.nama_penuh,
-          `Permohonan Baharu Menunggu Semakan: ${fromProfile('nama_penuh')} - PBNP`, html, text);
+          rendered.subject, html, text);
       } catch {
         console.error('Reviewer email for a new application could not be sent');
       }
@@ -334,29 +340,11 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
             : `Borang_Pendaftaran_R1_R2_R4_${applicationId}.pdf`,
         type: 'application/pdf', content: await pdf.arrayBuffer(), disposition: 'attachment'});
       }
-      const title = type === 'kelas3_fam' ? 'Permohonan Kelas III FAM Berjaya Dihantar'
-        : type === 'penilai_berdaftar' ? 'Permohonan Pendaftaran Tahunan Penilai Pengadil Berjaya Dihantar'
-          : 'Permohonan Pendaftaran Pengadil Berjaya Dihantar';
-      const paragraphs = [
-        `Permohonan anda telah diterima. No. Rujukan: REF-${String(applicationId).padStart(6,'0')}.`,
-        `Jenis Pengadil: ${fromProfile('jenis_pengadil') || '-'}. Sesi: ${year}. Yuran permohonan: RM ${fee.toFixed(2)}.`,
-        `Status: ${initialWorkflow === 'Menunggu Admin' ? 'Menunggu Kelulusan Admin' : 'Menunggu Semakan PP Daerah'}. Semak status di dashboard anda.`,
-        ...(type === 'pengadil_berdaftar' ? [
-          'Salinan R1, R2 dan R4 dilampirkan. Cetak dan tandatangani perakuan kesihatan R4 sebelum ujian kecergasan.',
-          'Kehadiran seminar dan keputusan ujian kecergasan direkod secara berasingan. Kelulusan permohonan menjadikan anda Pengadil Berdaftar; ujian kecergasan sahaja menentukan kelayakan patch dan lesen Pengadil Negeri.',
-        ] : type === 'penilai_berdaftar' ? [
-          'Salinan R1 Pendaftaran Tahunan Penilai Pengadil dilampirkan untuk simpanan dan tandatangan anda.',
-        ] : type === 'kelas3_fam' ? [
-          'Borang R4 perakuan kesihatan dilampirkan. Cetak dan tandatangan sebelum ujian kecergasan.',
-        ] : []),
-      ];
-      const dashboard = type === 'penilai_berdaftar' ? user.role === 'Admin' ? '/admin/daftar/ra'
-        : user.role === 'PP Daerah' ? '/pp-daerah/daftar/tahunan' : '/penilai/permohonan/tahunan'
-        : '/pengadil';
-      const {html,text} = buildRefpahangEmail(title, fromProfile('nama_penuh'), paragraphs,
-        {label: 'Semak Status Permohonan', url: new URL(dashboard, env.BASE_URL).toString()});
-      await sendRefpahangEmail(env, 'daftar', fromProfile('email'), fromProfile('nama_penuh'),
-        `${title} - PBNP`, html, text, attachments);
+      const {html,text,subject}=await originalEmail(env,'receipt',
+        [fromProfile('email'),fromProfile('nama_penuh'),applicationId,fromProfile('jenis_pengadil') || '-',
+          attachments.length?[true]:[],year,type,fee,user.role],[],
+        {APPLICATION_STATUS:initialWorkflow==='Menunggu Admin'?'Menunggu Kelulusan Admin':'Menunggu Semakan PP Daerah'});
+      await sendRefpahangEmail(env,'daftar',fromProfile('email'),fromProfile('nama_penuh'),subject,html,text,attachments);
       emailSent = true;
     } catch {
       console.error('Application copy email or PDF attachment could not be sent');

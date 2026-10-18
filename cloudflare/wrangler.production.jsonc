@@ -40,6 +40,7 @@
     }
   ],
   "browser": { "binding": "BROWSER" },
+  "services": [{"binding":"ORIGINAL_TEMPLATES","service":"refpahang-original-templates"}],
   "send_email": [
     {
       "name": "EMAIL",

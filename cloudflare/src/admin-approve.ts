@@ -1,4 +1,5 @@
-import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
+import {originalEmail} from './original-templates';
+import { sendRefpahangEmail } from '../mail';
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
@@ -40,8 +41,7 @@ export async function adminApprove(request: Request, env: Env): Promise<Response
     return json({ error: true, message: 'Sebab penolakan diperlukan.' }, 400);
   }
   const application = await env.DB.prepare(`
-    SELECT p.id,p.user_id,p.nama_penuh,p.emel,p.jenis_borang,p.jenis_pengadil,
-      p.tahun_permohonan,u.email AS user_email
+    SELECT p.*,u.email AS user_email,u.role AS user_role
     FROM permohonan p LEFT JOIN users u ON u.id=p.user_id
     WHERE p.id=? AND p.status_workflow='Menunggu Admin' LIMIT 1
   `).bind(id).first<Application>();
@@ -92,16 +92,11 @@ export async function adminApprove(request: Request, env: Env): Promise<Response
   const recipient = application.user_email || application.emel;
   if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
     try {
-      const title = action === 'reject' ? 'Permohonan Ditolak'
-        : fitness ? 'Semakan Permohonan Diluluskan' : isRa
-          ? 'Pendaftaran Tahunan Penilai Pengadil Diluluskan' : 'Pendaftaran Pengadil Diluluskan';
-      const paragraphs = [message,
-        `No. Permohonan: #${id}. Sesi: ${application.tahun_permohonan ?? '-'}.`,
-        ...(notes ? [`Catatan Admin: ${notes}`] : [])];
-      const { html, text } = buildRefpahangEmail(title, application.nama_penuh,
-        paragraphs, { label: 'Semak Permohonan', url: new URL('/pengadil', env.BASE_URL).toString() });
-      await sendRefpahangEmail(env, 'daftar', recipient, application.nama_penuh,
-        `${title} - PBNP`, html, text);
+      const emailApplication = isRa ? {...application, jenis_borang: 'penilai_berdaftar'} : application;
+      const {html,text,subject}=fitness
+        ? await originalEmail(env,'annualStage',[application,'documents',notes])
+        : await originalEmail(env,action==='reject'?'rejection':'approval',[emailApplication,notes]);
+      await sendRefpahangEmail(env,'daftar',recipient,application.nama_penuh,subject,html,text);
       emailSent = true;
     } catch {
       console.error('Application decision email could not be sent');

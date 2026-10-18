@@ -1,4 +1,5 @@
-import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
+import {originalEmail} from './original-templates';
+import { sendRefpahangEmail } from '../mail';
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
@@ -84,15 +85,14 @@ export async function adminTestApplications(request: Request, env: Env): Promise
     return json({ error: true, message: 'Parameter tidak sah.' }, 400);
   }
   if (action === 'reject' && !notes) return json({ error: true, message: 'Sebab penolakan diperlukan.' }, 400);
-  const application = await env.DB.prepare(`SELECT p.id,p.user_id,p.nama_penuh,p.emel,p.jenis_permohonan,
-      p.workflow_status,u.email AS user_email FROM permohonan p LEFT JOIN users u ON u.id=p.user_id
+  const application = await env.DB.prepare(`SELECT p.*,u.email AS user_email FROM permohonan p LEFT JOIN users u ON u.id=p.user_id
       WHERE p.id=? AND p.jenis_permohonan=? AND p.workflow_status='Pending' LIMIT 1`)
     .bind(id, kind).first<TestApplication>();
   if (!application) return json({ error: true, message: 'Permohonan tidak dijumpai atau sudah diproses.' }, 404);
   const nextStatus = action === 'approve' ? 'Approved' : action === 'reject' ? 'Rejected' : 'Absent';
   const label = kind === 'ujian_kecergasan' ? 'Ujian Kecergasan'
     : kind === 'ujian_bertulis' ? 'Ujian Kelas III FAM' : 'Ujian Kelas I FAM';
-  const decision = action === 'approve' ? 'Lulus' : action === 'reject' ? 'Tidak Lulus' : 'Tidak Hadir';
+  const decision = action === 'approve' ? 'Diluluskan' : action === 'reject' ? 'Ditolak' : 'Tidak Hadir';
   const update = env.DB.prepare(`UPDATE permohonan SET workflow_status=?,
     admin_approved_at=datetime('now','+8 hours'),admin_approved_by=?,admin_notes=?,
     status_kemaskini=datetime('now','+8 hours')
@@ -111,13 +111,9 @@ export async function adminTestApplications(request: Request, env: Env): Promise
   const recipient = application.user_email || application.emel;
   if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
     try {
-      const title = `${label}: ${decision}`;
-      const { html, text } = buildRefpahangEmail(title, application.nama_penuh,
-        [`Keputusan permohonan ${label} anda: ${decision}.`, `No. Permohonan: #${id}`,
-          ...(notes ? [`Catatan Admin: ${notes}`] : [])],
-        { label: 'Semak Permohonan', url: new URL('/pengadil', env.BASE_URL).toString() });
-      await sendRefpahangEmail(env, 'daftar', recipient, application.nama_penuh,
-        `${title} - PBNP`, html, text);
+      const template=action==='approve'?'testApproval':action==='reject'?'testRejection':'testAbsent';
+      const {html,text,subject}=await originalEmail(env,template,[application,kind==='ujian_kecergasan'?'fitness':kind==='ujian_bertulis'?'written':'kelas1',notes]);
+      await sendRefpahangEmail(env,'daftar',recipient,application.nama_penuh,subject,html,text);
       emailSent = true;
     } catch {
       console.error('Test application decision email could not be sent');

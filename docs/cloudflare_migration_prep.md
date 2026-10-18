@@ -1,3 +1,5 @@
+> Pembetulan 18 Oktober 2026: tuntutan kesetaraan PDF/emel terdahulu di bawah tidak mencukupi sebagai bukti visual. Penjana rekonstruksi telah diganti dengan sumber PHP/TCPDF asal. Rujuk `cloudflare/legacy-renderer/README.md` dan entri changelog pemulihan template. Pelepasan kini memerlukan Worker template dalaman dideploy sebelum Worker utama; `npm run deploy:production --prefix cloudflare` mengurus kedua-duanya. Tiada migrasi data diperlukan bagi pembetulan template ini.
+
 # Persediaan migrasi RefPahang ke Cloudflare
 
 ## Cutover production — 15 Oktober 2026 (malam)

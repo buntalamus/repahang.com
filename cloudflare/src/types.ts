@@ -5,6 +5,7 @@ export interface Env extends EmailEnv {
   MEDIA: R2Bucket;
   ASSETS: Fetcher;
   BROWSER: BrowserRun;
+  ORIGINAL_TEMPLATES?: Fetcher;
   BASE_URL: string;
   STAGING_AUTH_ENABLED: string;
   STAGING_LOGIN_EMAILS?: string;

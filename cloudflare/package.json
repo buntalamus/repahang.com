@@ -54,10 +54,17 @@
     "test:notify-lantikan": "node --no-warnings tests/notify-lantikan.mjs",
     "test:notify-akaun": "node --no-warnings tests/notify-akaun.mjs",
     "test:notify-perlawanan": "node --no-warnings tests/notify-perlawanan.mjs",
-    "test:notify-laporan": "node --no-warnings tests/notify-laporan.mjs"
+    "test:notify-laporan": "node --no-warnings tests/notify-laporan.mjs",
+    "build:original-templates": "python3 legacy-renderer/scripts/build-bundle.py",
+    "test:original-templates": "node --no-warnings tests/original-templates.mjs",
+    "deploy:original-templates": "npm run build:original-templates && wrangler deploy --config legacy-renderer/wrangler.jsonc",
+    "deploy:production": "npm run typecheck && npm run deploy:original-templates && npm run build:frontend && wrangler deploy --config wrangler.production.jsonc",
+    "test:original-email-decisions": "node --no-warnings tests/original-email-decisions.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "fast-png": "6.4.0",
+    "php-cloud-wasm": "0.2.0",
     "postal-mime": "^2.7.6"
   },
   "devDependencies": {

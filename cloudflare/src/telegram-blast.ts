@@ -1,3 +1,4 @@
+import {originalEmail} from './original-templates';
 /**
  * Telegram linking email blast (Admin Settings). Starting a blast freezes the
  * unlinked accounts into telegram_blast_recipients; the cron dispatcher in
@@ -5,7 +6,7 @@
  * budget, keeps a Peti Emel "Dihantar" copy of each email and records every
  * address as sent, failed, uncertain or skipped.
  */
-import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
+import { sendRefpahangEmail } from '../mail';
 import { SmtpRejection } from '../smtp';
 import { json } from './auth';
 import { wroteRow } from './d1-changes';
@@ -163,13 +164,10 @@ export async function processTelegramBlast(env: Env, budget: number, now: number
     }
     if (!EMAIL.test(target.email)) { await settle('failed', INVALID).run(); continue; }
     const link = `https://t.me/${encodeURIComponent(bot)}?start=${encodeURIComponent(token)}`;
-    const { html, text } = buildRefpahangEmail('Aktifkan Notifikasi Telegram', target.name, [
-      'Sistem Pengurusan Pengadil PBNP menggunakan Telegram untuk menghantar notifikasi lantikan perlawanan.',
-      'Hubungkan akaun anda untuk menerima notifikasi serta menerima atau menolak lantikan melalui Telegram.',
-      `Buka pautan ini dan tekan START pada bot @${bot}.`,
-    ], { label: 'Aktifkan Telegram Sekarang', url: link });
     let smtpStarted = false;
     try {
+      const {html,text}=await originalEmail(env,'telegramBlast',
+        [{nama_penuh:target.name,email:target.email},link,bot]);
       if (mailbox) {
         await archiveSentCopy(env, { id: messageId, mailbox, to: target.email, subject: TELEGRAM_BLAST_SUBJECT,
           html, text, requestId: `telegram-blast:${messageId}` });

@@ -1,7 +1,8 @@
+import {originalEmail} from './original-templates';
 import { currentUser, json } from './auth';
 import { notifyUser, userContact } from './notify';
 import type { Notice } from './notify';
-import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
+import { sendRefpahangEmail } from '../mail';
 import { boundedJson } from './request';
 import type { Env } from './types';
 import { blastKelas3Welcome } from './kelas3-welcome';
@@ -365,22 +366,12 @@ async function updateFitnessResult(body: Record<string, unknown>, env: Env, admi
     const to = application.user_email || application.emel;
     if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
       try {
-        const title = `Keputusan Ujian Kecergasan: ${decision}`;
-        const paragraphs = [passed
-          ? `Anda kekal Pengadil Berdaftar dan layak menerima patch serta lesen Pengadil Negeri bagi sesi ${application.tahun_permohonan}.`
-          : `Anda kekal Pengadil Berdaftar bagi sesi ${application.tahun_permohonan}, tetapi keputusan ujian kecergasan (${decision}) tidak melayakkan anda menerima patch atau lesen Pengadil Negeri.`,
-          `No. Permohonan: #${id}`];
-        const { html, text } = buildRefpahangEmail(title, application.nama_penuh, paragraphs,
-          { label: 'Semak Permohonan', url: new URL('/pengadil', env.BASE_URL).toString() });
-        await sendRefpahangEmail(env, 'daftar', to, application.nama_penuh, `${title} - PBNP`, html, text);
-        if (passed) {
-          const registered = buildRefpahangEmail('Kelayakan Patch Pengadil Negeri',
-            application.nama_penuh,
-            [`Anda layak menerima patch dan lesen Pengadil Negeri sesi ${application.tahun_permohonan}.`,
-              `No. Permohonan: #${id}`],
-            { label: 'Semak Pendaftaran', url: new URL('/pengadil', env.BASE_URL).toString() });
-          await sendRefpahangEmail(env, 'daftar', to, application.nama_penuh,
-            'Kelayakan Patch Pengadil Negeri - PBNP', registered.html, registered.text);
+        const stage=passed?'fitness_pass':decision==='Tidak Hadir'?'fitness_absent':'fitness_fail';
+        const {html,text,subject}=await originalEmail(env,'annualStage',[application,stage]);
+        await sendRefpahangEmail(env,'daftar',to,application.nama_penuh,subject,html,text);
+        if(passed){
+          const registered=await originalEmail(env,'annualStage',[application,'registered']);
+          await sendRefpahangEmail(env,'daftar',to,application.nama_penuh,registered.subject,registered.html,registered.text);
         }
         emailSent = true;
       } catch {

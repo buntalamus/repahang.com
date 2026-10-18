@@ -1,0 +1,17 @@
+{
+  "name": "refpahang-original-templates",
+  "main": "index.mjs",
+  "compatibility_date": "2026-10-13",
+  "workers_dev": false,
+  "preview_urls": false,
+  "define": {
+    "process": "undefined",
+    "globalThis.process": "undefined"
+  },
+  "limits": {
+    "cpu_ms": 30000
+  },
+  "observability": {
+    "enabled": true
+  }
+}

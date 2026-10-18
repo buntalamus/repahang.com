@@ -1,3 +1,4 @@
+import {execFileSync} from 'node:child_process';
 // Shared harness: bundle Worker modules with esbuild and run them against a
 // private copy of the imported D1 snapshot with the Worker migrations applied.
 import {copyFileSync,mkdtempSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
@@ -7,15 +8,29 @@ import {DatabaseSync} from 'node:sqlite';
 import {crc32,deflateSync} from 'node:zlib';
 import {build} from 'esbuild';
 
+let originalDirectory;
+export function renderOriginalLocally(payload) {
+  if(!originalDirectory){
+    originalDirectory=mkdtempSync(join(tmpdir(),'refpahang-original-'));
+    const module=readFileSync(new URL('../legacy-renderer/bundle.generated.mjs',import.meta.url),'utf8');
+    writeFileSync(join(originalDirectory,'bundle.zip'),Buffer.from(JSON.parse(module.match(/export default ("[^";]+")/)[1]),'base64'));
+    execFileSync('php',['-r',"$z=new ZipArchive();$z->open($argv[1].'/bundle.zip');$z->extractTo($argv[1]);$z->close();mkdir($argv[1].'/request');",originalDirectory],{stdio:'pipe'});
+    copyFileSync(new URL('../../assets/Pahang_FA_logo.png',import.meta.url),join(originalDirectory,'assets/Pahang_FA_logo.png'));
+    process.on('exit',()=>rmSync(originalDirectory,{recursive:true,force:true}));
+  }
+  return JSON.parse(execFileSync('php',[new URL('../legacy-renderer/scripts/render-native.php',import.meta.url).pathname,originalDirectory],
+    {input:JSON.stringify(payload),maxBuffer:12_000_000,stdio:['pipe','pipe','pipe']}).toString());
+}
+
 export async function bundle(contents) {
   const directory=mkdtempSync(join(tmpdir(),'refpahang-bundle-'));
   const file=join(directory,'bundle.mjs');
-  const result=await build({stdin:{contents,resolveDir:new URL('.',import.meta.url).pathname,
+  const result=await build({stdin:{contents:contents+"\nexport {setOriginalRendererForTests as __originalRenderer} from '../src/original-templates';",resolveDir:new URL('.',import.meta.url).pathname,
     loader:'ts'},bundle:true,format:'esm',platform:'node',write:false,logLevel:'silent',
     external:['cloudflare:sockets'],
   });
   writeFileSync(file,result.outputFiles[0].text);
-  try {return await import(file);} finally {rmSync(directory,{recursive:true,force:true});}
+  try {const module=await import(file);module.__originalRenderer(async payload=>renderOriginalLocally(payload));return module;} finally {rmSync(directory,{recursive:true,force:true});}
 }
 
 export function openDatabase(migrations) {

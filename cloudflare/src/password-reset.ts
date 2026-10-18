@@ -1,7 +1,8 @@
+import {originalEmail} from './original-templates';
 import { hash } from 'bcryptjs';
 import { notifyPasswordChanged } from './account-notify';
 
-import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
+import { sendRefpahangEmail } from '../mail';
 import { json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
@@ -57,18 +58,9 @@ export async function forgotPassword(request: Request, env: Env): Promise<Respon
     const resetUrl = new URL('/reset-kata-laluan', env.BASE_URL);
     if (resetUrl.protocol !== 'https:') throw new Error('Reset URL must be HTTPS');
     resetUrl.searchParams.set('token', token);
-    const { html, text } = buildRefpahangEmail(
-      'Tetapan Semula Kata Laluan', user.nama_penuh,
-      [
-        'Kami menerima permintaan untuk menetapkan semula kata laluan akaun anda.',
-        'Pautan ini tamat tempoh dalam 1 jam. Jika anda tidak membuat permintaan ini, abaikan emel ini.',
-      ],
-      { label: 'Tetapkan Semula Kata Laluan', url: resetUrl.toString() },
-    );
-    await sendRefpahangEmail(
-      env, 'admin', user.email, user.nama_penuh,
-      'Tetapan Semula Kata Laluan - Sistem Pengadil Pahang', html, text,
-    );
+    const {html,text,subject}=await originalEmail(env,'forgotPassword',
+      [{nama_penuh:user.nama_penuh,email:user.email},resetUrl.toString()]);
+    await sendRefpahangEmail(env,'admin',user.email,user.nama_penuh,subject,html,text);
   } catch {
     // A token without a delivered email must not consume a rate-limit slot.
     await env.DB.prepare('DELETE FROM password_reset_tokens WHERE token=? AND COALESCE(used,0)=0')

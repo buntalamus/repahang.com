@@ -1,4 +1,5 @@
-import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
+import {originalEmail} from './original-templates';
+import { sendRefpahangEmail } from '../mail';
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
@@ -35,7 +36,7 @@ export async function ppVerify(request: Request, env: Env): Promise<Response> {
   }
   if (action === 'reject' && !notes) return json({ error: true, message: 'Sebab penolakan diperlukan.' }, 422);
   const application = await env.DB.prepare(`
-    SELECT id,user_id,nama_penuh,emel,jenis_pengadil FROM permohonan
+    SELECT * FROM permohonan
     WHERE id=? AND persatuan_id=? AND status_workflow='Menunggu PP Daerah'
       AND (user_id IS NULL OR user_id<>?) LIMIT 1
   `).bind(id, actor.persatuan_id, actor.id).first<DistrictApplication>();
@@ -71,23 +72,18 @@ export async function ppVerify(request: Request, env: Env): Promise<Response> {
         .bind(admin.id, `Permohonan #${id} telah disahkan oleh ${actor.nama_penuh}.`).run();
     }
     const adminEmails = await Promise.allSettled(admins.results.map(async (admin) => {
-      const { html, text } = buildRefpahangEmail('Permohonan Menunggu Kelulusan Admin',
-        admin.nama_penuh, [`Permohonan #${id} oleh ${application.nama_penuh} telah disahkan oleh ${actor.nama_penuh}.`],
-        { label: 'Semak Permohonan', url: new URL('/admin/permohonan', env.BASE_URL).toString() });
-      await sendRefpahangEmail(env, 'admin', admin.email, admin.nama_penuh,
-        'Permohonan Menunggu Kelulusan Admin - PBNP', html, text);
+      const {html,text,subject}=await originalEmail(env,'ppAdmin',
+        [application,actor.nama_penuh],[admin]);
+      await sendRefpahangEmail(env,'admin',admin.email,admin.nama_penuh,subject,html,text);
     }));
     const failedAdminEmails = adminEmails.filter((item) => item.status === 'rejected').length;
     if (failedAdminEmails) console.error(`PP verification: ${failedAdminEmails} Admin email(s) could not be sent`);
   }
   if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(application.emel)) {
     try {
-      const title = approved ? 'Permohonan Disahkan Pegawai Pembangunan Daerah' : 'Permohonan Ditolak Pegawai Pembangunan Daerah';
-      const { html, text } = buildRefpahangEmail(title, application.nama_penuh,
-        [decisionMessage, `No. Permohonan: #${id}`],
-        { label: 'Semak Permohonan', url: new URL('/pengadil', env.BASE_URL).toString() });
-      await sendRefpahangEmail(env, 'daftar', application.emel, application.nama_penuh,
-        `${title} - Sistem Pengadil PBNP`, html, text);
+      const {html,text,subject}=await originalEmail(env,'ppApplicant',
+        [application,approved?'approved':'rejected',notes]);
+      await sendRefpahangEmail(env,'daftar',application.emel,application.nama_penuh,subject,html,text);
     } catch {
       console.error('PP verification email could not be sent');
     }

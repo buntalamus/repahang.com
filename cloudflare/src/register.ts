@@ -1,9 +1,10 @@
+import {originalEmail} from './original-templates';
 import { hash } from 'bcryptjs';
 import { activeAdmins, contactRecipient, districtPPs, notifyUser } from './notify';
 import { baseUrl } from './php/email';
 import { applicationWindow, klToday, windowClosedMessage, type ApplicationWindow } from './application-window';
 
-import { buildRefpahangEmail, sendRefpahangEmail } from '../mail';
+import { sendRefpahangEmail } from '../mail';
 import { json } from './auth';
 import type { Env } from './types';
 import { wroteRow } from './d1-changes';
@@ -205,17 +206,9 @@ export async function register(request: Request, env: Env): Promise<Response> {
   const telegramLink = `https://t.me/${encodeURIComponent(bot)}?start=${token}`;
   let emailSent = false;
   try {
-    const { html, text } = buildRefpahangEmail('Akaun Berjaya Didaftarkan', name, [
-      'Akaun Sistem Pengadil Pahang anda telah berjaya didaftarkan.',
-      `Emel log masuk: ${email}`,
-      `Kata laluan sementara: ${password}`,
-      'Sila tukar kata laluan selepas log masuk. Jangan kongsikan butiran ini.',
-      'Wajib: Hubungkan Telegram sebelum anda boleh menerima lantikan. Buka pautan di bawah dan tekan Mula / Start dalam bot.',
-      `Pautan Telegram: ${telegramLink}`,
-      `Selepas itu, log masuk di ${new URL('/login', env.BASE_URL).toString()}`,
-    ], { label: 'Hubungkan Telegram (Wajib)', url: telegramLink });
-    await sendRefpahangEmail(env, 'daftar', email, name,
-      'Selamat Datang - Sistem Pengadil Pahang', html, text);
+    const {html,text,subject}=await originalEmail(env,'welcome',
+      [email,name,email,password,role,telegramLink]);
+    await sendRefpahangEmail(env,'daftar',email,name,subject,html,text);
     emailSent = true;
   } catch {
     console.error('Registration email could not be sent');
