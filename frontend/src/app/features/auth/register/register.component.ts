@@ -1,4 +1,5 @@
-import { Component } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
+import { NgOptimizedImage } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
@@ -8,12 +9,14 @@ import { compressProfileImage, MAX_PROFILE_IMAGE_BYTES } from '../../../shared/u
 
 @Component({
   selector: 'app-register',
-  standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, NgOptimizedImage],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './register.component.html',
 })
 export class RegisterComponent {
+  private readonly cdr = inject(ChangeDetectorRef);
   form = {
+    role: '',
     nama_penuh: '',
     no_ic: '',
     email: '',
@@ -69,8 +72,15 @@ export class RegisterComponent {
     'Pengadil Negeri',
   ];
   get isReferee(): boolean {
-    return this.form.jenis_pengadil !== 'Penilai Pengadil' &&
-      this.form.jenis_pengadil !== 'Pegawai Pembangunan';
+    return this.form.role === 'Pengadil';
+  }
+  onRoleChange(): void {
+    this.form.jenis_pengadil = '';
+    this.profile['saiz_baju'] = '';
+    this.profile['tahun_mula_aktif'] = '';
+    for (const key of ['role', 'jenis_pengadil', 'saiz_baju', 'tahun_mula_aktif']) {
+      delete this.errors[key];
+    }
   }
   get needsEmployer(): boolean {
     const status = this.profile['status_kerja'].trim().toUpperCase();
@@ -93,6 +103,7 @@ export class RegisterComponent {
       this.errors['gambar_profil'] = error instanceof Error ? error.message : 'Gambar tidak dapat diproses.';
     } finally {
       this.optimizingPicture = false;
+      this.cdr.markForCheck();
     }
   }
 
@@ -114,9 +125,11 @@ export class RegisterComponent {
           this.registrationClosed = !res.registration_open;
           this.registrationMessage = res.registration_message || '';
         }
+        this.cdr.markForCheck();
       },
       error: () => {
         this.checkingStatus = false;
+        this.cdr.markForCheck();
       },
     });
   }
@@ -130,6 +143,7 @@ export class RegisterComponent {
             label: `${p.nama_persatuan} (${p.kod_persatuan})`,
           }));
         }
+        this.cdr.markForCheck();
       },
     });
   }
@@ -141,7 +155,10 @@ export class RegisterComponent {
     if (!this.form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.form.email)) this.errors['email'] = 'Emel tidak sah.';
     if (!this.form.no_telefon.trim()) this.errors['no_telefon'] = 'No. telefon diperlukan.';
     if (!this.form.jantina) this.errors['jantina'] = 'Sila pilih jantina.';
-    if (!this.form.jenis_pengadil) this.errors['jenis_pengadil'] = 'Sila pilih jenis pengadil.';
+    if (!['Pengadil', 'Penilai'].includes(this.form.role)) this.errors['role'] = 'Sila pilih peranan.';
+    if (this.isReferee && !this.jenisPengadilList.includes(this.form.jenis_pengadil)) {
+      this.errors['jenis_pengadil'] = 'Sila pilih jenis pengadil.';
+    }
     if (!this.form.persatuan_id) this.errors['persatuan_id'] = 'Sila pilih persatuan.';
     if (!this.form.pengesahan_data) this.errors['pengesahan'] = 'Sila tandakan pengesahan.';
     for (const field of this.addressFields) {
@@ -202,9 +219,11 @@ export class RegisterComponent {
           this.telegramLink = (res as any).telegram_link || '';
         }
         this.showModal = true;
+        this.cdr.markForCheck();
       },
       error: (err: any) => {
         this.loading = false;
+        this.cdr.markForCheck();
         this.toast.error(err?.error?.message || 'Tidak dapat menyambung ke pelayan.');
       },
     });

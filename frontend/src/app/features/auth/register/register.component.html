@@ -3,7 +3,7 @@
 
     <!-- Header -->
     <header class="flex flex-col items-center mb-10 pt-6 pb-8 bg-pahang-black rounded-b-xl shadow-2xl">
-      <img src="assets/images/logo-pahang.png" alt="Logo PBNP" class="w-24 h-24 mx-auto mb-4" />
+      <img ngSrc="assets/images/logo-pahang.png" width="96" height="96" priority alt="Logo PBNP" class="w-24 h-24 mx-auto mb-4" />
       <h1 class="text-3xl md:text-4xl font-bold text-pahang-yellow uppercase tracking-wider text-center">
         Pendaftaran Sistem Pengurusan Pengadil
       </h1>
@@ -128,21 +128,40 @@
 
           <!-- Jenis Pengadil -->
           <div class="md:col-span-2">
+            <label for="role" class="block text-sm font-medium text-gray-700 mb-1">
+              Peranan <span class="text-red-600">*</span>
+            </label>
+            <select id="role" [(ngModel)]="form.role" (ngModelChange)="onRoleChange()" name="role"
+              required aria-describedby="role-help" [attr.aria-invalid]="errors['role'] ? 'true' : null"
+              class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-pahang-yellow focus:border-pahang-yellow">
+              <option value="" disabled>-- Sila Pilih Peranan --</option>
+              <option value="Pengadil">Pengadil</option>
+              <option value="Penilai">Penilai Pengadil</option>
+            </select>
+            <p id="role-help" class="text-xs text-gray-600 mt-1">Peranan menentukan portal anda selepas log masuk. Akaun Admin dan Pegawai Pembangunan Daerah ditetapkan oleh pentadbir.</p>
+            @if (errors['role']) {
+              <p class="text-red-600 text-xs mt-1" role="alert">{{ errors['role'] }}</p>
+            }
+          </div>
+
+          @if (isReferee) {
+          <div class="md:col-span-2">
             <label for="jenis_pengadil" class="block text-sm font-medium text-gray-700 mb-1">
-              Peranan / Kategori Pengadil <span class="text-red-600">*</span>
+              Jenis Pengadil <span class="text-red-600">*</span>
             </label>
             <select id="jenis_pengadil" [(ngModel)]="form.jenis_pengadil" name="jenis_pengadil"
+              required [attr.aria-invalid]="errors['jenis_pengadil'] ? 'true' : null"
               class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-pahang-yellow focus:border-pahang-yellow">
               <option value="" disabled>-- Sila Pilih --</option>
               @for (jenis of jenisPengadilList; track jenis) {
                 <option [value]="jenis">{{ jenis }}</option>
               }
             </select>
-            <p class="text-xs text-gray-500 mt-1">Akaun Penilai Pengadil dan Pegawai Pembangunan didaftarkan oleh pentadbir.</p>
             @if (errors['jenis_pengadil']) {
               <p class="text-red-500 text-xs mt-1">{{ errors['jenis_pengadil'] }}</p>
             }
           </div>
+          }
 
           <!-- Persatuan Bolasepak -->
           <div class="md:col-span-2">

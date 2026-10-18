@@ -88,12 +88,25 @@ export async function register(request: Request, env: Env): Promise<Response> {
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   const phone = typeof body.no_telefon === 'string' ? body.no_telefon.trim() : '';
   const gender = typeof body.jantina === 'string' ? body.jantina.trim().toUpperCase() : '';
-  const refereeType = typeof body.jenis_pengadil === 'string' ? body.jenis_pengadil.trim() : '';
+  // Older cached forms have no role field and can only register referees.
+  const role = body.role === undefined ? 'Pengadil' : body.role;
+  const selectedType = typeof body.jenis_pengadil === 'string' ? body.jenis_pengadil.trim() : '';
+  if (!['Pengadil', 'Penilai'].includes(String(role)) ||
+      (role === 'Pengadil' && !allowedTypes.has(selectedType)) ||
+      (role === 'Penilai' && selectedType !== '' && selectedType !== 'Penilai Pengadil')) {
+    return json({ error: true, message: 'Sila pilih peranan dan jenis pengadil yang sah.' }, 400);
+  }
+  // Existing profile/application/appointment readers use this assessor marker.
+  const refereeType = role === 'Penilai' ? 'Penilai Pengadil' : selectedType;
+  if (role === 'Penilai') {
+    body.saiz_baju = '';
+    body.tahun_mula_aktif = '';
+  }
   const associationId = Number(body.persatuan_id);
   if (!name || name.length > 200 || !/^\d{12}$/.test(ic) ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 ||
       !/^\d{10,11}$/.test(phone) || !['LELAKI', 'PEREMPUAN'].includes(gender) ||
-      !allowedTypes.has(refereeType) || !Number.isSafeInteger(associationId) || associationId < 1 ||
+      !Number.isSafeInteger(associationId) || associationId < 1 ||
       body.pengesahan_data !== 'true') {
     return json({ error: true, message: 'Maklumat pendaftaran tidak lengkap atau tidak sah.' }, 400);
   }
@@ -120,7 +133,7 @@ export async function register(request: Request, env: Env): Promise<Response> {
   }
   const year = Number(body.tahun_mula_aktif);
   const currentYear = Number(new Intl.DateTimeFormat('en-CA', { year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' }).format(new Date()));
-  if (!Number.isInteger(year) || year < 1950 || year > currentYear) {
+  if (role === 'Pengadil' && (!Number.isInteger(year) || year < 1950 || year > currentYear)) {
     return json({ error: true, message: 'Tahun mula aktif tidak sah.' }, 400);
   }
   if (!/^\d{5}$/.test(String(body.poskod || '')) ||
@@ -147,7 +160,6 @@ export async function register(request: Request, env: Env): Promise<Response> {
 
   const password = randomPassword();
   const token = tokenHex();
-  const role = 'Pengadil';
   const passwordHash = await hash(password, 12);
   const pictureKey = `profiles/registration_${crypto.randomUUID()}.${info.ext}`;
   const picturePath = `/uploads/${pictureKey}`;
@@ -222,19 +234,21 @@ export async function register(request: Request, env: Env): Promise<Response> {
 async function notifyReviewersOfRegistration(env: Env, associationId: number, daerah: string,
   referee: { name: string; email: string; phone: string; refereeType: string }): Promise<void> {
   try {
+    const accountLabel = referee.refereeType === 'Penilai Pengadil' ? 'Penilai Pengadil' : 'Pengadil';
+    const subject = `Pendaftaran ${accountLabel} Baharu: ${referee.name}`;
     const pps = await districtPPs(env, associationId);
     const reviewers = pps.length ? pps : await activeAdmins(env);
     for (const reviewer of reviewers) {
       await notifyUser(env, { ...contactRecipient(reviewer), telegramChatId: pps.length ? reviewer.telegram_chat_id : null }, {
-        subject: `Pendaftaran Pengadil Baharu: ${referee.name}`,
-        title: 'Pendaftaran Pengadil Baharu',
+        subject,
+        title: `Pendaftaran ${accountLabel} Baharu`,
         mailType: 'daftar',
-        paragraphs: ['Seorang pengadil baharu telah mendaftar akaun melalui portal.',
-          'Sila log masuk untuk menyemak profil pengadil ini.'],
+        paragraphs: [`Seorang ${accountLabel.toLowerCase()} baharu telah mendaftar akaun melalui portal.`,
+          'Sila log masuk untuk menyemak profil pengguna ini.'],
         rows: [['Nama', referee.name], ['Emel', referee.email], ['No. Telefon', referee.phone || '-'],
-          ['Jenis Pengadil', referee.refereeType || '-'], ['Persatuan / Daerah', daerah || '-']],
+          ['Peranan', accountLabel], ['Kategori', referee.refereeType || '-'], ['Persatuan / Daerah', daerah || '-']],
         actions: [{ label: 'Log Masuk ke Sistem', url: `${baseUrl(env)}/login` }],
-        portal: { type: 'Pendaftaran Baharu', subject: `Pendaftaran Pengadil Baharu: ${referee.name}`,
+        portal: { type: 'Pendaftaran Baharu', subject,
           message: `${referee.name} (${referee.refereeType || 'Pengadil'}) dari ${daerah || 'daerah anda'} telah mendaftar akaun baharu.` },
       });
     }

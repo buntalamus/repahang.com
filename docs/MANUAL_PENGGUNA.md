@@ -70,7 +70,8 @@ Sistem menghantar notifikasi melalui **3 saluran**:
 | Emel | Emel aktif untuk menerima notifikasi | ✅ |
 | No. Telefon | 10-11 digit (cth: 0123456789) | ✅ |
 | Jantina | Lelaki / Perempuan | ✅ |
-| Jenis Pengadil | Pengadil Kebangsaan / Pengadil Negeri / Penilai Pengadil / Pegawai Pembangunan | ✅ |
+| Peranan | Pengadil / Penilai Pengadil | ✅ |
+| Jenis Pengadil | Pengadil Baharu / Pengadil Negeri / Pengadil Kebangsaan; muncul apabila memilih Pengadil | Untuk Pengadil |
 | Persatuan Bolasepak Daerah | Pilih daerah (12 daerah di Pahang) | ✅ |
 | Pengesahan Data | Tandakan kotak persetujuan | ✅ |
 
@@ -92,10 +93,11 @@ Sistem menghantar notifikasi melalui **3 saluran**:
 | 6 | Lipis | 12 | Muadzam Shah |
 
 ### Penentuan Peranan:
-- Pilih **"Pegawai Pembangunan"** → Akaun didaftarkan sebagai **PP Daerah**
-- Pilih jenis lain → Akaun didaftarkan sebagai **Pengadil**
+- Pilih **Pengadil** → pilih **Jenis Pengadil** → akaun masuk ke Portal Pengadil (`/pengadil`).
+- Pilih **Penilai Pengadil** → tiada pilihan Jenis Pengadil → akaun menggunakan peranan `Penilai` dan masuk ke Portal Penilai (`/penilai`).
+- Akaun **Admin** dan **PP Daerah** ditetapkan oleh pentadbir.
 
-> **Nota:** Pendaftaran Penilai Pengadil (RA) dilakukan melalui jenis "Penilai Pengadil" tetapi peranan akaun tetap Pengadil. Admin akan menaikkan taraf ke peranan Penilai jika perlu.
+> **Nota:** Peranan akaun berasingan daripada kelulusan pendaftaran tahunan. Pemilihan kategori semasa membuka akaun tidak meluluskan pendaftaran tahunan secara automatik. Saiz baju dan tahun mula aktif wajib untuk Pengadil sahaja; profil peribadi, alamat, pekerjaan, waris dan gambar masih diperlukan bagi kedua-dua peranan.
 
 ---
 

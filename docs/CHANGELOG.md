@@ -4,6 +4,16 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [18 Oktober 2026] — Peranan pendaftaran dan kategori pengadil
+
+- Borang `/daftar` mengasingkan Peranan (Pengadil / Penilai Pengadil) daripada Jenis Pengadil (Baharu / Negeri / Kebangsaan), yang hanya muncul untuk Pengadil.
+- Worker mencipta peranan `Pengadil` atau `Penilai` mengikut pilihan. Penilai disimpan dengan penanda profil `jenis_pengadil=Penilai Pengadil` untuk keserasian modul sedia ada. Admin dan PP Daerah tidak boleh didaftarkan melalui borang awam.
+- Saiz baju dan tahun mula aktif hanya diwajibkan bagi Pengadil. Profil, gambar, persatuan dan waris kekal wajib untuk kedua-dua peranan. Notis kepada PP/Admin mengenal pasti peranan yang didaftarkan.
+- Borang lama yang masih dicache tanpa medan peranan kekal mendaftar Pengadil sahaja. Tiada perubahan data akaun lama atau kelulusan tahunan. Endpoint PHP legasi tidak digunakan oleh `/daftar` produksi; perubahan ini pada Worker.
+- Ujian `test:profile-registration` meliputi pendaftaran, log masuk dan sesi kedua-dua peranan, validasi profil, penolakan peranan istimewa, konflik identiti dan borang lama.
+
+---
+
 ## [17 Oktober 2026] — Blast emel pautan Telegram berperingkat
 
 ### Tetapan Admin

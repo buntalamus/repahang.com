@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { deflateSync } from 'node:zlib';
 import { bundle, openDatabase } from './_harness.mjs';
 
-const { register } = await bundle("export {register} from '../src/register';");
+const { register, login, session } = await bundle("export {register} from '../src/register'; export {login,session} from '../src/auth';");
 const { db, DB, close } = openDatabase(['0001_worker_sessions']);
 const objects = new Map();
 const emails = [];
@@ -39,11 +39,11 @@ function picture() {
   return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),
     chunk('IHDR', header), chunk('IDAT', deflateSync(pixels)), chunk('IEND', Buffer.alloc(0))]);
 }
-function form(role = 'Pengadil Baharu') {
+function form(type = 'Pengadil Baharu') {
   const data = new FormData();
   const fields = {
     nama_penuh: 'Pengadil Ujian', no_ic: '990101061234', email: 'pengadil.ujian@example.invalid',
-    no_telefon: '0123456789', jantina: 'Lelaki', jenis_pengadil: role,
+    no_telefon: '0123456789', jantina: 'Lelaki', role: 'Pengadil', jenis_pengadil: type,
     persatuan_id: String(db.prepare('SELECT id FROM persatuan_bolasepak_daerah WHERE aktif=1 LIMIT 1').get().id),
     alamat1: 'Alamat Ujian', poskod: '25000', daerah: 'Kuantan', negeri: 'Pahang',
     status_kerja: 'Pelajar', nama_waris: 'Waris Ujian', hubungan_waris: 'Ibu Bapa',
@@ -58,7 +58,38 @@ async function post(data) {
   return register(new Request('https://staging.refpahang.example/api/register.php',
     { method: 'POST', body: data }), env);
 }
+async function checkLogin(email, role) {
+  const recipientOf = message => typeof message.to === 'string' ? message.to : message.to.email;
+  const mail = emails.find(message => recipientOf(message) === email);
+  const password = mail.text.match(/Kata laluan sementara: (\S+)/)?.[1];
+  assert.ok(password, 'welcome email provides the temporary password');
+  const response = await login(new Request(env.BASE_URL + '/api/login.php', {
+    method: 'POST', body: JSON.stringify({ email, password }),
+  }), env);
+  assert.equal(response.status, 200);
+  const { data } = await response.json();
+  assert.equal(data.role, role);
+  assert.equal(data.can_referee, role === 'Pengadil' ? 1 : 0);
+  assert.equal(data.can_ra, role === 'Penilai' ? 1 : 0);
+  assert.equal(data.redirect_url, role === 'Penilai' ? '/penilai-dashboard.html' : '/pengadil-dashboard.html');
+  const state = await (await session(new Request(env.BASE_URL + '/api/session.php', {
+    headers: { Cookie: response.headers.get('Set-Cookie').split(';')[0] },
+  }), env)).json();
+  assert.equal(state.authenticated, true);
+  assert.equal(state.user_role, role);
+}
 try {
+  // Public sign-up must never create privileged accounts or contradictory roles.
+  for (const role of ['Admin', 'PP Daerah', '', 'Penilai Pengadil', 'invalid']) {
+    const invalid = form(); invalid.set('role', role);
+    assert.equal((await post(invalid)).status, 400);
+  }
+  const mismatched = form(); mismatched.set('role', 'Penilai');
+  assert.equal((await post(mismatched)).status, 400);
+  assert.equal((await post(form('Penilai Pengadil'))).status, 400);
+  const missingType = form('');
+  assert.equal((await post(missingType)).status, 400);
+  assert.equal(objects.size, 0);
   const incomplete = form(); incomplete.delete('alamat1');
   const rejected = await post(incomplete);
   assert.equal(rejected.status, 400);
@@ -98,10 +129,30 @@ try {
   assert.match(emails[0].html, /Hubungkan Telegram \(Wajib\)/);
   assert.equal((await post(form())).status, 409);
   assert.equal(objects.size, 1);
+  await checkLogin('pengadil.ujian@example.invalid', 'Pengadil');
   const assessor = form('Penilai Pengadil');
+  assessor.set('role', 'Penilai'); assessor.set('jenis_pengadil', '');
   assessor.set('no_ic', '990101061235'); assessor.set('email', 'penilai.ujian@example.invalid');
   assessor.delete('saiz_baju'); assessor.delete('tahun_mula_aktif');
-  assert.equal((await post(assessor)).status, 400);
-  assert.equal(db.prepare("SELECT COUNT(*) n FROM users WHERE email='penilai.ujian@example.invalid'").get().n, 0);
-  console.log('profile registration: profile gates, complete referee account, privileged role rejection and duplicate guard');
+  const incompleteAssessor = form(''); incompleteAssessor.set('role', 'Penilai');
+  incompleteAssessor.delete('nama_waris');
+  const rejectedAssessor = await post(incompleteAssessor);
+  assert.equal(rejectedAssessor.status, 400);
+  assert.ok((await rejectedAssessor.json()).missing_fields.includes('nama_waris'));
+  assert.equal((await post(assessor)).status, 200);
+  const ra = db.prepare("SELECT role,jenis_pengadil,saiz_baju,tahun_mula_aktif FROM users WHERE email='penilai.ujian@example.invalid'").get();
+  assert.equal(ra.role, 'Penilai');
+  assert.equal(ra.jenis_pengadil, 'Penilai Pengadil');
+  assert.equal(ra.saiz_baju, null);
+  assert.equal(ra.tahun_mula_aktif, null);
+  assert.ok(emails.some(message => /^Pendaftaran Penilai Pengadil Baharu: /.test(message.subject)));
+  await checkLogin('penilai.ujian@example.invalid', 'Penilai');
+  assert.equal((await post(assessor)).status, 409);
+  assert.equal(objects.size, 2);
+  // A cached old form without a role field remains a referee registration.
+  const legacy = form('Pengadil Negeri'); legacy.delete('role');
+  legacy.set('no_ic', '990101061236'); legacy.set('email', 'legacy.ujian@example.invalid');
+  assert.equal((await post(legacy)).status, 200);
+  assert.equal(db.prepare("SELECT role FROM users WHERE email='legacy.ujian@example.invalid'").get().role, 'Pengadil');
+  console.log('profile registration: role/category gates, referee and assessor login/session, profile requirements, privileged role rejection, duplicates and cached forms passed');
 } finally { close(); }
