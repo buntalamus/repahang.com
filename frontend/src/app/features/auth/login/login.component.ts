@@ -18,6 +18,7 @@ export class LoginComponent implements OnDestroy {
   errorMessage = '';
   loading = false;
   maintenanceMode = false;
+  showAppHelp = false;
   announcements: any[] = [];
   currentAnnIndex = 0;
   private autoFlipInterval: ReturnType<typeof setInterval> | null = null;

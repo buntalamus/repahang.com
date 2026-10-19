@@ -53,7 +53,21 @@
         </button>
       </form>
 
-      <p class="text-xs text-gray-400 mt-6">
+      <!-- Mobile app (not on Google Play / App Store): APK and the web app at /app/. -->
+      <div class="mt-5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+        <span>Guna app telefon:</span>
+        <a href="/app/refpahang.apk" download
+          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-gray-300 text-gray-700 font-semibold hover:border-pahang-black hover:text-pahang-black">
+          <span class="material-icons text-sm text-[#3ddc84]" aria-hidden="true">android</span>Android
+        </a>
+        <a href="/app/"
+          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-gray-300 text-gray-700 font-semibold hover:border-pahang-black hover:text-pahang-black">
+          <span class="material-icons text-sm" aria-hidden="true">phone_iphone</span>iPhone
+        </a>
+        <button type="button" (click)="showAppHelp = true" class="underline hover:text-pahang-black">Cara pasang</button>
+      </div>
+
+      <p class="text-xs text-gray-400 mt-4">
         Hanya pegawai yang dibenarkan boleh mengakses panel ini.
         Sila hubungi pentadbir sistem jika anda menghadapi masalah log masuk.
       </p>
@@ -103,62 +117,35 @@
       </div>
     </aside>
 
-    <!-- Mobile app downloads. Not on Google Play / App Store: Android installs the
-         APK, iPhone adds the web app at /app/ to the Home Screen. -->
-    <section aria-labelledby="app-download-title" class="lg:col-span-2 border-t border-gray-200 bg-gray-50 p-8 md:p-12">
-      <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-2 mb-6">
-        <div>
-          <h2 id="app-download-title" class="text-lg font-extrabold text-pahang-black">Dapatkan app RefPahang</h2>
-          <p class="text-sm text-gray-600">Terima lantikan, jawab tugasan dan notifikasi terus di telefon. Log masuk dengan akaun yang sama.</p>
-        </div>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="bg-white rounded-xl border border-gray-200 p-5">
-          <a href="/app/refpahang.apk" download
-            class="flex items-center gap-3 w-full sm:w-auto px-5 py-3 bg-pahang-black text-white rounded-xl hover:bg-gray-800 transition">
-            <span class="material-icons text-3xl text-[#3ddc84]" aria-hidden="true">android</span>
-            <span class="text-left leading-tight">
-              <span class="block text-[11px] uppercase tracking-wide text-white/70">Muat turun untuk</span>
-              <span class="block text-base font-bold">Android</span>
-            </span>
-            <span class="material-icons ml-auto text-pahang-yellow" aria-hidden="true">download</span>
-          </a>
-          <details class="mt-4 group">
-            <summary class="cursor-pointer text-sm font-semibold text-gray-800 hover:text-pahang-black">Cara pasang di Android</summary>
-            <ol class="mt-3 text-sm text-gray-700 list-decimal list-inside space-y-1.5">
-              <li>Tekan <strong>Muat turun untuk Android</strong> dan tunggu fail <strong>RefPahang.apk</strong> selesai dimuat turun.</li>
-              <li>Buka fail tersebut daripada notifikasi muat turun atau folder <strong>Downloads</strong>.</li>
-              <li>Jika diminta, benarkan <strong>Pasang apl tidak diketahui</strong> untuk pelayar anda (Tetapan → Benarkan dari sumber ini), kemudian kembali.</li>
-              <li>Tekan <strong>Pasang</strong>, kemudian <strong>Buka</strong>.</li>
-              <li>Log masuk dengan emel dan kata laluan portal, kemudian tekan <strong>Benarkan</strong> untuk notifikasi.</li>
-            </ol>
-            <p class="mt-2 text-xs text-gray-500">App dikemas kini secara automatik. Jika diminta versi baharu, muat turun semula fail di sini dan pasang di atas app sedia ada.</p>
-          </details>
-        </div>
-
-        <div class="bg-white rounded-xl border border-gray-200 p-5">
-          <a href="/app/"
-            class="flex items-center gap-3 w-full sm:w-auto px-5 py-3 bg-pahang-black text-white rounded-xl hover:bg-gray-800 transition">
-            <span class="material-icons text-3xl text-white" aria-hidden="true">phone_iphone</span>
-            <span class="text-left leading-tight">
-              <span class="block text-[11px] uppercase tracking-wide text-white/70">Pasang di</span>
-              <span class="block text-base font-bold">iPhone</span>
-            </span>
-            <span class="material-icons ml-auto text-pahang-yellow" aria-hidden="true">add_to_home_screen</span>
-          </a>
-          <details class="mt-4 group">
-            <summary class="cursor-pointer text-sm font-semibold text-gray-800 hover:text-pahang-black">Cara pasang di iPhone</summary>
-            <ol class="mt-3 text-sm text-gray-700 list-decimal list-inside space-y-1.5">
-              <li>Buka <strong>refpahang.com/app</strong> dalam <strong>Safari</strong> (bukan Chrome).</li>
-              <li>Tekan butang <strong>Kongsi</strong> (kotak dengan anak panah ke atas) di bawah skrin.</li>
-              <li>Pilih <strong>Add to Home Screen</strong> / <strong>Tambah ke Skrin Utama</strong>, kemudian <strong>Add</strong>.</li>
-              <li>Buka <strong>RefPahang</strong> dari skrin utama dan log masuk dengan akaun portal.</li>
-              <li>Tekan <strong>Aktifkan</strong> pada kad notifikasi, kemudian <strong>Allow</strong>.</li>
-            </ol>
-            <p class="mt-2 text-xs text-gray-500">Memerlukan iOS 16.4 atau lebih baharu untuk notifikasi. App sentiasa versi terkini setiap kali dibuka.</p>
-          </details>
-        </div>
-      </div>
-    </section>
   </div>
 </div>
+
+@if (showAppHelp) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <button type="button" aria-label="Tutup" class="absolute inset-0 w-full h-full bg-black/50 cursor-default" (click)="showAppHelp = false"></button>
+    <div role="dialog" aria-modal="true" aria-labelledby="app-help-title"
+      class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-6">
+      <div class="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h2 id="app-help-title" class="text-lg font-extrabold text-pahang-black">Cara pasang app RefPahang</h2>
+          <p class="text-sm text-gray-600">Log masuk dengan akaun yang sama seperti portal.</p>
+        </div>
+        <button type="button" (click)="showAppHelp = false" aria-label="Tutup" class="p-1 rounded hover:bg-gray-100">
+          <span class="material-icons" aria-hidden="true">close</span>
+        </button>
+      </div>
+      <h3 class="flex items-center gap-2 font-bold text-gray-900"><span class="material-icons text-[#3ddc84]" aria-hidden="true">android</span>Android</h3>
+      <ol class="mt-2 mb-5 text-sm text-gray-700 list-decimal list-inside space-y-1">
+        <li>Tekan <a href="/app/refpahang.apk" download class="font-semibold underline">muat turun</a> dan buka fail <strong>RefPahang.apk</strong>.</li>
+        <li>Jika diminta, benarkan <strong>Pasang apl tidak diketahui</strong> untuk pelayar anda.</li>
+        <li>Tekan <strong>Pasang</strong>, buka app, log masuk dan benarkan notifikasi.</li>
+      </ol>
+      <h3 class="flex items-center gap-2 font-bold text-gray-900"><span class="material-icons" aria-hidden="true">phone_iphone</span>iPhone (iOS 16.4+)</h3>
+      <ol class="mt-2 text-sm text-gray-700 list-decimal list-inside space-y-1">
+        <li>Buka <a href="/app/" class="font-semibold underline">refpahang.com/app</a> dalam <strong>Safari</strong>.</li>
+        <li>Tekan <strong>Kongsi</strong>, pilih <strong>Add to Home Screen</strong>, kemudian <strong>Add</strong>.</li>
+        <li>Buka RefPahang dari skrin utama, log masuk, tekan <strong>Aktifkan</strong> notifikasi dan <strong>Allow</strong>.</li>
+      </ol>
+    </div>
+  </div>
+}
