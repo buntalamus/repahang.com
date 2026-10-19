@@ -43,7 +43,26 @@ class _LoginScreenState extends State<LoginScreen> {
       await Api.instance.login(_email.text.trim(), _password.text);
       await PushService.instance.register();
     } on ApiException catch (error) {
-      if (mounted) setState(() => _error = error.message);
+      if (mounted) {
+        setState(() => _error = error.message);
+        if (error.code == 'ACCOUNT_INACTIVE') {
+          setState(() => _busy = false);
+          await showDialog<void>(context: context, builder: (dialogContext) => AlertDialog(
+            title: const Text('Akaun Tidak Aktif'),
+            scrollable: true,
+            content: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text(error.message),
+              const SizedBox(height: 16),
+              const Text('Sebab Tidak Aktif', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text(error.reason ?? 'Sila hubungi pentadbir untuk maklumat lanjut.'),
+              const SizedBox(height: 16),
+              const Text('Sila hubungi pentadbir untuk mengaktifkan semula akaun.'),
+            ]),
+            actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Tutup'))],
+          ));
+        }
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

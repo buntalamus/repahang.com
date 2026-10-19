@@ -78,6 +78,13 @@ interface NotificationResponse {
 
         <app-support-widget />
 
+        @if (manualUrl; as url) {
+          <a [href]="url" target="_blank" rel="noopener" class="inline-flex items-center gap-2 px-3 py-2.5 text-sm font-semibold text-slate-700 rounded-lg hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-blue-600" aria-label="Buka Manual Pengguna PDF dalam tab baharu">
+            <span class="material-icons text-lg" aria-hidden="true">menu_book</span>
+            <span class="sm:hidden">Manual</span><span class="hidden sm:inline">Manual Pengguna</span>
+          </a>
+        }
+
         <div class="text-right hidden sm:block">
           <p class="text-xs text-slate-600">Log masuk sebagai</p>
           <p class="text-sm font-semibold text-slate-700">{{ auth.currentUser?.email }}</p>
@@ -120,6 +127,17 @@ export class HeaderComponent implements OnInit, OnDestroy {
     public auth: AuthService,
     private api: ApiService,
   ) {}
+
+  get manualUrl(): string | null {
+    const role = this.auth.currentUser?.role;
+    const files = {
+      Admin: 'Admin',
+      'PP Daerah': 'PP_Daerah',
+      Penilai: 'RA',
+      Pengadil: 'Pengadil',
+    };
+    return role ? `/documents/Manual_Pengguna_${files[role]}_RefPahang.pdf` : null;
+  }
 
   ngOnInit(): void {
     this.loadNotifications();

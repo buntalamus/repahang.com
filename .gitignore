@@ -69,6 +69,8 @@ desktop.ini
 *.gif
 !assets/**
 !uploads/**
+!frontend/public/documents/*.pdf
+!docs/manual-peranan/screenshots/*.png
 
 # SQLite DB
 database.sqlite

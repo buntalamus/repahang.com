@@ -1,3 +1,4 @@
+import { enforceAccountPolicy, recordAccountActivity } from './account-policy';
 import { userProfile } from './self-profile';
 import { adminMailboxCampaigns, processMailboxCampaigns } from './mailbox-campaigns';
 import { processDistrictAppointmentMail } from './district-appointment-mail';
@@ -271,6 +272,13 @@ async function api(request: Request, env: Env, pathname: string, ctx: ExecutionC
   if (pathname === '/api/pp-export-referees.php') return districtRefereeExport(request, env);
   if (pathname === '/api/jadual-upload.php') return scheduleUpload(request, env);
   if (pathname === '/api/pengadil-luar-upload.php') return externalRefereesUpload(request, env);
+  if (pathname === '/api/account-activity.php') {
+    if (request.method !== 'POST') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
+    const actor = await currentUser(request, env);
+    if (!actor) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
+    await recordAccountActivity(env, actor.id);
+    return json({ error: false });
+  }
   if (pathname === '/api/session.php') return session(request, env);
   if (pathname === '/api/logout.php') return logout(request, env);
   if (pathname === '/api/change-password.php') return changePassword(request, env);
@@ -398,6 +406,8 @@ export default {
     }
   },
   async scheduled(_event: ScheduledController, env: Env): Promise<void> {
+    try { await enforceAccountPolicy(env); }
+    catch (error) { console.error('[account-policy] scheduled check failed', error); }
     // api/kup-crew-notification-retry.php ran from the system cron in PHP.
     try {
       if (appointmentWritesEnabled(env)) {

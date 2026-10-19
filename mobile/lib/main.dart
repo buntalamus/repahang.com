@@ -22,6 +22,11 @@ class RefPahangApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'RefPahang',
+      builder: (context, child) => Listener(
+        onPointerDown: (_) => Api.instance.recordActivity(),
+        child: Focus(onKeyEvent: (_, _) { Api.instance.recordActivity(); return KeyEventResult.ignored; },
+          child: child ?? const SizedBox.shrink()),
+      ),
       debugShowCheckedModeBanner: false,
       // The website has no dark theme; the app matches it.
       theme: buildTheme(),

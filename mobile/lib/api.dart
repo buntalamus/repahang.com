@@ -7,7 +7,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'config.dart';
 
 class ApiException implements Exception {
-  ApiException(this.message, [this.status]);
+  ApiException(this.message, [this.status, this.code, this.reason]);
+  final String? code;
+  final String? reason;
   final String message;
   final int? status;
   @override
@@ -58,6 +60,7 @@ class Api {
     validateStatus: (_) => true,
   ));
   String? _token;
+  DateTime? _lastActivitySent;
 
   /// Signed-in user; null once the session ends. The app shell listens to this.
   final ValueNotifier<SessionUser?> user = ValueNotifier(null);
@@ -106,6 +109,18 @@ class Api {
     user.value = SessionUser(data);
   }
 
+  /// Foreground taps/keys count as activity; push refresh and polling do not.
+  void recordActivity() {
+    if (_token == null) return;
+    final now = DateTime.now();
+    if (_lastActivitySent != null && now.difference(_lastActivitySent!) < const Duration(minutes: 5)) return;
+    _lastActivitySent = now;
+    post('/api/account-activity.php', {}).catchError((Object error) {
+      _lastActivitySent = null;
+      return <String, dynamic>{};
+    });
+  }
+
   Future<void> logout() async {
     try {
       await post('/api/mobile-logout.php', {});
@@ -117,6 +132,7 @@ class Api {
 
   Future<void> _clear() async {
     _token = null;
+    _lastActivitySent = null;
     await _storage.delete(key: _tokenKey);
     await _storage.delete(key: _userKey);
     user.value = null;
@@ -154,7 +170,8 @@ class Api {
       await _clear();
     }
     if (status >= 400 || body['error'] == true) {
-      throw ApiException('${body['message'] ?? 'Ralat pelayan ($status).'}', status);
+      throw ApiException('${body['message'] ?? 'Ralat pelayan ($status).'}', status,
+          body['code'] as String?, body['reason'] as String?);
     }
     return body;
   }

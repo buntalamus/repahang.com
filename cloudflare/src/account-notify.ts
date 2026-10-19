@@ -60,10 +60,11 @@ export async function notifyAccountUpdated(env: Env, recipient: Recipient,
 }
 
 /** Email + Telegram; no portal notice because the account can no longer log in. */
-export async function notifyAccountDeactivated(env: Env, recipient: Recipient): Promise<boolean> {
+export async function notifyAccountDeactivated(env: Env, recipient: Recipient, reason?: string): Promise<boolean> {
   const result = await notifyUser(env, { ...recipient, userId: null }, {
     subject: 'Akaun Dinyahaktifkan - Sistem Pengurusan Pengadil PBNP',
     title: 'Akaun Dinyahaktifkan',
+    ...(reason ? { rows: [['Sebab Tidak Aktif', reason]] as Array<[string, string]> } : {}),
     accent: '#DC2626',
     paragraphs: [`Akaun anda dalam Sistem Pengurusan Pengadil PBNP telah dinyahaktifkan oleh pentadbir pada ${klNowText()}.`,
       'Anda tidak lagi boleh log masuk atau menerima lantikan. Rekod sejarah perlawanan anda dikekalkan.'],

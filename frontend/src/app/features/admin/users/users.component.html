@@ -62,7 +62,7 @@
       </select>
       <label class="inline-flex items-center gap-2 px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white whitespace-nowrap">
         <input type="checkbox" [(ngModel)]="showInactive" (ngModelChange)="applyFilter()" />
-        Papar tidak aktif ({{ inactiveCount }})
+        Papar akaun tidak aktif ({{ inactiveCount }})
       </label>
       <button (click)="openAddUser()"
         class="inline-flex items-center gap-2 px-4 py-2.5 bg-pahang-black text-pahang-yellow text-sm font-semibold rounded-lg hover:bg-gray-800 transition whitespace-nowrap">
@@ -115,7 +115,8 @@
                   <span class="font-medium text-slate-900 cursor-pointer hover:text-blue-600 hover:underline"
                         (click)="profileModal.open(user.id)">{{ user.nama_penuh }}</span>
                   @if (!isActive(user)) {
-                    <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-xs font-medium">Tidak aktif</span>
+                    <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-xs font-medium">Tidak Aktif · {{ user.inactive_source === 'manual' || !user.inactive_source ? 'Admin' : 'Automatik' }}</span>
+                    <p class="text-xs text-slate-700 whitespace-pre-line break-words max-w-sm">{{ user.inactive_reason || 'Sila hubungi pentadbir.' }}</p>
                   }
                 </div>
               </td>
@@ -157,9 +158,9 @@
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                   </button>
                   @if (isActive(user)) {
-                    <button (click)="deleteUser(user.id, user.nama_penuh)" title="Nyahaktif"
-                      class="px-2 py-1 bg-white border border-rose-300 text-rose-600 hover:bg-rose-50 rounded text-xs font-medium transition-colors shadow-sm">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    <button (click)="deleteUser(user.id, user.nama_penuh)" title="Tandakan akaun Tidak Aktif"
+                      class="min-h-11 px-3 py-2 bg-white border border-rose-300 text-rose-600 hover:bg-rose-50 rounded text-xs font-medium transition-colors shadow-sm">
+                      Tidak Aktif
                     </button>
                   } @else {
                     <button (click)="reactivate(user)" title="Aktifkan semula"
@@ -205,7 +206,8 @@
                  (click)="profileModal.open(user.id)">{{ user.nama_penuh }}</p>
               <p class="text-xs text-slate-500">{{ user.email || '-' }}</p>
               @if (!isActive(user)) {
-                <span class="mt-1 inline-block px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-xs font-medium">Tidak aktif</span>
+                <span class="mt-1 inline-block px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-xs font-medium">Tidak Aktif · {{ user.inactive_source === 'manual' || !user.inactive_source ? 'Admin' : 'Automatik' }}</span>
+                    <p class="text-xs text-slate-700 whitespace-pre-line break-words max-w-sm">{{ user.inactive_reason || 'Sila hubungi pentadbir.' }}</p>
               }
             </div>
           </div>
@@ -228,7 +230,7 @@
           <button (click)="resetPassword(user)" class="flex-1 py-2.5 text-xs font-medium text-amber-700 hover:bg-amber-50 transition-colors text-center">Reset</button>
           <button (click)="resendNotification(user)" class="flex-1 py-2.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors text-center">Emel</button>
           @if (isActive(user)) {
-            <button (click)="deleteUser(user.id, user.nama_penuh)" class="flex-1 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors text-center">Nyahaktif</button>
+            <button (click)="deleteUser(user.id, user.nama_penuh)" class="flex-1 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors text-center">Tidak Aktif</button>
           } @else {
             <button (click)="reactivate(user)" class="flex-1 py-2.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 transition-colors text-center">Aktifkan</button>
           }
@@ -326,11 +328,28 @@
   </div>
 }
 
-<!-- Delete Confirmation Modal -->
-<app-confirm-modal [show]="showDeleteModal" title="Nyahaktif Pengguna"
-  [message]="'Nyahaktifkan akaun ' + deleteTargetName + '? Pengguna tidak boleh log masuk, tetapi sejarah perlawanan, permohonan dan laporan dikekalkan.'"
-  confirmText="Nyahaktif" type="danger"
-  (confirmed)="onDeleteConfirmed()" (cancelled)="showDeleteModal = false" />
+@if (showDeleteModal()) {
+  <div class="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+    <section appModalFocus (modalDismiss)="closeStatusDialog()" role="dialog" aria-modal="true"
+      aria-labelledby="account-status-title" aria-describedby="account-status-description"
+      class="w-full max-w-lg max-h-[90dvh] overflow-y-auto bg-white rounded-2xl p-6 shadow-xl">
+      <h2 id="account-status-title" class="text-xl font-bold text-slate-900">Tandakan Akaun Tidak Aktif</h2>
+      <p id="account-status-description" class="mt-3 text-sm text-slate-700">{{ deleteTargetName }} tidak boleh log masuk. Semua sejarah permohonan, perlawanan dan laporan dikekalkan.</p>
+      <form (ngSubmit)="onDeleteConfirmed()">
+        <label for="inactive-reason" class="block mt-5 mb-2 text-sm font-semibold text-slate-900">Sebab Tidak Aktif <span aria-hidden="true">*</span></label>
+        <textarea id="inactive-reason" [formControl]="inactiveReason" maxlength="1000" rows="4" required
+          aria-describedby="inactive-reason-help" [attr.aria-invalid]="!!statusError()"
+          class="w-full rounded-lg border border-slate-400 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-600"></textarea>
+        <p id="inactive-reason-help" class="mt-1 text-xs text-slate-600">Sebab ini dipaparkan kepada pengguna semasa cubaan log masuk. Maksimum 1000 aksara.</p>
+        @if (statusError()) { <p role="alert" class="mt-3 text-sm text-rose-800">{{ statusError() }}</p> }
+        <div class="flex flex-wrap justify-end gap-3 mt-6">
+          <button type="button" (click)="closeStatusDialog()" [disabled]="statusSaving()" class="min-h-11 px-4 border border-slate-400 rounded-lg text-slate-800">Batal</button>
+          <button type="submit" [disabled]="statusSaving()" class="min-h-11 px-4 bg-rose-700 text-white rounded-lg font-semibold disabled:opacity-60">{{ statusSaving() ? 'Menyimpan…' : 'Tandakan Tidak Aktif' }}</button>
+        </div>
+      </form>
+    </section>
+  </div>
+}
 
 <!-- General Confirmation Modal -->
 <app-confirm-modal [show]="showConfirmModal" [title]="confirmTitle"

@@ -1,3 +1,4 @@
+import { setAccountStatus, DEFAULT_INACTIVE_REASON } from './account-access';
 import { normalizeProfileInput } from './profile-contract';
 /**
  * Write half of api/admin-users.php (POST create, PUT update, PATCH password
@@ -16,7 +17,7 @@ import {
   emailInfoTable, emailPara, sendEmail,
 } from './php/email';
 import type { Env } from './types';
-import { notifyAccountDeactivated, notifyAccountUpdated, notifyOldEmailAddress } from './account-notify';
+import { notifyAccountUpdated, notifyOldEmailAddress } from './account-notify';
 
 const VALID_ROLES = ['Pengadil', 'Penilai', 'PP Daerah', 'Admin'];
 // PHP's reset_password and resend_notification both set this fixed value.
@@ -186,12 +187,16 @@ async function updateUser(request: Request, env: Env): Promise<Response> {
   return json({ error: false, message: 'Pengguna berjaya dikemaskini.', notification_sent: notified });
 }
 
-async function passwordAction(request: Request, env: Env): Promise<Response> {
+async function passwordAction(request: Request, env: Env, adminId: number): Promise<Response> {
   const parsed = await boundedJson(request);
   if (parsed instanceof Response) return parsed;
   const input = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as Input;
   const userId = phpInt(input.userId ?? 0);
   const action = String(input.action ?? '');
+  if (action === 'set_account_status') {
+    if (![0, 1].includes(input.aktif as number)) return json({ error: true, message: 'Status akaun tidak sah.' }, 400);
+    return setAccountStatus(env, adminId, Number(input.userId), Number(input.aktif), input.reason);
+  }
   if (!userId || !action) return json({ error: true, message: 'ID pengguna dan aksi diperlukan.' }, 400);
   if (action !== 'reset_password' && action !== 'resend_notification') {
     return json({ error: true, message: 'Aksi tidak sah.' }, 400);
@@ -219,24 +224,7 @@ async function deactivateUser(request: Request, env: Env, adminId: number): Prom
   const input = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as Input;
   const userId = phpInt(input.userId ?? new URL(request.url).searchParams.get('id') ?? 0);
   if (!userId) return json({ error: true, message: 'ID pengguna diperlukan.' }, 400);
-  const user = await env.DB.prepare('SELECT id, nama_penuh, email, telegram_chat_id, aktif FROM users WHERE id=?')
-    .bind(userId).first<{ id: number; nama_penuh: string; email: string | null;
-      telegram_chat_id: string | number | null; aktif: number }>();
-  if (!user) return json({ error: true, message: 'Pengguna tidak dijumpai.' }, 404);
-  if (userId === adminId) {
-    return json({ error: true, message: 'Anda tidak boleh memadam akaun sendiri.' }, 400);
-  }
-  // Sessions of an inactive account are already refused by currentUser().
-  await env.DB.batch([
-    env.DB.prepare('UPDATE users SET aktif=0 WHERE id=?').bind(userId),
-    env.DB.prepare(`INSERT INTO activity_log(user_id,action,table_name,record_id,description,created_at)
-      VALUES(?,'deactivate_user','users',?,?,datetime('now','+8 hours'))`)
-      .bind(adminId, userId, `Akaun ${user.nama_penuh} dinyahaktifkan oleh Admin; sejarah dikekalkan.`),
-  ]);
-  const notified = Number(user.aktif) === 1 && await notifyAccountDeactivated(env,
-    { name: user.nama_penuh, email: user.email, telegramChatId: user.telegram_chat_id });
-  return json({ error: false, message: 'Akaun pengguna dinyahaktifkan. Semua sejarah dikekalkan.',
-    deletedUser: user.nama_penuh, notification_sent: notified });
+  return setAccountStatus(env, adminId, userId, 0, input.reason ?? DEFAULT_INACTIVE_REASON);
 }
 
 export async function adminUsersWrite(request: Request, env: Env): Promise<Response> {
@@ -252,7 +240,7 @@ export async function adminUsersWrite(request: Request, env: Env): Promise<Respo
   if (request.method === 'POST' && override === 'DELETE') return deactivateUser(request, env, admin.id);
   if (request.method === 'POST') return createUser(request, env);
   if (request.method === 'PUT') return updateUser(request, env);
-  if (request.method === 'PATCH') return passwordAction(request, env);
+  if (request.method === 'PATCH') return passwordAction(request, env, admin.id);
   if (request.method === 'DELETE') return deactivateUser(request, env, admin.id);
   return json({ error: true, message: 'Method not allowed' }, 405);
 }

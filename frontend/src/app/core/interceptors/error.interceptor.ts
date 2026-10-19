@@ -27,7 +27,7 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
           toast.warning('Sesi anda telah tamat. Sila log masuk semula.');
           router.navigate(['/login']);
         }
-      } else if (error.status === 403) {
+      } else if (error.status === 403 && !(isLoginRequest && error.error?.code === 'ACCOUNT_INACTIVE')) {
         toast.error('Anda tidak mempunyai akses ke sumber ini.');
       } else if (error.status === 0) {
         toast.error('Tidak dapat menyambung ke pelayan. Sila semak sambungan internet anda.');

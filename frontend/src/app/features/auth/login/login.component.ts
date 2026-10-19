@@ -1,4 +1,5 @@
-import { Component, OnDestroy } from '@angular/core';
+import { ModalFocusDirective } from '../../../shared/directives/modal-focus.directive';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../../core/services/auth.service';
@@ -7,12 +8,14 @@ import { ApiService } from '../../../core/services/api.service';
 
 @Component({
   selector: 'app-login',
-  standalone: true,
-  imports: [FormsModule, RouterLink],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [FormsModule, RouterLink, ModalFocusDirective],
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss',
 })
 export class LoginComponent implements OnDestroy {
+  private readonly cdr = inject(ChangeDetectorRef);
+  readonly inactiveNotice = signal<{ message: string; reason: string } | null>(null);
   email = '';
   password = '';
   errorMessage = '';
@@ -40,6 +43,7 @@ export class LoginComponent implements OnDestroy {
   private checkMaintenance(): void {
     this.api.get<{ maintenance_mode: boolean }>('check-maintenance.php').subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         this.maintenanceMode = !!res.maintenance_mode;
       },
     });
@@ -48,6 +52,7 @@ export class LoginComponent implements OnDestroy {
   private loadAnnouncements(): void {
     this.api.get<any>('public-announcements.php').subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         if (!res.error) {
           this.announcements = res.data || [];
           if (this.announcements.length > 1) {
@@ -63,6 +68,7 @@ export class LoginComponent implements OnDestroy {
   }
 
   nextAnn(): void {
+    this.cdr.markForCheck();
     if (this.announcements.length > 1) {
       this.currentAnnIndex = (this.currentAnnIndex + 1) % this.announcements.length;
     }
@@ -72,6 +78,13 @@ export class LoginComponent implements OnDestroy {
     if (this.announcements.length > 1) {
       this.currentAnnIndex = (this.currentAnnIndex - 1 + this.announcements.length) % this.announcements.length;
     }
+  }
+
+  private showInactive(body: { code?: string; message?: string; reason?: string } | undefined): boolean {
+    if (body?.code !== 'ACCOUNT_INACTIVE') return false;
+    this.inactiveNotice.set({ message: body.message || 'Akaun anda tidak aktif.',
+      reason: body.reason || 'Sila hubungi pentadbir untuk maklumat lanjut.' });
+    return true;
   }
 
   onSubmit(): void {
@@ -85,10 +98,11 @@ export class LoginComponent implements OnDestroy {
 
     this.auth.login(this.email.trim(), this.password).subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         this.loading = false;
         if (res.error) {
           this.errorMessage = res.message || 'Gagal log masuk. Sila cuba lagi.';
-          this.toast.error(this.errorMessage);
+          if (!this.showInactive(res)) this.toast.error(this.errorMessage);
           return;
         }
         if (this.auth.currentUser?.password_changed === 0) {
@@ -98,9 +112,10 @@ export class LoginComponent implements OnDestroy {
         }
       },
       error: (err) => {
+        this.cdr.markForCheck();
         this.loading = false;
         this.errorMessage = err?.error?.message || 'Tidak dapat menyambung ke pelayan.';
-        this.toast.error(this.errorMessage);
+        if (!this.showInactive(err?.error)) this.toast.error(this.errorMessage);
       },
     });
   }
