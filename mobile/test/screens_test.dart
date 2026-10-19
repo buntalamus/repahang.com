@@ -62,6 +62,8 @@ final Map<String, Object> _responses = {
     'data': [
       {'id': 50, 'no_perlawanan': 'A-01', 'kumpulan_tahap': 'Kumpulan A', 'pasukan_home': 'KUANTAN FC', 'pasukan_away': 'BERA UTD',
         'tarikh': '2026-10-21', 'hari': 'Rabu', 'masa': '17:00:00', 'tempat': 'Stadium Darul Makmur', 'jumlah_lantikan': 3, 'jumlah_terima': 2},
+      {'id': 51, 'no_perlawanan': 'A-02', 'kumpulan_tahap': 'Kumpulan A', 'pasukan_home': 'TEMERLOH', 'pasukan_away': 'LIPIS',
+        'tarikh': '2026-10-22', 'hari': 'Khamis', 'masa': '20:45:00', 'tempat': 'Padang MPT', 'jumlah_lantikan': 0, 'jumlah_terima': 0},
     ],
   },
   '/api/pengadil-penilaian.php': {
@@ -219,6 +221,7 @@ void main() {
     await _show(tester, 'pengadil_terima', then: () => tester.tap(find.text('Terima').first));
     await tester.tap(find.text('Batal'));
     await tester.pump(const Duration(milliseconds: 400));
+    await _show(tester, 'pengadil_tugasan_diterima', then: () => tester.tap(find.text('Akan datang')));
     await _show(tester, 'pengadil_rekod', then: () => tester.tap(find.text('Rekod').last));
     await _show(tester, 'pengadil_penilaian', then: () => tester.tap(find.text('Penilaian').last));
     await _show(tester, 'pengadil_permohonan', then: () => tester.tap(find.text('Permohonan').last));
@@ -232,6 +235,12 @@ void main() {
     await _show(tester, 'admin_kelulusan', then: () => tester.tap(find.text('Kelulusan').last));
     await _show(tester, 'admin_lantikan', then: () => tester.tap(find.text('Lantikan').last));
     await _show(tester, 'admin_jadual', then: () => tester.tap(find.text('Liga Pahang 2026')));
+    await _show(tester, 'admin_tambah_jadual', then: () => tester.tap(find.text('Tambah perlawanan')));
+    await tester.pageBack();
+    await tester.pump(const Duration(milliseconds: 400));
+    await _show(tester, 'admin_padam_menu', then: () => tester.tap(find.byTooltip('Pilihan perlawanan')));
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pump(const Duration(milliseconds: 400));
     await _show(tester, 'admin_lantik', then: () => tester.tap(find.text('KUANTAN FC vs BERA UTD')));
   });
 

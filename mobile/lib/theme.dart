@@ -215,6 +215,12 @@ ThemeData buildTheme() {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(20))),
     ),
     listTileTheme: const ListTileThemeData(iconColor: AppColors.text),
+    popupMenuTheme: const PopupMenuThemeData(
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: r12),
+    ),
     dividerTheme: const DividerThemeData(color: AppColors.line, space: 1, thickness: 1),
     snackBarTheme: const SnackBarThemeData(
       behavior: SnackBarBehavior.floating,

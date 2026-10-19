@@ -4,6 +4,13 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [20 Oktober 2026] — Jadual perlawanan dan Surat Lantikan dalam app
+
+- App (Android dan iPhone /app/): Admin dan PP Daerah boleh **tambah perlawanan** (butang terapung di jadual kejohanan; medan dan senarai kategori/peringkat sama seperti website) dan **padam perlawanan** yang belum mempunyai lantikan (menu ⋮). Menggunakan `POST`/`DELETE /api/jadual-perlawanan.php` sedia ada; server menolak padam jika ada lantikan, laporan atau audit, dan mengehadkan PP Daerah kepada kejohanan daerahnya.
+- **Surat Lantikan (PDF)** baharu untuk lantikan berstatus Diterima: `GET /api/surat-lantikan.php?id=` (sesi pegawai berkenaan atau Admin), `POST` mengeluarkan pautan bertandatangan 10 minit (secret `APPOINTMENT_LETTER_SECRET`) supaya app membukanya dalam pelayar/pemapar PDF. Kandungan: kepala surat PBNP, rujukan `PBNP/LTK/<tahun>/<id>`, butiran perlawanan, pegawai bertugas bersama (nama sahaja, tiada telefon). Dijana melalui Browser Rendering. Butang turut ditambah di halaman Tugasan website.
+- App Android 1.3.0+7 (keluaran baharu kerana ikon baharu mengubah fon ikon; kini dibina dengan `--no-tree-shake-icons` supaya patch akan datang boleh guna sebarang ikon). Versi terkini 1.3.0, minimum kekal 1.2.0.
+- Ujian: `tests/appointment-letter.mjs` (akses pemilik/Admin, Diterima sahaja, escaping, tiada telefon, pautan sah/tamat/diubah), goldens app, build web; satu PDF sebenar dijana di produksi melalui pautan bertandatangan dan disemak.
+
 ## [18 Oktober 2026] — App RefPahang untuk iPhone di refpahang.com/app
 
 - App Flutter yang sama dengan Android kini dibina untuk web dan dihidangkan di `/app/` (paparan, tab dan aliran sama seperti app Android). Pengguna iPhone: Safari → `refpahang.com/app` → Kongsi → Add to Home Screen; notifikasi diaktifkan dari kad di tab Utama/Profil. Tiada akaun Apple diperlukan.

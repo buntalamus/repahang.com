@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -56,6 +57,30 @@ class _TugasanScreenState extends State<TugasanScreen> {
     return filter == 'past' || filter == 'all' ? list.reversed.toList() : list;
   }
 
+  /// Opens the Surat Lantikan PDF through a short-lived signed link, so the
+  /// phone's browser/PDF viewer can show it without the app's session.
+  Future<void> _openLetter(Map<String, dynamic> a) async {
+    try {
+      final body = await Api.instance.post('/api/surat-lantikan.php', {'id': a['id']});
+      final url = text(body['url'], '');
+      if (url.isEmpty) throw ApiException('Surat lantikan belum tersedia.');
+      // On the web (iPhone app) a new window after a network call is blocked as
+      // a pop-up, so the letter opens in place; iOS shows it with a Done button.
+      final ok = await launchUrl(Uri.parse(url),
+          mode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication, webOnlyWindowName: kIsWeb ? '_self' : null);
+      if (!ok && mounted) showToast(context, 'Tidak dapat membuka PDF.', ToastType.error);
+    } on ApiException catch (error) {
+      if (mounted) showToast(context, error.message, ToastType.error);
+    }
+  }
+
+  Widget _letterButton(Map<String, dynamic> a) => OutlinedButton.icon(
+        onPressed: () => _openLetter(a),
+        icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+        label: const Text('Surat Lantikan (PDF)'),
+        style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44)),
+      );
+
   Future<void> _answer(Map<String, dynamic> a, bool accept) async {
     final message = await showAppSheet<String>(
       context,
@@ -112,6 +137,10 @@ class _TugasanScreenState extends State<TugasanScreen> {
                     icon: const Icon(Icons.call_rounded, color: Tw.emerald700),
                   ),
           ),
+      ],
+      if (a['status'] == 'Diterima') ...[
+        const SizedBox(height: 16),
+        _letterButton(a),
       ],
       if (_answerable(a)) ...[
         const SizedBox(height: 16),
@@ -223,6 +252,10 @@ class _TugasanScreenState extends State<TugasanScreen> {
           const SizedBox(height: 10),
           const Text('Perlawanan telah bermula — tidak lagi boleh dijawab.',
               style: TextStyle(fontSize: 12, color: AppColors.muted)),
+        ],
+        if (status == 'Diterima') ...[
+          const SizedBox(height: 12),
+          _letterButton(a),
         ],
         if (answerable) ...[
           const SizedBox(height: 12),

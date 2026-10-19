@@ -32,4 +32,6 @@ export interface Env extends EmailEnv {
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
+  /** HMAC key for short-lived Surat Lantikan PDF links (secret, 32+ chars). */
+  APPOINTMENT_LETTER_SECRET?: string;
 }
