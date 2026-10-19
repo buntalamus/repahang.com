@@ -13,7 +13,8 @@ source .release.env
 export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 
-"$HOME/.shorebird/bin/shorebird" patch android --release-version="$RELEASE" --no-confirm
+# Same build flags as the release (full icon font), or the patch is an asset diff.
+"$HOME/.shorebird/bin/shorebird" patch android --release-version="$RELEASE" --no-confirm -- --no-tree-shake-icons
 
 offset=0
 while [ "$offset" != "null" ]; do
