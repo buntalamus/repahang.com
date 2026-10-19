@@ -4,6 +4,10 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [20 Oktober 2026] — Muat turun app di halaman log masuk
+
+- Halaman log masuk kini ada bahagian "Dapatkan app RefPahang" dengan butang **Android** (muat turun `/app/refpahang.apk`) dan **iPhone** (`/app/`), masing-masing dengan tatacara pemasangan (boleh dibuka). Lencana rasmi Google Play/App Store tidak digunakan kerana app belum diterbitkan di kedai tersebut.
+
 ## [20 Oktober 2026] — Laporan RA, peringatan perlawanan dan "Perlu tindakan" dalam app
 
 - **Laporan RA dalam app**: Penilai (dan PP Daerah yang juga RA) mengisi laporan terus di app — tahap kesukaran, cuaca, satu skrin bagi setiap pegawai (markah, prestasi, kekuatan/kelemahan pilihan kriteria dari server, nasihat), ulasan keseluruhan, panduan skala. Simpan draf (`POST laporan-penilaian.php`) dan Hantar (`PUT action=hantar`), aliran sama dengan website.
