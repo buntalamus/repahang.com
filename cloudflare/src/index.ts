@@ -6,6 +6,8 @@ import { currentUser, json, login, logout, mobileLogin, mobileLogout, session } 
 import { mobileApk, mobileBroadcast, mobileVersion, processPushQueue, pushRegister } from './push';
 import { webPushKey, webPushSubscribe } from './webpush';
 import { appointmentLetter } from './appointment-letter';
+import { appointmentGaps } from './appointment-gaps';
+import { processMatchReminders } from './match-reminders';
 import { adminUsers } from './admin-users';
 import { adminUserMasterData } from './user-master-data';
 import { adminSettings, maintenanceEnabled } from './admin-settings';
@@ -243,6 +245,7 @@ async function api(request: Request, env: Env, pathname: string, ctx: ExecutionC
   if (pathname === '/api/webpush-key.php') return webPushKey(request, env);
   if (pathname === '/api/webpush-subscribe.php') return webPushSubscribe(request, env);
   if (pathname === '/api/surat-lantikan.php') return appointmentLetter(request, env);
+  if (pathname === '/api/lantikan-perlu-tindakan.php') return appointmentGaps(request, env);
   if (pathname === '/api/admin-mail-campaigns.php') return adminMailboxCampaigns(request, env);
   if (pathname === '/api/admin-mailbox.php') return adminMailbox(request, env);
   if (pathname === '/api/register.php') return register(request, env);
@@ -411,7 +414,10 @@ export default {
         try { await processMailboxCampaigns(env); }
         finally {
           try { await processPushQueue(env); }
-          finally { await syncAllShinjiruMailboxes(env); }
+          finally {
+            try { await processMatchReminders(env); }
+            finally { await syncAllShinjiruMailboxes(env); }
+          }
         }
       }
     }

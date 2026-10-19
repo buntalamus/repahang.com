@@ -4,6 +4,14 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [20 Oktober 2026] — Laporan RA, peringatan perlawanan dan "Perlu tindakan" dalam app
+
+- **Laporan RA dalam app**: Penilai (dan PP Daerah yang juga RA) mengisi laporan terus di app — tahap kesukaran, cuaca, satu skrin bagi setiap pegawai (markah, prestasi, kekuatan/kelemahan pilihan kriteria dari server, nasihat), ulasan keseluruhan, panduan skala. Simpan draf (`POST laporan-penilaian.php`) dan Hantar (`PUT action=hantar`), aliran sama dengan website.
+- **Peringatan perlawanan**: notifikasi telefon (app dan Web Push) kira-kira 24 jam dan 2 jam sebelum sepak mula untuk lantikan Diterima; sekali sahaja setiap jenis (jadual `worker_match_reminders`, migrasi `0030`), tidak untuk perlawanan dibatal/ditangguh. Push sahaja — tiada baris baharu dalam senarai notifikasi portal.
+- **Perlu tindakan** (Admin, PP Daerah): `GET /api/lantikan-perlu-tindakan.php` menyenaraikan perlawanan 14 hari akan datang yang belum lengkap Pengadil/AR1/AR2 (termasuk yang ditolak); dipaparkan di tab Utama dan skrin penuh, tekan untuk lantik pengganti. PP Daerah hanya daerahnya.
+- **Batal/Tangguh perlawanan** dari skrin Lantik (menu ⋮) dengan sebab; menggunakan `batal_jadual` sedia ada yang memaklumkan pegawai.
+- Ujian: `tests/match-reminders.mjs` (24j/2j, sekali, langkau batal/lepas; skop dan slot "Perlu tindakan"), goldens app (borang laporan, perlu tindakan, menu batal/tangguh). `district-appointments` gagal pada cetakan Jadual Lantikan — tidak berkaitan, tiada fail berkenaan diubah.
+
 ## [20 Oktober 2026] — Jadual perlawanan dan Surat Lantikan dalam app
 
 - App (Android dan iPhone /app/): Admin dan PP Daerah boleh **tambah perlawanan** (butang terapung di jadual kejohanan; medan dan senarai kategori/peringkat sama seperti website) dan **padam perlawanan** yang belum mempunyai lantikan (menu ⋮). Menggunakan `POST`/`DELETE /api/jadual-perlawanan.php` sedia ada; server menolak padam jika ada lantikan, laporan atau audit, dan mengehadkan PP Daerah kepada kejohanan daerahnya.

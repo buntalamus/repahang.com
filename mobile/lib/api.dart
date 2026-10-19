@@ -125,6 +125,9 @@ class Api {
   Future<Map<String, dynamic>> get(String path, [Map<String, dynamic>? query]) =>
       _send(() => _dio.get(path, queryParameters: query));
 
+  Future<Map<String, dynamic>> put(String path, Map<String, dynamic> body) =>
+      _send(() => _dio.put(path, data: body));
+
   Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body) =>
       _send(() => _dio.post(path, data: body));
 

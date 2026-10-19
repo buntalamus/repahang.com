@@ -17,6 +17,30 @@ String _notif(int offsetHours) =>
     _today.toUtc().add(const Duration(hours: 8)).add(Duration(hours: offsetHours)).toIso8601String().substring(0, 19).replaceFirst('T', ' ');
 
 final Map<String, Object> _responses = {
+  '/api/lantikan-perlu-tindakan.php': {
+    'error': false,
+    'data': [
+      {'id': 60, 'nama_kejohanan': 'Liga Pahang 2026', 'no_perlawanan': 'A-07', 'tarikh': _day(1), 'masa': '17:00:00',
+        'pasukan_home': 'ROMPIN FC', 'pasukan_away': 'MARAN UTD', 'tempat': 'Padang Rompin',
+        'slot_kosong': ['Penolong Pengadil 1'], 'jumlah_ditolak': 1},
+      {'id': 61, 'nama_kejohanan': 'Karnival B-18 Temerloh', 'no_perlawanan': 'B-02', 'tarikh': _day(6), 'masa': '09:00:00',
+        'pasukan_home': 'TEMERLOH', 'pasukan_away': 'JERANTUT', 'tempat': 'Padang MPT',
+        'slot_kosong': ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2'], 'jumlah_ditolak': 0},
+    ],
+  },
+  '/api/laporan-penilaian.php?officials': {
+    'error': false,
+    'data': [
+      {'lantikan_id': 21, 'jawatan': 'Pengadil', 'nama_pengadil': 'AHMAD FAIZAL BIN OMAR', 'sections': [
+        {'key': 'kawalan', 'label': 'Kawalan Permainan', 'items': ['Mengenalpasti kesalahan', 'Aplikasi advantej']},
+        {'key': 'fizikal', 'label': 'Kecergasan Fizikal & Posisi', 'items': ['Kepantasan', 'Posisi']},
+        {'key': 'kerjasama', 'label': 'Kerjasama', 'items': ['Komunikasi dengan AR']},
+      ]},
+      {'lantikan_id': 22, 'jawatan': 'Penolong Pengadil 1', 'nama_pengadil': 'ALI BIN ABU', 'sections': [
+        {'key': 'kawalan', 'label': 'Penolong Pengadil', 'items': ['Ofsaid']},
+      ]},
+    ],
+  },
   '/api/admin-dashboard-stats.php': {
     'error': false,
     'stats': {'total_pengadil': 412, 'year': 2026, 'pending_applications': 9, 'pending_reports': 4, 'matches_this_month': 87,
@@ -108,6 +132,11 @@ final Map<String, Object> _responses = {
         'nama_kejohanan': 'Karnival B-18', 'jenis_kejohanan': 'Karnival', 'peringkat_kejohanan': 'Daerah', 'rakan_tugasan': [],
       },
       {
+        'id': 15, 'jadual_id': 70, 'jawatan': 'Penilai Pengadil', 'status': 'Diterima', 'tarikh': _day(-1), 'masa': '17:00:00',
+        'no_perlawanan': 'D-01', 'pasukan_home': 'KUANTAN FC', 'pasukan_away': 'BERA UTD', 'tempat': 'Stadium Darul Makmur',
+        'nama_kejohanan': 'Liga Pahang 2026', 'jenis_kejohanan': 'Liga', 'rakan_tugasan': [],
+      },
+      {
         'id': 14, 'jawatan': 'Penilai Pengadil', 'status': 'Belum Jawab', 'tarikh_notif': _notif(-60), 'tarikh': _day(-2), 'masa': '17:00',
         'hari': 'Jumaat', 'no_perlawanan': 'C-01', 'kumpulan_tahap': '', 'pasukan_home': 'PAIP BERA', 'pasukan_away': 'LADANG CHEEKAH',
         'tempat': 'Padang Bera', 'nama_kejohanan': 'Piala Daerah Bera', 'jenis_kejohanan': 'Persahabatan', 'peringkat_kejohanan': 'Daerah',
@@ -194,7 +223,10 @@ void main() {
   setUpAll(() async {
     await _loadFonts();
     Api.instance.dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
-      handler.resolve(Response(requestOptions: options, statusCode: 200, data: _responses[options.path] ?? {'error': false}));
+      final key = options.path == '/api/laporan-penilaian.php' && options.queryParameters.containsKey('officials')
+          ? '/api/laporan-penilaian.php?officials'
+          : options.path;
+      handler.resolve(Response(requestOptions: options, statusCode: 200, data: _responses[key] ?? {'error': false}));
     }));
   });
 
@@ -248,6 +280,19 @@ void main() {
     _login('PP Daerah');
     await tester.pumpWidget(const RefPahangApp());
     await _show(tester, 'pp_utama');
+    await _show(tester, 'pp_perlu_tindakan', then: () => tester.tap(find.text('Semua').last));
+    await _show(tester, 'pp_lantik_menu', then: () async {
+      await tester.tap(find.text('ROMPIN FC vs MARAN UTD').last);
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.byType(PopupMenuButton<String>).last);
+    });
+  });
+
+  testWidgets('pp daerah semakan', (tester) async {
+    _login('PP Daerah');
+    await tester.pumpWidget(const RefPahangApp());
+    await tester.pump(const Duration(milliseconds: 600));
     await _show(tester, 'pp_semakan', then: () => tester.tap(find.text('Semakan').last));
     await _show(tester, 'pp_pengesahan_sheet', then: () => tester.tap(find.text('GAMBANG FC vs SRI DAMAI')));
   });
@@ -256,6 +301,7 @@ void main() {
     _login('Penilai');
     await tester.pumpWidget(const RefPahangApp());
     await _show(tester, 'penilai_laporan', then: () => tester.tap(find.text('Laporan').last));
+    await _show(tester, 'penilai_laporan_form', then: () => tester.tap(find.text('Isi laporan')));
   });
 
   testWidgets('notifikasi', (tester) async {

@@ -5,6 +5,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/web_push_card.dart';
 import 'permohonan_screen.dart' show formLabel;
+import 'perlu_tindakan_screen.dart';
 
 /// Home tab: greeting header and what needs attention for this role.
 class UtamaScreen extends StatefulWidget {
@@ -24,6 +25,7 @@ class _Home {
   int? ppPendingMatches;
   int? ppPendingApplications;
   int? adminPendingApplications;
+  List<Map<String, dynamic>>? gaps;
   List<Map<String, dynamic>> notifications = [];
   String? photo;
 }
@@ -45,6 +47,7 @@ class _UtamaScreenState extends State<UtamaScreen> {
       if (user.isDistrict) get('/api/pp-verify-match.php', {'status': 'pending', 'per_page': 1}) else Future.value(null),
       if (user.isDistrict) get('/api/pp-applications.php', {'type': 'pengesahan'}) else Future.value(null),
       if (user.isAdmin) get('/api/admin-dashboard-stats.php') else Future.value(null),
+      if (user.managesAppointments) get('/api/lantikan-perlu-tindakan.php') else Future.value(null),
     ]);
     home.photo = (results[0]?['user'] as Map?)?['url_gambar_profil'] as String?;
     home.notifications = rows(results[1]?['notifications']).take(3).toList();
@@ -56,6 +59,7 @@ class _UtamaScreenState extends State<UtamaScreen> {
     home.ppPendingApplications = results[5] == null ? null : rows(results[5]!['applications'] ?? results[5]!['data']).length;
     home.adminStats = results[6]?['stats'] == null ? null : Map<String, dynamic>.from(results[6]!['stats'] as Map);
     home.adminPendingApplications = int.tryParse('${home.adminStats?['pending_applications'] ?? ''}');
+    home.gaps = results[7] == null ? null : rows(results[7]!['data']);
     return home;
   }
 
@@ -86,6 +90,7 @@ class _UtamaScreenState extends State<UtamaScreen> {
                 const WebPushCard(),
                 if (user.hasAssignments) ..._officialSection(pending, upcoming),
                 if (user.role == 'Pengadil' && home.matchStats != null) _matchProgress(home.matchStats!),
+                if (home.gaps != null) _gapSection(home.gaps!),
                 if (user.isDistrict) _districtTiles(home),
                 if (user.isAdmin && home.adminStats != null) ..._adminSection(home.adminStats!),
                 if (home.notifications.isNotEmpty) ...[
@@ -264,6 +269,23 @@ class _UtamaScreenState extends State<UtamaScreen> {
               style: const TextStyle(fontSize: 13, color: AppColors.muted)),
         ]),
       ),
+    ]);
+  }
+
+  Widget _gapSection(List<Map<String, dynamic>> gaps) {
+    if (gaps.isEmpty) {
+      return const AppCard(
+        child: Row(children: [
+          Icon(Icons.verified_rounded, color: Tw.emerald600),
+          SizedBox(width: 12),
+          Expanded(child: Text('Semua perlawanan 14 hari akan datang lengkap pegawai.', style: TextStyle(color: AppColors.muted))),
+        ]),
+      );
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      SectionTitle('Perlu tindakan (${gaps.length})', action: 'Semua', onAction: () =>
+          Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const PerluTindakanScreen()))),
+      for (final m in gaps.take(3)) GapCard(match: m),
     ]);
   }
 

@@ -3,17 +3,31 @@ import 'package:flutter/material.dart';
 import '../api.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'laporan_form_screen.dart';
 
 /// Assessor (RA) duties: accepted "Penilai Pengadil" appointments with their
-/// report status. Reports are written on the website.
-class LaporanRaScreen extends StatelessWidget {
+/// report status; reports are filled in LaporanFormScreen.
+class LaporanRaScreen extends StatefulWidget {
   const LaporanRaScreen({super.key});
 
-  String get _webPath => Api.instance.user.value?.isDistrict == true ? '/pp-daerah/penilai' : '/penilai/penilaian';
+  @override
+  State<LaporanRaScreen> createState() => _LaporanRaScreenState();
+}
+
+class _LaporanRaScreenState extends State<LaporanRaScreen> {
+  final _view = GlobalKey<AsyncViewState<(List<Map<String, dynamic>>, List<Map<String, dynamic>>)>>();
+
+  Future<void> _open(Map<String, dynamic> a, Map<String, dynamic>? report) async {
+    final message = await Navigator.of(context)
+        .push<String>(MaterialPageRoute(builder: (_) => LaporanFormScreen(assignment: a, report: report)));
+    if (mounted && message != null) showToast(context, message);
+    await _view.currentState?.reload();
+  }
 
   @override
   Widget build(BuildContext context) {
     return AsyncView<(List<Map<String, dynamic>>, List<Map<String, dynamic>>)>(
+      key: _view,
       load: () async {
         final results = await Future.wait([
           Api.instance.get('/api/tugasan.php'),
@@ -40,13 +54,13 @@ class LaporanRaScreen extends StatelessWidget {
           const SizedBox(height: 8),
           const SectionTitle('Perlawanan dinilai'),
           if (duties.isEmpty) const EmptyState(icon: Icons.rate_review_outlined, title: 'Tiada tugasan penilaian'),
-          for (final a in duties) _card(context, a, reportFor(a)),
+          for (final a in duties) _card(a, reportFor(a)),
         ]);
       },
     );
   }
 
-  Widget _card(BuildContext context, Map<String, dynamic> a, Map<String, dynamic>? report) {
+  Widget _card(Map<String, dynamic> a, Map<String, dynamic>? report) {
     final status = report == null ? 'Belum diisi' : text(report['status']);
     final tone = switch (status) {
       'Disahkan' => (Tw.green100, Tw.green700),
@@ -81,8 +95,8 @@ class LaporanRaScreen extends StatelessWidget {
         if (needsWork) ...[
           const SizedBox(height: 12),
           FilledButton.icon(
-            onPressed: () => openWebsite(context, _webPath),
-            icon: const Icon(Icons.open_in_new_rounded, size: 18),
+            onPressed: () => _open(a, report),
+            icon: const Icon(Icons.edit_note_rounded, size: 20),
             label: Text(report == null ? 'Isi laporan' : 'Sambung draf'),
           ),
         ],

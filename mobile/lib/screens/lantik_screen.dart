@@ -68,6 +68,25 @@ class _LantikScreenState extends State<LantikScreen> {
     await _view.currentState?.reload();
   }
 
+  /// Cancels or postpones the match with a reason, like the website's match
+  /// status dialog; the server notifies the appointed officials.
+  Future<void> _changeStatus(String status) async {
+    final cancel = status == 'Dibatalkan';
+    final sebab = await showAppSheet<String>(context,
+        title: cancel ? 'Batal perlawanan' : 'Tangguh perlawanan',
+        builder: (_) => _ReasonForm(cancel: cancel));
+    if (sebab == null || !mounted) return;
+    try {
+      final result = await Api.instance.post('/api/lantikan.php',
+          {'action': 'batal_jadual', 'jadual_id': m['id'], 'status': status, 'sebab': sebab});
+      if (!mounted) return;
+      showToast(context, text(result['message'], cancel ? 'Perlawanan dibatalkan.' : 'Perlawanan ditangguhkan.'));
+      Navigator.pop(context);
+    } on ApiException catch (error) {
+      if (mounted) showToast(context, error.message, ToastType.error);
+    }
+  }
+
   Future<void> _notify() async {
     final missing = _requiredJawatan.where((j) => !_active.contains(_assignment(j)?['status'])).toList();
     if (missing.isNotEmpty) {
@@ -97,7 +116,24 @@ class _LantikScreenState extends State<LantikScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Lantik pegawai', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800))),
+      appBar: AppBar(
+        title: const Text('Lantik pegawai', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Status perlawanan',
+            icon: const Icon(Icons.more_vert_rounded),
+            onSelected: _changeStatus,
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'Ditangguhkan', child: ListTile(
+                  contentPadding: EdgeInsets.zero, leading: Icon(Icons.pause_circle_outline_rounded, color: Tw.orange600),
+                  title: Text('Tangguh perlawanan'))),
+              PopupMenuItem(value: 'Dibatalkan', child: ListTile(
+                  contentPadding: EdgeInsets.zero, leading: Icon(Icons.cancel_outlined, color: Tw.rose600),
+                  title: Text('Batal perlawanan'))),
+            ],
+          ),
+        ],
+      ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -141,7 +177,7 @@ class _LantikScreenState extends State<LantikScreen> {
             for (final jawatan in _jawatanList) _slot(jawatan, _assignment(jawatan), pool, region),
             const Padding(
               padding: EdgeInsets.only(top: 8),
-              child: Text('Lantikan kumpulan, batal/tangguh perlawanan dan log audit di website.',
+              child: Text('Lantikan kumpulan dan log audit di website. Batal atau tangguh melalui menu ⋮ di atas.',
                   textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: AppColors.muted)),
             ),
           ]);
@@ -272,5 +308,51 @@ class _PoolPickerState extends State<_PoolPicker> {
         ),
       ]),
     );
+  }
+}
+
+class _ReasonForm extends StatefulWidget {
+  const _ReasonForm({required this.cancel});
+  final bool cancel;
+
+  @override
+  State<_ReasonForm> createState() => _ReasonFormState();
+}
+
+class _ReasonFormState extends State<_ReasonForm> {
+  final _sebab = TextEditingController();
+
+  @override
+  void dispose() {
+    _sebab.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      Text(
+        widget.cancel
+            ? 'Semua lantikan aktif bagi perlawanan ini akan dibatalkan dan pegawai dimaklumkan.'
+            : 'Perlawanan ditanda ditangguhkan dan pegawai yang dilantik dimaklumkan.',
+        style: const TextStyle(fontSize: 14, color: Tw.slate600, height: 1.5),
+      ),
+      const SizedBox(height: 16),
+      LabeledField(label: 'Sebab', required: true, controller: _sebab, maxLines: 3,
+          hint: widget.cancel ? 'Contoh: Padang tidak boleh digunakan' : 'Contoh: Hujan lebat'),
+      FilledButton(
+        style: FilledButton.styleFrom(backgroundColor: widget.cancel ? Tw.rose600 : Tw.orange600, foregroundColor: Colors.white),
+        onPressed: () {
+          final text = _sebab.text.trim();
+          if (text.isEmpty) {
+            showToast(context, 'Sila nyatakan sebab.', ToastType.warning);
+            return;
+          }
+          Navigator.pop(context, text.length > 500 ? text.substring(0, 500) : text);
+        },
+        child: Text(widget.cancel ? 'Sahkan batal' : 'Sahkan tangguh'),
+      ),
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Kembali')),
+    ]);
   }
 }
