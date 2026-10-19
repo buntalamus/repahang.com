@@ -5,13 +5,14 @@ import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { ProfileModalService } from '../../../core/services/profile-modal.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
+import { MobileUsageComponent } from '../../../shared/components/mobile-usage/mobile-usage.component';
 
 declare const Chart: any;
 
 @Component({
   selector: 'app-admin-statistics',
   standalone: true,
-  imports: [FormsModule, LoadingComponent],
+  imports: [FormsModule, LoadingComponent, MobileUsageComponent],
   template: `
     @if (loading) {
       <app-loading message="Memuatkan statistik..." />
@@ -74,6 +75,10 @@ declare const Chart: any;
           <div class="p-5">
 
             <!-- ── TAB: PERMOHONAN ── -->
+            @if (activeTab === 'app') {
+              <app-mobile-usage />
+            }
+
             @if (activeTab === 'permohonan') {
               <div class="space-y-6">
                 <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -760,6 +765,7 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
     { key: 'penilaian', label: 'Penilaian & Merit', icon: 'military_tech' },
     { key: 'peperiksaan', label: 'Peperiksaan', icon: 'school' },
     { key: 'kelayakan', label: 'Kelayakan', icon: 'how_to_reg' },
+    { key: 'app', label: 'App Mobile', icon: 'smartphone' },
   ];
 
   selectedEligibility: 'berdaftar' | 'kelas3' | 'kelas1' = 'berdaftar';

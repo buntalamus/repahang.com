@@ -51,6 +51,9 @@
       @if (view === 'pp') {
         <section class="portal-panel"><h3>Unit rekod daerah</h3><dl class="detail-grid"><div><dt>Perlawanan dikenal pasti</dt><dd>{{ d.totals['identified_matches'] }}</dd></div><div><dt>Rekod lama belum dipadankan</dt><dd>{{ d.totals['legacy_records'] }}</dd></div><div><dt>Rekod pegawai menunggu</dt><dd>{{ d.totals['pending'] }}</dd></div><div><dt>Rekod tidak disahkan</dt><dd>{{ d.totals['rejected'] }}</dd></div></dl><p class="panel-note">Satu perlawanan boleh mempunyai beberapa rekod pegawai. Rekod lama tidak digabungkan berdasarkan nama pasukan semata-mata.</p></section>
       }
+      @if (isPp) {
+        <section class="portal-panel"><app-mobile-usage /></section>
+      }
       @if (view === 'pengadil') {
         <section class="portal-panel"><h3>Lantikan mengikut jawatan</h3><div class="detail-grid">@for (position of d.positions; track position.label) { <div><p>{{ position.label }}</p><strong>{{ position.total }}</strong></div> } @empty { <p>Tiada lantikan dalam tahun dipilih.</p> }</div></section>
       }

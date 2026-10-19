@@ -7,6 +7,7 @@ import { mobileApk, mobileBroadcast, mobileVersion, processPushQueue, pushRegist
 import { webPushKey, webPushSubscribe } from './webpush';
 import { appointmentLetter } from './appointment-letter';
 import { appointmentGaps } from './appointment-gaps';
+import { mobileUsage } from './mobile-usage';
 import { processMatchReminders } from './match-reminders';
 import { adminUsers } from './admin-users';
 import { adminUserMasterData } from './user-master-data';
@@ -246,6 +247,7 @@ async function api(request: Request, env: Env, pathname: string, ctx: ExecutionC
   if (pathname === '/api/webpush-subscribe.php') return webPushSubscribe(request, env);
   if (pathname === '/api/surat-lantikan.php') return appointmentLetter(request, env);
   if (pathname === '/api/lantikan-perlu-tindakan.php') return appointmentGaps(request, env);
+  if (pathname === '/api/mobile-usage.php') return mobileUsage(request, env);
   if (pathname === '/api/admin-mail-campaigns.php') return adminMailboxCampaigns(request, env);
   if (pathname === '/api/admin-mailbox.php') return adminMailbox(request, env);
   if (pathname === '/api/register.php') return register(request, env);

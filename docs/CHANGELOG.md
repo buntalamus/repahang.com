@@ -4,6 +4,11 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [20 Oktober 2026] — Statistik penggunaan app mobile
+
+- Tab baharu **App Mobile** di Statistik Admin, dan panel yang sama di Statistik PP Daerah (pengguna daerahnya sahaja): ringkasan ikut peranan (notifikasi aktif, log masuk sahaja, belum guna, Android versi lama, peratus guna app), senarai nama dengan status, peranti dan masa terakhir, carian, penapis peranan/status dan eksport CSV.
+- `GET /api/mobile-usage.php` (Admin dan PP Daerah), berdasarkan sesi app 90 hari, peranti FCM berdaftar dan langganan Web Push. Ujian: `tests/mobile-usage.mjs`.
+
 ## [20 Oktober 2026] — Muat turun app di halaman log masuk
 
 - Halaman log masuk kini ada satu baris ringkas di bawah butang Log Masuk: "Guna app telefon: Android · iPhone · Cara pasang". Android memuat turun `/app/refpahang.apk`, iPhone membuka `/app/`, dan "Cara pasang" membuka tetingkap tatacara pemasangan kedua-duanya. Lencana rasmi Google Play/App Store tidak digunakan kerana app belum diterbitkan di kedai tersebut.
