@@ -19,8 +19,13 @@ const accepted=db.prepare(`SELECT lp.id,lp.pengadil_id,lp.jadual_id FROM lantika
       AND x.status IN ('Belum Jawab','Diterima'))>0 LIMIT 1`).get();
 const other=db.prepare("SELECT id FROM users WHERE role='Pengadil' AND aktif=1 AND id<>? LIMIT 1").get(accepted.pengadil_id).id;
 const admin=db.prepare("SELECT id FROM users WHERE role='Admin' AND aktif=1 LIMIT 1").get().id;
-// Names with markup must come out escaped; phone numbers must not appear.
+// Names with markup must come out escaped; the owner's own phone stays off the letter.
 db.prepare("UPDATE users SET nama_penuh='Ali <b>Bin</b> & Abu', no_telefon='0199998888' WHERE id=?").run(accepted.pengadil_id);
+// The rest of the crew is listed with region and phone so they can contact each other.
+const crewmate=db.prepare(`SELECT id,pengadil_id,pengadil_luar_id FROM lantikan_pengadil
+  WHERE jadual_id=? AND id<>? AND status IN ('Belum Jawab','Diterima') LIMIT 1`).get(accepted.jadual_id,accepted.id);
+if(crewmate.pengadil_id) db.prepare("UPDATE users SET daerah='Lipis',negeri='Pahang',no_telefon='0127776666' WHERE id=?").run(crewmate.pengadil_id);
+else db.prepare("UPDATE pengadil_luar SET daerah='Lipis',negeri='Pahang',no_tel='0127776666' WHERE id=?").run(crewmate.pengadil_luar_id);
 const ownerCookie=await sessionCookie(db,accepted.pengadil_id);
 const get=(query,cookie)=>new Request(`${base}?${query}`,{headers:cookie?{Cookie:cookie}:{}});
 const post=(body,cookie)=>new Request(base,{method:'POST',headers:{Cookie:cookie},body:JSON.stringify(body)});
@@ -37,6 +42,9 @@ try {
   assert.match(html,/Ali &lt;b&gt;Bin&lt;\/b&gt; &amp; Abu/);
   assert.doesNotMatch(html,/0199998888/);
   assert.match(html,/class="crew"/);
+  assert.match(html,/Daerah \/ Negeri<\/th><th[^>]*>No\. Telefon/);
+  assert.match(html,/<td>Lipis, Pahang<\/td><td class="nowrap">0127776666<\/td>/);
+  assert.match(html,/Sekian, terima kasih\.<\/p>\s*<p class="sign">Urusetia Lantikan Pengadil<\/p>/);
 
   // Not logged in, someone else, or not yet accepted: refused.
   assert.equal((await appointmentLetter(get(`id=${accepted.id}`),env)).status,401);
@@ -64,5 +72,5 @@ try {
   assert.equal((await appointmentLetter(new Request(expired),env)).status,403);
   // No secret configured: no links are issued.
   assert.equal((await appointmentLetter(post({id:accepted.id},ownerCookie),{...env,APPOINTMENT_LETTER_SECRET:''})).status,503);
-  console.log('Appointment letter: owner/Admin access, Diterima only, escaping, no phones, signed links passed');
+  console.log('Appointment letter: owner/Admin access, Diterima only, escaping, crew contacts, signed links passed');
 } finally {close();}

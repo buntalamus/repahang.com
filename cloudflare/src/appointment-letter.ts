@@ -115,30 +115,46 @@ async function logoDataUri(env: Env, request: Request): Promise<string> {
   }
 }
 
-export function letterHtml(letter: Letter, crew: Array<{ jawatan: string; nama: string | null }>, logo: string, printedAt: string): string {
+interface CrewMember {
+  jawatan: string;
+  nama: string | null;
+  daerah: string | null;
+  negeri: string | null;
+  no_telefon: string | null;
+}
+
+export function letterHtml(letter: Letter, crew: CrewMember[], logo: string, printedAt: string): string {
   const year = (letter.tarikh ?? '').slice(0, 4) || new Date().getFullYear();
   const reference = `PBNP/LTK/${year}/${letter.id}`;
   const stage = [letter.peringkat_kejohanan, letter.kategori, letter.peringkat, letter.kumpulan].filter(Boolean).join(' · ');
   const row = (label: string, value: string) =>
     `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`;
   const crewRows = crew.length
-    ? crew.map((c) => `<tr><td>${escapeHtml(c.jawatan)}</td><td>${escapeHtml(c.nama ?? '-')}</td></tr>`).join('')
-    : '<tr><td colspan="2">Tiada pegawai lain direkodkan.</td></tr>';
+    ? crew.map((c) => {
+      const region = [c.daerah, c.negeri].map((v) => (v ?? '').trim()).filter(Boolean).join(', ');
+      return `<tr><td class="nowrap">${escapeHtml(c.jawatan)}</td><td>${escapeHtml(c.nama ?? '-')}</td>`
+        + `<td>${escapeHtml(region || '-')}</td><td class="nowrap">${escapeHtml(c.no_telefon?.trim() || '-')}</td></tr>`;
+    }).join('')
+    : '<tr><td colspan="4">Tiada pegawai lain direkodkan.</td></tr>';
   return `<!doctype html><html lang="ms"><head><meta charset="utf-8"><title>Surat Lantikan ${escapeHtml(reference)}</title>
 <style>
-  @page { size: A4; margin: 18mm 20mm; }
-  body { font-family: Arial, Helvetica, sans-serif; color: #111; font-size: 11pt; line-height: 1.5; }
-  .head { display: flex; align-items: center; gap: 14px; border-bottom: 3px solid #fada00; padding-bottom: 10px; }
-  .head img { width: 64px; height: 64px; }
+  @page { size: A4; margin: 14mm 18mm; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #111; font-size: 10.5pt; line-height: 1.4; margin: 0; }
+  p { margin: 0 0 8px; }
+  .head { display: flex; align-items: center; gap: 14px; border-bottom: 3px solid #fada00; padding-bottom: 8px; }
+  .head img { width: 58px; height: 58px; }
   .org { font-size: 14pt; font-weight: 700; letter-spacing: .3px; }
   .sub { font-size: 9.5pt; color: #444; }
-  .meta { display: flex; justify-content: space-between; margin: 18px 0 14px; font-size: 10pt; }
-  h1 { font-size: 13pt; text-align: center; text-decoration: underline; margin: 18px 0 12px; }
-  table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; }
-  .details th { text-align: left; width: 32%; font-weight: 600; padding: 5px 8px; background: #f4f4f4; border: 1px solid #ccc; }
-  .details td, .crew td, .crew th { padding: 5px 8px; border: 1px solid #ccc; }
+  .meta { display: flex; justify-content: space-between; margin: 12px 0 10px; font-size: 10pt; }
+  h1 { font-size: 12.5pt; text-align: center; text-decoration: underline; margin: 12px 0 8px; }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; }
+  .details th { text-align: left; width: 30%; font-weight: 600; padding: 4px 8px; background: #f4f4f4; border: 1px solid #ccc; }
+  .details td, .crew td, .crew th { padding: 4px 8px; border: 1px solid #ccc; }
+  .crew { font-size: 9.5pt; }
   .crew th { background: #111; color: #fada00; text-align: left; }
-  .note { margin-top: 26px; font-size: 9pt; color: #555; border-top: 1px solid #ccc; padding-top: 8px; }
+  .crew .nowrap { white-space: nowrap; }
+  .sign { margin-top: 18px; font-weight: 700; }
+  .note { margin-top: 18px; font-size: 8.5pt; color: #555; border-top: 1px solid #ccc; padding-top: 6px; }
 </style></head><body>
 <div class="head">${logo ? `<img src="${logo}" alt="">` : ''}<div>
   <div class="org">PERSATUAN BOLASEPAK NEGERI PAHANG</div>
@@ -159,10 +175,11 @@ export function letterHtml(letter: Letter, crew: Array<{ jawatan: string; nama: 
   ${row('Tempat', letter.tempat ?? '-')}
 </table>
 <p>3.&nbsp; Pegawai yang bertugas bersama:</p>
-<table class="crew"><tr><th style="width:40%">Jawatan</th><th>Nama</th></tr>${crewRows}</table>
+<table class="crew"><tr><th>Jawatan</th><th>Nama</th><th style="width:20%">Daerah / Negeri</th><th>No. Telefon</th></tr>${crewRows}</table>
 <p>4.&nbsp; Lantikan ini telah diterima melalui sistem pada ${escapeHtml(longDate(letter.tarikh_jawab))}${letter.tarikh_jawab ? `, ${escapeHtml(time(letter.tarikh_jawab.slice(11)))}` : ''}.
 Tuan/Puan diminta hadir lebih awal sebelum perlawanan bermula dan mematuhi Undang-Undang Permainan serta arahan pihak penganjur.</p>
 <p>Sekian, terima kasih.</p>
+<p class="sign">Urusetia Lantikan Pengadil</p>
 <div class="note">Surat ini dijana oleh komputer dan tidak memerlukan tandatangan. Dicetak pada ${escapeHtml(printedAt)}.</div>
 </body></html>`;
 }
@@ -204,11 +221,14 @@ export async function appointmentLetter(request: Request, env: Env): Promise<Res
   const denied = await accessError(env, id, userId, role);
   if (denied) return page(denied.message, denied.status);
   const letter = (await loadLetter(env, id))!;
-  const crew = (await env.DB.prepare(`SELECT lp.jawatan,COALESCE(u.nama_penuh,pl.nama) AS nama
+  const crew = (await env.DB.prepare(`SELECT lp.jawatan,COALESCE(u.nama_penuh,pl.nama) AS nama,
+      CASE WHEN lp.pengadil_id IS NOT NULL THEN u.daerah ELSE pl.daerah END AS daerah,
+      CASE WHEN lp.pengadil_id IS NOT NULL THEN u.negeri ELSE pl.negeri END AS negeri,
+      CASE WHEN lp.pengadil_id IS NOT NULL THEN u.no_telefon ELSE pl.no_tel END AS no_telefon
       FROM lantikan_pengadil lp LEFT JOIN users u ON u.id=lp.pengadil_id
       LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
     WHERE lp.jadual_id=? AND lp.id<>? AND lp.status IN ('Belum Jawab','Diterima') ORDER BY ${ORDER},lp.id`)
-    .bind(letter.jadual_id, letter.id).all<{ jawatan: string; nama: string | null }>()).results;
+    .bind(letter.jadual_id, letter.id).all<CrewMember>()).results;
   const printedAt = new Intl.DateTimeFormat('ms-MY', {
     timeZone: 'Asia/Kuala_Lumpur', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
   }).format(new Date());
