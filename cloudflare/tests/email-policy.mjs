@@ -11,12 +11,13 @@ const w=await bundle(`
 const {db,DB,close}=openDatabase(['0001_worker_sessions','0022_district_appointments','0028_push_devices',
   '0029_webpush_subscriptions','0031_district_copies_rejections_only','0032_weekly_digest']);
 
-const emails=[],telegrams=[];
+const emails=[],telegrams=[],order=[];
+let emailOk=true;
 let telegramOk=true;
-w.setEmailSenderForTests(async(to,subject)=>{emails.push({to,subject});return true;});
-w.setTelegramSenderForTests(async(chatId,text)=>{telegrams.push({chatId:String(chatId),text});return telegramOk;});
+w.setEmailSenderForTests(async(to,subject)=>{emails.push({to,subject});order.push("email");return emailOk;});
+w.setTelegramSenderForTests(async(chatId,text)=>{telegrams.push({chatId:String(chatId),text});order.push("telegram");return telegramOk;});
 const env={DB,BASE_URL:'https://refpahang.com',STAGING_WRITES_ENABLED:'1'};
-const reset=()=>{emails.length=0;telegrams.length=0;telegramOk=true;};
+const reset=()=>{emails.length=0;telegrams.length=0;order.length=0;telegramOk=true;emailOk=true;};
 const notice=(extra={})=>({subject:'Ujian',title:'Ujian',paragraphs:['x'],portal:{type:'Ujian',subject:'Ujian',message:'x'},...extra});
 
 const users=db.prepare("SELECT id FROM users WHERE role='Pengadil' AND aktif=1 LIMIT 4").all().map((r)=>r.id);
@@ -38,8 +39,20 @@ try {
   r=await w.notifyUser(env,{userId:plainUser,name:'C',email:'c@example.invalid',telegramChatId:'333'},notice());
   assert.equal(r.email,'sent','Telegram failed: email');
   telegramOk=true;
+  reset();
   r=await w.notifyUser(env,{userId:alwaysUser,name:'D',email:'d@example.invalid',telegramChatId:'444'},notice({email:'always'}));
   assert.deepEqual([r.telegram,r.email],['sent','sent'],'formal notices always email');
+  assert.deepEqual(order,['email','telegram'],'formal email precedes Telegram');
+  reset();emailOk=false;
+  r=await w.notifyUser(env,{userId:alwaysUser,name:'D',email:'d@example.invalid',telegramChatId:'444'},notice({email:'always'}));
+  assert.deepEqual(order,['email','telegram']);
+  assert.deepEqual([r.email,r.telegram],['failed','sent'],'email failure does not suppress other channels');
+  reset();
+  await DB.batch(w.enqueueNoticeStatements(env,'formal',{userId:alwaysUser,name:'D',email:'d@example.invalid',telegramChatId:'444'},notice({email:'always'}),{kind:'formal'}));
+  await w.processNotificationOutbox(env,1);
+  assert.deepEqual(order,['email'],'first formal queue slot attempts email');
+  await w.processNotificationOutbox(env,1);
+  assert.deepEqual(order,['email','telegram'],'formal outbox attempts email first across batches');
 
   // Outbox: Telegram first, email skipped once it is sent, deferred while it retries.
   reset();

@@ -48,7 +48,7 @@ export async function notifyAccountUpdated(env: Env, recipient: Recipient,
   if (changes.email) rows.push(['Emel Log Masuk Baharu', changes.email.to]);
   if (rows.length === 0) return false;
   const result = await notifyUser(env, recipient, {
-    subject: 'Akaun Dikemaskini - Sistem Pengurusan Pengadil PBNP',
+    subject: 'Akaun Dikemaskini - Sistem Pengurusan Pengadil PBNP', email: 'always',
     title: 'Akaun Dikemaskini',
     paragraphs: [`Maklumat akaun anda telah dikemaskini oleh pentadbir pada ${klNowText()}.`],
     rows,
@@ -99,6 +99,7 @@ export async function notifyProfileEdited(env: Env, recipient: Recipient, labels
   const list = labels.join(', ');
   const notice: Notice = {
     subject: 'Profil Dikemaskini - Sistem Pengurusan Pengadil PBNP',
+    email: oldEmail ? 'always' : 'fallback',
     title: 'Profil Dikemaskini',
     paragraphs: [`Profil anda telah dikemaskini oleh ${actor} pada ${klNowText()}.`,
       'Maklumat yang dikemaskini:', labels.map((label) => `• ${label}`).join('\n'),

@@ -4,9 +4,8 @@
  * written to worker_notification_outbox inside the caller's D1 batch and
  * delivered by processNotificationOutbox() (cron and ctx.waitUntil).
  *
- * Telegram and the app (portal notice → push) come first. Email is only a
- * fallback for people neither reaches, unless the notice sets email: 'always'
- * (account security and formal decisions).
+ * Routine notices use Telegram/app first, with email as fallback. Formal and
+ * security notices set email: 'always': attempt email first, then Telegram/app.
  */
 import type { MailType } from '../mail';
 import type { Env } from './types';
@@ -44,7 +43,7 @@ export interface Notice {
   portal?: { type: string; subject: string; message: string };
   /** Outbox only: skip delivery unless this appointment is still unanswered with this tarikh_notif. */
   precondition?: { lantikanId: number; tarikhNotif: string };
-  /** 'always' emails regardless; default 'fallback' emails only when Telegram and the app do not reach. */
+  /** 'always' attempts email FIRST, then Telegram/app; 'fallback' uses email only when needed. */
   email?: 'always' | 'fallback';
   /** Set by the outbox: an in-app notice (and so an app push) was written with this notice. */
   portalWritten?: boolean;
@@ -105,10 +104,15 @@ function telegramMarkup(notice: Notice): Record<string, unknown> | null {
   return notice.telegram ? notice.telegram.markup ?? null : null;
 }
 
-/** Sends now: Telegram, the in-app notice (app push) and, when needed, email. Never throws. */
+/** Formal: email first; routine: Telegram/app first. Email failures do not block the other channels. */
 export async function notifyUser(env: Env, recipient: Recipient, notice: Notice): Promise<NoticeResult> {
   const result: NoticeResult = { email: 'skipped', telegram: 'skipped', portal: 'skipped' };
   const name = recipient.name || String(recipient.email ?? '');
+  const email = async () => {
+    if (validEmail(recipient.email)) result.email = await sendEmail(env, String(recipient.email).trim(), notice.subject,
+      renderNoticeEmail(notice, name), name, notice.mailType ?? 'admin') ? 'sent' : 'failed';
+  };
+  if (notice.email === 'always') await email();
   const chat = chatId(recipient.telegramChatId);
   if (chat && notice.telegram !== false) {
     try {
@@ -130,10 +134,7 @@ export async function notifyUser(env: Env, recipient: Recipient, notice: Notice)
   }
   const reachedElsewhere = result.telegram === 'sent'
     || (result.portal === 'sent' && await hasAppChannel(env, recipient.userId));
-  if (validEmail(recipient.email) && (notice.email === 'always' || !reachedElsewhere)) {
-    result.email = await sendEmail(env, String(recipient.email).trim(), notice.subject,
-      renderNoticeEmail(notice, name), name, notice.mailType ?? 'admin') ? 'sent' : 'failed';
-  }
+  if (notice.email !== 'always' && !reachedElsewhere) await email();
   return result;
 }
 
@@ -167,11 +168,12 @@ export function enqueueNoticeStatements(env: Env, dedupeKey: string, recipient: 
   const name = recipient.name || String(recipient.email ?? '');
   const payload = JSON.stringify({ ...notice, portal: undefined, portalWritten: Boolean(recipient.userId && notice.portal) });
   const statements: D1PreparedStatement[] = [];
-  // Telegram is queued (and so delivered) before the email fallback.
+  // Formal notices attempt email first; routine notices try Telegram before email.
   const channels: Array<['email' | 'telegram', string | null]> = [
     ['telegram', notice.telegram === false ? null : chatId(recipient.telegramChatId)],
     ['email', validEmail(recipient.email) ? String(recipient.email).trim() : null],
   ];
+  if (notice.email === 'always') channels.reverse();
   for (const [channel, address] of channels) {
     if (!address) continue;
     statements.push(env.DB.prepare(`INSERT OR IGNORE INTO worker_notification_outbox

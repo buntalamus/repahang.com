@@ -76,8 +76,8 @@ try {
   const districtMailBefore=count('SELECT count(*) FROM worker_district_appointment_mail');
   let edited=await putMatch(matchBody(m1,{masa:'16:30',tempat:'Stadium Baharu'}));
   assert.deepEqual(edited,{error:false,message:'Perlawanan berjaya dikemaskini.',officials_notified:3});
-  // Telegram reaches all three officials, so the email fallback is skipped.
-  assert.deepEqual(emails,[]);
+  // Formal schedule changes always email the three officials.
+  assert.equal(emails.length,3);
   for (const message of telegrams) {
     assert.ok(message.text.includes('Stadium Baharu (sebelum ini: Stadium Lama)'));
     assert.ok(message.text.includes('16:30 MYT (sebelum ini: 10:00 MYT)'));
@@ -86,7 +86,7 @@ try {
   assert.equal(telegrams.find((t)=>t.chatId===String(kup[0].telegram_chat_id)).markup.inline_keyboard[0][0].callback_data,
     `act:accept:token:${rows1[0].tg_token}`);
   assert.equal(count(`SELECT count(*) FROM lantikan_audit_log WHERE jadual_id=? AND event_type='schedule_change_notification'
-    AND event_status='success'`,m1),3);
+    AND event_status='success'`,m1),6);
   assert.equal(count('SELECT count(*) FROM worker_district_appointment_mail'),districtMailBefore,'no duplicate district copy');
   assert.equal(count(`SELECT count(*) FROM notifications WHERE user_id=? AND type='Perubahan Perlawanan'`,kup[0].id),1);
 
@@ -102,7 +102,7 @@ try {
   reset();
   edited=await putMatch(matchBody(m1,{tarikh:'2099-03-02',masa:'16:30',tempat:'Stadium Baharu',kategori:'U13'}));
   assert.equal(edited.officials_notified,2);
-  assert.deepEqual(emails,[]);
+  assert.deepEqual(emails.map(e=>e.to).sort(),[kup[0],kup[1]].map(o=>o.email).sort());
   assert.deepEqual(telegrams.map((t)=>t.chatId).sort(),[kup[0],kup[1]].map((o)=>String(o.telegram_chat_id)).sort());
   const acceptedTelegram=telegrams.find((t)=>t.chatId===String(kup[1].telegram_chat_id));
   assert.ok(!acceptedTelegram.markup?.inline_keyboard);
@@ -112,10 +112,10 @@ try {
   reset();
   const override=await audit({action:'admin_override_acceptance',lantikan_id:rows1[2].id});
   assert.equal(override.error,false,override.message);
-  assert.ok(!emails.some((mail)=>mail.to===kup[2].email),'Telegram reached the official');
+  assert.ok(emails.some((mail)=>mail.to===kup[2].email),'formal acceptance confirmation always emails');
   assert.ok(telegrams.some((t)=>t.chatId===String(kup[2].telegram_chat_id) && t.text.includes('Penerimaan Lantikan Disahkan')));
   assert.equal(count(`SELECT count(*) FROM lantikan_audit_log WHERE lantikan_id=? AND event_type='override_notification'`,
-    rows1[2].id),1);
+    rows1[2].id),2);
 
   // --- Cancellation: PP Daerah of a state tournament hear once per match ----
   const active=all(`SELECT DISTINCT u.persatuan_id FROM lantikan_pengadil lp JOIN users u ON u.id=lp.pengadil_id
@@ -131,6 +131,7 @@ try {
   assert.equal(cancelled.error,false);
   const ppMails=emails.filter((mail)=>/^Perlawanan Dibatalkan: Home FC lwn Away FC/.test(mail.subject));
   assert.deepEqual(ppMails.map((mail)=>mail.to).sort(),expectedPP);
+  for (const official of kup.slice(0,3)) assert.ok(emails.some(e=>e.to===official.email && e.html.includes('Padang banjir')),'formal cancellation email for every affected official');
   if (ppMails.length) assert.ok(ppMails[0].html.includes('Padang banjir'));
   for (const chat of telegramPP) assert.ok(telegrams.some((t)=>t.chatId===chat && t.text.includes('Padang banjir')));
   // A district-owned tournament relies on the district copies instead.
@@ -148,7 +149,7 @@ try {
   await appointAndNotify(m2,kup.slice(3,6));
   reset();
   await lantikan({action:'batal_jadual',jadual_id:m2,status:'Ditangguhkan',sebab:'Cuaca'});
-  assert.equal(emails.filter((mail)=>/^Perlawanan Ditangguhkan: /.test(mail.subject)).length,0);
+  for (const official of kup.slice(3,6)) assert.ok(emails.some(e=>e.to===official.email && e.html.includes('Cuaca')),'formal postponement email for every affected official');
 
   // --- Auto-reject: queued with the rejection, delivered by the outbox ------
   db.prepare('UPDATE users SET telegram_chat_id=123456789 WHERE id=?').run(admin.id);
@@ -170,15 +171,15 @@ try {
   assert.equal(await worker.autoTolakLantikanTertunggak(env,{jadual_id:m3}),0);
   const drained=await worker.processNotificationOutbox(env,200);
   assert.equal(drained.failed,0);
-  // Officials and the appointing Admin all have Telegram: no email fallback.
-  assert.equal(emails.filter(mail=>/^Lantikan Ditolak Automatik: /.test(mail.subject)).length,0);
+  // Officials receive formal auto-rejection emails; the owner keeps routine fallback.
+  assert.equal(emails.filter(mail=>/^Lantikan Ditolak Automatik: /.test(mail.subject)).length,3);
   assert.equal(kup.slice(6,9).filter(o=>telegrams.some(t=>t.chatId===String(o.telegram_chat_id))).length,3);
   const adminChats=all("SELECT telegram_chat_id FROM users WHERE role='Admin' AND aktif=1 AND telegram_chat_id IS NOT NULL")
     .map((r)=>String(r.telegram_chat_id));
   assert.ok(telegrams.some(t=>t.text.includes('Pengganti Diperlukan')));
   assert.equal(count(`SELECT count(*) FROM worker_notification_outbox WHERE status='pending'`),0);
   assert.equal(count(`SELECT count(*) FROM lantikan_audit_log WHERE lantikan_id=? AND event_type='auto_reject_notification'
-    AND event_status='success'`,rows3[0].id),1);
+    AND event_status='success'`,rows3[0].id),2);
 
   // A match that already kicked off is tidied up silently (no stale notices).
   const m5=insertMatch('2099-05-02','10:00:00');

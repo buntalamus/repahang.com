@@ -212,6 +212,7 @@ export async function notifyPPDaerahLantikan(env: Env, persatuanId: number,
   for (const pp of users.results) {
     await createPortalNotification(env, pp.id, 'Lantikan Pegawai Pembangunan Daerah', `Lantikan Pengadil Daerah: ${pasukan}`,
       `${officials.length} pengadil daerah anda dilantik untuk ${pasukan} (${kejohanan}) pada ${tarikhText}: ${names}.`);
+    let telegramDelivered = false;
     if (pp.telegram_chat_id) {
       const message = '<b>📋 Makluman Lantikan Pengadil</b>\n\n'
         + 'Pengadil daerah anda telah dilantik:\n'
@@ -221,10 +222,10 @@ export async function notifyPPDaerahLantikan(env: Env, persatuanId: number,
         + `<b>Tarikh:</b> ${tarikhText}\n`
         + `<b>Masa:</b> ${masaText}\n`
         + `<b>Tempat:</b> ${h(tempat)}\n`;
-      await tgSend(env, pp.telegram_chat_id, message);
+      telegramDelivered = await tgSend(env, pp.telegram_chat_id, message);
     }
     // Portal (app push) and Telegram above; email only if neither reaches the PP.
-    if (pp.email && !pp.telegram_chat_id && !await hasAppChannel(env, pp.id)) {
+    if (pp.email && !telegramDelivered && !await hasAppChannel(env, pp.id)) {
       const body = emailGreeting(pp.nama_penuh)
         + emailPara('Pengadil dari daerah anda telah dilantik untuk bertugas:')
         + emailInfoTable([
@@ -337,8 +338,29 @@ export async function generatePenilaianToken(env: Env, lantikanId: number,
   const audit = (channel: string, status: string, details: Record<string, unknown>) =>
     recordLantikanAudit(env, lantikanId, 'ra_form_notification', channel, status, details,
       borangUrl, 'system', null, snapshot, meta);
-  // Telegram-linked assessors get the form link there (and in the app); email is the fallback.
-  if (row.emel_penilai && !row.tg_chat_id) {
+  if (row.tg_chat_id) {
+    try {
+      const message = '📋 <b>Borang Penilaian Pengadil</b>\n\n'
+        + 'Anda telah menerima tugasan sebagai <b>Penilai Pengadil</b>.\n\n'
+        + `⚽ ${h(`${row.pasukan_home} lwn ${row.pasukan_away}`)}\n`
+        + `📅 ${tarikhFmt(row.tarikh)}\n`
+        + `📍 ${h(row.tempat ?? '')}\n\n`
+        + 'Sila isi borang penilaian selepas perlawanan:';
+      telegramDelivered = await tgSend(env, Number(row.tg_chat_id), message,
+        { inline_keyboard: [[{ text: '📋 Isi Borang Penilaian', url: borangUrl }]] });
+      if (!telegramDelivered) telegramError = 'Penghantar Telegram memulangkan status gagal.';
+    } catch (error) {
+      telegramDelivered = false;
+      telegramError = error instanceof Error ? error.message : String(error);
+    }
+    const details: Record<string, unknown> = { telegram_linked: true, ra_form_url: borangUrl };
+    if (telegramError !== null) details.error = telegramError;
+    await audit('telegram', telegramDelivered ? 'success' : 'failed', details);
+  } else {
+    await audit('telegram', 'skipped', { reason: 'telegram_not_linked', ra_form_url: borangUrl });
+  }
+  // Email is the fallback if the actual Telegram send fails.
+  if (row.emel_penilai && !telegramDelivered) {
     try {
       const pasukan = h(`${row.pasukan_home} lwn ${row.pasukan_away}`);
       const body = emailGreeting(row.nama_penilai)
@@ -362,28 +384,7 @@ export async function generatePenilaianToken(env: Env, lantikanId: number,
     if (emailError !== null) details.error = emailError;
     await audit('email', emailDelivered ? 'success' : 'failed', details);
   } else {
-    await audit('email', 'skipped', { reason: row.emel_penilai ? 'telegram_linked' : 'email_missing', ra_form_url: borangUrl });
-  }
-  if (row.tg_chat_id) {
-    try {
-      const message = '📋 <b>Borang Penilaian Pengadil</b>\n\n'
-        + 'Anda telah menerima tugasan sebagai <b>Penilai Pengadil</b>.\n\n'
-        + `⚽ ${h(`${row.pasukan_home} lwn ${row.pasukan_away}`)}\n`
-        + `📅 ${tarikhFmt(row.tarikh)}\n`
-        + `📍 ${h(row.tempat ?? '')}\n\n`
-        + 'Sila isi borang penilaian selepas perlawanan:';
-      telegramDelivered = await tgSend(env, Number(row.tg_chat_id), message,
-        { inline_keyboard: [[{ text: '📋 Isi Borang Penilaian', url: borangUrl }]] });
-      if (!telegramDelivered) telegramError = 'Penghantar Telegram memulangkan status gagal.';
-    } catch (error) {
-      telegramDelivered = false;
-      telegramError = error instanceof Error ? error.message : String(error);
-    }
-    const details: Record<string, unknown> = { telegram_linked: true, ra_form_url: borangUrl };
-    if (telegramError !== null) details.error = telegramError;
-    await audit('telegram', telegramDelivered ? 'success' : 'failed', details);
-  } else {
-    await audit('telegram', 'skipped', { reason: 'telegram_not_linked', ra_form_url: borangUrl });
+    await audit('email', 'skipped', { reason: row.emel_penilai ? 'telegram_delivered' : 'email_missing', ra_form_url: borangUrl });
   }
   await recordLantikanAudit(env, lantikanId, 'ra_form_dispatched', 'combined',
     emailDelivered || telegramDelivered ? 'success' : 'failed', {
@@ -537,6 +538,10 @@ export async function notifyCompleteKupCrew(env: Env, jadualId: number): Promise
         }
         await finishChannel(env, delivery.id, 'telegram', success, attempt, errorMessage);
         if (success) result.telegram_sent++;
+        else if (String(recipient.email ?? '').trim()) {
+          await env.DB.prepare('UPDATE kup_crew_notifications SET email_applicable=1 WHERE id=? AND superseded_at IS NULL').bind(delivery.id).run();
+          delivery.email_applicable = 1;
+        }
       }
     }
     if (delivery.email_applicable && !delivery.email_sent_at) {

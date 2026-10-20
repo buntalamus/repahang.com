@@ -4,6 +4,14 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [20 Oktober 2026] — Urusan rasmi melalui emel dahulu
+
+- Emel dicuba dahulu bagi akaun/keselamatan, lantikan rasmi (termasuk pengadil luar), penggantian, pembatalan, penangguhan, perubahan butiran penting dan pengesahan penerimaan oleh Admin. Telegram dan notifikasi portal/app menyusul; kegagalan emel tidak menggugurkan saluran lain.
+- Keputusan rasmi permohonan/ujian, resit permohonan serta pautan pengesahan laporan Pengerusi kekal melalui emel. Laluan Pengerusi sedia ada sudah mencuba emel sebelum Telegram.
+- `email: 'always'` dalam notis bersama kini bermaksud emel dahulu; outbox menyusun baris emel sebelum Telegram bagi kategori ini. Makluman rutin mengekalkan Telegram/app dahulu dan emel sebagai sandaran.
+- Laluan PP, pautan borang RA dan KUP tidak lagi menganggap ID Telegram tersimpan sebagai bukti penghantaran berjaya; apabila cubaan Telegram gagal, sandaran emel masih dicuba.
+- Ujian menggunakan penghantar contoh sahaja: tertib emel/Telegram, kegagalan emel tanpa menyekat saluran lain, sandaran PP/RA/KUP, perubahan jadual, pembatalan dan penangguhan. Tiada emel/Telegram produksi dihantar untuk ujian.
+
 ## [20 Oktober 2026] — Kurangkan emel: Telegram dan app dahulu
 
 Perbezaan sengaja daripada PHP (keputusan pemilik sistem: maksimumkan Telegram dan app mobile).
