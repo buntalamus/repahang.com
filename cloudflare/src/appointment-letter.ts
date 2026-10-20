@@ -5,6 +5,7 @@
  * the phone's browser or PDF viewer without a cookie.
  */
 import { currentUser, json } from './auth';
+import { normalize, stateAliases, states } from './external-referees';
 import { boundedJson } from './request';
 import type { Env } from './types';
 
@@ -118,9 +119,19 @@ async function logoDataUri(env: Env, request: Request): Promise<string> {
 interface CrewMember {
   jawatan: string;
   nama: string | null;
+  luar: number;
+  /** A name from the Pahang district list, never the address field. */
   daerah: string | null;
+  /** External officials only, as recorded; mapped to the state list below. */
   negeri: string | null;
   no_telefon: string | null;
+}
+
+/** Registered (Pahang) officials show their district; external ones their state. */
+function regionOf(c: CrewMember): string {
+  if (!c.luar) return c.daerah ?? 'Pahang';
+  const state = normalize(c.negeri ?? '', states, stateAliases);
+  return (state === 'Pahang' && c.daerah) || state || '-';
 }
 
 export function letterHtml(letter: Letter, crew: CrewMember[], logo: string, printedAt: string): string {
@@ -130,11 +141,8 @@ export function letterHtml(letter: Letter, crew: CrewMember[], logo: string, pri
   const row = (label: string, value: string) =>
     `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`;
   const crewRows = crew.length
-    ? crew.map((c) => {
-      const region = [c.daerah, c.negeri].map((v) => (v ?? '').trim()).filter(Boolean).join(', ');
-      return `<tr><td class="nowrap">${escapeHtml(c.jawatan)}</td><td>${escapeHtml(c.nama ?? '-')}</td>`
-        + `<td>${escapeHtml(region || '-')}</td><td class="nowrap">${escapeHtml(c.no_telefon?.trim() || '-')}</td></tr>`;
-    }).join('')
+    ? crew.map((c) => `<tr><td class="nowrap">${escapeHtml(c.jawatan)}</td><td>${escapeHtml(c.nama ?? '-')}</td>`
+      + `<td>${escapeHtml(regionOf(c))}</td><td class="nowrap">${escapeHtml(c.no_telefon?.trim() || '-')}</td></tr>`).join('')
     : '<tr><td colspan="4">Tiada pegawai lain direkodkan.</td></tr>';
   return `<!doctype html><html lang="ms"><head><meta charset="utf-8"><title>Surat Lantikan ${escapeHtml(reference)}</title>
 <style>
@@ -222,11 +230,15 @@ export async function appointmentLetter(request: Request, env: Env): Promise<Res
   if (denied) return page(denied.message, denied.status);
   const letter = (await loadLetter(env, id))!;
   const crew = (await env.DB.prepare(`SELECT lp.jawatan,COALESCE(u.nama_penuh,pl.nama) AS nama,
-      CASE WHEN lp.pengadil_id IS NOT NULL THEN u.daerah ELSE pl.daerah END AS daerah,
-      CASE WHEN lp.pengadil_id IS NOT NULL THEN u.negeri ELSE pl.negeri END AS negeri,
+      CASE WHEN lp.pengadil_id IS NOT NULL THEN 0 ELSE 1 END AS luar,
+      CASE WHEN lp.pengadil_id IS NOT NULL THEN COALESCE(d.nama,pd.daerah) ELSE dl.nama END AS daerah,
+      pl.negeri,
       CASE WHEN lp.pengadil_id IS NOT NULL THEN u.no_telefon ELSE pl.no_tel END AS no_telefon
       FROM lantikan_pengadil lp LEFT JOIN users u ON u.id=lp.pengadil_id
+      LEFT JOIN districts d ON d.id=u.district_id
+      LEFT JOIN persatuan_bolasepak_daerah pd ON pd.id=u.persatuan_id
       LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
+      LEFT JOIN districts dl ON dl.nama=trim(pl.daerah)
     WHERE lp.jadual_id=? AND lp.id<>? AND lp.status IN ('Belum Jawab','Diterima') ORDER BY ${ORDER},lp.id`)
     .bind(letter.jadual_id, letter.id).all<CrewMember>()).results;
   const printedAt = new Intl.DateTimeFormat('ms-MY', {

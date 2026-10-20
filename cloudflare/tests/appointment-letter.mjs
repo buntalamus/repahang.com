@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import {bundle,openDatabase,sessionCookie} from './_harness.mjs';
 
-const {appointmentLetter,signedLetterUrl}=await bundle(
-  "export {appointmentLetter,signedLetterUrl} from '../src/appointment-letter';");
+const {appointmentLetter,signedLetterUrl,letterHtml}=await bundle(
+  "export {appointmentLetter,signedLetterUrl,letterHtml} from '../src/appointment-letter';");
 const {db,DB,close}=openDatabase(['0001_worker_sessions']);
 
 const base='https://refpahang.com/api/surat-lantikan.php';
@@ -21,11 +21,14 @@ const other=db.prepare("SELECT id FROM users WHERE role='Pengadil' AND aktif=1 A
 const admin=db.prepare("SELECT id FROM users WHERE role='Admin' AND aktif=1 LIMIT 1").get().id;
 // Names with markup must come out escaped; the owner's own phone stays off the letter.
 db.prepare("UPDATE users SET nama_penuh='Ali <b>Bin</b> & Abu', no_telefon='0199998888' WHERE id=?").run(accepted.pengadil_id);
-// The rest of the crew is listed with region and phone so they can contact each other.
+// The rest of the crew is listed with region and phone so they can contact each other. The
+// region comes from the Pahang district list or the state list, never the address fields.
 const crewmate=db.prepare(`SELECT id,pengadil_id,pengadil_luar_id FROM lantikan_pengadil
   WHERE jadual_id=? AND id<>? AND status IN ('Belum Jawab','Diterima') LIMIT 1`).get(accepted.jadual_id,accepted.id);
-if(crewmate.pengadil_id) db.prepare("UPDATE users SET daerah='Lipis',negeri='Pahang',no_telefon='0127776666' WHERE id=?").run(crewmate.pengadil_id);
-else db.prepare("UPDATE pengadil_luar SET daerah='Lipis',negeri='Pahang',no_tel='0127776666' WHERE id=?").run(crewmate.pengadil_luar_id);
+const lipis=db.prepare("SELECT id FROM districts WHERE nama='Lipis'").get().id;
+if(crewmate.pengadil_id) db.prepare(`UPDATE users SET daerah='KARAK, BENTONG',negeri='PAHANG',district_id=?,
+  no_telefon='0127776666' WHERE id=?`).run(lipis,crewmate.pengadil_id);
+else db.prepare("UPDATE pengadil_luar SET daerah='lipis',negeri='PAHANG',no_tel='0127776666' WHERE id=?").run(crewmate.pengadil_luar_id);
 const ownerCookie=await sessionCookie(db,accepted.pengadil_id);
 const get=(query,cookie)=>new Request(`${base}?${query}`,{headers:cookie?{Cookie:cookie}:{}});
 const post=(body,cookie)=>new Request(base,{method:'POST',headers:{Cookie:cookie},body:JSON.stringify(body)});
@@ -43,7 +46,17 @@ try {
   assert.doesNotMatch(html,/0199998888/);
   assert.match(html,/class="crew"/);
   assert.match(html,/Daerah \/ Negeri<\/th><th[^>]*>No\. Telefon/);
-  assert.match(html,/<td>Lipis, Pahang<\/td><td class="nowrap">0127776666<\/td>/);
+  assert.match(html,/<td>Lipis<\/td><td class="nowrap">0127776666<\/td>/);
+  assert.doesNotMatch(html,/KARAK/);
+  // External officials: state from the official list; a Pahang district only when it is on the list.
+  const region=(member)=>/<td>([^<]*)<\/td><td class="nowrap">/.exec(letterHtml(
+    {id:1,jawatan:'Pengadil'},[{jawatan:'Pegawai ke4',nama:'X',no_telefon:null,...member}],'','-'))[1];
+  assert.equal(region({luar:1,daerah:null,negeri:'kuala lumpur'}),'WP Kuala Lumpur');
+  assert.equal(region({luar:1,daerah:null,negeri:'PULAU PINANG'}),'Pulau Pinang');
+  assert.equal(region({luar:1,daerah:'Kuantan',negeri:'Pahang'}),'Kuantan');
+  assert.equal(region({luar:1,daerah:null,negeri:'Pahang'}),'Pahang');
+  assert.equal(region({luar:1,daerah:null,negeri:'Gurun'}),'-');
+  assert.equal(region({luar:0,daerah:null,negeri:null}),'Pahang');
   assert.match(html,/Sekian, terima kasih\.<\/p>\s*<p class="sign">Urusetia Lantikan Pengadil<\/p>/);
 
   // Not logged in, someone else, or not yet accepted: refused.
