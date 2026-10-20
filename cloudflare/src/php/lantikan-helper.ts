@@ -1,4 +1,5 @@
 /** Port of config/lantikan-helper.php used by the appointment endpoints. */
+import { hasAppChannel } from '../channels';
 import type { Env } from '../types';
 import type { KupOfficial } from './email';
 import { buildEmailTemplate, emailButton, emailGreeting, emailInfoTable, emailPara,
@@ -222,7 +223,8 @@ export async function notifyPPDaerahLantikan(env: Env, persatuanId: number,
         + `<b>Tempat:</b> ${h(tempat)}\n`;
       await tgSend(env, pp.telegram_chat_id, message);
     }
-    if (pp.email) {
+    // Portal (app push) and Telegram above; email only if neither reaches the PP.
+    if (pp.email && !pp.telegram_chat_id && !await hasAppChannel(env, pp.id)) {
       const body = emailGreeting(pp.nama_penuh)
         + emailPara('Pengadil dari daerah anda telah dilantik untuk bertugas:')
         + emailInfoTable([
@@ -335,7 +337,8 @@ export async function generatePenilaianToken(env: Env, lantikanId: number,
   const audit = (channel: string, status: string, details: Record<string, unknown>) =>
     recordLantikanAudit(env, lantikanId, 'ra_form_notification', channel, status, details,
       borangUrl, 'system', null, snapshot, meta);
-  if (row.emel_penilai) {
+  // Telegram-linked assessors get the form link there (and in the app); email is the fallback.
+  if (row.emel_penilai && !row.tg_chat_id) {
     try {
       const pasukan = h(`${row.pasukan_home} lwn ${row.pasukan_away}`);
       const body = emailGreeting(row.nama_penilai)
@@ -359,7 +362,7 @@ export async function generatePenilaianToken(env: Env, lantikanId: number,
     if (emailError !== null) details.error = emailError;
     await audit('email', emailDelivered ? 'success' : 'failed', details);
   } else {
-    await audit('email', 'skipped', { reason: 'email_missing', ra_form_url: borangUrl });
+    await audit('email', 'skipped', { reason: row.emel_penilai ? 'telegram_linked' : 'email_missing', ra_form_url: borangUrl });
   }
   if (row.tg_chat_id) {
     try {
@@ -456,7 +459,9 @@ async function queueKupCrewNotifications(env: Env, jadualId: number, fingerprint
         telegram_applicable=excluded.telegram_applicable,
         email_applicable=excluded.email_applicable,superseded_at=NULL`).bind(
       jadualId, recipient.lantikan_id, fingerprint, signature,
-      recipient.telegram_chat_id ? 1 : 0, String(recipient.email ?? '').trim() !== '' ? 1 : 0)),
+      // Email only for officials without Telegram.
+      recipient.telegram_chat_id ? 1 : 0,
+      !recipient.telegram_chat_id && String(recipient.email ?? '').trim() !== '' ? 1 : 0)),
     env.DB.prepare(`UPDATE kup_crew_notifications SET completed_at=CASE
         WHEN (telegram_applicable=0 OR telegram_sent_at IS NOT NULL)
          AND (email_applicable=0 OR email_sent_at IS NOT NULL)

@@ -10,6 +10,7 @@ import { appointmentLetter } from './appointment-letter';
 import { appointmentGaps } from './appointment-gaps';
 import { mobileUsage } from './mobile-usage';
 import { processMatchReminders } from './match-reminders';
+import { processWeeklyDigest } from './weekly-digest';
 import { adminUsers } from './admin-users';
 import { adminUserMasterData } from './user-master-data';
 import { adminSettings, maintenanceEnabled } from './admin-settings';
@@ -428,7 +429,10 @@ export default {
           try { await processPushQueue(env); }
           finally {
             try { await processMatchReminders(env); }
-            finally { await syncAllShinjiruMailboxes(env); }
+            finally {
+              try { await processWeeklyDigest(env); }
+              finally { await syncAllShinjiruMailboxes(env); }
+            }
           }
         }
       }

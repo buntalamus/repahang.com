@@ -107,11 +107,14 @@ try {
   const ar2=rowOf('Penolong Pengadil 2');
   await link('POST',{token:ar2.email_token,action:'accept'});
   assert.equal(count("SELECT count(*) FROM kup_crew_notifications WHERE jadual_id=? AND completed_at IS NOT NULL",match),3);
-  assert.equal(emails.filter((mail)=>mail.subject.startsWith('Krew KUP Lengkap:')).length,3);
+  // KUP crew notices go by Telegram; email only for officials without Telegram.
+  assert.equal(emails.filter((mail)=>mail.subject.startsWith('Krew KUP Lengkap:')).length,0);
 
   // RA acceptance sends the assessment form from the admin identity.
+  // The assessor has no Telegram here, so the form link goes by email (the fallback).
   emails.length=0;
   const raRow=rowOf('Penilai Pengadil');
+  db.prepare('UPDATE users SET telegram_chat_id=NULL WHERE id=?').run(raRow.pengadil_id);
   await link('POST',{token:raRow.email_token,action:'accept'});
   assert.match(rowOf('Penilai Pengadil').penilaian_token,/^[a-f0-9]{64}$/);
   const raMail=emails.find((mail)=>mail.subject.startsWith('Borang Penilaian Pengadil'));

@@ -303,7 +303,8 @@ async function notifyReplacedOfficial(env: Env, snapshot: LantikanSnapshot, user
       await recordLantikanAudit(env, snapshot.lantikan_id, 'reassignment_notification', 'telegram',
         ok ? 'success' : 'failed', { reason: REPLACED_REASON }, null, actorType, user.id, snapshot, meta);
     }
-    if (snapshot.emel_pegawai) {
+    // Email is the fallback when Telegram did not reach the official.
+    if (snapshot.emel_pegawai && !delivered) {
       const match = await env.DB.prepare('SELECT logo_home,logo_away FROM jadual_perlawanan WHERE id=?')
         .bind(snapshot.jadual_id).first<{ logo_home: string | null; logo_away: string | null }>();
       const ok = await sendBatalEmail(env, s('emel_pegawai'), s('nama_pegawai'), s('jawatan'), s('kejohanan'),
@@ -389,6 +390,7 @@ async function deleteAppointment(env: Env, request: Request, user: User, meta: A
   }
   if (record.notif_hantar) {
     const s = (key: string) => String(record[key] ?? '');
+    let telegramDelivered = false;
     if (record.telegram_chat_id) {
       const delivered = await tgSend(env, Number(record.telegram_chat_id), tgBatalMessage(s('nama'),
         s('jawatan'), s('kejohanan'), s('tarikh'), s('masa'), s('tempat'), s('pasukan_home'),
@@ -396,8 +398,9 @@ async function deleteAppointment(env: Env, request: Request, user: User, meta: A
       await recordLantikanAudit(env, id, 'cancellation_notification', 'telegram',
         delivered ? 'success' : 'failed', { reason: 'Lantikan dibuang oleh pentadbir', error: null },
         null, user.role==='PP Daerah' ? 'pp_daerah' : 'admin', user.id, snapshot, meta);
+      telegramDelivered = delivered;
     }
-    if (record.email) {
+    if (record.email && !telegramDelivered) {
       const delivered = await sendBatalEmail(env, s('email'), s('nama'), s('jawatan'), s('kejohanan'),
         s('tarikh'), s('masa'), s('tempat'), s('pasukan_home'), s('pasukan_away'), s('no_perlawanan'),
         s('logo_home'), s('logo_away'), Boolean(record.pengadil_id));
@@ -477,7 +480,7 @@ async function batalLantikanByJadual(env: Env, rawIds: number[], status: string,
         telegramDelivered ? 'success' : 'failed', { new_status: status, reason: sebab, error: null },
         null, actorType, actorUserId, null, meta);
     }
-    if (r.email) {
+    if (r.email && !delivered) {
       const emailDelivered = await sendBatalEmail(env, s('email'), s('nama'), s('jawatan'), s('kejohanan'),
         s('tarikh'), s('masa'), s('tempat'), s('pasukan_home'), s('pasukan_away'), s('no_perlawanan'),
         s('logo_home'), s('logo_away'), Boolean(r.pengadil_id), status, sebab);
@@ -610,7 +613,8 @@ async function dispatchMatch(env: Env, jadualId: number, assignments: PendingAss
       await audit('appointment_notification', 'telegram', 'skipped',
         { reason: 'telegram_not_linked', telegram_link_url: link }, link);
     }
-    if (a.email) {
+    // Telegram first; email only when Telegram did not deliver (no link or failure).
+    if (a.email && !tgDelivered) {
       const tgLinkUrl = tgLinkToken && !a.telegram_chat_id ? `https://t.me/${botUsername}?start=${tgLinkToken}` : null;
       emailDelivered = await sendLantikanEmail(env, a.email, a.nama, a.jawatan, a.kejohanan, a.tarikh,
         a.masa ?? '', a.tempat ?? '', a.pasukan_home, a.pasukan_away, emailToken, tgLinkUrl,
@@ -621,7 +625,8 @@ async function dispatchMatch(env: Env, jadualId: number, assignments: PendingAss
         recipient: a.email, accept_url: links.accept_url, reject_url: links.reject_url, error: null,
       }, links.accept_url);
     } else {
-      await audit('appointment_notification', 'email', 'skipped', { reason: 'email_missing' }, links.accept_url);
+      await audit('appointment_notification', 'email', 'skipped',
+        { reason: a.email ? 'telegram_delivered' : 'email_missing' }, links.accept_url);
     }
 
     // Portal is supplemental; the deadline starts only after Telegram or email works.

@@ -1,4 +1,6 @@
 import {originalEmail} from './original-templates';
+import { reachStaff } from './channels';
+import { h } from './php/format';
 import {plainTextFromHtml} from './php/format';
 import { sendRefpahangEmail } from '../mail';
 import type { MailAttachment } from '../mail';
@@ -306,7 +308,10 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
     if (!saved) throw new Error('Application insert was not visible after transaction');
     const applicationId = Number(saved.id);
 
+    const reviewTelegram = `<b>📝 Permohonan Baharu Menunggu Semakan</b>\n\n${h(reviewMessage)}\n\nSila semak di app atau portal.`;
     await Promise.allSettled(reviewers.filter((reviewer) => reviewer.email).map(async (reviewer) => {
+      // In-app notice already written; Telegram next; email only if neither reaches the reviewer.
+      if (await reachStaff(env, reviewer.id, reviewTelegram)) return;
       const rendered=await originalEmail(env,'reviewer',
         [Number(profile.persatuan_id || 0),{nama_penuh:fromProfile('nama_penuh'),
           no_kp:fromProfile('no_ic'),emel:fromProfile('email'),jenis_pengadil:fromProfile('jenis_pengadil')},''],[reviewer],{REVIEWER_ROLE:districtReviewers.length?'PP Daerah':'Admin'});

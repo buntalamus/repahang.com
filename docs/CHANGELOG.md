@@ -4,6 +4,17 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [20 Oktober 2026] — Kurangkan emel: Telegram dan app dahulu
+
+Perbezaan sengaja daripada PHP (keputusan pemilik sistem: maksimumkan Telegram dan app mobile).
+
+- **Dasar baharu dalam `notifyUser`**: Telegram → notis portal (push app/Web Push) → emel hanya jika Telegram tidak sampai dan pengguna tiada app aktif. Notis rasmi/keselamatan kekal **sentiasa** beremel (`email: 'always'`): emel/kata laluan ditukar, akaun dinyahaktif, keputusan permohonan/Kelas III, permohonan dipadam. Dalam outbox, baris emel menunggu keputusan Telegram (cuba semula) sebelum dihantar sebagai sandaran.
+- **Lantikan**: notifikasi lantikan, gantian, padam, batal, peringatan jawab, perubahan jadual/kejohanan, pool, Pengerusi Pengadil, laporan RA, borang RA, salinan KUP dan pengesahan perlawanan sendiri — emel hanya jika Telegram gagal/tiada. Mesej kejayaan lantikan menyatakan berapa pegawai tidak menerima apa-apa.
+- **Salinan daerah** (migrasi `0031`): Admin tidak lagi menerima salinan; PP Daerah hanya untuk **penolakan** (tolak sendiri atau auto-tolak), dihantar sebagai notis "Pengganti Diperlukan" melalui Telegram/app dengan emel sandaran. Salinan lama yang masih beratur ditutup. Sebelum ini ~384 emel salinan dalam 3–4 hari.
+- **Ringkasan Mingguan** (migrasi `0032`, `weekly-digest.ts`): Isnin dari 08:00 untuk Admin/PP Daerah, sekali seminggu, dihantar melalui emel (satu-satunya emel rutin), hanya jika ada tindakan: perlawanan 7 hari akan datang belum lengkap pegawai, lantikan ditolak minggu lepas, rekod perlawanan belum disahkan, permohonan menunggu, dan laporan RA menunggu (Admin).
+- `notification_sent` notis pemohon kini benar jika sampai melalui emel atau Telegram.
+- Ujian: `tests/email-policy.mjs` baharu; `notify-lantikan`, `notify-laporan`, `notify-perlawanan`, `laporan-flow`, `lantikan-write`, `appointment-response`, `appointment-expiry-policy` dikemas kini kepada dasar baharu. 8 ujian yang sudah gagal sebelum perubahan ini (annual-match-year, district-appointments, imap-mailbox, kelas3-settings, legacy-smtp, notify-akaun, original-templates, user-master-data) kekal gagal dengan sebab yang sama.
+
 ## [20 Oktober 2026] — Statistik penggunaan app mobile
 
 - Tab baharu **App Mobile** di Statistik Admin, dan panel yang sama di Statistik PP Daerah (pengguna daerahnya sahaja): ringkasan ikut peranan (notifikasi aktif, log masuk sahaja, belum guna, Android versi lama, peratus guna app), senarai nama dengan status, peranti dan masa terakhir, carian, penapis peranan/status dan eksport CSV.

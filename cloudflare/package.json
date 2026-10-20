@@ -15,6 +15,7 @@
     "test:appointment-letter": "node --no-warnings tests/appointment-letter.mjs",
     "test:match-reminders": "node --no-warnings tests/match-reminders.mjs",
     "test:mobile-usage": "node --no-warnings tests/mobile-usage.mjs",
+    "test:email-policy": "node --no-warnings tests/email-policy.mjs",
     "test:appointment-audit": "node --no-warnings tests/appointment-audit.mjs",
     "test:admin-approve": "node --no-warnings tests/admin-approve.mjs",
     "test:match-stats-current-year": "node --no-warnings tests/match-stats-current-year.mjs",

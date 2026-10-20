@@ -3,6 +3,10 @@
  * notification. Inline sends never throw; bulk or background notices are
  * written to worker_notification_outbox inside the caller's D1 batch and
  * delivered by processNotificationOutbox() (cron and ctx.waitUntil).
+ *
+ * Telegram and the app (portal notice → push) come first. Email is only a
+ * fallback for people neither reaches, unless the notice sets email: 'always'
+ * (account security and formal decisions).
  */
 import type { MailType } from '../mail';
 import type { Env } from './types';
@@ -11,6 +15,7 @@ import { buildEmailTemplate, emailAlert, emailButton, emailGreeting, emailInfoTa
 import { h } from './php/format';
 import { tgSend } from './php/telegram';
 import { NOW, recordLantikanAudit } from './php/lantikan-audit';
+import { hasAppChannel } from './channels';
 
 export type ChannelResult = 'sent' | 'failed' | 'skipped';
 
@@ -39,6 +44,10 @@ export interface Notice {
   portal?: { type: string; subject: string; message: string };
   /** Outbox only: skip delivery unless this appointment is still unanswered with this tarikh_notif. */
   precondition?: { lantikanId: number; tarikhNotif: string };
+  /** 'always' emails regardless; default 'fallback' emails only when Telegram and the app do not reach. */
+  email?: 'always' | 'fallback';
+  /** Set by the outbox: an in-app notice (and so an app push) was written with this notice. */
+  portalWritten?: boolean;
 }
 
 export interface NoticeResult { email: ChannelResult; telegram: ChannelResult; portal: ChannelResult }
@@ -96,14 +105,10 @@ function telegramMarkup(notice: Notice): Record<string, unknown> | null {
   return notice.telegram ? notice.telegram.markup ?? null : null;
 }
 
-/** Sends now: email, Telegram and an in-app notice when available. Never throws. */
+/** Sends now: Telegram, the in-app notice (app push) and, when needed, email. Never throws. */
 export async function notifyUser(env: Env, recipient: Recipient, notice: Notice): Promise<NoticeResult> {
   const result: NoticeResult = { email: 'skipped', telegram: 'skipped', portal: 'skipped' };
   const name = recipient.name || String(recipient.email ?? '');
-  if (validEmail(recipient.email)) {
-    result.email = await sendEmail(env, String(recipient.email).trim(), notice.subject,
-      renderNoticeEmail(notice, name), name, notice.mailType ?? 'admin') ? 'sent' : 'failed';
-  }
   const chat = chatId(recipient.telegramChatId);
   if (chat && notice.telegram !== false) {
     try {
@@ -122,6 +127,12 @@ export async function notifyUser(env: Env, recipient: Recipient, notice: Notice)
     } catch {
       result.portal = 'failed';
     }
+  }
+  const reachedElsewhere = result.telegram === 'sent'
+    || (result.portal === 'sent' && await hasAppChannel(env, recipient.userId));
+  if (validEmail(recipient.email) && (notice.email === 'always' || !reachedElsewhere)) {
+    result.email = await sendEmail(env, String(recipient.email).trim(), notice.subject,
+      renderNoticeEmail(notice, name), name, notice.mailType ?? 'admin') ? 'sent' : 'failed';
   }
   return result;
 }
@@ -154,11 +165,12 @@ export function enqueueNoticeStatements(env: Env, dedupeKey: string, recipient: 
   const guard = options.guardSql ?? '1';
   const guardBinds = options.guardBinds ?? [];
   const name = recipient.name || String(recipient.email ?? '');
-  const payload = JSON.stringify({ ...notice, portal: undefined });
+  const payload = JSON.stringify({ ...notice, portal: undefined, portalWritten: Boolean(recipient.userId && notice.portal) });
   const statements: D1PreparedStatement[] = [];
+  // Telegram is queued (and so delivered) before the email fallback.
   const channels: Array<['email' | 'telegram', string | null]> = [
-    ['email', validEmail(recipient.email) ? String(recipient.email).trim() : null],
     ['telegram', notice.telegram === false ? null : chatId(recipient.telegramChatId)],
+    ['email', validEmail(recipient.email) ? String(recipient.email).trim() : null],
   ];
   for (const [channel, address] of channels) {
     if (!address) continue;
@@ -179,6 +191,8 @@ export function enqueueNoticeStatements(env: Env, dedupeKey: string, recipient: 
 
 interface OutboxRow {
   id: number;
+  dedupe_key: string;
+  recipient_user_id: number | null;
   kind: string;
   channel: 'email' | 'telegram';
   address: string;
@@ -209,7 +223,7 @@ export async function processNotificationOutbox(env: Env, limit = 25):
     WHERE id IN (SELECT id FROM worker_notification_outbox WHERE status='pending'
         AND (next_attempt_at IS NULL OR next_attempt_at<=${NOW}) ORDER BY id LIMIT ?)
       AND status='pending'
-    RETURNING id,kind,channel,address,recipient_name,mail_type,payload_json,lantikan_id,attempts`)
+    RETURNING id,dedupe_key,recipient_user_id,kind,channel,address,recipient_name,mail_type,payload_json,lantikan_id,attempts`)
     .bind(limit).all<OutboxRow>();
   for (const row of claimed.results.sort((a, b) => a.id - b.id)) {
     let notice: Notice;
@@ -227,6 +241,20 @@ export async function processNotificationOutbox(env: Env, limit = 25):
       if (!still) {
         await finish(env, row, 'skipped', 'Lantikan telah dijawab atau dihantar semula.');
         summary.skipped += 1;
+        continue;
+      }
+    }
+    if (row.channel === 'email' && notice.email !== 'always') {
+      const fallback = await emailFallbackState(env, row, notice);
+      if (fallback === 'reached') {
+        await finish(env, row, 'skipped', 'Diterima melalui Telegram atau app.');
+        summary.skipped += 1;
+        continue;
+      }
+      if (fallback === 'wait') {
+        // Telegram for the same notice is still being retried; decide after it settles.
+        await env.DB.prepare(`UPDATE worker_notification_outbox SET status='pending',attempts=attempts-1,
+            next_attempt_at=datetime('now','+8 hours','+5 minutes') WHERE id=? AND status='processing'`).bind(row.id).run();
         continue;
       }
     }
@@ -254,6 +282,18 @@ export async function processNotificationOutbox(env: Env, limit = 25):
     }
   }
   return summary;
+}
+
+/** For an email row: 'reached' when Telegram or the app already reached the person, 'wait' while
+ * the Telegram row is still retrying, otherwise 'send'. */
+async function emailFallbackState(env: Env, row: OutboxRow, notice: Notice): Promise<'reached' | 'wait' | 'send'> {
+  const base = row.dedupe_key.replace(/:email$/, '');
+  const telegram = await env.DB.prepare(`SELECT status FROM worker_notification_outbox WHERE dedupe_key=?`)
+    .bind(`${base}:telegram`).first<{ status: string }>();
+  if (telegram?.status === 'sent') return 'reached';
+  if (notice.portalWritten && await hasAppChannel(env, row.recipient_user_id)) return 'reached';
+  if (telegram && ['pending', 'processing'].includes(telegram.status)) return 'wait';
+  return 'send';
 }
 
 async function finish(env: Env, row: OutboxRow, status: 'sent' | 'failed' | 'skipped', error: string | null):
