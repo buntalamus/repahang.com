@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'pengumuman_screen.dart';
 
 /// In-app notices (/api/notifications.php), the same list pushes come from.
 class NotifikasiScreen extends StatefulWidget {
@@ -47,6 +48,13 @@ class _NotifikasiScreenState extends State<NotifikasiScreen> {
   }
 
   void _open(Map<String, dynamic> n) {
+    final announcementId = int.tryParse('${n['announcement_id']}');
+    if (announcementId != null && announcementId > 0) {
+      openAnnouncement(context, announcementId).then((_) {
+        if (mounted) _view.currentState?.reload();
+      });
+      return;
+    }
     if ('${n['is_read']}' != '1') {
       Api.instance.post('/api/notifications.php', {'action': 'mark_read', 'notification_id': n['id']}).then(
           (_) => mounted ? setState(() => n['is_read'] = 1) : null,

@@ -44,7 +44,7 @@ export function openDatabase(migrations) {
   for (const file of [...migrations.filter((name)=>name!=='0024_notification_outbox'),'0024_notification_outbox',...(!migrations.includes('0027_profile_class1_years')?['0027_profile_class1_years']:[])]) {
     db.exec(readFileSync(new URL(`../migrations/${file}.sql`,import.meta.url),'utf8'));
   }
-  for (const name of ['0001_worker_sessions','0028_push_devices','0029_webpush_subscriptions','0031_account_inactive_reason']) {
+  for (const name of ['0001_worker_sessions','0028_push_devices','0029_webpush_subscriptions','0031_account_inactive_reason','0033_mobile_announcements']) {
     if (!migrations.includes(name)) db.exec(readFileSync(new URL(`../migrations/${name}.sql`,import.meta.url),'utf8'));
   }
   // Imported flag value can predate the file-based PHP maintenance state.

@@ -139,6 +139,7 @@ export async function sendWebPush(env: Env, subscription: WebPushSubscription, m
 
 /** Website page a tapped notification opens, by role and notice screen. */
 export function webPushUrl(role: string, screen: string): string {
+  if (/^pengumuman:[1-9]\d*$/.test(screen)) return `/app/?screen=${encodeURIComponent(screen)}`;
   const pages: Record<string, Record<string, string>> = {
     lantikan: { Pengadil: '/pengadil/tugasan', 'PP Daerah': '/pp-daerah/tugasan', Penilai: '/penilai/tugasan', Admin: '/admin/lantikan' },
     permohonan: {

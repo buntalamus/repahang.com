@@ -35,18 +35,25 @@ export async function announcementsWrite(request: Request, env: Env, ctx?: Execu
   if (request.method === 'POST') {
     const fields = await titleAndContent(request);
     if (fields instanceof Response) return fields;
-    const result = await env.DB.prepare('INSERT INTO announcements (title, content, created_by) VALUES (?, ?, ?)')
-      .bind(fields.title, fields.content, user.id).run();
+    // One transaction: a published announcement always has its app notices queued.
+    const [result] = await env.DB.batch([
+      env.DB.prepare('INSERT INTO announcements (title, content, created_by) VALUES (?, ?, ?)')
+        .bind(fields.title, fields.content, user.id),
+      env.DB.prepare(`INSERT INTO notifications(user_id,type,subject,message,is_read,email_sent,announcement_id)
+        SELECT u.id,'Pengumuman',?,?,0,0,a.id FROM users u
+        CROSS JOIN (SELECT id FROM announcements ORDER BY id DESC LIMIT 1) a WHERE u.aktif=1`)
+        .bind(fields.title,fields.content),
+    ]);
     // PDO::lastInsertId() returns a string here; PHP did not cast it.
     const id = Number(result.meta.last_row_id);
     const delivery = announceOnTelegram(env, id, fields.title, fields.content)
       .catch((error) => console.error('[Announcement Telegram] dispatch failed', { announcement_id: id, error: String(error) }));
     if (ctx) {
       ctx.waitUntil(delivery);
-      return json({ error: false, message: 'Pengumuman berjaya dibuat. Hebahan Telegram sedang dihantar.', id: String(id) });
+      return json({ error: false, message: 'Pengumuman berjaya dibuat. Notifikasi aplikasi dijadualkan dan hebahan Telegram sedang dihantar.', id: String(id) });
     }
     await delivery;
-    return json({ error: false, message: 'Pengumuman berjaya dibuat dan hebahan Telegram telah diproses.', id: String(id) });
+    return json({ error: false, message: 'Pengumuman berjaya dibuat. Notifikasi aplikasi dijadualkan dan hebahan Telegram telah diproses.', id: String(id) });
   }
   const id = announcementId(request);
   if (!id) return json({ error: true, message: 'ID pengumuman diperlukan' }, 400);

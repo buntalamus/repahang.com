@@ -18,7 +18,7 @@ const SEND_CONCURRENCY = 10;
 
 interface ServiceAccount { project_id: string; client_email: string; private_key: string }
 
-interface NotificationRow { id: number; user_id: number; type: string; subject: string; message: string }
+interface NotificationRow { id: number; user_id: number; type: string; subject: string; message: string; announcement_id?: number | null }
 
 interface DeviceRow { user_id: number; token: string }
 
@@ -151,7 +151,8 @@ export function pushMessageFor(row: NotificationRow, badge?: number): PushMessag
   return {
     title: plainText(row.subject || row.type || 'RefPahang', 100),
     body: plainText(row.message, 240),
-    data: { notification_id: String(row.id), type: row.type, screen: pushScreen(row.type) },
+    data: { notification_id: String(row.id), type: row.type,
+      screen: row.announcement_id ? `pengumuman:${row.announcement_id}` : pushScreen(row.type) },
     badge,
   };
 }
@@ -168,7 +169,7 @@ export async function processPushQueue(env: Env, limit = 50):
     .bind(CURSOR_KEY).first<{ state_value: number }>();
   if (!state) return summary;
   const from = Number(state.state_value);
-  const rows = (await env.DB.prepare(`SELECT id,user_id,type,subject,message FROM notifications
+  const rows = (await env.DB.prepare(`SELECT id,user_id,type,subject,message,announcement_id FROM notifications
     WHERE id>? ORDER BY id LIMIT ?`).bind(from, limit).all<NotificationRow>()).results;
   if (!rows.length) return summary;
   const upto = rows[rows.length - 1].id;

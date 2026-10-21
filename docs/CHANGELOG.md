@@ -4,6 +4,15 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [21 Oktober 2026] — Pengumuman dalam aplikasi mobile
+
+- Semua peranan mendapat tiga pengumuman terkini pada Utama, senarai penuh melalui **Lihat semua**, dan kandungan penuh dalam aplikasi.
+- Penanda **Baharu** disimpan mengikut pengguna di pelayan selepas kandungan dibuka. Membuka senarai sahaja tidak menandai pengumuman dibaca.
+- Pengumuman baharu menambah notifikasi untuk akaun aktif secara atomik bersama penerbitan. Baris notifikasi menggunakan saluran push sedia ada; Telegram diteruskan. Push dan senarai notifikasi membuka pengumuman yang tepat.
+- Pengumuman terdahulu tersedia untuk dibaca tanpa penghantaran push semula. Suntingan tidak menghantar hebahan baharu; pautan pengumuman dipadam memaparkan ralat yang boleh difahami.
+- Memerlukan migrasi `0033_mobile_announcements.sql` sebelum Worker baharu. Pengurusan pengumuman kekal melalui portal Admin.
+- Membetulkan muat semula `AsyncView` dan menghadkan animasi Hero kepada tab aktif supaya status bacaan serta navigasi ke kandungan penuh berfungsi tanpa ralat Flutter.
+
 ## [21 Oktober 2026] — Kelayakan lantikan dan pilihan saluran aplikasi
 
 - Akaun dinyahaktifkan dan pengadil berstatus tahunan **Pengadil Tidak Aktif** tidak boleh dilantik, termasuk daripada pool lama atau melalui override Admin. Status tahunan menggunakan tahun perlawanan: pernah diluluskan pada tahun terdahulu tetapi tiada permohonan pengadil bagi tahun perlawanan. Status RA kekal berasingan.

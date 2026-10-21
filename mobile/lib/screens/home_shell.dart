@@ -18,6 +18,7 @@ import 'rekod_screen.dart';
 import 'semakan_screen.dart';
 import 'tugasan_screen.dart';
 import 'utama_screen.dart';
+import 'pengumuman_screen.dart';
 
 /// A page the shell can show: a bottom-bar tab, or (primary: false) a page
 /// opened from the profile menu.
@@ -128,11 +129,20 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     }
   }
 
-  /// Push `screen` values: lantikan, permohonan, sejarah, notifikasi, update.
+  /// Push `screen` values include `pengumuman:<id>` for full announcement content.
   void _openFromPush() {
     final screen = PushService.instance.openScreen.value;
     if (screen == null || !mounted) return;
     PushService.instance.openScreen.value = null;
+    final announcement = RegExp(r'^pengumuman:([1-9]\d*)$').firstMatch(screen);
+    if (announcement != null) {
+      openAnnouncement(context, int.parse(announcement[1]!)).then((_) {
+        if (!mounted) return;
+        _loadUnread();
+        _openTab('utama', refresh: true);
+      });
+      return;
+    }
     if (screen == 'update') {
       _offerUpdate(force: true);
       return;
@@ -280,11 +290,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         Expanded(
           child: IndexedStack(index: _index, children: [
             for (var i = 0; i < _tabs.length; i++)
-              _tabs[i].id == 'utama'
+              HeroMode(enabled: i == _index, child: _tabs[i].id == 'utama'
                   // Home shows the live unread count, so it is rebuilt with it.
                   ? UtamaScreen(key: ValueKey('utama-${_generation[i]}'), onOpenTab: _openTab,
                       onOpenNotifications: _openNotifications, unread: _unread)
-                  : _tabs[i].build(ValueKey('${_tabs[i].id}-${_generation[i]}')),
+                  : _tabs[i].build(ValueKey('${_tabs[i].id}-${_generation[i]}'))),
           ]),
         ),
       ]),

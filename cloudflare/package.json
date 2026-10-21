@@ -32,6 +32,7 @@
     "test:appointment-response": "node --no-warnings tests/appointment-response.mjs",
     "test:telegram-webhook": "node --no-warnings tests/telegram-webhook.mjs",
     "test:announcement-telegram": "node --no-warnings tests/announcement-telegram.mjs",
+    "test:mobile-announcements": "node --no-warnings tests/mobile-announcements.mjs",
     "test:laporan-flow": "node --no-warnings tests/laporan-flow.mjs",
     "test:telegram-blast-preview": "node --no-warnings tests/telegram-blast-preview.mjs",
     "test:external-telegram-blast": "node --no-warnings tests/external-telegram-blast.mjs",

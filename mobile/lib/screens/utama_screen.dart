@@ -6,6 +6,7 @@ import '../widgets/common.dart';
 import '../widgets/web_push_card.dart';
 import 'permohonan_screen.dart' show formLabel;
 import 'perlu_tindakan_screen.dart';
+import 'pengumuman_screen.dart';
 
 /// Home tab: greeting header and what needs attention for this role.
 class UtamaScreen extends StatefulWidget {
@@ -27,6 +28,7 @@ class _Home {
   int? adminPendingApplications;
   List<Map<String, dynamic>>? gaps;
   List<Map<String, dynamic>> notifications = [];
+  List<Map<String, dynamic>>? announcements;
   String? photo;
 }
 
@@ -48,6 +50,7 @@ class _UtamaScreenState extends State<UtamaScreen> {
       if (user.isDistrict) get('/api/pp-applications.php', {'type': 'pengesahan'}) else Future.value(null),
       if (user.isAdmin) get('/api/admin-dashboard-stats.php') else Future.value(null),
       if (user.managesAppointments) get('/api/lantikan-perlu-tindakan.php') else Future.value(null),
+      get('/api/announcements.php'),
     ]);
     home.photo = (results[0]?['user'] as Map?)?['url_gambar_profil'] as String?;
     home.notifications = rows(results[1]?['notifications']).take(3).toList();
@@ -60,6 +63,7 @@ class _UtamaScreenState extends State<UtamaScreen> {
     home.adminStats = results[6]?['stats'] == null ? null : Map<String, dynamic>.from(results[6]!['stats'] as Map);
     home.adminPendingApplications = int.tryParse('${home.adminStats?['pending_applications'] ?? ''}');
     home.gaps = results[7] == null ? null : rows(results[7]!['data']);
+    home.announcements = results[8] == null ? null : rows(results[8]!['announcements']).take(3).toList();
     return home;
   }
 
@@ -88,6 +92,24 @@ class _UtamaScreenState extends State<UtamaScreen> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 const WebPushCard(),
+                SectionTitle('Pengumuman', action: 'Lihat semua', onAction: () async {
+                  await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const PengumumanScreen()));
+                  if (context.mounted) await reload();
+                }),
+                if (home.announcements == null)
+                  AppCard(child: Column(children: [
+                    const Text('Pengumuman tidak dapat dimuatkan.'),
+                    TextButton(onPressed: reload, child: const Text('Cuba lagi')),
+                  ]))
+                else if (home.announcements!.isEmpty)
+                  const AppCard(child: Text('Tiada pengumuman.'))
+                else
+                  AppCard(padding: EdgeInsets.zero, child: Column(children: [
+                    for (final item in home.announcements!) AnnouncementTile(item: item, onTap: () async {
+                      await openAnnouncement(context, int.parse('${item['id']}'));
+                      if (context.mounted) await reload();
+                    }),
+                  ])),
                 if (user.hasAssignments) ..._officialSection(pending, upcoming),
                 if (user.role == 'Pengadil' && home.matchStats != null) _matchProgress(home.matchStats!),
                 if (home.gaps != null) _gapSection(home.gaps!),

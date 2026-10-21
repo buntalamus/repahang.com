@@ -1,5 +1,6 @@
 import { enforceAccountPolicy, recordAccountActivity } from './account-policy';
 import { userProfile } from './self-profile';
+import { announcementRead } from './announcement-read';
 import { adminMailboxCampaigns, processMailboxCampaigns } from './mailbox-campaigns';
 import { processDistrictAppointmentMail } from './district-appointment-mail';
 import { portalDashboard } from './portal-dashboard';
@@ -318,6 +319,7 @@ async function api(request: Request, env: Env, pathname: string, ctx: ExecutionC
   }
   if (pathname === '/api/admin-users-master-data.php') return adminUserMasterData(request, env);
   if (pathname === '/api/admin-users.php' && request.method !== 'GET') return adminUsersWrite(request, env);
+  if (pathname === '/api/announcement-read.php') return announcementRead(request, env);
   if (pathname === '/api/announcements.php' && request.method !== 'GET') return announcementsWrite(request, env, ctx);
   if (pathname === '/api/profil-pengadil.php' && request.method !== 'GET') {
     return refereeProfileWrite(request, env);
