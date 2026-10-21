@@ -1103,8 +1103,12 @@
                             @if (ref.jenis_sumber === 'Luar') {
                               <span class="text-[10px] text-amber-600 font-medium">Luar</span>
                             }
-                            @if (ref.telegram_required) {
-                              <span class="text-[10px] text-amber-700 font-medium">Telegram wajib dipaut</span>
+                            @if (ref.inactive_official) {
+                              <span class="text-[10px] text-red-700 font-medium">Tidak aktif — tidak boleh dilantik</span>
+                            } @else if (ref.contact_channel_required) {
+                              <span class="text-[10px] text-amber-700 font-medium">Perlu Telegram atau aplikasi mudah alih</span>
+                            } @else if (ref.app_linked) {
+                              <span class="text-[10px] text-emerald-700 font-medium">Aplikasi mudah alih dipaut</span>
                             }
                           </div>
                           <div class="flex items-center gap-2 mt-1">
@@ -1123,7 +1127,8 @@
                         <span class="text-[10px] text-slate-400 shrink-0 mt-1">Sudah dilantik</span>
                       } @else if (activeJawatan) {
                         <button (click)="assignFromPool(ref)"
-                          class="shrink-0 px-2 py-1 bg-pahang-black text-pahang-yellow text-[10px] font-bold rounded-lg hover:bg-gray-800 transition whitespace-nowrap mt-0.5">
+                          [disabled]="ref.inactive_official || ref.contact_channel_required"
+                          class="shrink-0 px-2 py-1 bg-pahang-black text-pahang-yellow text-[10px] font-bold rounded-lg hover:bg-gray-800 transition whitespace-nowrap mt-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
                           Lantik
                         </button>
                       } @else {

@@ -4,6 +4,7 @@ import ts from 'typescript';
 import { DatabaseSync } from 'node:sqlite';
 
 const source = readFileSync(new URL('../src/appointment-audit.ts',import.meta.url),'utf8')
+  .replace("import { activeOfficialSql, MATCH_YEAR_SQL } from './appointment-eligibility';",'')
   .replace("import { currentUser, json } from './auth';",
     `const currentUser = async () => globalThis.auditUser;
      const json = (value,status=200) => Response.json(value,{status});`)

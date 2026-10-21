@@ -4,6 +4,14 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [21 Oktober 2026] — Kelayakan lantikan dan pilihan saluran aplikasi
+
+- Akaun dinyahaktifkan dan pengadil berstatus tahunan **Pengadil Tidak Aktif** tidak boleh dilantik, termasuk daripada pool lama atau melalui override Admin. Status tahunan menggunakan tahun perlawanan: pernah diluluskan pada tahun terdahulu tetapi tiada permohonan pengadil bagi tahun perlawanan. Status RA kekal berasingan.
+- Sebelum perlawanan bermula, pegawai berakaun portal perlu mempunyai **Telegram atau aplikasi mudah alih**. Peranti aplikasi mesti mempunyai sesi sah milik pengguna yang sama; langganan Web Push turut diterima. Memasang aplikasi sahaja tidak memadai tanpa log masuk dan notifikasi aktif.
+- Semakan digunakan ketika menyimpan lantikan, termasuk semakan atomik bagi perubahan status/sesi, serta sebelum notis individu atau pukal. Paparan web dan aplikasi menunjukkan sebab pegawai tidak boleh dipilih.
+- Emel rasmi masih dicuba dahulu. Notis portal/app tetap dijadualkan apabila emel atau Telegram gagal; kewujudan peranti sahaja tidak dianggap bukti penghantaran dan tidak memulakan tempoh jawapan.
+- Tiada migrasi data atau perubahan automatik kepada lantikan lama.
+
 ## [20 Oktober 2026] — Urusan rasmi melalui emel dahulu
 
 - Emel dicuba dahulu bagi akaun/keselamatan, lantikan rasmi (termasuk pengadil luar), penggantian, pembatalan, penangguhan, perubahan butiran penting dan pengesahan penerimaan oleh Admin. Telegram dan notifikasi portal/app menyusul; kegagalan emel tidak menggugurkan saluran lain.

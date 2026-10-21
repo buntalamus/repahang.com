@@ -2,8 +2,16 @@ import assert from 'node:assert/strict';
 import {existsSync,readFileSync} from 'node:fs';
 import {DatabaseSync} from 'node:sqlite';
 import ts from 'typescript';
+import {bundle,openDatabase} from './_harness.mjs';
+
+globalThis.appointmentSql = await bundle(`
+  export {activeOfficialSql,MATCH_YEAR_SQL} from '../src/appointment-eligibility';
+  export {appChannelSql} from '../src/channels';
+  export {hasMatchStarted} from '../src/php/lantikan-helper';`);
 
 const source=readFileSync(new URL('../src/admin-appointments.ts',import.meta.url),'utf8')
+  .replace("import { activeOfficialSql, MATCH_YEAR_SQL } from './appointment-eligibility';", 'const {activeOfficialSql,MATCH_YEAR_SQL}=globalThis.appointmentSql;')
+  .replace("import { appChannelSql } from './channels';", 'const {appChannelSql}=globalThis.appointmentSql;')
   .replace("import { authorizeAppointmentResource, districtOf, localOfficialSql } from './appointment-access';", `const authorizeAppointmentResource=async(_r,_e,u)=>u.role==='Admin'?null:Response.json({error:true},{status:403}); const districtOf=()=>0; const localOfficialSql=()=>'';`)
   .replace("import {currentUser,json} from './auth';",`
     const currentUser=async()=>globalThis.appointmentUser;
@@ -11,9 +19,9 @@ const source=readFileSync(new URL('../src/admin-appointments.ts',import.meta.url
   .replace("import {appointmentWritesEnabled,lantikanWrite} from './lantikan-write';",
     `const appointmentWritesEnabled=()=>false;
      const lantikanWrite=async()=>Response.json({error:true},{status:503});`)
-  .replace("import {autoTolakLantikanTertunggak,retryPendingKupCrewNotifications} from './php/lantikan-helper';",
+  .replace("import {autoTolakLantikanTertunggak,retryPendingKupCrewNotifications,hasMatchStarted} from './php/lantikan-helper';",
     'const autoTolakLantikanTertunggak=async()=>{throw new Error("Unexpected write");};'
-    + 'const retryPendingKupCrewNotifications=autoTolakLantikanTertunggak;')
+    + 'const retryPendingKupCrewNotifications=autoTolakLantikanTertunggak; const {hasMatchStarted}=globalThis.appointmentSql;')
   .replace("import {auditMetaFrom} from './php/lantikan-audit';",'const auditMetaFrom=()=>({});');
 const compiled=ts.transpileModule(source,{
   compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext},
@@ -41,6 +49,13 @@ db.exec(`
     (4,10,'Pengadil','Diterima',NULL,NULL,1,1,NULL,NULL,3,NULL),
     (6,11,'Pengadil','Ditolak','Ditolak automatik - tiada jawapan dalam tempoh',NULL,1,0,NULL,NULL,3,NULL);
   INSERT INTO pool_pengadil VALUES(1,7,3,NULL),(2,7,NULL,8);
+  ALTER TABLE users ADD COLUMN aktif INTEGER DEFAULT 1;
+  ALTER TABLE jadual_perlawanan ADD COLUMN tarikh TEXT DEFAULT '2099-01-01';
+  ALTER TABLE jadual_perlawanan ADD COLUMN masa TEXT DEFAULT '16:00:00';
+  CREATE TABLE permohonan(user_id INTEGER,jenis_borang TEXT,status TEXT,tahun_permohonan INTEGER,jenis_pengadil TEXT);
+  CREATE TABLE worker_sessions(token_hash TEXT PRIMARY KEY,user_id INTEGER,expires_at INTEGER);
+  CREATE TABLE worker_push_devices(user_id INTEGER,session_token_hash TEXT,token TEXT);
+  CREATE TABLE worker_webpush_subscriptions(user_id INTEGER);
 `);
 let reads=0;
 const env={DB:{prepare:(sql)=>{
@@ -74,12 +89,25 @@ assert.equal(payload.data[1].negeri,'Pahang');
 assert.equal(payload.referees.length,2);
 assert.equal(payload.referees.find((item)=>item.pengadil_id===3).jumlah_lantikan_kejohanan,2);
 assert.equal(payload.referees.find((item)=>item.pengadil_luar_id===8).wilayah,'Kuantan');
+assert.equal(payload.referees.find((item)=>item.pengadil_id===3).contact_channel_required,1);
+assert.equal(payload.referees.find((item)=>item.pengadil_id===3).inactive_official,0);
+db.exec("INSERT INTO worker_webpush_subscriptions VALUES(3)");
+let refreshed=await (await adminAppointments(new Request(url),env)).json();
+assert.equal(refreshed.referees.find(r=>r.pengadil_id===3).contact_channel_required,0);
+assert.equal(refreshed.referees.find(r=>r.pengadil_id===3).app_linked,1);
+db.exec("UPDATE users SET aktif=0 WHERE id=3");
+refreshed=await (await adminAppointments(new Request(url),env)).json();
+assert.equal(refreshed.referees.find(r=>r.pengadil_id===3).inactive_official,1);
+db.exec("UPDATE users SET aktif=1 WHERE id=3; INSERT INTO permohonan VALUES(3,'pengadil_berdaftar','Approved',2098,'Pengadil Negeri')");
+refreshed=await (await adminAppointments(new Request(url),env)).json();
+assert.equal(refreshed.referees.find(r=>r.pengadil_id===3).inactive_official,1);
 assert.doesNotMatch(JSON.stringify(payload),/12345/);
 assert.equal(db.prepare('SELECT COUNT(*) AS n FROM lantikan_pengadil').get().n,3);
 db.close();
 const snapshotPath=new URL('../../output/cloudflare/refpahang_2026-10-13_hanafi51_v2.sqlite',import.meta.url);
 if (existsSync(snapshotPath)) {
-  const snapshot=new DatabaseSync(snapshotPath.pathname,{readOnly:true});
+  const fixture=openDatabase([]);
+  const snapshot=fixture.db;
   const match=snapshot.prepare(`SELECT lp.jadual_id FROM lantikan_pengadil lp
     JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id
     WHERE EXISTS (SELECT 1 FROM pool_pengadil WHERE kejohanan_id=jp.kejohanan_id)
@@ -97,6 +125,6 @@ if (existsSync(snapshotPath)) {
   const data=await result.json();
   assert.ok(data.data.length>=3);
   assert.ok(data.referees.length>0);
-  snapshot.close();
+  fixture.close();
 }
 console.log('admin appointments: role guard, match scope, pool counts, region and read-only contract passed');

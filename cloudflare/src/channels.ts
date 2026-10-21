@@ -5,13 +5,17 @@
  */
 import type { Env } from './types';
 
+/** SQL-only expression; callers supply a trusted user-id column, never request input. */
+export const appChannelSql = (userId: string): string => `(
+  EXISTS(SELECT 1 FROM worker_push_devices d JOIN worker_sessions s
+    ON s.token_hash=d.session_token_hash AND s.user_id=d.user_id AND s.expires_at>unixepoch()
+    WHERE d.user_id=${userId} AND trim(d.token)<>'')
+  OR EXISTS(SELECT 1 FROM worker_webpush_subscriptions w WHERE w.user_id=${userId}))`;
+
 export async function hasAppChannel(env: Env, userId: number | null | undefined): Promise<boolean> {
   if (!userId) return false;
   try {
-    const row = await env.DB.prepare(`SELECT
-        EXISTS(SELECT 1 FROM worker_push_devices d JOIN worker_sessions s
-          ON s.token_hash=d.session_token_hash AND s.expires_at>unixepoch() WHERE d.user_id=?)
-        OR EXISTS(SELECT 1 FROM worker_webpush_subscriptions w WHERE w.user_id=?) AS reachable`)
+    const row = await env.DB.prepare(`SELECT ${appChannelSql('?')} AS reachable`)
       .bind(userId, userId).first<{ reachable: number }>();
     return Number(row?.reachable) === 1;
   } catch {

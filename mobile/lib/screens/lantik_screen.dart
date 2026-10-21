@@ -289,17 +289,20 @@ class _PoolPickerState extends State<_PoolPicker> {
                   itemCount: list.length,
                   itemBuilder: (context, index) {
                     final r = list[index];
-                    final needsTelegram = '${r['telegram_required']}' == '1';
+                    final needsChannel = '${r['contact_channel_required']}' == '1';
+                    final inactive = '${r['inactive_official']}' == '1';
                     return ListTile(
-                      enabled: !needsTelegram,
+                      enabled: !needsChannel && !inactive,
                       onTap: () => Navigator.pop(context, r),
                       leading: Avatar(name: text(r['nama_penuh'], ''), radius: 20),
                       title: Text(text(r['nama_penuh']), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                       subtitle: Text(
-                        needsTelegram
-                            ? 'Perlu hubungkan Telegram sebelum dilantik'
+                        inactive
+                            ? 'Tidak aktif — tidak boleh dilantik'
+                            : needsChannel
+                            ? 'Perlu Telegram atau notifikasi aplikasi mudah alih'
                             : '${text(r['jenis_pengadil'])} · ${text(r['wilayah'])} · ${text(r['jumlah_lantikan_kejohanan'], '0')} lantikan',
-                        style: TextStyle(fontSize: 12, color: needsTelegram ? Tw.rose600 : AppColors.muted),
+                        style: TextStyle(fontSize: 12, color: needsChannel || inactive ? Tw.rose600 : AppColors.muted),
                       ),
                       trailing: r['jenis_sumber'] == 'Luar' ? const Pill('Luar', (Tw.purple50, Tw.purple700)) : null,
                     );

@@ -1877,7 +1877,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
     }).subscribe({
       next: (res) => {
         for (const key of ['total_assignments', 'matches_processed', 'email_sent', 'tg_sent', 'tg_skipped',
-          'delivery_failed', 'matches_skipped_incomplete', 'matches_skipped_started', 'matches_skipped_telegram']) {
+          'delivery_failed', 'matches_skipped_incomplete', 'matches_skipped_started', 'matches_skipped_channel', 'matches_skipped_inactive']) {
           totals[key] = (totals[key] || 0) + Number(res[key] || 0);
         }
         const remaining: number[] = res.remaining_jadual_ids || [];
@@ -1907,7 +1907,8 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
     if (t['tg_sent']) parts.push(`${t['tg_sent']} Telegram dihantar.`);
     if (t['matches_skipped_started']) parts.push(`${t['matches_skipped_started']} perlawanan yang telah bermula dilangkau.`);
     if (t['matches_skipped_incomplete']) parts.push(`${t['matches_skipped_incomplete']} perlawanan tanpa Pengadil, AR1 dan AR2 lengkap dilangkau.`);
-    if (t['matches_skipped_telegram']) parts.push(`${t['matches_skipped_telegram']} perlawanan dilangkau kerana pengadil belum menghubungkan Telegram.`);
+    if (t['matches_skipped_channel']) parts.push(`${t['matches_skipped_channel']} perlawanan dilangkau kerana pengadil belum menghubungkan Telegram atau aplikasi mudah alih.`);
+    if (t['matches_skipped_inactive']) parts.push(`${t['matches_skipped_inactive']} perlawanan dilangkau kerana mempunyai pegawai tidak aktif.`);
     if (t['delivery_failed']) parts.push(`${t['delivery_failed']} lantikan gagal dihantar dan tempoh jawapannya belum bermula.`);
     return parts.join(' ');
   }

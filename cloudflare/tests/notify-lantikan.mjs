@@ -57,7 +57,16 @@ const insertMatch=(tarikh,masa)=>Number(db.prepare(`INSERT INTO jadual_perlawana
   .run(tournament,`N${String(++matchNo).padStart(2,'0')}`,tarikh,masa).lastInsertRowid);
 async function appointAndNotify(jadualId,officials) {
   const roles=['Pengadil','Penolong Pengadil 1','Penolong Pengadil 2'];
+  const year=Number(one('SELECT substr(tarikh,1,4) AS year FROM jadual_perlawanan WHERE id=?',jadualId).year);
   for (const [index,official] of officials.entries()) {
+    // Notification scenarios need eligible annual registrations for their synthetic match year.
+    if (!one("SELECT id FROM permohonan WHERE user_id=? AND tahun_permohonan=? AND jenis_borang='pengadil_berdaftar'",official.id,year)) {
+      const sample=one("SELECT * FROM permohonan WHERE jenis_borang='pengadil_berdaftar' LIMIT 1");
+      const columns=Object.keys(sample).filter(key=>key!=='id');
+      const registration={...sample,user_id:official.id,tahun_permohonan:year,status:'Approved',jenis_pengadil:'Pengadil Negeri'};
+      db.prepare(`INSERT INTO permohonan(${columns.join(',')}) VALUES(${columns.map(()=>'?').join(',')})`)
+        .run(...columns.map(key=>registration[key]));
+    }
     const result=await lantikan({jadual_id:jadualId,pengadil_id:official.id,jawatan:roles[index]});
     assert.equal(result.error,false,result.message);
   }
