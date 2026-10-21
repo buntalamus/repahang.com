@@ -7,6 +7,7 @@
  */
 import { currentUser, json, requestTokenHash } from './auth';
 import { boundedJson } from './request';
+import mobileReleaseNotes from './mobile-release-notes.json';
 import type { Env } from './types';
 import { sendWebPush, webPushEnabled, webPushUrl, type WebPushMessage } from './webpush';
 
@@ -275,6 +276,7 @@ export function mobileVersion(request: Request, env: Env): Response {
     error: false,
     min_version: env.MOBILE_MIN_VERSION ?? '1.0.0',
     latest_version: env.MOBILE_LATEST_VERSION ?? '1.0.0',
+    release_notes: mobileReleaseNotes,
     android_url: env.MOBILE_ANDROID_URL ?? null,
     ios_url: env.MOBILE_IOS_URL ?? null,
   });

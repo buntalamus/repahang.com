@@ -8,6 +8,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 RELEASE="${1:?Usage: tool/publish_patch.sh <release version, e.g. 1.2.0+6>}"
+# Refuse publication unless the exact next patch has user-facing notes live.
+python3 tool/check_release_notes.py "$RELEASE" --next-patch --live
 # shellcheck disable=SC1091
 source .release.env
 export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home

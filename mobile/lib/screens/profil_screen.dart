@@ -10,6 +10,7 @@ import '../push.dart';
 import '../theme.dart';
 import '../updater.dart';
 import '../widgets/common.dart';
+import '../widgets/update_notes.dart';
 import '../widgets/web_push_card.dart';
 import 'home_shell.dart' show AppPage;
 import 'notifikasi_screen.dart';
@@ -202,6 +203,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
       return;
     }
     final restart = await confirmSheet(context, title: 'Kemas kini sedia',
+        details: UpdateNotes(load: updater.pendingReleaseNotes),
         message: 'Versi terkini telah dimuat turun. Mula semula app untuk menggunakannya.', confirmLabel: 'Mula semula');
     if (restart) await updater.restart();
   }

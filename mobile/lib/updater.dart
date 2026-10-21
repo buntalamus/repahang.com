@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:restart_app/restart_app.dart';
 import 'package:shorebird_code_push/shorebird_code_push.dart';
 
 import 'push.dart';
+import 'release_notes.dart';
 
 /// Over-the-air updates through Shorebird. The app checks for a patch when it
 /// starts and when it comes back to the foreground, downloads it in the
@@ -26,6 +28,15 @@ class AppUpdater {
   bool _notified = false;
 
   bool get available => _updater.isAvailable;
+
+  Future<List<MobileReleaseNote>> pendingReleaseNotes() async {
+    final info = await PackageInfo.fromPlatform();
+    final current = await _updater.readCurrentPatch();
+    final next = await _updater.readNextPatch();
+    if (next == null) return [];
+    return selectPatchNotes(await fetchReleaseNotes(), releaseVersion: '${info.version}+${info.buildNumber}',
+        currentPatch: current?.number ?? 0, nextPatch: next.number);
+  }
 
   /// Current patch number, for the profile's version line.
   Future<int?> currentPatch() async {

@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import {spawnSync} from 'node:child_process';
+import {bundle} from './_harness.mjs';
+const {mobileVersion}=await bundle("export {mobileVersion} from '../src/push';");
+const env={MOBILE_MIN_VERSION:'1.2.0',MOBILE_LATEST_VERSION:'1.3.0',MOBILE_ANDROID_URL:'https://refpahang.com/app/refpahang.apk'};
+const response=await mobileVersion(new Request('https://refpahang.example/api/mobile-version.php'),env);
+assert.equal(response.status,200);
+const body=await response.json();
+assert.equal(body.latest_version,'1.3.0');
+assert.equal(body.android_url,env.MOBILE_ANDROID_URL);
+const keys=new Set();
+for(const note of body.release_notes) {
+  assert.match(note.release_version,/^\d+\.\d+\.\d+\+\d+$/);
+  assert.ok(Number.isInteger(note.patch)&&note.patch>=0);
+  assert.match(note.date,/^\d{4}-\d{2}-\d{2}$/);
+  assert.ok(Array.isArray(note.changes)&&note.changes.length>0);
+  assert.ok(note.changes.every(change=>typeof change==='string'&&change.trim().length>10));
+  const key=`${note.release_version}:${note.patch}`;
+  assert.ok(!keys.has(key),`duplicate release note ${key}`);
+  keys.add(key);
+}
+assert.ok(keys.has('1.3.0+7:4'));
+assert.ok(keys.has('1.3.0+7:5'));
+assert.equal(mobileVersion(new Request('https://refpahang.example/api/mobile-version.php',{method:'POST'}),env).status,405);
+const validator=new URL('../../mobile/tool/check_release_notes.py',import.meta.url).pathname;
+assert.equal(spawnSync('python3',[validator,'1.3.0+7','--patch','5']).status,0);
+const missing=spawnSync('python3',[validator,'1.3.0+7','--patch','999'],{encoding:'utf8'});
+assert.notEqual(missing.status,0);
+assert.match(missing.stderr,/Changelog required/);
+console.log('Mobile version compatibility, release notes schema and missing-changelog publication guard passed');

@@ -4,6 +4,13 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [21 Oktober 2026] — Catatan perubahan dalam popup kemas kini mobile
+
+- Popup kemas kini daripada sepanduk/notifikasi dan Profil memaparkan **Apa yang baharu**, versi, patch, tarikh dan senarai perubahan daripada API versi. Aliran pengesahan mula semula dikekalkan.
+- Catatan mengikut release/build dan julat patch sebenar yang dimuat turun; popup APK menggunakan catatan release native. Ralat rangkaian menyediakan cubaan semula tanpa menyekat mula semula.
+- Changelog pengguna disimpan dalam `cloudflare/src/mobile-release-notes.json`; pemeriksaan penerbitan menolak patch tanpa catatan yang sama di production. Prosedur setiap keluaran direkodkan di `mobile/AGENTS.md` dan `docs/mobile-releases.md`.
+- Sokongan popup baharu perlu dipasang dahulu sebelum changelog boleh muncul dalam popup kemas kini seterusnya.
+
 ## [21 Oktober 2026] — Pengumuman dalam aplikasi mobile
 
 - Semua peranan mendapat tiga pengumuman terkini pada Utama, senarai penuh melalui **Lihat semua**, dan kandungan penuh dalam aplikasi.

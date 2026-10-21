@@ -5,9 +5,11 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
 import '../push.dart';
+import '../release_notes.dart';
 import '../theme.dart';
 import '../updater.dart';
 import '../widgets/common.dart';
+import '../widgets/update_notes.dart';
 import 'kelulusan_screen.dart';
 import 'lantikan_admin_screen.dart';
 import 'laporan_ra_screen.dart';
@@ -199,6 +201,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     }
     final restart = await confirmSheet(context,
         title: 'Kemas kini sedia',
+        details: UpdateNotes(load: updater.pendingReleaseNotes),
         message: 'Versi terkini RefPahang telah dimuat turun. Mula semula app sekarang untuk menggunakannya.',
         confirmLabel: 'Mula semula sekarang');
     if (restart) await updater.restart();
@@ -219,7 +222,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         enableDrag: !required,
         builder: (context) => PopScope(
           canPop: !required,
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               const Icon(Icons.system_update_rounded, size: 48),
@@ -234,6 +237,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: AppColors.muted, height: 1.5),
               ),
+              const SizedBox(height: 20),
+              UpdateNotes(load: () async => selectNativeNotes(await fetchReleaseNotes(), '${body['latest_version']}')),
               const SizedBox(height: 20),
               FilledButton(
                 onPressed: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),

@@ -462,11 +462,12 @@ Future<T?> showAppSheet<T>(BuildContext context, {String? title, required Widget
 
 /// Yes/no question as a bottom sheet; the confirm button takes [color].
 Future<bool> confirmSheet(BuildContext context, {required String title, required String message,
-    required String confirmLabel, Color color = AppColors.black, Color textColor = Tw.pahangYellow}) async {
+    required String confirmLabel, Widget? details, Color color = AppColors.black, Color textColor = Tw.pahangYellow}) async {
   final ok = await showAppSheet<bool>(context, title: title, builder: (context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       Text(message, style: const TextStyle(fontSize: 15, color: Tw.slate600, height: 1.5)),
+      ?details,
       const SizedBox(height: 24),
       FilledButton(
         style: FilledButton.styleFrom(backgroundColor: color, foregroundColor: textColor),

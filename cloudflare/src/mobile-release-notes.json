@@ -1,0 +1,31 @@
+[
+  {
+    "release_version": "1.3.0+7",
+    "patch": 3,
+    "date": "2026-10-21",
+    "changes": [
+      "Pengadil dengan akaun dinyahaktifkan atau status tahunan Pengadil Tidak Aktif tidak boleh dilantik.",
+      "Kelayakan saluran lantikan menerima Telegram atau akses aplikasi yang aktif."
+    ]
+  },
+  {
+    "release_version": "1.3.0+7",
+    "patch": 4,
+    "date": "2026-10-21",
+    "changes": [
+      "Tiga pengumuman terkini kini dipaparkan pada halaman Utama untuk semua peranan.",
+      "Tekan Lihat semua untuk senarai pengumuman dan baca kandungan penuh dalam aplikasi.",
+      "Penanda Baharu hilang selepas pengumuman dibaca.",
+      "Notifikasi pengumuman membuka terus kandungan yang berkaitan."
+    ]
+  },
+  {
+    "release_version": "1.3.0+7",
+    "patch": 5,
+    "date": "2026-10-21",
+    "changes": [
+      "Popup kemas kini kini menyediakan catatan perubahan supaya anda tahu apa yang dikemas kini.",
+      "Catatan dipaparkan mengikut versi dan patch yang dimuat turun, termasuk perubahan yang terlepas jika anda melangkau kemas kini."
+    ]
+  }
+]
