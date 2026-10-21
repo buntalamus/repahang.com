@@ -244,6 +244,8 @@ export async function schedule(request: Request, env: Env): Promise<Response> {
     const placeholders = ids.map(() => '?').join(',');
     // One D1 statement makes bulk deletion all-or-nothing, including when a
     // concurrent request creates an appointment after the caller's preview.
+    // As in PHP, audit rows of removed appointments stay as history and do
+    // not block deletion (lantikan_audit_log.jadual_id has no foreign key).
     const result = await env.DB.prepare(`DELETE FROM jadual_perlawanan
       WHERE id IN (${placeholders})
       AND (SELECT COUNT(*) FROM jadual_perlawanan WHERE id IN (${placeholders}))=?
@@ -251,11 +253,10 @@ export async function schedule(request: Request, env: Env): Promise<Response> {
         SELECT 1 FROM jadual_perlawanan j WHERE j.id IN (${placeholders}) AND (
           EXISTS(SELECT 1 FROM lantikan_pengadil lp WHERE lp.jadual_id=j.id)
           OR EXISTS(SELECT 1 FROM laporan_penilaian lp WHERE lp.jadual_id=j.id)
-          OR EXISTS(SELECT 1 FROM lantikan_audit_log al WHERE al.jadual_id=j.id)
         )
       )`).bind(...ids, ...ids, ids.length, ...ids).run();
     if (result.meta.changes < ids.length) {
-      return json({ error: true, message: 'Perlawanan mempunyai lantikan, laporan atau audit, atau ID tidak dijumpai. Tiada perlawanan dipadam.' }, 409);
+      return json({ error: true, message: 'Perlawanan masih mempunyai lantikan atau laporan, atau ID tidak dijumpai. Buang lantikan dahulu. Tiada perlawanan dipadam.' }, 409);
     }
     return json({ error: false, message: `${ids.length} perlawanan berjaya dipadam.` });
   }

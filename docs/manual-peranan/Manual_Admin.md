@@ -548,7 +548,7 @@ Halaman PDF 41
 2. Pilih Dibatalkan atau Ditangguhkan, isi sebab dan sahkan untuk satu perlawanan atau pilihan pukal yang betul.
 3. Semak status jadual dan lantikan selepas tindakan serta maklumkan pegawai melalui saluran yang disediakan.
 4. Buang satu lantikan hanya untuk pembetulan slot yang tepat. Untuk penggantian ditolak, gunakan aliran Ganti.
-5. Jika mahu memadam jadual, rekod yang mempunyai lantikan, laporan atau audit boleh disekat daripada dipadam. Jangan mengatasi sekatan dengan memadam sejarah lain.
+5. Jika mahu memadam jadual, buang semua lantikannya dahulu. Perlawanan yang masih mempunyai lantikan atau laporan tidak boleh dipadam; rekod audit lantikan kekal sebagai sejarah.
 
 ## Lantikan dan penghantaran: Jadual lantikan dan pengesahan dokumen
 Halaman PDF 42

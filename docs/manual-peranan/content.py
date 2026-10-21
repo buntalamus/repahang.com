@@ -259,7 +259,7 @@ admin=[
  'Pilih Dibatalkan atau Ditangguhkan, isi sebab dan sahkan untuk satu perlawanan atau pilihan pukal yang betul.',
  'Semak status jadual dan lantikan selepas tindakan serta maklumkan pegawai melalui saluran yang disediakan.',
  'Buang satu lantikan hanya untuk pembetulan slot yang tepat. Untuk penggantian ditolak, gunakan aliran Ganti.',
- 'Jika mahu memadam jadual, rekod yang mempunyai lantikan, laporan atau audit boleh disekat daripada dipadam. Jangan mengatasi sekatan dengan memadam sejarah lain.'],chapter='Lantikan dan penghantaran'),
+ 'Jika mahu memadam jadual, buang semua lantikannya dahulu. Perlawanan yang masih mempunyai lantikan atau laporan tidak boleh dipadam; rekod audit lantikan kekal sebagai sejarah.'],chapter='Lantikan dan penghantaran'),
  P('Jadual lantikan dan pengesahan dokumen',shot='admin-appointment-schedule',steps=[
  'Buka tab 4 Jadual Lantikan. Pilih kejohanan dan penapis Admin sahaja, PP sahaja atau Kedua-dua lantikan.',
  'Semak nama pegawai, jawatan, tarikh, masa dan nombor perlawanan dalam draf dokumen.',

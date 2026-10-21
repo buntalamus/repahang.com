@@ -4,6 +4,11 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [22 Oktober 2026] — Padam perlawanan selepas lantikan dibuang
+
+- Perlawanan yang semua lantikannya telah dibuang kini boleh dipadam dari jadual, sama seperti sistem PHP. Rekod audit lantikan tidak lagi menghalang padam dan kekal sebagai sejarah.
+- Perlawanan yang masih mempunyai lantikan atau laporan RA tetap tidak boleh dipadam; padam pukal kekal semua-atau-tiada.
+
 ## [21 Oktober 2026] — Catatan perubahan dalam popup kemas kini mobile
 
 - Popup kemas kini daripada sepanduk/notifikasi dan Profil memaparkan **Apa yang baharu**, versi, patch, tarikh dan senarai perubahan daripada API versi. Aliran pengesahan mula semula dikekalkan.
