@@ -22,6 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
   Map<String, dynamic>? _announcement;
   List<Map<String, dynamic>> _demoAccounts = const [];
+  String? _demoClosed;
 
   @override
   void initState() {
@@ -32,6 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _loadServerInfo() {
     _announcement = null;
     _demoAccounts = const [];
+    _demoClosed = null;
     Api.instance.get('/api/public-announcements.php').then((body) {
       final list = body['data'] as List? ?? [];
       if (mounted && list.isNotEmpty) setState(() => _announcement = Map<String, dynamic>.from(list.first as Map));
@@ -39,7 +41,12 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!demoMode.value) return;
     Api.instance.get('/api/demo-info.php').then((body) {
       final list = (body['accounts'] as List? ?? []).map((a) => Map<String, dynamic>.from(a as Map)).toList();
-      if (mounted) setState(() => _demoAccounts = list);
+      if (mounted) {
+        setState(() {
+          _demoAccounts = body['open'] == false ? const [] : list;
+          _demoClosed = body['open'] == false ? text(body['message'], 'Sistem demo sedang ditutup.') : null;
+        });
+      }
     }, onError: (_) {});
   }
 
@@ -174,7 +181,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                                 const Text('🧪 Mod Demo: data rekaan', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF9A3412))),
                                 const SizedBox(height: 4),
-                                const Text('Pilih peranan untuk log masuk terus.', style: TextStyle(fontSize: 13, color: Color(0xFF9A3412))),
+                                Text(_demoClosed ?? 'Pilih peranan untuk log masuk terus.',
+                                    style: const TextStyle(fontSize: 13, color: Color(0xFF9A3412))),
                                 const SizedBox(height: 10),
                                 for (final account in _demoAccounts)
                                   Padding(

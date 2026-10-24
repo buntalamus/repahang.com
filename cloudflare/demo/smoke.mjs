@@ -15,7 +15,8 @@ const realFetch=globalThis.fetch;
 globalThis.fetch=async(url)=>{outbound.push(String(url));return new Response('{"ok":true}',{headers:{'Content-Type':'application/json'}});};
 const emails=[];
 const ORIGIN='https://demo.refpahang.com';
-const env={DB,BASE_URL:ORIGIN,DEMO_MODE:'1',DEMO_RELAY_SECRET:'x',STAGING_AUTH_ENABLED:'1',STAGING_WRITES_ENABLED:'1',
+const PRODUCTION={fetch:async()=>new Response('{"enabled":true}',{headers:{'Content-Type':'application/json'}})};
+const env={DB,PRODUCTION,BASE_URL:ORIGIN,DEMO_MODE:'1',DEMO_RELAY_SECRET:'x',STAGING_AUTH_ENABLED:'1',STAGING_WRITES_ENABLED:'1',
   APPOINTMENT_DELIVERY_ENABLED:'1',REPORT_DELIVERY_ENABLED:'1',BULK_EMAIL_ENABLED:'1',MAILBOX_SEND_ENABLED:'1',
   PUSH_ENABLED:'0',TELEGRAM_BOT_TOKEN:'123:demo',
   MAIL_ADMIN_USER:'admin@refpahang.com',MAIL_ADMIN_NAME:'Admin',MAIL_DAFTAR_USER:'daftar@refpahang.com',MAIL_DAFTAR_NAME:'Daftar',

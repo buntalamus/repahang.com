@@ -1,14 +1,24 @@
 /** Demo-only endpoints (see demo.ts). Both answer 404 outside DEMO_MODE. */
 import { json } from './auth';
 import type { SessionUser } from './auth';
-import { DEMO_ACCOUNTS, isDemo } from './demo';
+import { DEMO_ACCOUNTS, DEMO_CLOSED_MESSAGE, demoOpen, isDemo } from './demo';
 import type { Env } from './types';
 
 /** GET /api/demo-info.php: public account list for the login page; 404 outside the demo. */
-export function demoInfo(request: Request, env: Env): Response {
+export async function demoInfo(request: Request, env: Env): Promise<Response> {
   if (!isDemo(env)) return json({ error: true, message: 'Tidak dijumpai.' }, 404);
   if (request.method !== 'GET') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
-  return json({ demo: true, accounts: DEMO_ACCOUNTS });
+  const open = await demoOpen(env);
+  return json({ demo: true, open, ...(open ? {} : { message: DEMO_CLOSED_MESSAGE }), accounts: DEMO_ACCOUNTS });
+}
+
+/** GET /api/demo-status.php on production: whether the Admin has opened the demo. */
+export async function demoStatus(request: Request, env: Env): Promise<Response> {
+  if (isDemo(env)) return json({ error: true, message: 'Tidak dijumpai.' }, 404);
+  if (request.method !== 'GET') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
+  const row = await env.DB.prepare("SELECT setting_value FROM application_settings WHERE setting_key='demo_enabled'")
+    .first<{ setting_value: string }>();
+  return json({ enabled: row?.setting_value === '1' });
 }
 
 /** GET /api/admin-demo-outbox.php?channel=&q=&page=: messages kept from fictional recipients. */

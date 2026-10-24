@@ -75,7 +75,8 @@ import { forgotPassword, resetPassword } from './password-reset';
 import { assessorDashboard, districtAnnouncements, districtOverview } from './role-dashboards';
 import { tournaments } from './tournaments';
 import { supportChat } from './support-chat';
-import { adminDemoOutbox, demoInfo } from './demo-routes';
+import { adminDemoOutbox, demoInfo, demoStatus } from './demo-routes';
+import { DEMO_CLOSED_MESSAGE, demoOpen, isDemo } from './demo';
 import { adminMailbox, receiveMailboxEmail } from './mailbox';
 import { syncAllShinjiruMailboxes } from './mailbox-imap';
 import type { Env } from './types';
@@ -231,6 +232,7 @@ async function privateMedia(request: Request, env: Env, pathname: string): Promi
 async function api(request: Request, env: Env, pathname: string, ctx: ExecutionContext): Promise<Response> {
   if (pathname === '/api/support-chat.php') return supportChat(request, env);
   if (pathname === '/api/demo-info.php') return demoInfo(request, env);
+  if (pathname === '/api/demo-status.php') return demoStatus(request, env);
   if (pathname === '/api/admin-demo-outbox.php') return adminDemoOutbox(request, env, await currentUser(request, env));
   if (pathname === '/api/portal-dashboard.php') return portalDashboard(request, env);
   if (pathname === '/api/__migration-health') {
@@ -378,6 +380,10 @@ export default {
     }
     try {
       if (pathname.startsWith('/api/')) {
+        // demo.refpahang.com serves nothing until production's Admin opens it.
+        if (isDemo(env) && pathname !== '/api/demo-info.php' && !(await demoOpen(env))) {
+          return json({ error: true, code: 'DEMO_CLOSED', message: DEMO_CLOSED_MESSAGE }, 503);
+        }
         const response=await api(request, env, pathname, ctx);
         if (response.ok && request.method==='POST' && appointmentWritesEnabled(env)
           && ['/api/lantikan.php','/api/lantikan-jawab.php','/api/lantikan-jawab-token.php',
@@ -412,6 +418,8 @@ export default {
     }
   },
   async scheduled(_event: ScheduledController, env: Env): Promise<void> {
+    // A closed demo sends nothing, not even reminders or auto-rejections.
+    if (isDemo(env) && !(await demoOpen(env))) return;
     try { await enforceAccountPolicy(env); }
     catch (error) { console.error('[account-policy] scheduled check failed', error); }
     // api/kup-crew-notification-retry.php ran from the system cron in PHP.

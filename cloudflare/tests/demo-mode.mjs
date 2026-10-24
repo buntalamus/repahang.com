@@ -4,7 +4,8 @@ import {bundle,openDatabase,sessionCookie} from './_harness.mjs';
 const worker=await bundle(`
   export {sendRefpahangEmail} from '../mail';
   export {tgSend,setTelegramSenderForTests,setTelegramApiForTests} from '../src/php/telegram';
-  export {demoInfo,adminDemoOutbox} from '../src/demo-routes';
+  export {demoInfo,demoStatus,adminDemoOutbox} from '../src/demo-routes';
+  export {default as worker} from '../src/index';
   export {changePassword} from '../src/change-password';
   export {updateProfile} from '../src/profile-write';
   export {forgotPassword} from '../src/password-reset';
@@ -12,7 +13,7 @@ const worker=await bundle(`
   export {enforceAccountPolicy} from '../src/account-policy';
   export {telegramWebhook} from '../src/telegram-webhook';
   export {setEmailSenderForTests} from '../src/php/email';
-  export {DEMO_FAKE_CHAT_CEILING} from '../src/demo';
+  export {DEMO_FAKE_CHAT_CEILING,resetDemoStatusForTests} from '../src/demo';
 `);
 const {db,DB,close}=openDatabase(['0009_mysql_on_update_triggers','0010_worker_write_guards','0034_demo_outbox']);
 const sent=[];
@@ -27,7 +28,11 @@ const mailEnv={MAIL_ADMIN_USER:'admin@refpahang.com',MAIL_ADMIN_NAME:'Admin',MAI
   MAIL_PENGESAHAN_NAME:'Pengesahan',EMAIL:{send:async(message)=>{sent.push(message);return {messageId:'m1'};}}};
 const base={DB,...mailEnv,BASE_URL:'https://demo.refpahang.com',STAGING_AUTH_ENABLED:'1',STAGING_WRITES_ENABLED:'1',
   APPOINTMENT_DELIVERY_ENABLED:'1',REPORT_DELIVERY_ENABLED:'1',MEDIA:{get:async()=>null}};
-const demo={...base,DEMO_MODE:'1',DEMO_RELAY_SECRET:'relay-secret'};
+let productionSwitch='1';
+const production={fetch:async(url)=>{
+  assert.equal(String(url),'https://refpahang.com/api/demo-status.php');
+  return new Response(JSON.stringify({enabled:productionSwitch==='1'}),{headers:{'Content-Type':'application/json'}});}};
+const demo={...base,DEMO_MODE:'1',DEMO_RELAY_SECRET:'relay-secret',PRODUCTION:production};
 const outbox=()=>db.prepare('SELECT channel,recipient,subject,body FROM demo_outbox ORDER BY id').all();
 const call=async(handler,url,init,env,...extra)=>{
   const response=await handler(new Request(url,init),env,...extra);
@@ -76,7 +81,38 @@ try {
   assert.equal(info.body.demo,true);
   assert.deepEqual(info.body.accounts.map(a=>a.peranan),
     ['Admin','PP Daerah','PP Daerah + Penilai','PP Daerah + Pengadil','Pengadil','Penilai']);
+  assert.equal(info.body.open,true);
   assert.equal((await worker.demoInfo(new Request('https://refpahang.com/api/demo-info.php'),base)).status,404);
+
+  // Production's Admin switch (Tetapan → Sistem Demo) opens and closes the demo.
+  const status=async(value)=>{
+    db.prepare(`INSERT INTO application_settings(setting_key,setting_value) VALUES('demo_enabled',?)
+      ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value`).run(value);
+    return (await call(worker.demoStatus,'https://refpahang.com/api/demo-status.php',{method:'GET'},base)).body;
+  };
+  assert.deepEqual(await status('0'),{enabled:false});
+  assert.deepEqual(await status('1'),{enabled:true});
+  assert.equal((await worker.demoStatus(new Request('https://demo.refpahang.com/api/demo-status.php'),demo)).status,404);
+  const ctx={waitUntil:()=>{},passThroughOnException:()=>{}};
+  const page=(env)=>worker.worker.fetch(new Request('https://demo.refpahang.com/api/public-announcements.php'),env,ctx);
+  productionSwitch='0';
+  worker.resetDemoStatusForTests();
+  const closed=await page(demo);
+  assert.equal(closed.status,503);
+  assert.equal((await closed.json()).code,'DEMO_CLOSED');
+  const closedInfo=await call(worker.demoInfo,'https://demo.refpahang.com/api/demo-info.php',{method:'GET'},demo);
+  assert.equal(closedInfo.body.open,false);
+  assert.match(closedInfo.body.message,/ditutup/);
+  // Unreachable production counts as closed.
+  worker.resetDemoStatusForTests();
+  assert.equal((await page({...demo,PRODUCTION:{fetch:async()=>{throw new Error('down');}}})).status,503);
+  worker.resetDemoStatusForTests();
+  assert.equal((await page({...demo,PRODUCTION:undefined})).status,503);
+  productionSwitch='1';
+  worker.resetDemoStatusForTests();
+  assert.equal((await page(demo)).status,200);
+  // Production itself never asks.
+  assert.equal((await page(base)).status,200);
 
   // Shared demo accounts cannot be locked by one tester.
   const admin=db.prepare("SELECT id FROM users WHERE role='Admin' AND aktif=1 ORDER BY id LIMIT 1").get().id;

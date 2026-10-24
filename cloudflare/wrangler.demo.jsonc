@@ -34,7 +34,11 @@
     }
   ],
   "browser": { "binding": "BROWSER" },
-  "services": [{"binding":"ORIGINAL_TEMPLATES","service":"refpahang-original-templates"}],
+  "services": [
+    {"binding":"ORIGINAL_TEMPLATES","service":"refpahang-original-templates"},
+    // Asked whether production's Admin has opened the demo (Tetapan → Sistem Demo).
+    {"binding":"PRODUCTION","service":"refpahang"}
+  ],
   "send_email": [
     {
       "name": "EMAIL",

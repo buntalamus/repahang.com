@@ -12,10 +12,18 @@ export interface DemoAccount {
 @Injectable({ providedIn: 'root' })
 export class DemoService {
   readonly accounts = signal<DemoAccount[] | null>(null);
+  /** False while production's Admin has the demo switched off. */
+  readonly open = signal(true);
+  readonly closedMessage = signal('');
 
   constructor() {
-    inject(HttpClient).get<{ demo?: boolean; accounts?: DemoAccount[] }>('/api/demo-info.php').subscribe({
-      next: (res) => { if (res?.demo) this.accounts.set(res.accounts ?? []); },
+    inject(HttpClient).get<{ demo?: boolean; open?: boolean; message?: string; accounts?: DemoAccount[] }>('/api/demo-info.php').subscribe({
+      next: (res) => {
+        if (!res?.demo) return;
+        this.open.set(res.open !== false);
+        this.closedMessage.set(res.message ?? '');
+        this.accounts.set(res.accounts ?? []);
+      },
       error: () => { /* not the demo */ },
     });
   }

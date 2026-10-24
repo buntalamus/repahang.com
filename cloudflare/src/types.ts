@@ -38,4 +38,6 @@ export interface Env extends EmailEnv {
   DEMO_RELAY_URL?: string;
   /** Shared by production and the demo Worker to authenticate relayed Telegram updates (secret). */
   DEMO_RELAY_SECRET?: string;
+  /** Demo only: service binding to the production Worker, asked whether the Admin opened the demo. */
+  PRODUCTION?: Fetcher;
 }

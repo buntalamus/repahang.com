@@ -1,7 +1,8 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
+import { DemoService } from '../../../core/services/demo.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
 
 interface TelegramBlastRecipient { user_id: number; name: string; email: string; status: string;
@@ -37,6 +38,24 @@ interface TelegramBlastBatch { id: string; status: string; total: number; create
             <div class="w-14 h-7 bg-white/30 peer-checked:bg-white rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-gray-400 peer-checked:after:bg-red-600 after:rounded-full after:h-6 after:w-6 after:transition-all border border-white/40"></div>
           </label>
         </div>
+
+        <!-- Demo / training system (demo.refpahang.com) follows this switch. Hidden inside the demo itself. -->
+        @if (!demo.accounts()) {
+          <div class="rounded-xl p-5 flex items-center justify-between"
+            [class]="settings.demo_enabled ? 'bg-orange-500 text-white' : 'bg-white border border-slate-200 text-slate-800'">
+            <div class="flex items-center gap-3">
+              <span class="material-icons text-2xl" [class]="settings.demo_enabled ? 'text-white' : 'text-orange-500'">science</span>
+              <div>
+                <p class="font-bold text-base">Sistem Demo (demo.refpahang.com)</p>
+                <p class="text-sm opacity-75">Apabila aktif, sistem latihan boleh digunakan. Apabila dimatikan, demo ditutup untuk semua (dalam masa 30 saat).</p>
+              </div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" aria-label="Buka Sistem Demo" [(ngModel)]="settings.demo_enabled" (ngModelChange)="quickSave('demo_enabled', $event ? '1':'0')" class="sr-only peer" />
+              <div class="w-14 h-7 bg-slate-200 peer-checked:bg-white rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-gray-400 peer-checked:after:bg-orange-500 after:rounded-full after:h-6 after:w-6 after:transition-all border border-slate-300"></div>
+            </label>
+          </div>
+        }
 
         <!-- Per-Type Application Status -->
         <div class="bg-white rounded-xl shadow-sm border border-slate-200">
@@ -567,8 +586,10 @@ export class AdminSettingsComponent implements OnInit, OnDestroy {
   tgBusy = false;
   tgBatch: TelegramBlastBatch | null = null;
   private tgPoll: ReturnType<typeof setTimeout> | null = null;
+  protected readonly demo = inject(DemoService);
   settings: any = {
     maintenance_mode: false,
+    demo_enabled: false,
     registration_open: true,
     registration_open_date: '',
     registration_close_date: '',
@@ -648,6 +669,7 @@ export class AdminSettingsComponent implements OnInit, OnDestroy {
           const s = res.settings;
           this.settings = {
             maintenance_mode:         this.bool(s.maintenance_mode),
+            demo_enabled:             this.bool(s.demo_enabled ?? '0'),
             registration_open:        this.bool(s.registration_open ?? '1'),
             registration_open_date:   s.registration_open_date  || '',
             registration_close_date:  s.registration_close_date || '',

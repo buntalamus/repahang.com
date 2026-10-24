@@ -37,6 +37,36 @@ export const SHARED_ACCOUNT_MESSAGE = 'Akaun demo kongsi tidak boleh diubah. Daf
 export const demoTitle = (env: { DEMO_MODE?: string }, title: string): string =>
   isDemo(env) && !title.startsWith('[DEMO]') ? `[DEMO] ${title}` : title;
 
+/** How long the demo trusts production's last answer about the Admin switch. */
+const STATUS_TTL_MS = 30_000;
+let status: { open: boolean; at: number } | null = null;
+
+/**
+ * The demo is open only while production's Admin has `demo_enabled` on
+ * (Tetapan → Sistem Demo). Asked over the PRODUCTION service binding; any
+ * failure counts as closed.
+ */
+export async function demoOpen(env: { PRODUCTION?: Fetcher }): Promise<boolean> {
+  if (status && Date.now() - status.at < STATUS_TTL_MS) return status.open;
+  let open = false;
+  try {
+    const response = await env.PRODUCTION?.fetch('https://refpahang.com/api/demo-status.php',
+      { signal: AbortSignal.timeout(5_000) });
+    const body = response?.ok ? await response.json() as { enabled?: unknown } : null;
+    open = body?.enabled === true;
+  } catch {
+    open = false;
+  }
+  status = { open, at: Date.now() };
+  return open;
+}
+
+export function resetDemoStatusForTests(): void {
+  status = null;
+}
+
+export const DEMO_CLOSED_MESSAGE = 'Sistem demo sedang ditutup oleh Admin RefPahang. Sila cuba semula kemudian.';
+
 export async function recordDemoOutbox(env: { DB?: D1Database }, channel: 'email' | 'telegram',
   recipient: string, subject: string, body: string): Promise<void> {
   if (!env.DB) return;
