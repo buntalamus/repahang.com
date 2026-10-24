@@ -280,6 +280,28 @@ export class AdminUsersComponent implements OnInit {
     });
   }
 
+  revokeTelegram(user: any): void {
+    this.confirmTitle = 'Batalkan Pautan Telegram';
+    this.confirmMessage = `Batalkan pautan Telegram untuk ${user.nama_penuh}? Pengguna perlu memautkan semula akaun Telegram untuk menerima mesej melalui Telegram.`;
+    this.confirmAction = () => {
+      this.api.patch<{ error: boolean; message: string }>('admin-users.php', {
+        userId: user.id, action: 'revoke_telegram',
+      }).subscribe({
+        next: (res) => {
+          if (res.error) {
+            this.toast.error(res.message);
+            return;
+          }
+          this.editUser = { ...this.editUser, telegram_chat_id: null };
+          this.toast.success(res.message);
+          this.loadUsers();
+        },
+        error: (err) => this.toast.error(err?.error?.message || 'Gagal membatalkan pautan Telegram.'),
+      });
+    };
+    this.showConfirmModal = true;
+  }
+
   resetPassword(user: any): void {
     this.confirmTitle = 'Reset Kata Laluan';
     this.confirmMessage = `Reset kata laluan untuk ${user.nama_penuh}?`;

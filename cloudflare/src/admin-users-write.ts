@@ -18,6 +18,7 @@ import {
 } from './php/email';
 import type { Env } from './types';
 import { notifyAccountUpdated, notifyOldEmailAddress } from './account-notify';
+import { wroteRow } from './d1-changes';
 
 const VALID_ROLES = ['Pengadil', 'Penilai', 'PP Daerah', 'Admin'];
 // PHP's reset_password and resend_notification both set this fixed value.
@@ -193,6 +194,24 @@ async function passwordAction(request: Request, env: Env, adminId: number): Prom
   const input = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as Input;
   const userId = phpInt(input.userId ?? 0);
   const action = String(input.action ?? '');
+  if (action === 'revoke_telegram') {
+    if (!userId) return json({ error: true, message: 'ID pengguna diperlukan.' }, 400);
+    const results = await env.DB.batch([
+      env.DB.prepare(`UPDATE users SET telegram_chat_id=NULL,tg_link_token=NULL,updated_at=datetime('now','+8 hours')
+        WHERE id=? AND trim(COALESCE(CAST(telegram_chat_id AS TEXT),''))<>''
+        AND EXISTS (SELECT 1 FROM users actor WHERE actor.id=? AND actor.role='Admin' AND actor.aktif=1)`)
+        .bind(userId, adminId),
+      env.DB.prepare(`INSERT INTO activity_log(user_id,action,table_name,record_id,description,created_at)
+        SELECT ?,'revoke_telegram_link','users',?,
+          'Pautan Telegram pengguna ID '||?||' dibatalkan oleh Admin.',datetime('now','+8 hours')
+        WHERE changes()>0`)
+        .bind(adminId, userId, userId),
+    ]);
+    if (!wroteRow(results[0])) {
+      return json({ error: true, message: 'Pautan Telegram sudah berubah atau sesi Admin tidak lagi sah. Muat semula dan cuba lagi.' }, 409);
+    }
+    return json({ error: false, message: 'Pautan Telegram berjaya dibatalkan.' });
+  }
   if (action === 'set_account_status') {
     if (![0, 1].includes(input.aktif as number)) return json({ error: true, message: 'Status akaun tidak sah.' }, 400);
     return setAccountStatus(env, adminId, Number(input.userId), Number(input.aktif), input.reason);

@@ -258,6 +258,18 @@
       <div class="p-5 space-y-6">
         <div><label for="edit-account-role" class="block text-xs font-medium text-slate-700 mb-1">Peranan Akaun</label><select id="edit-account-role" [(ngModel)]="editUser.user_role" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm">@for (role of roles; track role) {<option [value]="role">{{ displayRole(role) }}</option>}</select></div>
         <app-profile-fields [record]="editUser" [editing]="true" [adminMode]="true" [associations]="persatuanList" />
+        @if (editUser.telegram_chat_id) {
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <div>
+              <p class="text-sm font-semibold text-amber-900">Telegram telah dipautkan</p>
+              <p class="text-xs text-amber-800 mt-1">Batalkan pautan jika akaun Telegram yang disambungkan tidak betul.</p>
+            </div>
+            <button type="button" (click)="revokeTelegram(editUser)"
+              class="px-3 py-2 text-sm font-semibold text-rose-700 border border-rose-300 bg-white rounded-lg hover:bg-rose-50 whitespace-nowrap">
+              Batalkan Pautan Telegram
+            </button>
+          </div>
+        }
         <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
           <button (click)="showEditModal = false"
             class="px-4 py-2 text-sm text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50">Batal</button>
