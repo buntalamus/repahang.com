@@ -41,6 +41,8 @@ class SessionUser {
 class Api {
   Api._() {
     _dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+      // Follows the production/demo choice made on the login screen.
+      options.baseUrl = apiBase;
       final token = _token;
       if (token != null) options.headers['Authorization'] = 'Bearer $token';
       handler.next(options);
@@ -128,6 +130,13 @@ class Api {
       // The session is dropped locally either way.
     }
     await _clear();
+  }
+
+  /// Switches between production and demo.refpahang.com. The session (and
+  /// with it this device's push registration) belongs to one server only.
+  Future<void> switchServer(bool demo) async {
+    if (_token != null) await logout();
+    await saveServerChoice(demo);
   }
 
   Future<void> _clear() async {

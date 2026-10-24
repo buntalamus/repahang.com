@@ -5,6 +5,7 @@
  * by the same notifications cursor as the mobile app (processPushQueue).
  */
 import { currentUser, json } from './auth';
+import { demoTitle } from './demo';
 import { boundedJson } from './request';
 import type { Env } from './types';
 
@@ -116,7 +117,7 @@ export async function vapidAuthorization(env: Env, endpoint: string): Promise<st
 /** Sends one notification. 'invalid' means the subscription is gone and should be removed. */
 export async function sendWebPush(env: Env, subscription: WebPushSubscription, message: WebPushMessage): Promise<WebPushResult> {
   try {
-    const body = await encryptPayload(subscription.p256dh, subscription.auth, encoder.encode(JSON.stringify(message)));
+    const body = await encryptPayload(subscription.p256dh, subscription.auth, encoder.encode(JSON.stringify({ ...message, title: demoTitle(env, message.title) })));
     const response = await fetch(subscription.endpoint, {
       method: 'POST',
       headers: {

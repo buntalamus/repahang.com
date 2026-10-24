@@ -4,6 +4,13 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [24 Oktober 2026] — Sistem Demo (demo.refpahang.com)
+
+- Salinan latihan dengan data rekaan dan akaun kongsi untuk setiap peranan. Ia berjalan atas Worker, D1 dan R2 sendiri, jadi pangkalan data utama tidak disentuh. Panduan: `docs/demo.md`.
+- Emel dan Telegram kepada orang rekaan disimpan dalam **Peti Keluar Demo** (Admin) dan tidak dihantar. Penguji yang mendaftar akaun sendiri menerima mesej sebenar bertanda `[DEMO]`.
+- Bot Telegram dikongsi. Production meneruskan pautan `/start` dan butang lantikan yang tidak dikenalinya ke demo. Token production diproses tanpa perubahan.
+- App mobile: pautan **Cuba Sistem Demo** di skrin log masuk menukar app ke demo, dengan reben DEMO dan butang kembali ke sistem sebenar.
+
 ## [22 Oktober 2026] — Padam perlawanan selepas lantikan dibuang
 
 - Perlawanan yang semua lantikannya telah dibuang kini boleh dipadam dari jadual, sama seperti sistem PHP. Rekod audit lantikan tidak lagi menghalang padam dan kekal sebagai sejarah.

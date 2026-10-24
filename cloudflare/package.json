@@ -71,7 +71,9 @@
     "deploy:original-templates": "npm run build:original-templates && wrangler deploy --config legacy-renderer/wrangler.jsonc",
     "deploy:production": "npm run typecheck && npm run deploy:original-templates && npm run build:frontend && npm run build:mobile-web && wrangler deploy --config wrangler.production.jsonc",
     "test:original-email-decisions": "node --no-warnings tests/original-email-decisions.mjs",
-    "test:account-access": "node --no-warnings tests/account-access.mjs"
+    "test:account-access": "node --no-warnings tests/account-access.mjs",
+    "test:demo-mode": "node --no-warnings tests/demo-mode.mjs",
+    "deploy:demo": "npm run typecheck && npm run build:frontend && npm run build:mobile-web && wrangler deploy --config wrangler.demo.jsonc"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

@@ -1,8 +1,9 @@
-import { Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, viewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, effect, inject, viewChild } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
+import { DemoService } from '../../../core/services/demo.service';
 import {
   NavItem,
   ADMIN_NAV,
@@ -134,8 +135,16 @@ export class SidebarComponent implements OnChanges, OnDestroy {
   private navigationSub: Subscription;
   private readonly drawer = viewChild<ElementRef<HTMLElement>>('drawer');
   private returnFocus: HTMLElement | null = null;
+  private readonly demo = inject(DemoService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   constructor(private auth: AuthService, private router: Router) {
+    // demo.refpahang.com adds the Admin's demo outbox once demo-info answers.
+    effect(() => {
+      this.demo.accounts();
+      this.updateNav();
+      this.cdr.markForCheck();
+    });
     this.updateNav();
     this.sub = this.auth.currentUser$.subscribe(() => this.updateNav());
     this.navigationSub = this.router.events.subscribe(event => {
@@ -167,6 +176,9 @@ export class SidebarComponent implements OnChanges, OnDestroy {
         this.navItems = this.auth.currentUser?.jenis_pengadil === 'Penilai Pengadil'
           ? [...ADMIN_NAV, { label: 'Pendaftaran Penilai Pengadil Saya (R1)', icon: 'how_to_reg', route: '/admin/daftar/ra' }]
           : ADMIN_NAV;
+        if (this.demo.accounts()) {
+          this.navItems = [...this.navItems, { label: 'Peti Keluar Demo', icon: 'outbox', route: '/admin/peti-keluar-demo' }];
+        }
         this.roleLabel = 'Admin';
         break;
       case 'PP Daerah':

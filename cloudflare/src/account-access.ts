@@ -2,6 +2,7 @@
 import { policyClock } from './account-policy';
 export { DEFAULT_INACTIVE_REASON } from './account-policy';
 import { json } from './auth';
+import { SHARED_ACCOUNT_MESSAGE, isSharedDemoUserId } from './demo';
 import { notifyAccountDeactivated } from './account-notify';
 import { wroteRow } from './d1-changes';
 import type { Env } from './types';
@@ -16,6 +17,7 @@ export async function setAccountStatus(env: Env, adminId: number, userId: number
   if (active === 0 && userId === adminId) {
     return json({ error: true, message: 'Anda tidak boleh menandakan akaun sendiri sebagai Tidak Aktif.' }, 400);
   }
+  if (await isSharedDemoUserId(env, userId)) return json({ error: true, message: SHARED_ACCOUNT_MESSAGE }, 403);
   const reason = active === 1 ? null : typeof reasonInput === 'string' ? reasonInput.trim() : '';
   if (active === 0 && (!reason || reason.length > MAX_INACTIVE_REASON_LENGTH || reason.includes('\0'))) {
     return json({ error: true, message: 'Sila isi sebab Tidak Aktif (maksimum 1000 aksara).' }, 400);

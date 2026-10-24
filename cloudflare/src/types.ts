@@ -34,4 +34,10 @@ export interface Env extends EmailEnv {
   VAPID_SUBJECT?: string;
   /** HMAC key for short-lived Surat Lantikan PDF links (secret, 32+ chars). */
   APPOINTMENT_LETTER_SECRET?: string;
+  /** Production only: where Telegram updates for demo tokens are relayed (demo.ts). */
+  DEMO_RELAY_URL?: string;
+  /** Shared by production and the demo Worker to authenticate relayed Telegram updates (secret). */
+  DEMO_RELAY_SECRET?: string;
+  /** Demo only: service binding to the production Worker, asked whether the Admin opened the demo. */
+  PRODUCTION?: Fetcher;
 }

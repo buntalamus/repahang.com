@@ -1,0 +1,79 @@
+// Demo / training Worker for demo.refpahang.com (docs/demo.md). Same code as
+// production with DEMO_MODE=1 and every switch on, against its own fictional
+// D1 and R2. Email and Telegram to fictional seed people are kept in
+// demo_outbox; real testers who link their own email/Telegram get real
+// messages marked [DEMO].
+// Secrets (never in this file): MAIL_*_USER/NAME, TELEGRAM_BOT_TOKEN (the same
+// bot as production), FCM_SERVICE_ACCOUNT, VAPID_PRIVATE_KEY,
+// APPOINTMENT_LETTER_SECRET and DEMO_RELAY_SECRET (same value as production's).
+// Do NOT set STAGING_QA_WRITE_TOKEN or STAGING_EMAIL_REDIRECT here.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "refpahang-demo",
+  "main": "./src/index.ts",
+  "compatibility_date": "2026-10-13",
+  "observability": { "enabled": true, "logs": { "enabled": true } },
+  "routes": [{ "pattern": "demo.refpahang.com", "custom_domain": true }],
+  "assets": {
+    "directory": "../frontend/dist/frontend/browser",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/uploads/*", "/app/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "refpahang_demo",
+      "database_id": "427ac45c-4a04-4ffe-af31-d31f4e13d33b"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "refpahang-demo-media"
+    }
+  ],
+  "browser": { "binding": "BROWSER" },
+  "services": [
+    {"binding":"ORIGINAL_TEMPLATES","service":"refpahang-original-templates"},
+    // Asked whether production's Admin has opened the demo (Tetapan → Sistem Demo).
+    {"binding":"PRODUCTION","service":"refpahang"}
+  ],
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "allowed_sender_addresses": [
+        "admin@refpahang.com",
+        "daftar@refpahang.com",
+        "lantikan@refpahang.com",
+        "support@refpahang.com",
+        "pengesahan@refpahang.com"
+      ]
+    }
+  ],
+  // No "addresses": inbound mail to @refpahang.com stays with production.
+  "vars": {
+    "DEMO_MODE": "1",
+    "BASE_URL": "https://demo.refpahang.com",
+    "EMAIL_TRANSPORT": "cloudflare-email",
+    "TELEGRAM_BOT_USERNAME": "refpahang_bot",
+    "STAGING_AUTH_ENABLED": "1",
+    "STAGING_WRITES_ENABLED": "1",
+    "APPOINTMENT_DELIVERY_ENABLED": "1",
+    "REPORT_DELIVERY_ENABLED": "1",
+    "BULK_EMAIL_ENABLED": "1",
+    "MAILBOX_SEND_ENABLED": "1",
+    // Never poll the real @refpahang.com mailboxes from the demo.
+    "MAILBOX_IMAP_ENABLED": "0",
+    "PUSH_ENABLED": "1",
+    // Keep in step with wrangler.production.jsonc: the same app talks to both.
+    "MOBILE_ANDROID_URL": "https://refpahang.com/app/refpahang.apk",
+    "MOBILE_MIN_VERSION": "1.2.0",
+    "MOBILE_LATEST_VERSION": "1.3.0",
+    "VAPID_PUBLIC_KEY": "BO4kEmtoPWuRdkdFQttS_KLYhetpVzDsvdGp3vVH0-TV6DyFp3pR4D74sG9KBtrW_Swlvm4creFEGIzM6UK5aiE",
+    "VAPID_SUBJECT": "mailto:sokongan@pbnppahang.my"
+  },
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  }
+}

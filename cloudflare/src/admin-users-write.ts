@@ -9,6 +9,7 @@ import { normalizeProfileInput } from './profile-contract';
  */
 import { hash } from 'bcryptjs';
 import { currentUser, json } from './auth';
+import { SHARED_ACCOUNT_MESSAGE, isSharedDemoUserId } from './demo';
 import { boundedJson } from './request';
 import { phpInt } from './lantikan-write';
 import { h } from './php/format';
@@ -133,6 +134,7 @@ async function updateUser(request: Request, env: Env): Promise<Response> {
   const input = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as Input;
   const userId = phpInt(input.userId ?? 0);
   if (!userId) return json({ error: true, message: 'ID pengguna diperlukan.' }, 400);
+  if (await isSharedDemoUserId(env, userId)) return json({ error: true, message: SHARED_ACCOUNT_MESSAGE }, 403);
   const namaPenuh = text(input, 'nama_penuh');
   const email = text(input, 'email');
   const role = text(input, 'user_role');
@@ -220,6 +222,7 @@ async function passwordAction(request: Request, env: Env, adminId: number): Prom
   if (action !== 'reset_password' && action !== 'resend_notification') {
     return json({ error: true, message: 'Aksi tidak sah.' }, 400);
   }
+  if (await isSharedDemoUserId(env, userId)) return json({ error: true, message: SHARED_ACCOUNT_MESSAGE }, 403);
   const user = await env.DB.prepare('SELECT nama_penuh, email, role, jenis_pengadil FROM users WHERE id=?')
     .bind(userId).first<{ nama_penuh: string; email: string; role: string; jenis_pengadil: string | null }>();
   if (!user) return json({ error: true, message: 'Pengguna tidak dijumpai.' }, 404);

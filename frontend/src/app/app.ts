@@ -7,15 +7,17 @@ import { WebPushService } from './core/services/web-push.service';
 import { RouterOutlet } from '@angular/router';
 import { ToastComponent } from './shared/components/toast/toast.component';
 import { ProfilPengadilModalComponent } from './shared/components/profil-pengadil-modal/profil-pengadil-modal.component';
+import { DemoBannerComponent } from './shared/components/demo-banner/demo-banner.component';
 
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, ToastComponent, ProfilPengadilModalComponent],
+  imports: [RouterOutlet, ToastComponent, ProfilPengadilModalComponent, DemoBannerComponent],
   template: `
     <router-outlet />
     <app-toast />
     <app-profil-pengadil-modal />
+    <app-demo-banner />
   `,
 })
 export class App {
