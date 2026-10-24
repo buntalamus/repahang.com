@@ -6,6 +6,19 @@ Salinan latihan RefPahang supaya sesiapa boleh mencuba semua fungsi tanpa menyen
 - **Data:** D1 `refpahang_demo` dan R2 `refpahang-demo-media`. Semuanya **rekaan**: tiada nama, IC, telefon atau emel sebenar.
 - **Reset:** tiada reset automatik. Data terkumpul daripada semua penguji. Rujuk "Bina semula" di bawah untuk mula semula.
 
+## Buka / tutup demo (Admin sistem sebenar)
+
+Demo hanya boleh digunakan apabila Admin di **refpahang.com** menghidupkan **Tetapan → Sistem Demo** (`application_settings.demo_enabled`). Nilai lalainya: tutup.
+
+- **Cara demo menyemak:** Worker demo bertanya kepada production melalui service binding `PRODUCTION` (`GET /api/demo-status.php`). Jawapan disimpan dalam cache 30 saat.
+- **Bila ditutup:**
+  - semua API demo menjawab `503 DEMO_CLOSED`;
+  - cron demo tidak berjalan (tiada peringatan dan tiada auto-tolak);
+  - web memaparkan notis "Sistem Demo Ditutup";
+  - app memaparkan mesej yang sama.
+- **Jika production tidak dapat dihubungi:** demo dianggap ditutup.
+- **Di dalam demo sendiri:** suis ini tidak dipaparkan dalam Tetapan demo.
+
 ## Akaun demo (kongsi)
 
 | Peranan | Emel | Kata laluan |
