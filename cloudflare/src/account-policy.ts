@@ -1,3 +1,4 @@
+import { isDemo } from './demo';
 import type { Env } from './types';
 
 export const DEFAULT_INACTIVE_REASON = 'Akaun anda telah dinyahaktifkan oleh pentadbir. Sila hubungi pentadbir untuk maklumat lanjut.';
@@ -38,6 +39,8 @@ function rules(now: Date) {
 /** Enforce before issuing/accepting a session and from the scheduled job. */
 export async function enforceAccountPolicy(env: Env, userId?: number, now = new Date()): Promise<void> {
   if (env.STAGING_WRITES_ENABLED !== '1') return;
+  // The demo is never reset: its fictional accounts must not age out.
+  if (isDemo(env)) return;
   const { annual, idle, year } = rules(now);
   const scope = userId === undefined ? '' : ' AND u.id=?';
   const candidates = (await env.DB.prepare(`SELECT u.id FROM users u WHERE u.aktif=1${scope}

@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../../core/services/auth.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { ApiService } from '../../../core/services/api.service';
+import { DemoAccount, DemoService } from '../../../core/services/demo.service';
 
 @Component({
   selector: 'app-login',
@@ -15,6 +16,7 @@ import { ApiService } from '../../../core/services/api.service';
 })
 export class LoginComponent implements OnDestroy {
   private readonly cdr = inject(ChangeDetectorRef);
+  protected readonly demo = inject(DemoService);
   readonly inactiveNotice = signal<{ message: string; reason: string } | null>(null);
   email = '';
   password = '';
@@ -85,6 +87,12 @@ export class LoginComponent implements OnDestroy {
     this.inactiveNotice.set({ message: body.message || 'Akaun anda tidak aktif.',
       reason: body.reason || 'Sila hubungi pentadbir untuk maklumat lanjut.' });
     return true;
+  }
+
+  loginAsDemo(account: DemoAccount): void {
+    this.email = account.emel;
+    this.password = account.kata_laluan;
+    this.onSubmit();
   }
 
   onSubmit(): void {

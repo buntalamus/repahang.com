@@ -1,6 +1,7 @@
 import { compare, hash } from 'bcryptjs';
 
 import { currentUser, json } from './auth';
+import { SHARED_ACCOUNT_MESSAGE, isSharedDemoAccount } from './demo';
 import { boundedJson } from './request';
 import type { Env } from './types';
 import { wroteRow } from './d1-changes';
@@ -12,6 +13,7 @@ export async function changePassword(request: Request, env: Env): Promise<Respon
   }
   const session = await currentUser(request, env);
   if (!session) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
+  if (isSharedDemoAccount(env, session.email)) return json({ error: true, message: SHARED_ACCOUNT_MESSAGE }, 403);
   if (env.STAGING_WRITES_ENABLED !== '1') {
     return json({ error: true, message: 'Tindakan tulis belum tersedia di staging.' }, 503);
   }

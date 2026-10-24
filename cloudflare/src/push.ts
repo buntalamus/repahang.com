@@ -6,6 +6,7 @@
  * after each write (ctx.waitUntil) and from the cron.
  */
 import { currentUser, json, requestTokenHash } from './auth';
+import { demoTitle } from './demo';
 import { boundedJson } from './request';
 import mobileReleaseNotes from './mobile-release-notes.json';
 import type { Env } from './types';
@@ -104,7 +105,7 @@ export async function sendPush(env: Env, deviceToken: string, message: PushMessa
         body: JSON.stringify({
           message: {
             token: deviceToken,
-            notification: { title: message.title, body: message.body },
+            notification: { title: demoTitle(env, message.title), body: message.body },
             data: message.data,
             android: { priority: 'HIGH', notification: { channel_id: 'refpahang', sound: 'default' } },
             apns: {

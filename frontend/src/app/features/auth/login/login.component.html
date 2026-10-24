@@ -53,6 +53,24 @@
         </button>
       </form>
 
+      @if (demo.accounts(); as accounts) {
+        <!-- demo.refpahang.com only: shared training accounts, one per role. -->
+        <div class="mt-6 rounded-xl border-2 border-dashed border-orange-300 bg-orange-50 p-4" role="group" aria-labelledby="demo-title">
+          <p id="demo-title" class="text-sm font-bold text-orange-900">🧪 Sistem Demo: pilih peranan untuk mencuba</p>
+          <p class="mt-1 text-xs text-orange-800">Semua data di sini rekaan. Emel dan Telegram kepada orang rekaan disimpan dalam Peti Keluar Demo (Admin). Daftar akaun sendiri jika mahu menerima notifikasi sebenar.</p>
+          <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            @for (account of accounts; track account.emel) {
+              <button type="button" (click)="loginAsDemo(account)" [disabled]="loading"
+                class="min-h-11 rounded-lg bg-white px-3 py-2 text-left shadow-sm ring-1 ring-orange-200 hover:ring-orange-400 disabled:opacity-60">
+                <span class="block text-sm font-semibold text-gray-900">{{ account.peranan }}</span>
+                <span class="block text-xs text-gray-600">{{ account.keterangan }}</span>
+                <span class="mt-1 block font-mono text-[11px] text-gray-500">{{ account.emel }} · {{ account.kata_laluan }}</span>
+              </button>
+            }
+          </div>
+        </div>
+      }
+
       <!-- Mobile app (not on Google Play / App Store): APK and the web app at /app/. -->
       <div class="mobile-app" role="group" aria-labelledby="mobile-app-title">
         <p id="mobile-app-title" class="mobile-app-title">Guna app telefon</p>

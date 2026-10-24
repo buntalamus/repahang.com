@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../api.dart';
+import '../config.dart';
 import '../push.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
@@ -19,14 +21,56 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _hidden = true;
   String? _error;
   Map<String, dynamic>? _announcement;
+  List<Map<String, dynamic>> _demoAccounts = const [];
 
   @override
   void initState() {
     super.initState();
+    _loadServerInfo();
+  }
+
+  void _loadServerInfo() {
+    _announcement = null;
+    _demoAccounts = const [];
     Api.instance.get('/api/public-announcements.php').then((body) {
       final list = body['data'] as List? ?? [];
       if (mounted && list.isNotEmpty) setState(() => _announcement = Map<String, dynamic>.from(list.first as Map));
     }, onError: (_) {});
+    if (!demoMode.value) return;
+    Api.instance.get('/api/demo-info.php').then((body) {
+      final list = (body['accounts'] as List? ?? []).map((a) => Map<String, dynamic>.from(a as Map)).toList();
+      if (mounted) setState(() => _demoAccounts = list);
+    }, onError: (_) {});
+  }
+
+  Future<void> _switchServer(bool demo) async {
+    if (demo) {
+      final ok = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(
+        title: const Text('Cuba Sistem Demo?'),
+        content: const Text('App akan bertukar ke demo.refpahang.com: sistem latihan dengan data rekaan. '
+            'Akaun dan data sebenar anda tidak terlibat. Anda boleh kembali ke sistem sebenar bila-bila masa.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Batal')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Buka Demo')),
+        ],
+      ));
+      if (ok != true) return;
+    }
+    await PushService.instance.stop();
+    await Api.instance.switchServer(demo);
+    if (!mounted) return;
+    setState(() {
+      _error = null;
+      _email.clear();
+      _password.clear();
+      _loadServerInfo();
+    });
+  }
+
+  void _useDemoAccount(Map<String, dynamic> account) {
+    _email.text = text(account['emel']);
+    _password.text = text(account['kata_laluan']);
+    _submit();
   }
 
   Future<void> _submit() async {
@@ -122,6 +166,31 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: AutofillGroup(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                          if (demoMode.value) ...[
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(color: const Color(0xFFFFF7ED), borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(color: const Color(0xFFFDBA74))),
+                              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                                const Text('🧪 Mod Demo: data rekaan', style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF9A3412))),
+                                const SizedBox(height: 4),
+                                const Text('Pilih peranan untuk log masuk terus.', style: TextStyle(fontSize: 13, color: Color(0xFF9A3412))),
+                                const SizedBox(height: 10),
+                                for (final account in _demoAccounts)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 6),
+                                    child: OutlinedButton(
+                                      onPressed: _busy ? null : () => _useDemoAccount(account),
+                                      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44), alignment: Alignment.centerLeft),
+                                      child: Text(text(account['peranan']), style: const TextStyle(fontWeight: FontWeight.w700)),
+                                    ),
+                                  ),
+                                TextButton(onPressed: _busy ? null : () => _switchServer(false),
+                                    child: const Text('Keluar mod demo (kembali ke sistem sebenar)')),
+                              ]),
+                            ),
+                            const SizedBox(height: 20),
+                          ],
                           const Text('Log masuk', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
                           const SizedBox(height: 4),
                           const Text('Guna akaun yang sama seperti di website.', style: TextStyle(color: AppColors.muted)),
@@ -186,6 +255,13 @@ class _LoginScreenState extends State<LoginScreen> {
                             const Text('Belum ada akaun?', style: TextStyle(color: AppColors.muted)),
                             TextButton(onPressed: () => openWebsite(context, '/daftar'), child: const Text('Daftar')),
                           ]),
+                          if (!demoMode.value && !kIsWeb)
+                            TextButton.icon(
+                              onPressed: _busy ? null : () => _switchServer(true),
+                              icon: const Icon(Icons.science_outlined, size: 18),
+                              label: const Text('Cuba Sistem Demo'),
+                              style: TextButton.styleFrom(foregroundColor: AppColors.muted),
+                            ),
                         ]),
                       ),
                     ),
