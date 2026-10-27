@@ -4,6 +4,14 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [27 Oktober 2026] — Draf lantikan hanya untuk pentadbir
+
+- Calon tidak melihat draf melalui Tugasan, Utama, dashboard portal, senarai rakan bertugas atau surat lantikan. Admin dan PP yang mengurus lantikan masih boleh menyusun calon sebelum menghantar.
+- Hantar Notifikasi/Blast menerbitkan calon yang telah disemak secara atomik. Penerbitan berasingan daripada kejayaan e-mel/Telegram: lantikan yang sudah diterbitkan boleh dijawab dalam aplikasi walaupun saluran luar gagal, tanpa memulakan tempoh jawapan secara palsu.
+- Jawapan portal/mobile, pautan e-mel dan Telegram disekat di server selagi lantikan masih draf. Menyediakan atau menyalin pautan manual tidak menerbitkan lantikan; pengesahan penghantaran manual menerbitkannya.
+- Penggantian calon kembali menjadi draf dan memerlukan penghantaran semula. Jawapan serta lantikan lama yang sudah dihantar/diterima dikekalkan tanpa mengubah status atau tarikh asal.
+- Memerlukan migrasi tambahan `0035_appointment_publication.sql` sebelum Worker baharu. Pembetulan pada API dikongsi oleh app sedia ada; tiada APK atau patch mobile diperlukan.
+
 ## [24 Oktober 2026] — Sistem Demo (demo.refpahang.com)
 
 - Salinan latihan dengan data rekaan dan akaun kongsi untuk setiap peranan. Ia berjalan atas Worker, D1 dan R2 sendiri, jadi pangkalan data utama tidak disentuh. Panduan: `docs/demo.md`.

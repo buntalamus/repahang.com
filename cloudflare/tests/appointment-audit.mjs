@@ -129,7 +129,7 @@ const sqlDb=new DatabaseSync(':memory:');
 sqlDb.exec(`
   CREATE TABLE lantikan_pengadil (id INTEGER PRIMARY KEY,jadual_id INTEGER,pengadil_id INTEGER,
     pengadil_luar_id INTEGER,jawatan TEXT,status TEXT,komen TEXT,notif_hantar INTEGER,
-    tg_notif_hantar INTEGER,tarikh_notif TEXT,email_token TEXT,penilaian_token TEXT);
+    tg_notif_hantar INTEGER,tarikh_notif TEXT,email_token TEXT,penilaian_token TEXT,published_at TEXT);
   CREATE TABLE jadual_perlawanan (id INTEGER PRIMARY KEY,kejohanan_id INTEGER,status TEXT);
   CREATE TABLE pengadil_luar (id INTEGER PRIMARY KEY,nama TEXT,emel TEXT,no_tel TEXT,
     telegram_chat_id INTEGER,tg_link_token TEXT);

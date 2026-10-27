@@ -212,7 +212,7 @@ async function assign(env: Env, input: Record<string, unknown>, user: User, meta
           status='Diterima',komen=NULL,
           sebab_status='Disahkan terus oleh pentadbir selepas perlawanan bermula',
           tarikh_jawab=${NOW},status_dikemaskini_at=${NOW},
-          notif_hantar=0,tg_notif_hantar=0,tarikh_notif=NULL,tg_token=NULL,email_token=NULL,
+          published_at=NULL,notif_hantar=0,tg_notif_hantar=0,tarikh_notif=NULL,tg_token=NULL,email_token=NULL,
           penilaian_token=CASE WHEN ?=1 THEN penilaian_token ELSE NULL END,created_by=?
         WHERE id=?`).bind(pengadilId, luarId, keepPenilaianToken ? 1 : 0, user.id, existing.id));
       shouldNotifyRa = jawatan === 'Penilai Pengadil' && !keepPenilaianToken;
@@ -220,7 +220,7 @@ async function assign(env: Env, input: Record<string, unknown>, user: User, meta
       // Old response links must not answer a replacement's appointment.
       statements.push(env.DB.prepare(`UPDATE lantikan_pengadil SET pengadil_id=?,pengadil_luar_id=?,
           status='Belum Jawab',komen=NULL,sebab_status=NULL,tarikh_jawab=NULL,status_dikemaskini_at=NULL,
-          notif_hantar=0,tg_notif_hantar=0,tarikh_notif=NULL,tg_token=NULL,email_token=NULL,
+          published_at=NULL,notif_hantar=0,tg_notif_hantar=0,tarikh_notif=NULL,tg_token=NULL,email_token=NULL,
           penilaian_token=NULL,created_by=?
         WHERE id=?`).bind(pengadilId, luarId, user.id, existing.id));
     }
@@ -583,7 +583,32 @@ type DispatchTotals = { tgSent: number; tgSkipped: number; emailSent: number; de
 
 /** Body of the per-assignment loop shared by notify and notify_all. */
 async function dispatchMatch(env: Env, jadualId: number, assignments: PendingAssignment[],
-  actorId: number, meta: AuditMeta, totals: DispatchTotals, ppNotified: Set<string>, actorType: string): Promise<void> {
+  actorId: number, meta: AuditMeta, totals: DispatchTotals, ppNotified: Set<string>, actorType: string): Promise<boolean> {
+  // Publish the validated candidates together, before any external call or app
+  // notice. Merely assigning a slot or preparing a manual link never publishes.
+  // The identity guards prevent a concurrent replacement from being published.
+  const unchanged = assignments.map(() => `EXISTS(SELECT 1 FROM lantikan_pengadil
+    WHERE id=? AND jadual_id=? AND pengadil_id IS ? AND pengadil_luar_id IS ?
+      AND status='Belum Jawab')`).join(' AND ');
+  const published = await runGuarded(env, [
+    guardStatement(env, 'lantikan_publish', `(${unchanged}) AND EXISTS(
+      SELECT 1 FROM jadual_perlawanan WHERE id=? AND status NOT IN ('Dibatalkan','Ditangguhkan')
+        AND datetime(tarikh || ' ' || masa)>datetime('now','+8 hours'))
+      AND NOT EXISTS(SELECT 1 FROM (
+        SELECT 'Pengadil' AS jawatan UNION ALL SELECT 'Penolong Pengadil 1'
+        UNION ALL SELECT 'Penolong Pengadil 2') required
+        WHERE NOT EXISTS(SELECT 1 FROM lantikan_pengadil lp WHERE lp.jadual_id=?
+          AND lp.jawatan=required.jawatan AND lp.status IN ('Belum Jawab','Diterima')))`,
+      [...assignments.flatMap(a => [a.lantikan_id, jadualId, a.user_id, a.luar_id]), jadualId, jadualId]),
+    ...assignments.flatMap(a => [
+      env.DB.prepare(`UPDATE lantikan_pengadil SET published_at=${NOW}
+        WHERE id=? AND published_at IS NULL`).bind(a.lantikan_id),
+      lantikanAuditSelectStatement(env, 'lp.id=? AND changes()=1', [a.lantikan_id],
+        'appointment_published', 'admin', 'success', { deadline_started: false },
+        null, actorType, actorId, meta),
+    ]),
+  ]);
+  if (!published) return false;
   const roster = await getMatchKupOfficials(env, jadualId);
   const allOfficials = roster.officials;
   const regionLabel = roster.region_label;
@@ -687,6 +712,7 @@ async function dispatchMatch(env: Env, jadualId: number, assignments: PendingAss
       console.error('[lantikan.php notify] PP Daerah notification error', error instanceof Error ? error.message : error);
     }
   }
+  return true;
 }
 
 async function notifyMatch(env: Env, input: Record<string, unknown>, user: User, meta: AuditMeta): Promise<Response> {
@@ -722,7 +748,9 @@ async function notifyMatch(env: Env, input: Record<string, unknown>, user: User,
   if (unlinked.length) return json({ error: true, contact_channel_required: true,
     message: `Notifikasi belum boleh dihantar. Pegawai perlu menghubungkan Telegram atau mengaktifkan notifikasi aplikasi mudah alih: ${unlinked.join(', ')}.` }, 409);
   const totals: DispatchTotals = { tgSent: 0, tgSkipped: 0, emailSent: 0, delivered: 0, failed: 0 };
-  await dispatchMatch(env, jadualId, assignments, user.id, meta, totals, new Set(), user.role==='PP Daerah' ? 'pp_daerah' : 'admin');
+  if (!await dispatchMatch(env, jadualId, assignments, user.id, meta, totals, new Set(), user.role==='PP Daerah' ? 'pp_daerah' : 'admin')) {
+    return json({ error: true, message: CHANGED }, 409);
+  }
   const dispatchComplete = await markMatchDispatchedIfComplete(env, jadualId);
   if (!dispatchComplete) {
     await env.DB.prepare("UPDATE jadual_perlawanan SET status='Menunggu Pengesahan' WHERE id=?").bind(jadualId).run();
@@ -775,6 +803,7 @@ async function notifyAll(env: Env, input: Record<string, unknown>, user: User, m
   let incompleteMatchCount = 0;
   let channelPendingMatchCount = 0;
   let inactiveMatchCount = 0;
+  let changedMatchCount = 0;
   const ppNotified = new Set<string>();
   // Each official costs about a dozen D1 queries plus an SMTP session, and a
   // Worker request allows 1,000 D1 queries: send in batches and return the rest.
@@ -791,7 +820,10 @@ async function notifyAll(env: Env, input: Record<string, unknown>, user: User, m
     if (assignments.length === 0) continue;
     if (inactiveOfficials(assignments).length) { inactiveMatchCount++; continue; }
     if (awaitingContactChannel(assignments).length) { channelPendingMatchCount++; continue; }
-    await dispatchMatch(env, jadualId, assignments, user.id, meta, totals, ppNotified, user.role==='PP Daerah' ? 'pp_daerah' : 'admin');
+    if (!await dispatchMatch(env, jadualId, assignments, user.id, meta, totals, ppNotified, user.role==='PP Daerah' ? 'pp_daerah' : 'admin')) {
+      changedMatchCount++;
+      continue;
+    }
     officialsDispatched += assignments.length;
     if (!(await markMatchDispatchedIfComplete(env, jadualId))) {
       await env.DB.prepare("UPDATE jadual_perlawanan SET status='Menunggu Pengesahan' WHERE id=?").bind(jadualId).run();
@@ -807,6 +839,7 @@ async function notifyAll(env: Env, input: Record<string, unknown>, user: User, m
   if (incompleteMatchCount > 0) parts.push(`${incompleteMatchCount} perlawanan tanpa Pengadil, AR1 dan AR2 lengkap dilangkau.`);
   if (channelPendingMatchCount > 0) parts.push(`${channelPendingMatchCount} perlawanan dilangkau kerana pengadil belum menghubungkan Telegram atau aplikasi mudah alih.`);
   if (inactiveMatchCount > 0) parts.push(`${inactiveMatchCount} perlawanan dilangkau kerana mempunyai pegawai tidak aktif.`);
+  if (changedMatchCount > 0) parts.push(`${changedMatchCount} perlawanan berubah semasa penghantaran. Muat semula dan cuba lagi.`);
   if (totals.failed > 0) parts.push(`${totals.failed} lantikan gagal dihantar dan tempoh jawapannya belum bermula.`);
   if (remaining.length > 0) parts.push(`${remaining.length} perlawanan lagi sedang dihantar.`);
   return json({
@@ -816,5 +849,6 @@ async function notifyAll(env: Env, input: Record<string, unknown>, user: User, m
     tg_skipped: totals.tgSkipped, delivery_failed: totals.failed,
     matches_skipped_incomplete: incompleteMatchCount, matches_skipped_started: startedMatchCount,
     matches_skipped_channel: channelPendingMatchCount, matches_skipped_inactive: inactiveMatchCount,
+    matches_skipped_changed: changedMatchCount,
   });
 }

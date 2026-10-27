@@ -1,5 +1,6 @@
 /** api/lantikan-jawab.php: an official answers an appointment from the portal. */
 import { currentUser, json } from './auth';
+import { DRAFT_APPOINTMENT_MESSAGE, publishedAppointmentSql } from './appointment-publication';
 import { appointmentWritesEnabled, phpInt } from './lantikan-write';
 import { auditMetaFrom } from './php/lantikan-audit';
 import { LANTIKAN_AUTO_TOLAK_KOMEN, autoTolakLantikanTertunggak, createPortalNotification,
@@ -10,6 +11,7 @@ import { boundedJson } from './request';
 import type { Env } from './types';
 
 type Assignment = { id: number; jadual_id: number; status: string; komen: string | null;
+  is_published: number;
   jawatan: string; tarikh: string; pasukan_home: string; pasukan_away: string; kejohanan: string };
 
 export async function appointmentReply(request: Request, env: Env): Promise<Response> {
@@ -37,6 +39,7 @@ export async function appointmentReply(request: Request, env: Env): Promise<Resp
   const meta = auditMetaFrom(request);
   const assignment = await env.DB.prepare(`
     SELECT lp.id,lp.jadual_id,lp.status,lp.komen,lp.jawatan,
+      ${publishedAppointmentSql('lp')} AS is_published,
       jp.tarikh,jp.masa,jp.tempat,jp.pasukan_home,jp.pasukan_away,jp.no_perlawanan,
       COALESCE(kj.nama,'') AS kejohanan
     FROM lantikan_pengadil lp
@@ -45,6 +48,9 @@ export async function appointmentReply(request: Request, env: Env): Promise<Resp
     WHERE lp.id=? AND lp.pengadil_id=?`).bind(lantikanId, actor.id).first<Assignment>();
   if (!assignment) {
     return json({ error: true, message: 'Lantikan tidak dijumpai atau bukan milik anda.' }, 404);
+  }
+  if (!assignment.is_published) {
+    return json({ error: true, message: DRAFT_APPOINTMENT_MESSAGE }, 409);
   }
   if (await autoTolakLantikanTertunggak(env, { id: lantikanId }, meta) > 0) {
     return json({ error: true, message: 'Tempoh menjawab telah tamat. Lantikan ini telah ditolak secara automatik.' }, 400);

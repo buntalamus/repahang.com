@@ -1,4 +1,5 @@
 import { currentUser, json } from './auth';
+import { publishedAppointmentSql } from './appointment-publication';
 import { appointmentWritesEnabled } from './lantikan-write';
 import { auditMetaFrom } from './php/lantikan-audit';
 import { autoTolakLantikanTertunggak } from './php/lantikan-helper';
@@ -51,9 +52,9 @@ export async function appointments(request: Request, env: Env): Promise<Response
       JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id
       JOIN kejohanan k ON k.id=jp.kejohanan_id
       LEFT JOIN lantikan_pengadil pu
-        ON pu.jadual_id=jp.id AND pu.jawatan='Pengadil'
+        ON pu.jadual_id=jp.id AND pu.jawatan='Pengadil' AND ${publishedAppointmentSql('pu')}
       LEFT JOIN users u_pu ON u_pu.id=pu.pengadil_id
-      WHERE lp.pengadil_id=?
+      WHERE lp.pengadil_id=? AND ${publishedAppointmentSql('lp')}
       ORDER BY jp.tarikh ASC, jp.masa ASC, lp.id ASC
     `).bind(user.id).all<Appointment>(),
     env.DB.prepare(`
@@ -77,7 +78,9 @@ export async function appointments(request: Request, env: Env): Promise<Response
       WHERE EXISTS (
         SELECT 1 FROM lantikan_pengadil mine
         WHERE mine.jadual_id=lp.jadual_id AND mine.pengadil_id=?
+          AND ${publishedAppointmentSql('mine')}
       )
+        AND ${publishedAppointmentSql('lp')}
         AND lp.status IN ('Belum Jawab','Diterima')
         AND lp.jawatan IN ('Pengadil','Penolong Pengadil 1',
                            'Penolong Pengadil 2','Pegawai ke4')

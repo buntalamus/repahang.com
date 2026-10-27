@@ -1,4 +1,5 @@
 import { currentUser, json, type SessionUser } from './auth';
+import { publishedAppointmentSql } from './appointment-publication';
 import { APPLICATION_CATEGORY_SQL, countApplicationRows } from './application-category';
 import type { Env } from './types';
 
@@ -67,6 +68,7 @@ async function districtData(env: Env, user: SessionUser, year: number) {
       JOIN lantikan_pengadil a ON a.jadual_id=j.id
       LEFT JOIN users u ON u.id=a.pengadil_id LEFT JOIN pengadil_luar pl ON pl.id=a.pengadil_luar_id
       WHERE a.status IN ('Diterima','Belum Jawab') AND j.status NOT IN ('Dibatalkan','Ditangguhkan')
+        AND ${publishedAppointmentSql('a')}
         AND (j.tarikh>? OR (j.tarikh=? AND COALESCE(NULLIF(j.masa,''),'23:59:59')>=?))
         AND (k.lantikan_persatuan_id=? OR u.persatuan_id=?)
       GROUP BY j.id ORDER BY j.tarikh,j.masa,j.id LIMIT 6`)
@@ -113,7 +115,8 @@ async function personalData(env: Env, user: SessionUser, year: number, ra: boole
       j.tarikh AS date,j.masa AS time,j.tempat AS subtitle,k.nama AS tournament,k.jenis_kejohanan,
       j.pasukan_home||' lwn '||j.pasukan_away AS title,j.status AS match_status
       FROM lantikan_pengadil a JOIN jadual_perlawanan j ON j.id=a.jadual_id JOIN kejohanan k ON k.id=j.kejohanan_id
-      WHERE a.pengadil_id=? AND (?=0 OR a.jawatan='Penilai Pengadil') ORDER BY j.tarikh,j.masa,a.id`)
+      WHERE a.pengadil_id=? AND ${publishedAppointmentSql('a')}
+        AND (?=0 OR a.jawatan='Penilai Pengadil') ORDER BY j.tarikh,j.masa,a.id`)
       .bind(user.id, ra ? 1 : 0).all<Row>(),
     ra ? env.DB.prepare(`SELECT r.id,r.lantikan_id,r.status,j.tarikh AS date,j.masa AS time,
       j.pasukan_home||' lwn '||j.pasukan_away AS title,k.nama AS tournament,r.tarikh_hantar,r.tarikh_sahkan
@@ -139,7 +142,7 @@ async function personalData(env: Env, user: SessionUser, year: number, ra: boole
   const today = dateNow().slice(0, 10), time = dateNow().slice(11);
   const active = assignments.results.filter(a => ['Diterima', 'Belum Jawab'].includes(String(a.status)) &&
     !['Dibatalkan', 'Ditangguhkan'].includes(String(a.match_status)));
-  const response = active.filter(a => a.status === 'Belum Jawab' && num(a.notif_hantar) === 1);
+  const response = active.filter(a => a.status === 'Belum Jawab');
   const upcoming = active.filter(a => String(a.date) > today || (a.date === today && String(a.time || '23:59:59') >= time));
   const selected = assignments.results.filter(a => String(a.date).startsWith(String(year)));
   const reportByAssignment = new Map(reports.results.map(r => [num(r.lantikan_id), r]));

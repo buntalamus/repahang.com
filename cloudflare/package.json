@@ -30,6 +30,7 @@
     "test:team-region-caution": "node --no-warnings tests/team-region-caution.mjs",
     "test:lantikan-write": "node --no-warnings tests/lantikan-write.mjs",
     "test:appointment-response": "node --no-warnings tests/appointment-response.mjs",
+    "test:appointment-publication": "node --no-warnings tests/appointment-publication.mjs",
     "test:telegram-webhook": "node --no-warnings tests/telegram-webhook.mjs",
     "test:announcement-telegram": "node --no-warnings tests/announcement-telegram.mjs",
     "test:mobile-announcements": "node --no-warnings tests/mobile-announcements.mjs",

@@ -3,6 +3,7 @@
  * buttons of appointment messages. Always answers Telegram with 200.
  */
 import { isDemo } from './demo';
+import { DRAFT_APPOINTMENT_MESSAGE, publishedAppointmentSql } from './appointment-publication';
 import type { Env } from './types';
 import { appointmentWritesEnabled } from './lantikan-write';
 import { h, masaFmt, tarikhFmt } from './php/format';
@@ -170,6 +171,7 @@ async function handleStart(env: Env, message: NonNullable<Update['message']>, me
 }
 
 type CallbackRow = { id: number; jadual_id: number; status: string; komen: string | null;
+  is_published: number;
   jawatan: string; pengadil_id: number | null; tarikh: string; pasukan_home: string;
   pasukan_away: string; tempat: string | null; masa: string | null; kejohanan: string | null;
   owner_chat_id: number | string | null; nama_penuh: string; persatuan_id: number | null };
@@ -187,6 +189,7 @@ async function handleCallback(env: Env, cbq: NonNullable<Update['callback_query'
   const tgToken = match[2];
   const row = await env.DB.prepare(`
     SELECT lp.id,lp.jadual_id,lp.status,lp.komen,lp.tarikh_notif,lp.jawatan,lp.pengadil_id,
+      ${publishedAppointmentSql('lp')} AS is_published,
       jp.tarikh,jp.pasukan_home,jp.pasukan_away,jp.tempat,jp.masa,kj.nama AS kejohanan,
       COALESCE(u.telegram_chat_id,pl.telegram_chat_id) AS owner_chat_id,
       COALESCE(NULLIF(trim(u.nama_penuh),''),NULLIF(trim(pl.nama),''),'Pengadil') AS nama_penuh,
@@ -212,6 +215,10 @@ async function handleCallback(env: Env, cbq: NonNullable<Update['callback_query'
   }
   if (Math.trunc(Number(row.owner_chat_id ?? 0)) !== chatId) {
     await tgAnswerCallback(env, cbqId, 'Anda tidak dibenarkan untuk tugasan ini.', true);
+    return true;
+  }
+  if (!row.is_published) {
+    await tgAnswerCallback(env, cbqId, DRAFT_APPOINTMENT_MESSAGE, true);
     return true;
   }
   if (await autoTolakLantikanTertunggak(env, { id: row.id }, meta) > 0

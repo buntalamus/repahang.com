@@ -1,5 +1,6 @@
 /** Port of config/lantikan-helper.php used by the appointment endpoints. */
 import { hasAppChannel } from '../channels';
+import { publishedAppointmentSql } from '../appointment-publication';
 import type { Env } from '../types';
 import type { KupOfficial } from './email';
 import { buildEmailTemplate, emailButton, emailGreeting, emailInfoTable, emailPara,
@@ -69,6 +70,7 @@ export async function getMatchKupOfficials(env: Env, jadualId: number):
     LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
     WHERE lp.jadual_id=? AND lp.jawatan IN (${KUP_SQL})
       AND lp.status IN ('Belum Jawab','Diterima')
+      AND ${publishedAppointmentSql('lp')}
     ORDER BY ${KUP_ORDER}`).bind(jadualId)
     .all<KupOfficial & { lantikan_id: number; peringkat_kejohanan: string }>();
   const peringkat = rows.results[0]?.peringkat_kejohanan ?? 'Daerah';

@@ -5,6 +5,7 @@
  * the phone's browser or PDF viewer without a cookie.
  */
 import { currentUser, json } from './auth';
+import { publishedAppointmentSql } from './appointment-publication';
 import { normalize, stateAliases, states } from './external-referees';
 import { boundedJson } from './request';
 import type { Env } from './types';
@@ -239,7 +240,8 @@ export async function appointmentLetter(request: Request, env: Env): Promise<Res
       LEFT JOIN persatuan_bolasepak_daerah pd ON pd.id=u.persatuan_id
       LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
       LEFT JOIN districts dl ON dl.nama=trim(pl.daerah)
-    WHERE lp.jadual_id=? AND lp.id<>? AND lp.status IN ('Belum Jawab','Diterima') ORDER BY ${ORDER},lp.id`)
+    WHERE lp.jadual_id=? AND lp.id<>? AND lp.status IN ('Belum Jawab','Diterima')
+      AND ${publishedAppointmentSql('lp')} ORDER BY ${ORDER},lp.id`)
     .bind(letter.jadual_id, letter.id).all<CrewMember>()).results;
   const printedAt = new Intl.DateTimeFormat('ms-MY', {
     timeZone: 'Asia/Kuala_Lumpur', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,

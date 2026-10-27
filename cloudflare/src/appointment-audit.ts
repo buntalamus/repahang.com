@@ -257,7 +257,8 @@ async function markManualDelivery(request: Request, env: Env, actorId: number,
   const results = deliveryType === 'appointment'
     ? await env.DB.batch([
       env.DB.prepare(`
-        UPDATE lantikan_pengadil SET notif_hantar=1,tarikh_notif=datetime('now','+8 hours')
+        UPDATE lantikan_pengadil SET notif_hantar=1,tarikh_notif=datetime('now','+8 hours'),
+          published_at=COALESCE(published_at,datetime('now','+8 hours'))
         WHERE id=? AND status='Belum Jawab' AND COALESCE(notif_hantar,0)=0
           AND trim(COALESCE(email_token,''))<>''
       `).bind(id),audit,
