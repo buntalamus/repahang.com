@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'screens/admin_pengguna_screen.dart';
+import 'screens/admin_permohonan_screen.dart';
 import 'screens/admin_screens.dart';
+import 'screens/admin_statistik_screen.dart';
+import 'screens/admin_tetapan_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/daerah_screens.dart';
 import 'screens/notifikasi_screen.dart';
@@ -61,7 +65,8 @@ List<MenuSection> menuFor(SessionUser user) {
         MenuSection('Permohonan', [
           page('Kelulusan', Icons.task_alt_rounded, 'kelulusan'),
           screen('Permohonan Ujian', Icons.fact_check_outlined, () => const AdminUjianScreen()),
-          web('Permohonan Penilai', Icons.rate_review_outlined, '/admin/permohonan-ra'),
+          screen('Permohonan Penilai', Icons.rate_review_outlined,
+              () => const AdminPermohonanScreen(title: 'Permohonan Penilai', types: ['penilai'])),
         ]),
         MenuSection('Lantikan & Perlawanan', [
           page('Lantikan Pegawai', Icons.event_note_outlined, 'lantikan'),
@@ -72,8 +77,8 @@ List<MenuSection> menuFor(SessionUser user) {
         MenuSection('Pengadil & Pegawai', [
           screen('Pengadil Berdaftar', Icons.groups_outlined, () => const AdminPengadilScreen()),
           screen('Penilai Berdaftar', Icons.rate_review_outlined, () => const AdminPengadilScreen(assessors: true)),
-          web('PP Daerah', Icons.admin_panel_settings_outlined, '/admin/pp-daerah'),
-          web('Pengguna', Icons.manage_accounts_outlined, '/admin/pengguna'),
+          screen('PP Daerah', Icons.admin_panel_settings_outlined, () => const AdminPenggunaScreen(role: 'PP Daerah')),
+          screen('Pengguna', Icons.manage_accounts_outlined, () => const AdminPenggunaScreen()),
         ]),
         MenuSection('Komunikasi', [
           notifikasi,
@@ -82,9 +87,9 @@ List<MenuSection> menuFor(SessionUser user) {
           web('Peti Emel', Icons.mail_outline_rounded, '/admin/emel'),
         ]),
         MenuSection('Sistem', [
-          web('Statistik', Icons.bar_chart_rounded, '/admin/statistik'),
-          web('Laporan', Icons.summarize_outlined, '/admin/laporan'),
-          web('Tetapan', Icons.settings_outlined, '/admin/tetapan'),
+          screen('Statistik', Icons.bar_chart_rounded, () => const AdminStatistikScreen()),
+          screen('Laporan', Icons.summarize_outlined, () => const AdminPermohonanScreen(title: 'Laporan Permohonan')),
+          screen('Tetapan', Icons.settings_outlined, () => const AdminTetapanScreen()),
           profil,
         ]),
       ],

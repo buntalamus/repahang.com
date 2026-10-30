@@ -248,18 +248,12 @@ class _UtamaScreenState extends State<UtamaScreen> {
   Widget _quickActions(_Home home) {
     final badges = _badges(home);
     return AppCard(
-      padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
-      child: GridView.count(
-        crossAxisCount: 4,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        childAspectRatio: 0.88,
-        children: [
-          for (final entry in quickMenuFor(user))
-            MenuTile(label: entry.label, icon: entry.icon, external: entry.external, badge: badges[entry.page],
-                onTap: () => widget.onOpenEntry(entry)),
-        ],
-      ),
+      padding: const EdgeInsets.fromLTRB(4, 12, 4, 12),
+      child: TileGrid(spacing: 2, runSpacing: 6, equalHeight: false, children: [
+        for (final entry in quickMenuFor(user))
+          MenuTile(label: entry.label, icon: entry.icon, external: entry.external, badge: badges[entry.page],
+              onTap: () => widget.onOpenEntry(entry)),
+      ]),
     );
   }
 

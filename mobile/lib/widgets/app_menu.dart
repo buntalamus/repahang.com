@@ -23,13 +23,10 @@ class MenuScreen extends StatelessWidget {
     final body = ListView(padding: const EdgeInsets.fromLTRB(16, 0, 16, 32), children: [
         for (final section in menuFor(user)) ...[
           SectionTitle(section.title),
-          GridView.count(
-            crossAxisCount: 4,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 0.88,
+          TileGrid(
+            equalHeight: false,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               for (final entry in section.entries)
                 MenuTile(

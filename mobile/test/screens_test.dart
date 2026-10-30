@@ -8,7 +8,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refpahang/api.dart';
 import 'package:refpahang/main.dart';
+import 'package:refpahang/screens/admin_pengguna_screen.dart';
 import 'package:refpahang/screens/admin_screens.dart';
+import 'package:refpahang/screens/admin_statistik_screen.dart';
+import 'package:refpahang/screens/admin_tetapan_screen.dart';
 import 'package:refpahang/screens/chat_screen.dart';
 import 'package:refpahang/screens/daerah_screens.dart';
 import 'package:refpahang/screens/notifikasi_screen.dart';
@@ -22,6 +25,38 @@ String _notif(int offsetHours) =>
     _today.toUtc().add(const Duration(hours: 8)).add(Duration(hours: offsetHours)).toIso8601String().substring(0, 19).replaceFirst('T', ' ');
 
 final Map<String, Object> _responses = {
+  '/api/statistics.php': {
+    'error': false,
+    'data': {
+      'year': 2026, 'total': 62, 'telegram': {'total': 95, 'linked': 90},
+      'lantikan': {'total': 120, 'diterima': 110, 'ditolak': 8, 'belum': 2},
+      'matches': {'uniqueMatches': 227, 'total': 241, 'topPengadil': [{'name': 'SHAHRUL HAKIMI', 'count': 9}, {'name': 'KAMAL SALLEH', 'count': 7}]},
+      'ratings': {'average': 8.3, 'total': 72, 'distribution': {'10': 0, '1-3': 0, '4-5': 1, '6-7': 20, '8-9': 51}, 'rankings': []},
+      'annualRegistration': {'fitness': {'lulus': 40, 'tidak_lulus': 3, 'tidak_hadir': 2, 'belum': 17}, 'seminar': {'hadir': 50, 'tidak_hadir': 2, 'belum': 10}, 'patch_eligible': 38},
+      'applications': {'byType': {
+        'pengadil_berdaftar': {'total': 62, 'pending': 4, 'approved': 55, 'rejected': 3,
+          'monthlyTrend': {'1': 30, '2': 22, '3': 6, '4': 4},
+          'byDistrict': [{'daerah': 'Kuantan', 'total': 20, 'approved': 18, 'rejected': 1, 'pending': 1}, {'daerah': 'Temerloh', 'total': 12, 'approved': 11, 'rejected': 0, 'pending': 1}]},
+        'penilai_berdaftar': {'total': 9, 'pending': 1, 'approved': 8, 'rejected': 0, 'monthlyTrend': {}, 'byDistrict': []},
+      }},
+    },
+  },
+  '/api/admin-users.php': {
+    'error': false,
+    'persatuan': [{'id': 3, 'nama_persatuan': 'PB Daerah Kuantan'}],
+    'users': [
+      {'id': 5, 'nama_penuh': 'KAMAL BIN SALLEH', 'email': 'kamal@example.com', 'user_role': 'Pengadil', 'persatuan_nama': 'PB Daerah Kuantan', 'is_active': 1},
+      {'id': 6, 'nama_penuh': 'ROSLAN BIN ISA', 'email': 'roslan@example.com', 'user_role': 'Penilai', 'persatuan_nama': 'PB Daerah Kuantan', 'is_active': 1},
+      {'id': 7, 'nama_penuh': 'AZMAN BIN YUSOF', 'email': 'azman@example.com', 'user_role': 'PP Daerah', 'persatuan_nama': 'PB Daerah Kuantan', 'is_active': 1},
+    ],
+  },
+  '/api/admin-settings.php': {
+    'error': false,
+    'settings': {'maintenance_mode': '0', 'demo_enabled': '1', 'registration_open': '1', 'berdaftar_open': '1', 'berdaftar_open_date': '2026-10-01',
+      'berdaftar_close_date': '2026-12-31', 'bertulis_open': '0', 'kelas1_open': '0', 'penilai_open': '1', 'application_year': '2027',
+      'payment_amount': '80.00', 'min_verified_matches': '20', 'require_profile_complete': '1', 'auto_link_matches': '1'},
+  },
+  '/api/admin-telegram-blast.php': {'error': false, 'total': 95, 'linked': 90, 'not_linked': 5, 'active_not_linked': 5, 'inactive_not_linked': 0, 'batch': null},
   '/api/admin-matches.php': {
     'error': false,
     'statistics': {'total': 1486, 'pending': 68, 'verified': 1418, 'rejected': 0},
@@ -380,6 +415,32 @@ void main() {
     await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: const ChatScreen()));
     await _show(tester, 'chat');
     await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('admin statistik pengguna tetapan', (tester) async {
+    _login('Admin');
+    await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: const AdminStatistikScreen()));
+    await _show(tester, 'admin_statistik');
+    await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: const AdminPenggunaScreen()));
+    await _show(tester, 'admin_pengguna');
+    await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: const AdminTetapanScreen()));
+    await _show(tester, 'admin_tetapan');
+  });
+
+  testWidgets('telefon sempit', (tester) async {
+    // A 360dp-wide Android phone with a status bar and a larger system font.
+    final view = tester.view;
+    view.physicalSize = const Size(1080, 2340);
+    view.devicePixelRatio = 3;
+    view.padding = const FakeViewPadding(top: 72, bottom: 48);
+    tester.platformDispatcher.textScaleFactorTestValue = 1.15;
+    addTearDown(() {
+      view.resetPadding();
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+    });
+    _login('Admin');
+    await tester.pumpWidget(const RefPahangApp());
+    await _show(tester, 'sempit_admin_utama');
   });
 
   testWidgets('daftar', (tester) async {

@@ -359,12 +359,13 @@ class _BottomBar extends StatelessWidget {
                 ? InkResponse(
                     onTap: () => onSelect(i),
                     radius: 36,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 40),
-                      child: Text(tabs[i].label, textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 11.5, fontWeight: i == index ? FontWeight.w700 : FontWeight.w500,
-                              color: i == index ? Tw.pahangYellow : AppColors.barIdle)),
-                    ),
+                    // Same column as the other items, with the button's space left empty,
+                    // so every label sits on one line.
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      const SizedBox(height: 30),
+                      const SizedBox(height: 3),
+                      _BarLabel(tabs[i].label, selected: i == index),
+                    ]),
                   )
                 : _BarItem(page: tabs[i], selected: i == index, onTap: () => onSelect(i)),
           ),
@@ -396,10 +397,28 @@ class _BarItem extends StatelessWidget {
               color: selected ? Tw.pahangYellow : AppColors.barIdle),
         ),
         const SizedBox(height: 3),
-        Text(page.label, maxLines: 1, overflow: TextOverflow.ellipsis,
+        _BarLabel(page.label, selected: selected),
+      ]),
+    );
+  }
+}
+
+/// Bar label that shrinks rather than truncating on narrow phones.
+class _BarLabel extends StatelessWidget {
+  const _BarLabel(this.label, {required this.selected});
+  final String label;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(label, maxLines: 1,
             style: TextStyle(fontSize: 11.5, fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                 color: selected ? Tw.pahangYellow : AppColors.barIdle)),
-      ]),
+      ),
     );
   }
 }

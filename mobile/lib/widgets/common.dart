@@ -608,10 +608,17 @@ class SummaryCard extends StatelessWidget {
               child: Icon(icon, size: 17, color: AppColors.yellow),
             ),
             const SizedBox(height: 6),
-            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: tone.$2)),
+            // Shrinks instead of truncating on narrow phones and large font sizes.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(label, maxLines: 1,
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: tone.$2)),
+            ),
             const SizedBox(height: 2),
-            Text('${value ?? '-'}', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: tone.$2)),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text('${value ?? '-'}', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: tone.$2)),
+            ),
           ]),
         ),
       ),
@@ -682,8 +689,8 @@ class MenuTile extends StatelessWidget {
         onTap: onTap,
         child: Stack(alignment: Alignment.topCenter, children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(2, 10, 2, 4),
-            child: Column(mainAxisAlignment: MainAxisAlignment.start, children: [
+            padding: const EdgeInsets.fromLTRB(2, 8, 2, 6),
+            child: Column(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.start, children: [
               Badge(
                 isLabelVisible: (badge ?? 0) > 0,
                 backgroundColor: Tw.red600,
@@ -696,8 +703,7 @@ class MenuTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 7),
-              Text(label, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, height: 1.2)),
+              _TileLabel(label),
             ]),
           ),
           if (external)
@@ -721,5 +727,70 @@ Future<void> downloadAndOpen(BuildContext context, String path,
     if (!ok) showToast(context, 'Tiada aplikasi untuk membuka fail ini.', ToastType.warning);
   } on ApiException catch (error) {
     if (context.mounted) showToast(context, error.message, ToastType.error);
+  }
+}
+
+/// Grid whose rows take the height of their tallest tile, so two-line labels
+/// and large system font sizes never squeeze (a GridView's fixed aspect
+/// ratio does, and adds the status-bar inset on top).
+class TileGrid extends StatelessWidget {
+  const TileGrid({super.key, required this.children, this.columns = 4, this.spacing = 8, this.runSpacing = 12,
+      this.equalHeight = true});
+  final List<Widget> children;
+  final int columns;
+  final double spacing;
+  final double runSpacing;
+
+  /// Stretch every tile in a row to the tallest one. Off for tiles that
+  /// measure themselves (a LayoutBuilder cannot report intrinsic sizes).
+  final bool equalHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      for (var start = 0; start < children.length; start += columns) ...[
+        if (start > 0) SizedBox(height: runSpacing),
+        Builder(builder: (context) {
+          final row = Row(
+            crossAxisAlignment: equalHeight ? CrossAxisAlignment.stretch : CrossAxisAlignment.start,
+            children: [
+              for (var i = start; i < start + columns; i++) ...[
+                if (i > start) SizedBox(width: spacing),
+                Expanded(child: i < children.length ? children[i] : const SizedBox.shrink()),
+              ],
+            ],
+          );
+          return equalHeight ? IntrinsicHeight(child: row) : row;
+        }),
+      ],
+    ]);
+  }
+}
+
+/// Two-line tile label that never breaks inside a word: the font shrinks
+/// (down to 9px) until the longest word fits the tile's width.
+class _TileLabel extends StatelessWidget {
+  const _TileLabel(this.label);
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, constraints) {
+      final scaler = MediaQuery.textScalerOf(context);
+      var size = 11.0;
+      double widest(double fontSize) => label.split(' ').map((word) {
+            final painter = TextPainter(
+              text: TextSpan(text: word, style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w600)),
+              textDirection: TextDirection.ltr,
+              textScaler: scaler,
+            )..layout();
+            return painter.width;
+          }).fold(0.0, (a, b) => a > b ? a : b);
+      while (size > 9 && widest(size) > constraints.maxWidth) {
+        size -= 0.5;
+      }
+      return Text(label, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: size, fontWeight: FontWeight.w600, height: 1.2));
+    });
   }
 }

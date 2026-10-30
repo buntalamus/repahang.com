@@ -169,6 +169,9 @@ class Api {
   Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body) =>
       _send(() => _dio.post(path, data: body));
 
+  Future<Map<String, dynamic>> patch(String path, Map<String, dynamic> body) =>
+      _send(() => _dio.patch(path, data: body));
+
   Future<Map<String, dynamic>> delete(String path, [Map<String, dynamic>? body, Map<String, dynamic>? query]) =>
       _send(() => _dio.delete(path, data: body, queryParameters: query));
 
