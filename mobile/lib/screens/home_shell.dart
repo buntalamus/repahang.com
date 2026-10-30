@@ -4,10 +4,12 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
+import '../navigation.dart';
 import '../push.dart';
 import '../release_notes.dart';
 import '../theme.dart';
 import '../updater.dart';
+import '../widgets/app_menu.dart';
 import '../widgets/common.dart';
 import '../widgets/update_notes.dart';
 import 'kelulusan_screen.dart';
@@ -22,10 +24,11 @@ import 'tugasan_screen.dart';
 import 'utama_screen.dart';
 import 'pengumuman_screen.dart';
 
-/// A page the shell can show: a bottom-bar tab, or (primary: false) a page
-/// opened from the profile menu.
+/// A page the shell can show: a bottom-bar tab (the [center] one is the round
+/// button), or (primary: false) a page opened from the menu.
 class AppPage {
-  const AppPage(this.id, this.label, this.title, this.icon, this.selectedIcon, this.build, {this.primary = true});
+  const AppPage(this.id, this.label, this.title, this.icon, this.selectedIcon, this.build,
+      {this.primary = true, this.center = false});
   final String id;
   final String label;
   final String title;
@@ -33,6 +36,7 @@ class AppPage {
   final IconData selectedIcon;
   final Widget Function(Key key) build;
   final bool primary;
+  final bool center;
 }
 
 class HomeShell extends StatefulWidget {
@@ -51,18 +55,23 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _index = 0;
   int _unread = 0;
 
-  /// Each role's frequent tasks; everything else opens the website.
+  /// Each role's bottom bar (the middle page is the round button) plus the
+  /// pages only reached from the menu.
   List<AppPage> _pagesFor(SessionUser user) {
     AppPage utama() => AppPage('utama', 'Utama', 'Utama', Icons.home_outlined, Icons.home_rounded,
-        (k) => UtamaScreen(key: k, onOpenTab: _openTab, onOpenNotifications: _openNotifications, unread: _unread));
-    AppPage tugasan() => AppPage('tugasan', 'Tugasan', 'Tugasan', Icons.assignment_outlined, Icons.assignment,
-        (k) => TugasanScreen(key: k));
+        (k) => UtamaScreen(key: k, onOpenTab: _openTab, onOpenNotifications: _openNotifications,
+            onOpenEntry: _openEntry, unread: _unread));
+    AppPage tugasan({bool primary = true, bool center = false}) => AppPage('tugasan', 'Tugasan', 'Tugasan',
+        Icons.assignment_outlined, Icons.assignment, (k) => TugasanScreen(key: k), primary: primary, center: center);
     AppPage permohonan({bool primary = true}) => AppPage('permohonan', 'Permohonan', 'Permohonan Saya',
         Icons.description_outlined, Icons.description, (k) => PermohonanScreen(key: k), primary: primary);
-    AppPage laporan({bool primary = true}) => AppPage('laporan', 'Laporan', 'Tugasan Penilai',
-        Icons.rate_review_outlined, Icons.rate_review, (k) => LaporanRaScreen(key: k), primary: primary);
-    AppPage lantikan() => AppPage('lantikan', 'Lantikan', user.isAdmin ? 'Lantikan Pegawai' : 'Lantikan Daerah',
-        Icons.event_note_outlined, Icons.event_note, (k) => LantikanAdminScreen(key: k));
+    AppPage laporan({bool primary = true, bool center = false}) => AppPage('laporan', 'Laporan', 'Tugasan Penilai',
+        Icons.rate_review_outlined, Icons.rate_review, (k) => LaporanRaScreen(key: k), primary: primary, center: center);
+    AppPage lantikan({bool center = false}) => AppPage('lantikan', 'Lantikan',
+        user.isAdmin ? 'Lantikan Pegawai' : 'Lantikan Daerah', Icons.event_note_outlined, Icons.event_note,
+        (k) => LantikanAdminScreen(key: k), center: center);
+    AppPage semakan({bool center = false}) => AppPage('semakan', 'Semakan', 'Semakan', Icons.fact_check_outlined,
+        Icons.fact_check, (k) => SemakanScreen(key: k), center: center);
     final profil = AppPage('profil', 'Profil', 'Profil', Icons.person_outline, Icons.person,
         (k) => ProfilScreen(key: k, extraPages: _extra, onOpenPage: _openTab));
     return switch (user.role) {
@@ -70,24 +79,25 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           utama(),
           AppPage('kelulusan', 'Kelulusan', 'Kelulusan', Icons.task_alt_outlined, Icons.task_alt,
               (k) => KelulusanView(key: k, admin: true)),
-          lantikan(),
+          lantikan(center: true),
+          AppPage('menu', 'Menu', 'Semua Menu', Icons.grid_view_outlined, Icons.grid_view_rounded,
+              (k) => MenuScreen(key: k, user: user, onOpen: _openEntry, embedded: true)),
           profil,
         ],
       'PP Daerah' => [
           utama(),
-          tugasan(),
           lantikan(),
-          AppPage('semakan', 'Semakan', 'Semakan', Icons.fact_check_outlined, Icons.fact_check,
-              (k) => SemakanScreen(key: k)),
+          semakan(center: true),
+          tugasan(),
           profil,
           if (user.canRa) laporan(primary: false),
           permohonan(primary: false),
         ],
-      'Penilai' => [utama(), tugasan(), laporan(), permohonan(), profil],
+      'Penilai' => [utama(), tugasan(), laporan(center: true), permohonan(), profil],
       _ => [
           utama(),
-          tugasan(),
           AppPage('rekod', 'Rekod', 'Rekod Saya', Icons.sports_outlined, Icons.sports, (k) => RekodScreen(key: k)),
+          tugasan(center: true),
           permohonan(),
           profil,
         ],
@@ -182,6 +192,16 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     ));
   }
 
+  Future<void> _openEntry(MenuEntry entry) async {
+    if (entry.page != null) return _openTab(entry.page!);
+    if (entry.screen != null) {
+      await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => entry.screen!()));
+      _loadUnread();
+      return;
+    }
+    await openWebsite(context, entry.web!);
+  }
+
   Future<void> _openNotifications() async {
     await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const NotifikasiScreen()));
     _loadUnread();
@@ -269,6 +289,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final tab = _tabs[_index];
     final home = tab.id == 'utama';
     return Scaffold(
+      drawer: AppDrawer(user: _user, onOpen: _openEntry),
       appBar: home
           ? null
           : AppBar(
@@ -298,17 +319,119 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               HeroMode(enabled: i == _index, child: _tabs[i].id == 'utama'
                   // Home shows the live unread count, so it is rebuilt with it.
                   ? UtamaScreen(key: ValueKey('utama-${_generation[i]}'), onOpenTab: _openTab,
-                      onOpenNotifications: _openNotifications, unread: _unread)
+                      onOpenNotifications: _openNotifications, onOpenEntry: _openEntry, unread: _unread)
                   : _tabs[i].build(ValueKey('${_tabs[i].id}-${_generation[i]}'))),
           ]),
         ),
       ]),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (index) => setState(() => _index = index),
-        destinations: [
-          for (final t in _tabs) NavigationDestination(icon: Icon(t.icon), selectedIcon: Icon(t.selectedIcon), label: t.label),
-        ],
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButton: _center < 0
+          ? null
+          : _CenterButton(page: _tabs[_center], selected: _index == _center, onTap: () => setState(() => _index = _center)),
+      bottomNavigationBar: _BottomBar(
+        tabs: _tabs,
+        index: _index,
+        onSelect: (index) => setState(() => _index = index),
+      ),
+    );
+  }
+
+  int get _center => _tabs.indexWhere((t) => t.center);
+}
+
+/// White bottom bar with a notch for the round middle button.
+class _BottomBar extends StatelessWidget {
+  const _BottomBar({required this.tabs, required this.index, required this.onSelect});
+  final List<AppPage> tabs;
+  final int index;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return BottomAppBar(
+      shape: const CircularNotchedRectangle(),
+      notchMargin: 7,
+      height: 68,
+      padding: EdgeInsets.zero,
+      elevation: 2,
+      shadowColor: const Color(0x14000000),
+      child: Row(children: [
+        for (var i = 0; i < tabs.length; i++)
+          Expanded(
+            child: tabs[i].center
+                ? InkResponse(
+                    onTap: () => onSelect(i),
+                    radius: 36,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 40),
+                      child: Text(tabs[i].label, textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 11.5, fontWeight: i == index ? FontWeight.w700 : FontWeight.w500,
+                              color: i == index ? AppColors.text : AppColors.muted)),
+                    ),
+                  )
+                : _BarItem(page: tabs[i], selected: i == index, onTap: () => onSelect(i)),
+          ),
+      ]),
+    );
+  }
+}
+
+class _BarItem extends StatelessWidget {
+  const _BarItem({required this.page, required this.selected, required this.onTap});
+  final AppPage page;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkResponse(
+      onTap: onTap,
+      radius: 36,
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.yellowSoft : Colors.transparent,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Icon(selected ? page.selectedIcon : page.icon, size: 22, color: selected ? AppColors.black : AppColors.muted),
+        ),
+        const SizedBox(height: 3),
+        Text(page.label, maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 11.5, fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? AppColors.text : AppColors.muted)),
+      ]),
+    );
+  }
+}
+
+/// The round black button in the middle of the bottom bar.
+class _CenterButton extends StatelessWidget {
+  const _CenterButton({required this.page, required this.selected, required this.onTap});
+  final AppPage page;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: page.label,
+      child: Material(
+        color: AppColors.black,
+        shape: CircleBorder(side: BorderSide(color: selected ? Tw.pahangYellow : AppColors.black, width: 2)),
+        elevation: 4,
+        shadowColor: const Color(0x55000000),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            width: 60,
+            height: 60,
+            child: Icon(selected ? page.selectedIcon : page.icon, color: Tw.pahangYellow, size: 28),
+          ),
+        ),
       ),
     );
   }

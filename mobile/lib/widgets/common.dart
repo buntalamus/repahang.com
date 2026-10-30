@@ -100,24 +100,24 @@ Tone appointmentTone(String status) => switch (status) {
     };
 
 Tone matchTone(String status) => switch (status) {
-      'Disahkan' => (Tw.green100, Tw.green700),
-      'Tidak Disahkan' || 'Ditolak' => (Tw.red100, Tw.red700),
-      _ => (Tw.yellow100, Tw.yellow700),
+      'Disahkan' => (Tw.emerald50, Tw.emerald700),
+      'Tidak Disahkan' || 'Ditolak' => (Tw.rose50, Tw.rose700),
+      _ => (Tw.amber50, Tw.amber700),
     };
 
 Tone applicationTone(String status) => switch (status) {
-      'Lengkap' || 'Bayaran Diterima' || 'Approved' => (Tw.green100, Tw.green700),
-      'Ditolak' || 'Rejected' => (Tw.red100, Tw.red700),
+      'Lengkap' || 'Bayaran Diterima' || 'Approved' => (Tw.emerald50, Tw.emerald700),
+      'Ditolak' || 'Rejected' => (Tw.rose50, Tw.rose700),
       'Menunggu PP Daerah' || 'Menunggu Admin' || 'Menunggu Bayaran' || 'PP Daerah Disahkan' || 'Pending' ||
       'Admin Diluluskan' =>
-        (Tw.yellow100, Tw.yellow700),
-      _ => (Tw.gray100, Tw.gray600),
+        (Tw.amber50, Tw.amber700),
+      _ => (AppColors.grey100, Tw.gray600),
     };
 
 Tone tournamentTone(String jenis) => switch (jenis) {
-      'Liga' => (Tw.blue50, Tw.blue700),
-      'Karnival' => (Tw.purple50, Tw.purple700),
-      _ => (Tw.slate100, Tw.slate600),
+      'Liga' => (AppColors.yellowSoft, AppColors.yellowDeep),
+      'Karnival' => (AppColors.grey100, AppColors.charcoal),
+      _ => (AppColors.grey100, Tw.gray600),
     };
 
 /// Rounded status pill.
@@ -172,7 +172,7 @@ class AppCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: const [BoxShadow(color: Color(0x0F000000), blurRadius: 8, offset: Offset(0, 2))],
+        boxShadow: AppColors.shadow,
       ),
       clipBehavior: Clip.antiAlias,
       child: Material(color: Colors.transparent, child: InkWell(onTap: onTap, child: body)),
@@ -193,7 +193,7 @@ class DateBlock extends StatelessWidget {
       width: 54,
       padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: highlight ? Tw.pahangYellow : AppColors.background,
+        color: highlight ? Tw.pahangYellow : AppColors.grey100,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -221,7 +221,7 @@ class SectionTitle extends StatelessWidget {
         if (action != null)
           GestureDetector(
             onTap: onAction,
-            child: Text(action!, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Tw.blue700)),
+            child: Text(action!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Tw.gray600)),
           ),
       ]),
     );
@@ -532,6 +532,168 @@ class LabeledField extends StatelessWidget {
         TextField(controller: controller, maxLines: maxLines, obscureText: obscure, keyboardType: keyboardType,
             decoration: InputDecoration(hintText: hint)),
       ]),
+    );
+  }
+}
+
+/// Black rounded header at the top of the home screen.
+class HeroHeader extends StatelessWidget {
+  const HeroHeader({super.key, required this.child, this.bottom = 24});
+  final Widget child;
+  final double bottom;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.black,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+      ),
+      child: SafeArea(bottom: false, child: Padding(padding: EdgeInsets.fromLTRB(8, 4, 8, bottom), child: child)),
+    );
+  }
+}
+
+/// One of the three soft summary cards under the home header.
+class SummaryCard extends StatelessWidget {
+  const SummaryCard({super.key, required this.label, required this.value, required this.icon,
+      this.tone = (AppColors.yellowSoft, AppColors.black), this.onTap});
+  final String label;
+  final Object? value;
+  final IconData icon;
+  final Tone tone;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: tone.$1,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+          child: Column(children: [
+            Icon(icon, size: 20, color: tone.$2),
+            const SizedBox(height: 6),
+            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: tone.$2)),
+            const SizedBox(height: 2),
+            Text('${value ?? '-'}', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: tone.$2)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Pill shortcut in the "Menu Pantas" row.
+class QuickMenuChip extends StatelessWidget {
+  const QuickMenuChip({super.key, required this.label, required this.icon, required this.onTap});
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: const StadiumBorder(side: BorderSide(color: AppColors.line)),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(6, 6, 14, 6),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: const BoxDecoration(color: AppColors.grey100, shape: BoxShape.circle),
+              child: Icon(icon, size: 15, color: AppColors.black),
+            ),
+            const SizedBox(width: 8),
+            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small number box with a coloured top edge, for the yearly summary strip.
+class MiniStat extends StatelessWidget {
+  const MiniStat({super.key, required this.label, required this.value, this.color = AppColors.yellow, this.onTap});
+  final String label;
+  final Object? value;
+  final Color color;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border(top: BorderSide(color: color, width: 3)),
+        boxShadow: AppColors.shadow,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 10, 4, 10),
+            child: Column(children: [
+              Text('${value ?? 0}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 2),
+              Text(label, textAlign: TextAlign.center, maxLines: 2,
+                  style: const TextStyle(fontSize: 11, color: AppColors.muted, height: 1.2)),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Square tile in the full menu grid.
+class MenuTile extends StatelessWidget {
+  const MenuTile({super.key, required this.label, required this.icon, required this.onTap, this.external = false});
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  /// Opens the website instead of an in-app screen.
+  final bool external;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Stack(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 14, 8, 10),
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                    color: external ? AppColors.grey100 : AppColors.yellowSoft, borderRadius: BorderRadius.circular(12)),
+                child: Icon(icon, size: 22, color: AppColors.black),
+              ),
+              const SizedBox(height: 8),
+              Text(label, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, height: 1.2)),
+            ]),
+          ),
+          if (external)
+            const Positioned(top: 8, right: 8, child: Icon(Icons.open_in_new_rounded, size: 13, color: AppColors.faint)),
+        ]),
+      ),
     );
   }
 }

@@ -17,6 +17,19 @@ String _notif(int offsetHours) =>
     _today.toUtc().add(const Duration(hours: 8)).add(Duration(hours: offsetHours)).toIso8601String().substring(0, 19).replaceFirst('T', ' ');
 
 final Map<String, Object> _responses = {
+  '/api/portal-dashboard.php': {
+    'error': false,
+    'data': {
+      'year': 2026, 'minimum_matches': 20,
+      'totals': {'records': 24, 'verified': 18, 'pending': 5, 'rejected': 1, 'response': 1,
+        'accepted': 9, 'no_report': 2, 'submitted': 3, 'confirmed': 4, 'needs_report': 2, 'drafts': 1,
+        'registered': 86, 'licensed': 71, 'pending_units': 4, 'review_applications': 2},
+      'upcoming': [
+        {'id': 13, 'jawatan': 'Penolong Pengadil 2', 'status': 'Diterima', 'date': _day(5), 'time': '20:45:00',
+          'subtitle': 'Padang MPT', 'tournament': 'Karnival B-18', 'title': 'TEMERLOH lwn LIPIS'},
+      ],
+    },
+  },
   '/api/lantikan-perlu-tindakan.php': {
     'error': false,
     'data': [

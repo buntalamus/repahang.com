@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
 
 import '../api.dart';
+import '../navigation.dart';
 import '../theme.dart';
+import '../widgets/app_menu.dart';
 import '../widgets/common.dart';
 import '../widgets/web_push_card.dart';
 import 'permohonan_screen.dart' show formLabel;
 import 'perlu_tindakan_screen.dart';
 import 'pengumuman_screen.dart';
 
-/// Home tab: greeting header and what needs attention for this role.
+/// Home tab: greeting header with summary cards, shortcuts, the next duty and
+/// this year's numbers for the user's role.
 class UtamaScreen extends StatefulWidget {
-  const UtamaScreen({super.key, required this.onOpenTab, required this.onOpenNotifications, required this.unread});
+  const UtamaScreen({super.key, required this.onOpenTab, required this.onOpenNotifications, required this.onOpenEntry,
+      required this.unread});
   final void Function(String id, {bool refresh}) onOpenTab;
   final VoidCallback onOpenNotifications;
+  final Future<void> Function(MenuEntry entry) onOpenEntry;
   final int unread;
 
   @override
@@ -20,56 +25,56 @@ class UtamaScreen extends StatefulWidget {
 }
 
 class _Home {
-  List<Map<String, dynamic>> appointments = [];
-  Map<String, dynamic>? matchStats;
+  /// /api/portal-dashboard.php data for Pengadil, Penilai and PP Daerah.
+  Map<String, dynamic>? dashboard;
   Map<String, dynamic>? adminStats;
-  int? ppPendingMatches;
-  int? ppPendingApplications;
-  int? adminPendingApplications;
   List<Map<String, dynamic>>? gaps;
-  List<Map<String, dynamic>> notifications = [];
   List<Map<String, dynamic>>? announcements;
   String? photo;
+
+  Map<String, dynamic> get totals => Map<String, dynamic>.from(dashboard?['totals'] as Map? ?? {});
 }
+
+List<Map<String, dynamic>> _rows(Object? list) =>
+    (list as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+
+int _int(Object? value) => int.tryParse('${value ?? ''}') ?? 0;
 
 class _UtamaScreenState extends State<UtamaScreen> {
   SessionUser get user => Api.instance.user.value!;
+
+  String? get _view => switch (user.role) {
+        'PP Daerah' => 'pp',
+        'Penilai' => 'ra',
+        'Admin' => null,
+        _ => 'pengadil',
+      };
 
   Future<_Home> _load() async {
     final home = _Home();
     Future<Map<String, dynamic>?> get(String path, [Map<String, dynamic>? q]) =>
         Api.instance.get(path, q).then<Map<String, dynamic>?>((v) => v).catchError((_) => null);
-    List<Map<String, dynamic>> rows(Object? list) =>
-        (list as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
     final results = await Future.wait([
       get('/api/get-user-profile.php'),
-      get('/api/notifications.php'),
-      if (user.hasAssignments) get('/api/tugasan.php') else Future.value(null),
-      if (user.role == 'Pengadil') get('/api/pengadil-matches.php', {'per_page': 1}) else Future.value(null),
-      if (user.isDistrict) get('/api/pp-verify-match.php', {'status': 'pending', 'per_page': 1}) else Future.value(null),
-      if (user.isDistrict) get('/api/pp-applications.php', {'type': 'pengesahan'}) else Future.value(null),
+      if (_view != null) get('/api/portal-dashboard.php', {'view': _view}) else Future.value(null),
       if (user.isAdmin) get('/api/admin-dashboard-stats.php') else Future.value(null),
       if (user.managesAppointments) get('/api/lantikan-perlu-tindakan.php') else Future.value(null),
       get('/api/announcements.php'),
     ]);
     home.photo = (results[0]?['user'] as Map?)?['url_gambar_profil'] as String?;
-    home.notifications = rows(results[1]?['notifications']).take(3).toList();
-    home.appointments = rows(results[2]?['data']);
-    home.matchStats = results[3]?['statistics'] == null ? null : Map<String, dynamic>.from(results[3]!['statistics'] as Map);
-    home.ppPendingMatches = (results[4]?['statistics'] as Map?)?['pending'] == null
-        ? null
-        : int.tryParse('${(results[4]!['statistics'] as Map)['pending']}');
-    home.ppPendingApplications = results[5] == null ? null : rows(results[5]!['applications'] ?? results[5]!['data']).length;
-    home.adminStats = results[6]?['stats'] == null ? null : Map<String, dynamic>.from(results[6]!['stats'] as Map);
-    home.adminPendingApplications = int.tryParse('${home.adminStats?['pending_applications'] ?? ''}');
-    home.gaps = results[7] == null ? null : rows(results[7]!['data']);
-    home.announcements = results[8] == null ? null : rows(results[8]!['announcements']).take(3).toList();
+    home.dashboard = results[1]?['data'] == null ? null : Map<String, dynamic>.from(results[1]!['data'] as Map);
+    home.adminStats = results[2]?['stats'] == null ? null : Map<String, dynamic>.from(results[2]!['stats'] as Map);
+    home.gaps = results[3] == null ? null : _rows(results[3]!['data']);
+    home.announcements = results[4] == null ? null : _rows(results[4]!['announcements']).take(3).toList();
     return home;
   }
 
-  bool _started(Map<String, dynamic> a) {
-    final kickoff = DateTime.tryParse('${'${a['tarikh']}'.padRight(10).substring(0, 10)}T${text(a['masa'], '00:00:00')}+08:00');
-    return kickoff != null && !kickoff.isAfter(DateTime.now());
+  void _openMenu() => Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => MenuScreen(user: user, onOpen: widget.onOpenEntry)));
+
+  Future<void> _openGaps(Future<void> Function() reload) async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const PerluTindakanScreen()));
+    if (mounted) await reload();
   }
 
   @override
@@ -77,21 +82,21 @@ class _UtamaScreenState extends State<UtamaScreen> {
     return AsyncView<_Home>(
       load: _load,
       builder: (context, home, reload) {
-        final pending = home.appointments.where((a) => a['status'] == 'Belum Jawab' && !_started(a)).toList();
-        final upcoming = home.appointments
-            .where((a) => a['status'] == 'Diterima' && !_started(a))
-            .toList()
-          ..sort((a, b) => '${a['tarikh']} ${a['masa']}'.compareTo('${b['tarikh']} ${b['masa']}'));
         return RefreshIndicator(
           color: AppColors.black,
           backgroundColor: Tw.pahangYellow,
           onRefresh: reload,
           child: ListView(padding: EdgeInsets.zero, physics: const AlwaysScrollableScrollPhysics(), children: [
-            _header(home),
+            _header(home, reload),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 const WebPushCard(),
+                SectionTitle('Menu Pantas', action: 'Lihat semua', onAction: _openMenu),
+                _quickMenu(),
+                ..._focus(home, reload),
+                ..._summary(home),
+                if (user.isAdmin && home.adminStats != null) ..._adminPending(home.adminStats!),
                 SectionTitle('Pengumuman', action: 'Lihat semua', onAction: () async {
                   await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const PengumumanScreen()));
                   if (context.mounted) await reload();
@@ -110,36 +115,6 @@ class _UtamaScreenState extends State<UtamaScreen> {
                       if (context.mounted) await reload();
                     }),
                   ])),
-                if (user.hasAssignments) ..._officialSection(pending, upcoming),
-                if (user.role == 'Pengadil' && home.matchStats != null) _matchProgress(home.matchStats!),
-                if (home.gaps != null) _gapSection(home.gaps!),
-                if (user.isDistrict) _districtTiles(home),
-                if (user.isAdmin && home.adminStats != null) ..._adminSection(home.adminStats!),
-                if (home.notifications.isNotEmpty) ...[
-                  SectionTitle('Notifikasi terkini', action: 'Lihat semua', onAction: widget.onOpenNotifications),
-                  AppCard(
-                    padding: EdgeInsets.zero,
-                    child: Column(children: [
-                      for (var i = 0; i < home.notifications.length; i++) ...[
-                        if (i > 0) const Divider(indent: 16, endIndent: 16),
-                        ListTile(
-                          onTap: widget.onOpenNotifications,
-                          leading: Icon(
-                            '${home.notifications[i]['is_read']}' == '1'
-                                ? Icons.notifications_none_rounded
-                                : Icons.notifications_active_rounded,
-                            color: '${home.notifications[i]['is_read']}' == '1' ? AppColors.faint : AppColors.black,
-                          ),
-                          title: Text(text(home.notifications[i]['subject']),
-                              maxLines: 1, overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                          subtitle: Text(text(home.notifications[i]['created_at']),
-                              style: const TextStyle(fontSize: 12, color: AppColors.muted)),
-                        ),
-                      ],
-                    ]),
-                  ),
-                ],
               ]),
             ),
           ]),
@@ -148,17 +123,30 @@ class _UtamaScreenState extends State<UtamaScreen> {
     );
   }
 
-  Widget _header(_Home home) {
+  Widget _header(_Home home, Future<void> Function() reload) {
     final first = user.name.split(RegExp(r'\s+')).firstWhere((w) => w.isNotEmpty, orElse: () => '');
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.black,
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 12, 28),
+    return HeroHeader(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          IconButton(
+            tooltip: 'Menu',
+            onPressed: () => Scaffold.maybeOf(context)?.openDrawer(),
+            icon: const Icon(Icons.menu_rounded, color: Colors.white),
+          ),
+          const Spacer(),
+          IconButton(
+            tooltip: 'Notifikasi',
+            onPressed: widget.onOpenNotifications,
+            icon: Badge(
+              isLabelVisible: widget.unread > 0,
+              backgroundColor: Tw.red600,
+              label: Text(widget.unread > 9 ? '9+' : '${widget.unread}'),
+              child: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 26),
+            ),
+          ),
+        ]),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
           child: Row(children: [
             Container(
               padding: const EdgeInsets.all(2),
@@ -168,63 +156,105 @@ class _UtamaScreenState extends State<UtamaScreen> {
             const SizedBox(width: 14),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${greeting()},', style: const TextStyle(color: Colors.white70, fontSize: 14)),
-                Text(first.isEmpty ? 'Pengguna' : _title(first),
-                    style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 6),
-                Pill(user.jenisPengadil.isNotEmpty && user.jenisPengadil != 'null' ? user.jenisPengadil : user.role,
-                    (Tw.pahangYellow, AppColors.black)),
+                Text('Hi, ${first.isEmpty ? 'Pengguna' : _title(first)}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500)),
+                Text(greeting(), style: const TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w800)),
               ]),
             ),
-            IconButton(
-              onPressed: widget.onOpenNotifications,
-              icon: Badge(
-                isLabelVisible: widget.unread > 0,
-                backgroundColor: Tw.red600,
-                label: Text(widget.unread > 9 ? '9+' : '${widget.unread}'),
-                child: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 28),
-              ),
-            ),
+            Pill(user.jenisPengadil.isNotEmpty && user.jenisPengadil != 'null' ? user.jenisPengadil : user.role,
+                (Tw.pahangYellow, AppColors.black)),
           ]),
         ),
-      ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(children: [
+            for (final (i, card) in _cards(home, reload).indexed) ...[
+              if (i > 0) const SizedBox(width: 10),
+              Expanded(child: card),
+            ],
+          ]),
+        ),
+      ]),
     );
   }
 
   static String _title(String word) => word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}';
 
-  List<Widget> _officialSection(List<Map<String, dynamic>> pending, List<Map<String, dynamic>> upcoming) {
+  static const _tones = <Tone>[(AppColors.yellowSoft, AppColors.black), (Colors.white, AppColors.black),
+      (AppColors.grey100, AppColors.black)];
+
+  List<Widget> _cards(_Home home, Future<void> Function() reload) {
+    final t = home.totals;
+    final n = home.dashboard == null ? null : t;
+    final gaps = home.gaps?.length;
+    final cards = switch (user.role) {
+      'Admin' => [
+          ('Permohonan', home.adminStats?['pending_applications'], Icons.pending_actions_rounded, () => widget.onOpenTab('kelulusan')),
+          ('Laporan RA', home.adminStats?['pending_reports'], Icons.rate_review_outlined, () => widget.onOpenTab('lantikan')),
+          ('Tindakan', gaps, Icons.warning_amber_rounded, () => _openGaps(reload)),
+        ],
+      'PP Daerah' => [
+          ('Semakan', n?['pending_units'], Icons.fact_check_outlined, () => widget.onOpenTab('semakan')),
+          ('Permohonan', n?['review_applications'], Icons.description_outlined, () => widget.onOpenTab('semakan')),
+          ('Tindakan', gaps, Icons.warning_amber_rounded, () => _openGaps(reload)),
+        ],
+      'Penilai' => [
+          ('Perlu Jawab', n?['response'], Icons.mark_email_unread_outlined, () => widget.onOpenTab('tugasan')),
+          ('Perlu Laporan', n?['needs_report'], Icons.edit_note_rounded, () => widget.onOpenTab('laporan')),
+          ('Draf', n?['drafts'], Icons.drafts_outlined, () => widget.onOpenTab('laporan')),
+        ],
+      _ => [
+          ('Perlu Jawab', n?['response'], Icons.mark_email_unread_outlined, () => widget.onOpenTab('tugasan')),
+          ('Menunggu', n?['pending'], Icons.hourglass_top_rounded, () => widget.onOpenTab('rekod')),
+          ('Notifikasi', widget.unread, Icons.notifications_none_rounded, widget.onOpenNotifications),
+        ],
+    };
     return [
-      if (pending.isNotEmpty) ...[
-        SectionTitle('Perlu jawapan anda', action: 'Jawab', onAction: () => widget.onOpenTab('tugasan')),
-        AppCard(
-          accent: Tw.pahangYellow,
-          onTap: () => widget.onOpenTab('tugasan'),
-          child: Row(children: [
-            Container(
-              width: 48,
-              height: 48,
-              alignment: Alignment.center,
-              decoration: const BoxDecoration(color: Tw.amber50, shape: BoxShape.circle),
-              child: Text('${pending.length}',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Tw.amber700)),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${pending.length} lantikan belum dijawab',
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                Text('${text(pending.first['pasukan_home'])} vs ${text(pending.first['pasukan_away'])}',
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13, color: AppColors.muted)),
-              ]),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.faint),
-          ]),
-        ),
-      ],
-      SectionTitle('Tugasan seterusnya', action: 'Semua', onAction: () => widget.onOpenTab('tugasan')),
-      if (upcoming.isEmpty)
+      for (final (i, (label, value, icon, onTap)) in cards.indexed)
+        SummaryCard(label: label, value: value ?? '-', icon: icon, tone: _tones[i], onTap: onTap),
+    ];
+  }
+
+  Widget _quickMenu() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      clipBehavior: Clip.none,
+      child: Row(children: [
+        for (final entry in quickMenuFor(user))
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: QuickMenuChip(label: entry.label, icon: entry.icon, onTap: () => widget.onOpenEntry(entry)),
+          ),
+      ]),
+    );
+  }
+
+  /// The one thing to look at next: the next duty, or matches missing officials.
+  List<Widget> _focus(_Home home, Future<void> Function() reload) {
+    if (user.managesAppointments) {
+      final gaps = home.gaps;
+      if (gaps == null) return const [];
+      return [
+        SectionTitle(gaps.isEmpty ? 'Lantikan' : 'Perlu tindakan (${gaps.length})',
+            action: gaps.isEmpty ? null : 'Semua', onAction: () => _openGaps(reload)),
+        if (gaps.isEmpty)
+          const AppCard(
+            child: Row(children: [
+              Icon(Icons.verified_rounded, color: Tw.emerald600),
+              SizedBox(width: 12),
+              Expanded(child: Text('Semua perlawanan 14 hari akan datang lengkap pegawai.',
+                  style: TextStyle(color: AppColors.muted))),
+            ]),
+          )
+        else
+          for (final m in gaps.take(2)) GapCard(match: m, onDone: reload),
+      ];
+    }
+    final upcoming = _rows(home.dashboard?['upcoming']);
+    final next = upcoming.where((a) => a['status'] == 'Diterima').firstOrNull ?? upcoming.firstOrNull;
+    return [
+      SectionTitle('Tugasan Seterusnya', action: 'Semua', onAction: () => widget.onOpenTab('tugasan')),
+      if (next == null)
         const AppCard(
           child: Row(children: [
             Icon(Icons.event_available_rounded, color: AppColors.faint),
@@ -233,146 +263,176 @@ class _UtamaScreenState extends State<UtamaScreen> {
           ]),
         )
       else
-        AppCard(
-          onTap: () => widget.onOpenTab('tugasan'),
-          child: Row(children: [
-            DateBlock(upcoming.first['tarikh'], highlight: true),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${formatTime(upcoming.first['masa'])} · ${text(upcoming.first['jawatan'])}',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.muted)),
-                const SizedBox(height: 2),
-                Text('${text(upcoming.first['pasukan_home'])} vs ${text(upcoming.first['pasukan_away'])}',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 2),
-                Row(children: [
-                  const Icon(Icons.place_outlined, size: 14, color: AppColors.muted),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(text(upcoming.first['tempat']), maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 13, color: AppColors.muted)),
-                  ),
-                ]),
-              ]),
-            ),
-          ]),
-        ),
+        _NextDuty(duty: next, onTap: () => widget.onOpenTab('tugasan')),
     ];
   }
 
-  Widget _matchProgress(Map<String, dynamic> s) {
-    final verified = int.tryParse('${s['verified_year'] ?? 0}') ?? 0;
-    final minimum = int.tryParse('${s['minimum_required'] ?? 20}') ?? 20;
-    final done = verified >= minimum;
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      SectionTitle('Perlawanan ${text(s['year'], '')}', action: 'Rekod', onAction: () => widget.onOpenTab('rekod')),
-      AppCard(
-        onTap: () => widget.onOpenTab('rekod'),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text('$verified', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, height: 1)),
-            Text(' / $minimum disahkan', style: const TextStyle(fontSize: 15, color: AppColors.muted)),
-            const Spacer(),
-            if (done) const Pill('Layak', (Tw.green100, Tw.green700), icon: Icons.check_rounded),
-          ]),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: minimum == 0 ? 1 : (verified / minimum).clamp(0, 1).toDouble(),
-              minHeight: 10,
-              backgroundColor: AppColors.background,
-              color: done ? Tw.emerald500 : Tw.pahangYellow,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text('Menunggu pengesahan: ${text(s['pending_year'], '0')}',
-              style: const TextStyle(fontSize: 13, color: AppColors.muted)),
-        ]),
-      ),
-    ]);
-  }
-
-  Widget _gapSection(List<Map<String, dynamic>> gaps) {
-    if (gaps.isEmpty) {
-      return const AppCard(
-        child: Row(children: [
-          Icon(Icons.verified_rounded, color: Tw.emerald600),
-          SizedBox(width: 12),
-          Expanded(child: Text('Semua perlawanan 14 hari akan datang lengkap pegawai.', style: TextStyle(color: AppColors.muted))),
-        ]),
-      );
-    }
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      SectionTitle('Perlu tindakan (${gaps.length})', action: 'Semua', onAction: () =>
-          Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const PerluTindakanScreen()))),
-      for (final m in gaps.take(3)) GapCard(match: m),
-    ]);
-  }
-
-  Widget _districtTiles(_Home home) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      const SectionTitle('Perlu tindakan PP Daerah'),
-      Row(children: [
-        Expanded(
-          child: StatTile(label: 'Rekod perlawanan menunggu pengesahan', value: home.ppPendingMatches ?? '-',
-              icon: Icons.fact_check_outlined, color: Tw.amber600, onTap: () => widget.onOpenTab('semakan')),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: StatTile(label: 'Permohonan menunggu semakan', value: home.ppPendingApplications ?? '-',
-              icon: Icons.description_outlined, color: Tw.blue600, onTap: () => widget.onOpenTab('semakan')),
-        ),
-      ]),
-      const SizedBox(height: 4),
-    ]);
-  }
-
-  List<Widget> _adminSection(Map<String, dynamic> s) {
-    final byType = Map<String, dynamic>.from(s['applications_by_type'] as Map? ?? {});
-    final pending = byType.entries
-        .map((e) => (e.key, int.tryParse('${(e.value as Map)['pending']}') ?? 0))
-        .where((e) => e.$2 > 0)
-        .toList();
-    return [
-      const SectionTitle('Ringkasan'),
-      Row(children: [
-        Expanded(
-          child: StatTile(label: 'Permohonan menunggu', value: s['pending_applications'], icon: Icons.pending_actions,
-              color: Tw.amber600, onTap: () => widget.onOpenTab('kelulusan')),
-        ),
-        const SizedBox(width: 12),
-        Expanded(child: StatTile(label: 'Pengadil aktif', value: s['total_pengadil'], icon: Icons.sports, color: Tw.blue600)),
-      ]),
-      const SizedBox(height: 12),
-      Row(children: [
-        Expanded(
-          child: StatTile(label: 'Laporan RA menunggu', value: s['pending_reports'], icon: Icons.rate_review_outlined,
-              color: Tw.purple600),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: StatTile(label: 'Perlawanan bulan ini', value: s['matches_this_month'], icon: Icons.sports_soccer,
-              color: Tw.emerald600),
-        ),
-      ]),
-      if (pending.isNotEmpty) ...[
-        SectionTitle('Permohonan menunggu', action: 'Semak', onAction: () => widget.onOpenTab('kelulusan')),
-        AppCard(
-          padding: EdgeInsets.zero,
-          child: Column(children: [
-            for (var i = 0; i < pending.length; i++) ...[
-              if (i > 0) const Divider(indent: 16, endIndent: 16),
-              ListTile(
-                onTap: () => widget.onOpenTab('kelulusan'),
-                title: Text(formLabel(pending[i].$1), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                trailing: Pill('${pending[i].$2}', (Tw.yellow100, Tw.yellow800)),
-              ),
+  List<Widget> _summary(_Home home) {
+    final t = home.totals;
+    final year = home.dashboard?['year'] ?? DateTime.now().year;
+    final stats = switch (user.role) {
+      'Admin' => home.adminStats == null
+          ? null
+          : [
+              ('Pengadil aktif', home.adminStats!['total_pengadil'], AppColors.yellow),
+              ('Perlawanan bulan ini', home.adminStats!['matches_this_month'], AppColors.charcoal),
+              ('Permohonan', home.adminStats!['pending_applications'], Tw.amber300),
+              ('Laporan RA', home.adminStats!['pending_reports'], Tw.gray300),
             ],
+      'PP Daerah' => home.dashboard == null
+          ? null
+          : [
+              ('Berdaftar', t['registered'], AppColors.yellow),
+              ('Berlesen', t['licensed'], AppColors.charcoal),
+              ('Rekod', t['records'], Tw.gray300),
+              ('Disahkan', t['verified'], Tw.emerald500),
+            ],
+      'Penilai' => home.dashboard == null
+          ? null
+          : [
+              ('Diterima', t['accepted'], AppColors.yellow),
+              ('Tiada laporan', t['no_report'], Tw.amber300),
+              ('Dihantar', t['submitted'], Tw.gray300),
+              ('Disahkan', t['confirmed'], Tw.emerald500),
+            ],
+      _ => home.dashboard == null
+          ? null
+          : [
+              ('Rekod', t['records'], AppColors.yellow),
+              ('Disahkan', t['verified'], Tw.emerald500),
+              ('Menunggu', t['pending'], Tw.amber300),
+              ('Ditolak', t['rejected'], Tw.rose300),
+            ],
+    };
+    if (stats == null) return const [];
+    final minimum = _int(home.dashboard?['minimum_matches']);
+    final verified = _int(t['verified']);
+    return [
+      SectionTitle(user.isAdmin ? 'Ringkasan' : 'Ringkasan $year'),
+      Row(children: [
+        for (final (i, (label, value, color)) in stats.indexed) ...[
+          if (i > 0) const SizedBox(width: 8),
+          Expanded(child: MiniStat(label: label, value: value ?? 0, color: color)),
+        ],
+      ]),
+      if (_view == 'pengadil' && minimum > 0) ...[
+        const SizedBox(height: 12),
+        AppCard(
+          onTap: () => widget.onOpenTab('rekod'),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Expanded(
+                child: Text('Kelayakan perlawanan disahkan', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              ),
+              Text('$verified / $minimum', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+            ]),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: (verified / minimum).clamp(0, 1).toDouble(),
+                minHeight: 8,
+                backgroundColor: AppColors.grey100,
+                color: verified >= minimum ? Tw.emerald500 : Tw.pahangYellow,
+              ),
+            ),
           ]),
         ),
       ],
     ];
+  }
+
+  List<Widget> _adminPending(Map<String, dynamic> s) {
+    final byType = Map<String, dynamic>.from(s['applications_by_type'] as Map? ?? {});
+    final pending = byType.entries.map((e) => (e.key, _int((e.value as Map)['pending']))).where((e) => e.$2 > 0).toList();
+    if (pending.isEmpty) return const [];
+    return [
+      SectionTitle('Permohonan menunggu', action: 'Semak', onAction: () => widget.onOpenTab('kelulusan')),
+      AppCard(
+        padding: EdgeInsets.zero,
+        child: Column(children: [
+          for (var i = 0; i < pending.length; i++) ...[
+            if (i > 0) const Divider(indent: 16, endIndent: 16),
+            ListTile(
+              onTap: () => widget.onOpenTab('kelulusan'),
+              title: Text(formLabel(pending[i].$1), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              trailing: Pill('${pending[i].$2}', (AppColors.yellowSoft, AppColors.black)),
+            ),
+          ],
+        ]),
+      ),
+    ];
+  }
+}
+
+/// The next appointment, laid out like a check-in card: date and position,
+/// then the time left before kick-off.
+class _NextDuty extends StatelessWidget {
+  const _NextDuty({required this.duty, required this.onTap});
+  final Map<String, dynamic> duty;
+  final VoidCallback onTap;
+
+  String _remaining() {
+    final kickoff = DateTime.tryParse(
+        '${'${duty['date']}'.padRight(10).substring(0, 10)}T${formatTime(duty['time']) == '-' ? '00:00' : formatTime(duty['time'])}:00+08:00');
+    if (kickoff == null) return '-';
+    final left = kickoff.difference(DateTime.now());
+    if (left.isNegative) return 'Sedang berlangsung';
+    if (left.inDays > 0) return '${left.inDays} hari ${left.inHours % 24} jam';
+    return '${left.inHours} jam ${left.inMinutes % 60} min';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pending = duty['status'] == 'Belum Jawab';
+    Widget cell(IconData icon, String label, String value) => Row(children: [
+          Icon(icon, size: 20, color: AppColors.muted),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(label, style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
+              Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ]);
+    return AppCard(
+      onTap: onTap,
+      accent: pending ? Tw.pahangYellow : null,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          Expanded(
+            child: Text(text(duty['title']), maxLines: 2,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          ),
+          if (pending) const Pill('Belum jawab', (Tw.amber50, Tw.amber700)),
+        ]),
+        const SizedBox(height: 2),
+        Text(text(duty['tournament']), maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12.5, color: AppColors.muted)),
+        const Divider(height: 24),
+        Row(children: [
+          Expanded(child: cell(Icons.calendar_today_outlined, 'Tarikh', formatDate(duty['date']))),
+          Container(width: 1, height: 32, color: AppColors.line, margin: const EdgeInsets.symmetric(horizontal: 12)),
+          Expanded(child: cell(Icons.schedule_rounded, 'Masa', formatTime(duty['time']))),
+        ]),
+        const Divider(height: 24),
+        cell(Icons.sports_outlined, 'Jawatan', text(duty['jawatan'])),
+        const SizedBox(height: 12),
+        cell(Icons.place_outlined, 'Tempat', text(duty['subtitle'])),
+        const SizedBox(height: 14),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(color: AppColors.yellowSoft, borderRadius: BorderRadius.circular(12)),
+          child: Row(children: [
+            const Icon(Icons.timer_outlined, size: 18, color: AppColors.black),
+            const SizedBox(width: 8),
+            const Text('Masa berbaki', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+            const Spacer(),
+            Text(_remaining(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+          ]),
+        ),
+      ]),
+    );
   }
 }

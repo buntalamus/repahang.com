@@ -7,6 +7,7 @@ import 'package:refpahang/screens/home_shell.dart';
 import 'package:refpahang/screens/pengumuman_screen.dart';
 import 'package:refpahang/screens/utama_screen.dart';
 import 'package:refpahang/theme.dart';
+import 'package:refpahang/widgets/common.dart';
 
 void main() {
   late Interceptor interceptor;
@@ -102,13 +103,15 @@ void main() {
     testWidgets('$role home shows three announcements with access to all', (tester) async {
       Api.instance.user.value = SessionUser({'id': 1, 'role': role, 'nama_penuh': 'Pegawai Ujian'});
       await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: Scaffold(body: UtamaScreen(
-        onOpenTab: (id, {refresh = false}) {}, onOpenNotifications: () {}, unread: 0,
+        onOpenTab: (id, {refresh = false}) {}, onOpenNotifications: () {}, onOpenEntry: (_) async {}, unread: 0,
       ))));
       await tester.pumpAndSettle();
       expect(find.text('Pengumuman 1'), findsOneWidget);
       expect(find.text('Pengumuman 3'), findsOneWidget);
       expect(find.text('Pengumuman 4'), findsNothing);
-      await tester.tap(find.text('Lihat semua').first);
+      final all = find.descendant(of: find.widgetWithText(SectionTitle, 'Pengumuman'), matching: find.text('Lihat semua'));
+      await tester.ensureVisible(all);
+      await tester.tap(all);
       await tester.pumpAndSettle();
       expect(find.byType(PengumumanScreen), findsOneWidget);
       expect(find.text('Pengumuman 4'), findsOneWidget);

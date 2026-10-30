@@ -89,16 +89,24 @@ class Tw {
   static const shadowSm = [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))];
 }
 
-/// App surfaces: the website's black and yellow on a light, card-based mobile layout.
+/// App surfaces: Pahang yellow as the accent on black, white and soft greys.
 class AppColors {
   static const black = Color(0xFF111111);
+  static const charcoal = Color(0xFF2A2A2D);
   static const yellow = Tw.pahangYellow;
-  static const yellowSoft = Color(0xFFFFF6C2);
-  static const background = Color(0xFFF3F4F6);
-  static const line = Color(0xFFE8EAEE);
-  static const text = Tw.slate900;
-  static const muted = Tw.slate500;
-  static const faint = Tw.slate400;
+  static const yellowSoft = Color(0xFFFFF7D1);
+  static const yellowDeep = Color(0xFF8A6D00);
+  static const background = Color(0xFFF5F6F8);
+  static const surface = Colors.white;
+  static const grey100 = Color(0xFFEEF0F3);
+  static const grey200 = Color(0xFFE4E7EB);
+  static const line = Color(0xFFE6E8EC);
+  static const text = Tw.gray900;
+  static const muted = Tw.gray500;
+  static const faint = Tw.gray400;
+
+  /// Very soft card shadow.
+  static const shadow = [BoxShadow(color: Color(0x0A000000), blurRadius: 12, offset: Offset(0, 3))];
 }
 
 ThemeData buildTheme() {
@@ -144,7 +152,7 @@ ThemeData buildTheme() {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: ButtonStyle(
         foregroundColor: const WidgetStatePropertyAll(AppColors.text),
-        side: const WidgetStatePropertyAll(BorderSide(color: Tw.slate300)),
+        side: const WidgetStatePropertyAll(BorderSide(color: AppColors.grey200)),
         minimumSize: const WidgetStatePropertyAll(Size(64, 48)),
         shape: buttonShape,
         textStyle: buttonText,
@@ -191,7 +199,7 @@ ThemeData buildTheme() {
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: Colors.white,
       surfaceTintColor: Colors.transparent,
-      indicatorColor: Tw.pahangYellow,
+      indicatorColor: AppColors.yellowSoft,
       elevation: 3,
       height: 70,
       labelTextStyle: WidgetStateProperty.resolveWith((s) => TextStyle(
@@ -215,6 +223,12 @@ ThemeData buildTheme() {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(20))),
     ),
     listTileTheme: const ListTileThemeData(iconColor: AppColors.text),
+    drawerTheme: const DrawerThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.horizontal(right: Radius.circular(24))),
+    ),
+    bottomAppBarTheme: const BottomAppBarThemeData(color: Colors.white, surfaceTintColor: Colors.transparent, elevation: 8),
     popupMenuTheme: const PopupMenuThemeData(
       color: Colors.white,
       surfaceTintColor: Colors.transparent,
