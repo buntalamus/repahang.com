@@ -27,5 +27,20 @@
       "Popup kemas kini kini menyediakan catatan perubahan supaya anda tahu apa yang dikemas kini.",
       "Catatan dipaparkan mengikut versi dan patch yang dimuat turun, termasuk perubahan yang terlepas jika anda melangkau kemas kini."
     ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 0,
+    "date": "2026-10-30",
+    "changes": [
+      "Rupa baharu: halaman Utama berwarna kuning dengan kad ringkasan, Tindakan Pantas dan Tugasan Seterusnya beserta masa berbaki.",
+      "Butang tengah di bar bawah membuka tugas utama peranan anda; tekan gambar profil untuk Profil dan tetapan.",
+      "Kemaskini profil, daftar akaun baharu dan lupa kata laluan kini dibuat terus dalam aplikasi.",
+      "Mohon Pendaftaran Tahunan, Kelas III FAM dan Ujian Kelas I FAM dalam aplikasi, termasuk muat naik resit dan muat turun borang PDF.",
+      "Statistik tahunan dengan carta bulanan untuk Pengadil, Penilai dan PP Daerah.",
+      "PP Daerah: senarai pengadil dan penilai daerah, permohonan daerah dengan eksport CSV, dan laporan penilaian.",
+      "Admin: semakan rekod perlawanan, pengumuman, permohonan ujian, pengadil berdaftar dan chat pengguna.",
+      "Butang Hubungi Admin untuk bertanya terus kepada Admin."
+    ]
   }
 ]
