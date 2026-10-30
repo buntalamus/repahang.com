@@ -44,6 +44,9 @@ export function openDatabase(migrations) {
   for (const file of [...migrations.filter((name)=>name!=='0024_notification_outbox'),'0024_notification_outbox',...(!migrations.includes('0027_profile_class1_years')?['0027_profile_class1_years']:[])]) {
     db.exec(readFileSync(new URL(`../migrations/${file}.sql`,import.meta.url),'utf8'));
   }
+  for (const name of ['0001_worker_sessions','0028_push_devices','0029_webpush_subscriptions','0031_account_inactive_reason','0033_mobile_announcements','0035_appointment_publication']) {
+    if (!migrations.includes(name)) db.exec(readFileSync(new URL(`../migrations/${name}.sql`,import.meta.url),'utf8'));
+  }
   // Imported flag value can predate the file-based PHP maintenance state.
   // Route tests exercise normal operation; staging-auth explicitly tests maintenance.
   db.prepare("UPDATE application_settings SET setting_value='0' WHERE setting_key='maintenance_mode'").run();
@@ -90,6 +93,8 @@ export async function sessionCookie(db,userId,cookieName='refpahang_session') {
   const token=Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');
   const hash=Buffer.from(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token))).toString('hex');
   const now=Math.floor(Date.now()/1000);
+  // A freshly authenticated fixture is active now, regardless of snapshot age.
+  db.prepare('UPDATE users SET last_activity_at=? WHERE id=?').run(now,userId);
   db.prepare('INSERT INTO worker_sessions VALUES (?,?,?,?)').run(hash,userId,now,now+3600);
   return `${cookieName}=${token}`;
 }

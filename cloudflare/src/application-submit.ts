@@ -1,4 +1,6 @@
 import {originalEmail} from './original-templates';
+import { reachStaff } from './channels';
+import { h } from './php/format';
 import {plainTextFromHtml} from './php/format';
 import { sendRefpahangEmail } from '../mail';
 import type { MailAttachment } from '../mail';
@@ -306,7 +308,10 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
     if (!saved) throw new Error('Application insert was not visible after transaction');
     const applicationId = Number(saved.id);
 
+    const reviewTelegram = `<b>📝 Permohonan Baharu Menunggu Semakan</b>\n\n${h(reviewMessage)}\n\nSila semak di app atau portal.`;
     await Promise.allSettled(reviewers.filter((reviewer) => reviewer.email).map(async (reviewer) => {
+      // In-app notice already written; Telegram next; email only if neither reaches the reviewer.
+      if (await reachStaff(env, reviewer.id, reviewTelegram)) return;
       const rendered=await originalEmail(env,'reviewer',
         [Number(profile.persatuan_id || 0),{nama_penuh:fromProfile('nama_penuh'),
           no_kp:fromProfile('no_ic'),emel:fromProfile('email'),jenis_pengadil:fromProfile('jenis_pengadil')},''],[reviewer],{REVIEWER_ROLE:districtReviewers.length?'PP Daerah':'Admin'});
@@ -328,8 +333,10 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
         const pdfUrl = new URL('/api/download-borang-pendaftaran.php', request.url);
         pdfUrl.searchParams.set('type', type);
         pdfUrl.searchParams.set('application_id', String(applicationId));
+        // Same session as the submission: the website's cookie or the app's Bearer token.
         const pdf = await registrationPdf(new Request(pdfUrl, {
-          headers: {Cookie: request.headers.get('Cookie') || ''},
+          headers: {Cookie: request.headers.get('Cookie') || '',
+            Authorization: request.headers.get('Authorization') || ''},
         }), env);
         if (!pdf.ok || !pdf.headers.get('Content-Type')?.includes('application/pdf')) {
           throw new Error('Registration PDF unavailable');

@@ -1,7 +1,8 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { BehaviorSubject, Observable, tap, catchError, of, map, shareReplay, finalize } from 'rxjs';
+import { BehaviorSubject, Observable, tap, catchError, of, map, shareReplay, finalize, from, switchMap } from 'rxjs';
 import { ApiService } from './api.service';
+import { WebPushService } from './web-push.service';
 import { User, LoginResponse, SessionResponse } from '../models/user.model';
 
 @Injectable({ providedIn: 'root' })
@@ -10,6 +11,7 @@ export class AuthService {
   currentUser$ = this.currentUserSubject.asObservable();
   private sessionChecked = false;
   private sessionCheck$?: Observable<boolean>;
+  private readonly webPush = inject(WebPushService);
 
   constructor(
     private api: ApiService,
@@ -46,7 +48,10 @@ export class AuthService {
   }
 
   logout(): Observable<unknown> {
-    return this.api.post('logout.php', {}).pipe(
+    // Stop this device's notifications before the session ends, so the next
+    // person signing in here does not receive them.
+    return from(this.webPush.disable().catch(() => undefined)).pipe(
+      switchMap(() => this.api.post('logout.php', {})),
       tap(() => {
         this.currentUserSubject.next(null);
         this.sessionChecked = false;

@@ -1,9 +1,8 @@
 import { qualificationYearsSql } from './profile-years';
 import { currentUser, json } from './auth';
-import { notifyAccountDeactivated } from './account-notify';
+import { setAccountStatus, DEFAULT_INACTIVE_REASON } from './account-access';
 import type { Env } from './types';
 import { filterReferees, refereeFiltersFromParams, type RefereeFilterRow } from '../../shared/referee-filters';
-import { wroteRow } from './d1-changes';
 
 function positiveId(value: string | null): number | null {
   if (!value || !/^[1-9]\d*$/.test(value)) return null;
@@ -120,19 +119,7 @@ export async function deactivateReferee(request: Request, env: Env): Promise<Res
     WHERE id=? AND role='Pengadil' AND aktif=1`)
     .bind(id).first<{ nama_penuh: string; email: string | null; telegram_chat_id: string | number | null }>();
   if (!referee) return json({ error: true, message: 'Pengadil tidak dijumpai.' }, 404);
-  // Do not hard-delete a user: cascades would destroy match history, reports,
-  // applications and audit relationships (the original PHP endpoint did so).
-  const results = await env.DB.batch([
-    env.DB.prepare("UPDATE users SET aktif=0,updated_at=datetime('now','+8 hours') WHERE id=? AND role='Pengadil' AND aktif=1")
-      .bind(id),
-    env.DB.prepare('DELETE FROM worker_sessions WHERE user_id=?').bind(id),
-    env.DB.prepare(`INSERT INTO activity_log(user_id,action,table_name,record_id,description,created_at)
-      VALUES(?,'deactivate_referee','users',?,?,datetime('now','+8 hours'))`)
-      .bind(user.id, id, `Akaun pengadil ${referee.nama_penuh} dinyahaktifkan oleh Admin; sejarah dikekalkan.`),
-  ]);
-  if (!wroteRow(results[0])) return json({ error: true, message: 'Pengadil tidak dijumpai.' }, 404);
-  const notified = await notifyAccountDeactivated(env,
-    { name: referee.nama_penuh, email: referee.email, telegramChatId: referee.telegram_chat_id });
-  return json({ error: false, message: 'Akaun pengadil dinyahaktifkan. Semua sejarah perlawanan dikekalkan.',
-    referee_name: referee.nama_penuh, notification_sent: notified });
+  const response = await setAccountStatus(env, user.id, id, 0, DEFAULT_INACTIVE_REASON);
+  const result = await response.json() as Record<string, unknown>;
+  return json({ ...result, referee_name: referee.nama_penuh }, response.status);
 }

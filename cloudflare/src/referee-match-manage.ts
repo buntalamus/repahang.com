@@ -1,4 +1,6 @@
 import {originalEmail} from './original-templates';
+import { reachStaff } from './channels';
+import { h } from './php/format';
 import { sendRefpahangEmail } from '../mail';
 import { notifyVerifierOfRecordChange } from './match-notify';
 import type { MatchSummary } from './match-notify';
@@ -187,7 +189,11 @@ async function addMatch(input: Record<string, unknown>, env: Env,
   }
   const matchIds = results.slice(0, officials.length).map((result) => result.meta.last_row_id);
   let emailsSent = 0;
+  const tgText = `<b>🆕 Perlawanan Baru Untuk Pengesahan</b>\n\n${h(actorName)} merekodkan perlawanan `
+    + `<b>${h(home)} lwn ${h(away)}</b> pada ${h(formattedDate)} di ${h(venue)}.\n\nSila semak di app atau portal.`;
   for (const approver of districtApprovers.results) {
+    // The in-app notice above reaches app users; Telegram next; email only if neither.
+    if (await reachStaff(env, approver.id, tgText)) continue;
     if (!approver.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(approver.email)) continue;
     try {
       const emailOfficials=officials.map(official=>({...official,

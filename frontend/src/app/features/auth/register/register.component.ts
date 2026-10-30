@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, inject } from '@angular/core';
 import { NgOptimizedImage } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -13,7 +13,7 @@ import { compressProfileImage, MAX_PROFILE_IMAGE_BYTES } from '../../../shared/u
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './register.component.html',
 })
-export class RegisterComponent {
+export class RegisterComponent implements OnDestroy {
   private readonly cdr = inject(ChangeDetectorRef);
   form = {
     role: '',
@@ -34,6 +34,9 @@ export class RegisterComponent {
     saiz_baju: '', tahun_mula_aktif: '',
   };
   picture: File | null = null;
+  /** Name of the chosen file and a preview of the compressed picture. */
+  pictureName = '';
+  picturePreview = '';
   optimizingPicture = false;
   pictureSizeKb = 0;
   addressFields = [
@@ -93,18 +96,30 @@ export class RegisterComponent {
     input.value = '';
     this.picture = null;
     this.pictureSizeKb = 0;
+    this.pictureName = file?.name ?? '';
+    this.clearPreview();
     delete this.errors['gambar_profil'];
     if (!file) return;
     this.optimizingPicture = true;
     try {
       this.picture = await compressProfileImage(file);
       this.pictureSizeKb = Math.ceil(this.picture.size / 1024);
+      this.picturePreview = URL.createObjectURL(this.picture);
     } catch (error) {
       this.errors['gambar_profil'] = error instanceof Error ? error.message : 'Gambar tidak dapat diproses.';
     } finally {
       this.optimizingPicture = false;
       this.cdr.markForCheck();
     }
+  }
+
+  ngOnDestroy(): void {
+    this.clearPreview();
+  }
+
+  private clearPreview(): void {
+    if (this.picturePreview) URL.revokeObjectURL(this.picturePreview);
+    this.picturePreview = '';
   }
 
   constructor(

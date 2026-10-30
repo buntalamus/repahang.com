@@ -57,7 +57,16 @@ const insertMatch=(tarikh,masa)=>Number(db.prepare(`INSERT INTO jadual_perlawana
   .run(tournament,`N${String(++matchNo).padStart(2,'0')}`,tarikh,masa).lastInsertRowid);
 async function appointAndNotify(jadualId,officials) {
   const roles=['Pengadil','Penolong Pengadil 1','Penolong Pengadil 2'];
+  const year=Number(one('SELECT substr(tarikh,1,4) AS year FROM jadual_perlawanan WHERE id=?',jadualId).year);
   for (const [index,official] of officials.entries()) {
+    // Notification scenarios need eligible annual registrations for their synthetic match year.
+    if (!one("SELECT id FROM permohonan WHERE user_id=? AND tahun_permohonan=? AND jenis_borang='pengadil_berdaftar'",official.id,year)) {
+      const sample=one("SELECT * FROM permohonan WHERE jenis_borang='pengadil_berdaftar' LIMIT 1");
+      const columns=Object.keys(sample).filter(key=>key!=='id');
+      const registration={...sample,user_id:official.id,tahun_permohonan:year,status:'Approved',jenis_pengadil:'Pengadil Negeri'};
+      db.prepare(`INSERT INTO permohonan(${columns.join(',')}) VALUES(${columns.map(()=>'?').join(',')})`)
+        .run(...columns.map(key=>registration[key]));
+    }
     const result=await lantikan({jadual_id:jadualId,pengadil_id:official.id,jawatan:roles[index]});
     assert.equal(result.error,false,result.message);
   }
@@ -76,15 +85,12 @@ try {
   const districtMailBefore=count('SELECT count(*) FROM worker_district_appointment_mail');
   let edited=await putMatch(matchBody(m1,{masa:'16:30',tempat:'Stadium Baharu'}));
   assert.deepEqual(edited,{error:false,message:'Perlawanan berjaya dikemaskini.',officials_notified:3});
-  assert.deepEqual(emails.map((mail)=>mail.to).sort(),kup.slice(0,3).map((o)=>o.email).sort());
-  for (const mail of emails) {
-    assert.match(mail.subject,/^Perubahan Perlawanan: .+ — Home FC lwn Away FC — 01 Mar 2099$/);
-    assert.equal(mail.type,'lantikan');
-    assert.ok(mail.html.includes('Stadium Baharu (sebelum ini: Stadium Lama)'));
-    assert.ok(mail.html.includes('16:30 MYT (sebelum ini: 10:00 MYT)'));
+  // Formal schedule changes always email the three officials.
+  assert.equal(emails.length,3);
+  for (const message of telegrams) {
+    assert.ok(message.text.includes('Stadium Baharu (sebelum ini: Stadium Lama)'));
+    assert.ok(message.text.includes('16:30 MYT (sebelum ini: 10:00 MYT)'));
   }
-  const firstMail=emails.find((mail)=>mail.to===kup[0].email);
-  assert.ok(firstMail.html.includes(`token=${rows1[0].email_token}&amp;action=accept`),'answer links for pending officials');
   assert.equal(telegrams.length,3);
   assert.equal(telegrams.find((t)=>t.chatId===String(kup[0].telegram_chat_id)).markup.inline_keyboard[0][0].callback_data,
     `act:accept:token:${rows1[0].tg_token}`);
@@ -105,17 +111,17 @@ try {
   reset();
   edited=await putMatch(matchBody(m1,{tarikh:'2099-03-02',masa:'16:30',tempat:'Stadium Baharu',kategori:'U13'}));
   assert.equal(edited.officials_notified,2);
-  assert.deepEqual(emails.map((mail)=>mail.to).sort(),[kup[0].email,kup[1].email].sort());
-  const acceptedMail=emails.find((mail)=>mail.to===kup[1].email);
-  assert.ok(!acceptedMail.html.includes('action=accept'));
-  assert.ok(acceptedMail.html.includes('kekal diterima'));
+  assert.deepEqual(emails.map(e=>e.to).sort(),[kup[0],kup[1]].map(o=>o.email).sort());
+  assert.deepEqual(telegrams.map((t)=>t.chatId).sort(),[kup[0],kup[1]].map((o)=>String(o.telegram_chat_id)).sort());
+  const acceptedTelegram=telegrams.find((t)=>t.chatId===String(kup[1].telegram_chat_id));
+  assert.ok(!acceptedTelegram.markup?.inline_keyboard);
+  assert.ok(acceptedTelegram.text.includes('kekal diterima'));
 
   // --- Admin acceptance override: email + Telegram to the official ---------
   reset();
   const override=await audit({action:'admin_override_acceptance',lantikan_id:rows1[2].id});
   assert.equal(override.error,false,override.message);
-  const overrideMail=emails.find((mail)=>mail.to===kup[2].email);
-  assert.match(overrideMail.subject,/^Lantikan Diterima \(Pengesahan Admin\): /);
+  assert.ok(emails.some((mail)=>mail.to===kup[2].email),'formal acceptance confirmation always emails');
   assert.ok(telegrams.some((t)=>t.chatId===String(kup[2].telegram_chat_id) && t.text.includes('Penerimaan Lantikan Disahkan')));
   assert.equal(count(`SELECT count(*) FROM lantikan_audit_log WHERE lantikan_id=? AND event_type='override_notification'`,
     rows1[2].id),2);
@@ -123,16 +129,20 @@ try {
   // --- Cancellation: PP Daerah of a state tournament hear once per match ----
   const active=all(`SELECT DISTINCT u.persatuan_id FROM lantikan_pengadil lp JOIN users u ON u.id=lp.pengadil_id
     WHERE lp.jadual_id=? AND lp.status IN ('Belum Jawab','Diterima') AND lp.notif_hantar=1`,m1).map((r)=>r.persatuan_id);
-  const expectedPP=all(`SELECT email FROM users WHERE role='PP Daerah' AND aktif=1 AND trim(COALESCE(email,''))<>''
-    AND COALESCE(NULLIF(persatuan_id,0),district_id) IN (SELECT value FROM json_each(?))`,JSON.stringify(active))
-    .map((r)=>r.email).sort();
-  assert.ok(expectedPP.length>0);
+  const districtPP=all(`SELECT email,telegram_chat_id FROM users WHERE role='PP Daerah' AND aktif=1 AND trim(COALESCE(email,''))<>''
+    AND COALESCE(NULLIF(persatuan_id,0),district_id) IN (SELECT value FROM json_each(?))`,JSON.stringify(active));
+  assert.ok(districtPP.length>0);
+  // PP with Telegram hear there; email only for PP without Telegram.
+  const expectedPP=districtPP.filter((r)=>!String(r.telegram_chat_id ?? '').trim()).map((r)=>r.email).sort();
+  const telegramPP=districtPP.filter((r)=>String(r.telegram_chat_id ?? '').trim()).map((r)=>String(r.telegram_chat_id));
   reset();
   const cancelled=await lantikan({action:'batal_jadual',jadual_id:m1,status:'Dibatalkan',sebab:'Padang banjir'});
   assert.equal(cancelled.error,false);
   const ppMails=emails.filter((mail)=>/^Perlawanan Dibatalkan: Home FC lwn Away FC/.test(mail.subject));
   assert.deepEqual(ppMails.map((mail)=>mail.to).sort(),expectedPP);
-  assert.ok(ppMails[0].html.includes('Padang banjir'));
+  for (const official of kup.slice(0,3)) assert.ok(emails.some(e=>e.to===official.email && e.html.includes('Padang banjir')),'formal cancellation email for every affected official');
+  if (ppMails.length) assert.ok(ppMails[0].html.includes('Padang banjir'));
+  for (const chat of telegramPP) assert.ok(telegrams.some((t)=>t.chatId===chat && t.text.includes('Padang banjir')));
   // A district-owned tournament relies on the district copies instead.
   const districtTournament=Number(db.prepare(`INSERT INTO kejohanan(nama,jenis_kejohanan,peringkat_kejohanan,status,
     tarikh_mula,tarikh_akhir,lantikan_persatuan_id,created_at,updated_at) VALUES('Liga Daerah Ujian','Liga','Daerah',
@@ -148,7 +158,7 @@ try {
   await appointAndNotify(m2,kup.slice(3,6));
   reset();
   await lantikan({action:'batal_jadual',jadual_id:m2,status:'Ditangguhkan',sebab:'Cuaca'});
-  assert.equal(emails.filter((mail)=>/^Perlawanan Ditangguhkan: /.test(mail.subject)).length,0);
+  for (const official of kup.slice(3,6)) assert.ok(emails.some(e=>e.to===official.email && e.html.includes('Cuaca')),'formal postponement email for every affected official');
 
   // --- Auto-reject: queued with the rejection, delivered by the outbox ------
   db.prepare('UPDATE users SET telegram_chat_id=123456789 WHERE id=?').run(admin.id);
@@ -170,8 +180,9 @@ try {
   assert.equal(await worker.autoTolakLantikanTertunggak(env,{jadual_id:m3}),0);
   const drained=await worker.processNotificationOutbox(env,200);
   assert.equal(drained.failed,0);
-  assert.deepEqual(emails.filter(mail=>/^Lantikan Ditolak Automatik: /.test(mail.subject)).map(mail=>mail.to).sort(),kup.slice(6,9).map(o=>o.email).sort());
-  assert.ok(emails.some(mail=>/^Perlu Lantik Pengganti: /.test(mail.subject)));
+  // Officials receive formal auto-rejection emails; the owner keeps routine fallback.
+  assert.equal(emails.filter(mail=>/^Lantikan Ditolak Automatik: /.test(mail.subject)).length,3);
+  assert.equal(kup.slice(6,9).filter(o=>telegrams.some(t=>t.chatId===String(o.telegram_chat_id))).length,3);
   const adminChats=all("SELECT telegram_chat_id FROM users WHERE role='Admin' AND aktif=1 AND telegram_chat_id IS NOT NULL")
     .map((r)=>String(r.telegram_chat_id));
   assert.ok(telegrams.some(t=>t.text.includes('Pengganti Diperlukan')));
@@ -212,10 +223,9 @@ try {
   assert.equal(await worker.sendAppointmentReminders(env),0,'no duplicate reminder');
   db.prepare("UPDATE lantikan_pengadil SET status='Diterima' WHERE id=?").run(rows4[0].id);
   const reminded=await worker.processNotificationOutbox(env,200);
-  assert.equal(reminded.skipped,2,'answered appointment skips email and Telegram');
-  assert.deepEqual(emails.map((mail)=>mail.to).sort(),[kup[1].email,kup[2].email].sort());
-  assert.ok(emails.every((mail)=>/^Peringatan Lantikan: /.test(mail.subject)));
-  assert.ok(emails.find((mail)=>mail.to===kup[1].email).html.includes(`token=${rows4[1].email_token}&amp;action=accept`));
+  // 2 for the answered appointment (email and Telegram) + 2 emails not needed after Telegram.
+  assert.equal(reminded.skipped,4,'answered appointment skips email and Telegram');
+  assert.deepEqual(emails,[]);
   assert.equal(telegrams.length,2);
   assert.ok(telegrams[0].markup.inline_keyboard);
   // A fresh dispatch (new tarikh_notif) allows one new reminder.

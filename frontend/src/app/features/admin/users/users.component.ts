@@ -1,7 +1,7 @@
 import { ModalFocusDirective } from '../../../shared/directives/modal-focus.directive';
 import { ProfileFieldsComponent } from '../../../shared/components/profile-fields/profile-fields.component';
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject, signal } from '@angular/core';
+import { FormControl, ReactiveFormsModule, Validators, FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
@@ -14,7 +14,7 @@ import { jenisPengadilOptions } from '../../../shared/data/jenis-pengadil';
 @Component({
   selector: 'app-admin-users',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ModalFocusDirective, ProfileFieldsComponent, FormsModule, LoadingComponent, PaginationComponent, ConfirmModalComponent, UserMasterDataExportComponent],
+  imports: [ModalFocusDirective, ProfileFieldsComponent, ReactiveFormsModule, FormsModule, LoadingComponent, PaginationComponent, ConfirmModalComponent, UserMasterDataExportComponent],
   templateUrl: './users.component.html',
 })
 export class AdminUsersComponent implements OnInit {
@@ -38,7 +38,10 @@ export class AdminUsersComponent implements OnInit {
   newUser: any = {};
   persatuanList: any[] = [];
 
-  showDeleteModal = false;
+  readonly showDeleteModal = signal(false);
+  readonly statusSaving = signal(false);
+  readonly statusError = signal('');
+  readonly inactiveReason = new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.maxLength(1000)] });
   deleteTargetId = 0;
   deleteTargetName = '';
   showConfirmModal = false;
@@ -162,9 +165,9 @@ export class AdminUsersComponent implements OnInit {
 
   reactivate(user: any): void {
     this.confirmTitle = 'Aktifkan Semula Akaun';
-    this.confirmMessage = `Aktifkan semula akaun ${user.nama_penuh}? Pengguna boleh log masuk semula.`;
+    this.confirmMessage = `Aktifkan semula akaun ${user.nama_penuh}? Pengguna perlu log masuk semula. Tempoh 8 bulan bermula semula; semakan pendaftaran automatik seterusnya pada tahun hadapan.`;
     this.confirmAction = () => {
-      this.api.put<any>('profil-pengadil.php', { id: user.id, aktif: 1 }).subscribe({
+      this.api.patch<any>('admin-users.php', { userId: user.id, action: 'set_account_status', aktif: 1 }).subscribe({
         next: (res) => {
         this.cdr.markForCheck();
           if (!res.error) {
@@ -241,23 +244,62 @@ export class AdminUsersComponent implements OnInit {
   deleteUser(id: number, name: string): void {
     this.deleteTargetId = id;
     this.deleteTargetName = name;
-    this.showDeleteModal = true;
+    this.inactiveReason.reset('');
+    this.statusError.set('');
+    this.showDeleteModal.set(true);
+  }
+
+  closeStatusDialog(): void {
+    if (!this.statusSaving()) this.showDeleteModal.set(false);
   }
 
   onDeleteConfirmed(): void {
-    const id = this.deleteTargetId;
-    this.showDeleteModal = false;
-    this.api.delete<any>(`admin-users.php?id=${id}`).subscribe({
+    const reason = this.inactiveReason.value.trim();
+    if (this.statusSaving()) return;
+    if (!reason || this.inactiveReason.invalid) {
+      this.statusError.set('Sila isi sebab Tidak Aktif (maksimum 1000 aksara).');
+      this.inactiveReason.markAsTouched();
+      return;
+    }
+    this.statusSaving.set(true);
+    this.statusError.set('');
+    this.api.patch<{ error: boolean; message: string }>('admin-users.php', {
+      userId: this.deleteTargetId, action: 'set_account_status', aktif: 0, reason,
+    }).subscribe({
       next: (res) => {
-        this.cdr.markForCheck();
-        if (!res.error) {
-          this.toast.success(res.message || 'Akaun pengguna dinyahaktifkan.');
-          this.loadUsers();
-        } else {
-          this.toast.error(res.message);
-        }
+        this.statusSaving.set(false);
+        if (res.error) { this.statusError.set(res.message); return; }
+        this.showDeleteModal.set(false);
+        this.toast.success(res.message);
+        this.loadUsers();
+      },
+      error: (err) => {
+        this.statusSaving.set(false);
+        this.statusError.set(err?.error?.message || 'Gagal menyimpan status akaun. Sila cuba lagi.');
       },
     });
+  }
+
+  revokeTelegram(user: any): void {
+    this.confirmTitle = 'Batalkan Pautan Telegram';
+    this.confirmMessage = `Batalkan pautan Telegram untuk ${user.nama_penuh}? Pengguna perlu memautkan semula akaun Telegram untuk menerima mesej melalui Telegram.`;
+    this.confirmAction = () => {
+      this.api.patch<{ error: boolean; message: string }>('admin-users.php', {
+        userId: user.id, action: 'revoke_telegram',
+      }).subscribe({
+        next: (res) => {
+          if (res.error) {
+            this.toast.error(res.message);
+            return;
+          }
+          this.editUser = { ...this.editUser, telegram_chat_id: null };
+          this.toast.success(res.message);
+          this.loadUsers();
+        },
+        error: (err) => this.toast.error(err?.error?.message || 'Gagal membatalkan pautan Telegram.'),
+      });
+    };
+    this.showConfirmModal = true;
   }
 
   resetPassword(user: any): void {

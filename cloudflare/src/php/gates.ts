@@ -82,6 +82,7 @@ export const GATES: Record<string, Gate> = {
   'notifications.php': requireAuth,
   'telegram-link-self.php': requireAuth,
   'pengadil-application.php': requireAuth,
+  'push-register.php': requireAuth,
   'admin-approve.php': authThenAdmin('Akses ditolak. Hanya admin boleh mengakses.'),
   'admin-test-applications.php': authThenAdmin('Akses ditolak. Hanya admin boleh mengakses.'),
   // Inline session checks with their own wording

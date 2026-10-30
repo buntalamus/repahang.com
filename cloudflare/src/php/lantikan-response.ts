@@ -4,6 +4,7 @@
  * match history, then PHP's post-commit notifications.
  */
 import type { Env } from '../types';
+import { publishedAppointmentSql } from '../appointment-publication';
 import { guardStatement, runGuarded } from './guard';
 import type { AuditMeta } from './lantikan-audit';
 import { NOW, getLantikanAuditSnapshot, lantikanAuditStatement } from './lantikan-audit';
@@ -28,12 +29,17 @@ export async function applyAppointmentResponse(env: Env, change: ResponseChange,
   meta: AuditMeta): Promise<{ updated: boolean; shouldNotifyCompleteKup: boolean }> {
   const snapshot = await getLantikanAuditSnapshot(env, change.lantikanId);
   if (!snapshot) throw new Error('Snapshot audit jawapan lantikan tidak dijumpai.');
+  if (change.actorUserId !== null && snapshot.pengadil_id !== change.actorUserId) {
+    return { updated: false, shouldNotifyCompleteKup: false };
+  }
   const kickoff = getMatchKickoffTimestamp(snapshot.tarikh, snapshot.masa ?? '');
   if (kickoff !== null && kickoff <= Date.now()) return { updated: false, shouldNotifyCompleteKup: false };
   const setKomen = change.komen !== undefined ? 'komen=?,' : '';
   const done = await runGuarded(env, [
     guardStatement(env, 'lantikan_response',
-      "EXISTS(SELECT 1 FROM lantikan_pengadil WHERE id=? AND status='Belum Jawab')", [change.lantikanId]),
+      `EXISTS(SELECT 1 FROM lantikan_pengadil lp WHERE lp.id=? AND lp.status='Belum Jawab'
+        AND lp.pengadil_id IS ? AND lp.pengadil_luar_id IS ? AND ${publishedAppointmentSql('lp')})`,
+      [change.lantikanId, snapshot.pengadil_id, snapshot.pengadil_luar_id]),
     env.DB.prepare(`UPDATE lantikan_pengadil SET status=?,${setKomen}tarikh_jawab=${NOW},
         status_dikemaskini_at=${NOW},tg_token=NULL,email_token=NULL
       WHERE id=? AND status='Belum Jawab'`)

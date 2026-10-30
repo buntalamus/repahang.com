@@ -23,9 +23,11 @@ interface Reply { error: boolean; message?: string; data: Dashboard; }
 interface Metric { label: string; value: number; icon: string; hint: string; }
 interface Action { title: string; detail: string; count: number; route: string; params?: Record<string, string>; }
 
+import { MobileUsageComponent } from '../mobile-usage/mobile-usage.component';
+
 @Component({
   selector: 'app-portal-dashboard',
-  imports: [RouterLink, DatePipe],
+  imports: [RouterLink, DatePipe, MobileUsageComponent],
   templateUrl: './portal-dashboard.component.html',
   styleUrl: './portal-dashboard.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

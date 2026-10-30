@@ -113,6 +113,12 @@
                     {{ getAutoRejectRule(a.jenis_kejohanan) }}
                   </p>
                 } @else {
+                  @if (a.status === 'Diterima') {
+                    <a [href]="'/api/surat-lantikan.php?id=' + a.id" target="_blank" rel="noopener"
+                      class="inline-flex items-center gap-1 px-2.5 py-1 border border-slate-300 text-slate-700 text-xs rounded hover:bg-slate-50 mb-1">
+                      <span class="material-icons text-sm" aria-hidden="true">picture_as_pdf</span>Surat Lantikan
+                    </a>
+                  }
                   @if (a.komen) {
                     <span class="text-xs text-slate-400 italic">{{ a.komen | slice:0:30 }}...</span>
                   } @else {
@@ -121,7 +127,7 @@
                 }
               </td>
             </tr>
-            <tr @if (a.sebab_status || a.rakan_tugasan?.length) { class="bg-slate-50/70" }>
+            <tr [class.bg-slate-50/70]="a.sebab_status || a.rakan_tugasan?.length">
               <td colspan="6" class="px-4 pb-3 pt-0">
                 @if (a.sebab_status) {
                   <p class="text-xs text-red-700"><span class="font-semibold">Sebab {{ a.status === 'Ditangguhkan' ? 'penangguhan' : 'pembatalan' }}:</span> {{ a.sebab_status }}</p>
@@ -203,6 +209,12 @@
               Tolak
             </button>
           </div>
+        }
+        @if (a.status === 'Diterima') {
+          <a [href]="'/api/surat-lantikan.php?id=' + a.id" target="_blank" rel="noopener"
+            class="flex items-center justify-center gap-2 w-full py-2 mb-2 border border-slate-300 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-50">
+            <span class="material-icons text-base" aria-hidden="true">picture_as_pdf</span>Surat Lantikan (PDF)
+          </a>
         }
         @if (a.sebab_status) {
           <p class="text-xs text-red-700 mb-2"><span class="font-semibold">Sebab {{ a.status === 'Ditangguhkan' ? 'penangguhan' : 'pembatalan' }}:</span> {{ a.sebab_status }}</p>

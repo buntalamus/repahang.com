@@ -1,13 +1,15 @@
 import { HttpInterceptorFn, HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { catchError, throwError } from 'rxjs';
+import { catchError, finalize, throwError } from 'rxjs';
 import { ToastService } from '../services/toast.service';
 import { BACKGROUND_REQUEST } from '../services/background-request';
+import { HttpViewRefreshService } from '../services/http-view-refresh.service';
 
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const toast = inject(ToastService);
   const router = inject(Router);
+  const viewRefresh = inject(HttpViewRefreshService);
   const isLoginRequest = req.url.includes('/login.php');
 
   return next(req).pipe(
@@ -25,7 +27,7 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
           toast.warning('Sesi anda telah tamat. Sila log masuk semula.');
           router.navigate(['/login']);
         }
-      } else if (error.status === 403) {
+      } else if (error.status === 403 && !(isLoginRequest && error.error?.code === 'ACCOUNT_INACTIVE')) {
         toast.error('Anda tidak mempunyai akses ke sumber ini.');
       } else if (error.status === 0) {
         toast.error('Tidak dapat menyambung ke pelayan. Sila semak sambungan internet anda.');
@@ -34,5 +36,7 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       }
       return throwError(() => error);
     }),
+    // Runs after subscribers have applied success/error state to their views.
+    finalize(() => viewRefresh.notify()),
   );
 };

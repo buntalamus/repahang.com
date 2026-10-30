@@ -1,3 +1,5 @@
+import { wroteRow } from './d1-changes';
+import { enforceAccountPolicy, DEFAULT_INACTIVE_REASON } from './account-policy';
 import { compare } from 'bcryptjs';
 
 import { boundedJson } from './request';
@@ -19,11 +21,12 @@ export interface SessionUser {
 
 interface LoginUser extends SessionUser {
   password: string;
-  aktif: number;
 }
 
 const COOKIE_NAME = 'refpahang_session';
 const SESSION_SECONDS = 12 * 60 * 60;
+const MOBILE_SESSION_SECONDS = 90 * 24 * 60 * 60;
+const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const LIMIT_WINDOW_SECONDS = 15 * 60;
 const MAX_FAILURES = 10;
 const CAPABILITIES = `
@@ -52,9 +55,19 @@ function cookieValue(request: Request): string | null {
   const cookies = request.headers.get('Cookie')?.split(';') ?? [];
   for (const cookie of cookies) {
     const [name, value] = cookie.trim().split('=', 2);
-    if (name === COOKIE_NAME && value && /^[A-Za-z0-9_-]{43}$/.test(value)) return value;
+    if (name === COOKIE_NAME && value && TOKEN_PATTERN.test(value)) return value;
   }
   return null;
+}
+
+/** Mobile app sessions send the same token as `Authorization: Bearer`. */
+function bearerValue(request: Request): string | null {
+  const match = /^Bearer\s+(\S+)$/i.exec(request.headers.get('Authorization') ?? '');
+  return match && TOKEN_PATTERN.test(match[1]) ? match[1] : null;
+}
+
+function requestToken(request: Request): string | null {
+  return cookieValue(request) ?? bearerValue(request);
 }
 
 function isSecure(request: Request): boolean {
@@ -92,9 +105,15 @@ async function maintenanceActive(env: Env): Promise<boolean> {
   return row?.setting_value === '1';
 }
 
+/** SHA-256 of the session token the request carries, as stored in worker_sessions. */
+export async function requestTokenHash(request: Request): Promise<string | null> {
+  const token = requestToken(request);
+  return token ? sha256(token) : null;
+}
+
 export async function currentUser(request: Request, env: Env): Promise<SessionUser | null> {
   if (env.STAGING_AUTH_ENABLED !== '1') return null;
-  const token = cookieValue(request);
+  const token = requestToken(request);
   if (!token) return null;
   const user = await env.DB.prepare(`
     SELECT u.id, u.email, u.role, u.jenis_pengadil, u.nama_penuh,
@@ -109,11 +128,15 @@ export async function currentUser(request: Request, env: Env): Promise<SessionUs
     LIMIT 1
   `).bind(await sha256(token), Math.floor(Date.now() / 1000)).first<SessionUser>();
   if (!user || !loginAllowed(user.email, env)) return null;
+  await enforceAccountPolicy(env, user.id);
+  const access = await env.DB.prepare('SELECT aktif FROM users WHERE id=?').bind(user.id).first<{ aktif: number }>();
+  if (Number(access?.aktif) !== 1) return null;
   if (user.role !== 'Admin' && await maintenanceActive(env)) return null;
   return user;
 }
 
-export async function login(request: Request, env: Env): Promise<Response> {
+/** Checks the credentials of a login request; a Response is the refusal to return. */
+async function authenticate(request: Request, env: Env): Promise<{ user: LoginUser; limitKey: string } | Response> {
   if (request.method !== 'POST') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
   if (env.STAGING_AUTH_ENABLED !== '1') {
     return json({ error: true, message: 'Staging masih dalam proses migrasi.' }, 503);
@@ -145,7 +168,7 @@ export async function login(request: Request, env: Env): Promise<Response> {
   const user = await env.DB.prepare(`
     SELECT u.id, u.email, u.password, u.role, u.jenis_pengadil,
            ${CAPABILITIES},
-           u.persatuan_id, u.district_id, u.nama_penuh, u.aktif,
+           u.persatuan_id, u.district_id, u.nama_penuh,
            u.password_changed, p.nama_persatuan AS persatuan_nama
     FROM users u
     LEFT JOIN persatuan_bolasepak_daerah p ON p.id = u.persatuan_id
@@ -162,44 +185,99 @@ export async function login(request: Request, env: Env): Promise<Response> {
     `).bind(limitKey, now, now - LIMIT_WINDOW_SECONDS, now - LIMIT_WINDOW_SECONDS).run();
     return json({ error: true, message: 'Emel atau kata laluan tidak sah.' }, 401);
   }
-  if (Number(user.aktif) !== 1) {
-    return json({ error: true, message: 'Akaun anda tidak aktif. Sila hubungi pentadbir.' }, 403);
+  await enforceAccountPolicy(env, user.id);
+  const access = await env.DB.prepare('SELECT aktif,inactive_reason,inactive_source FROM users WHERE id=?')
+    .bind(user.id).first<{ aktif: number; inactive_reason: string | null; inactive_source: string | null }>();
+  if (Number(access?.aktif) !== 1) {
+    return json({ error: true, code: 'ACCOUNT_INACTIVE',
+      message: 'Akaun anda ditandakan Tidak Aktif. Anda tidak boleh log masuk.',
+      inactive_source: access?.inactive_source || 'manual',
+      reason: access?.inactive_reason?.trim() || DEFAULT_INACTIVE_REASON }, 403);
   }
   if (user.role !== 'Admin' && await maintenanceActive(env)) {
     return json({ error: true, message: 'Sistem sedang dalam penyelenggaraan.' }, 503);
   }
+  return { user, limitKey };
+}
 
+async function startSession(env: Env, user: LoginUser, limitKey: string, seconds: number): Promise<string | Response> {
+  const now = Math.floor(Date.now() / 1000);
   const token = randomToken();
-  await env.DB.batch([
+  const results = await env.DB.batch([
     env.DB.prepare('DELETE FROM worker_login_limits WHERE limit_key=?').bind(limitKey),
     env.DB.prepare('DELETE FROM worker_sessions WHERE expires_at <= ?').bind(now),
-    env.DB.prepare('INSERT INTO worker_sessions(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)')
-      .bind(await sha256(token), user.id, now, now + SESSION_SECONDS),
-    env.DB.prepare("UPDATE users SET last_login=datetime('now') WHERE id=?").bind(user.id),
+    env.DB.prepare('INSERT INTO worker_sessions(token_hash,user_id,created_at,expires_at) SELECT ?,?,?,? WHERE EXISTS (SELECT 1 FROM users WHERE id=? AND aktif=1)')
+      .bind(await sha256(token), user.id, now, now + seconds, user.id),
+    env.DB.prepare("UPDATE users SET last_login=datetime('now'),last_activity_at=unixepoch() WHERE id=? AND aktif=1").bind(user.id),
   ]);
+  if (!wroteRow(results[2])) {
+    const access = await env.DB.prepare('SELECT inactive_reason,inactive_source FROM users WHERE id=?')
+      .bind(user.id).first<{ inactive_reason: string | null; inactive_source: string | null }>();
+    return json({ error: true, code: 'ACCOUNT_INACTIVE',
+      message: 'Akaun anda ditandakan Tidak Aktif. Anda tidak boleh log masuk.',
+      reason: access?.inactive_reason || DEFAULT_INACTIVE_REASON, inactive_source: access?.inactive_source || 'manual' }, 403);
+  }
+  return token;
+}
+
+function loginData(user: LoginUser) {
   const redirectUrls: Record<string, string> = {
     Admin: '/admin-dashboard.html',
     'PP Daerah': '/pp-dashboard.html',
     Pengadil: '/pengadil-dashboard.html',
     Penilai: '/penilai-dashboard.html',
   };
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    jenis_pengadil: user.jenis_pengadil,
+    can_referee: Number(user.can_referee),
+    can_ra: Number(user.can_ra),
+    nama_penuh: user.nama_penuh,
+    persatuan_id: user.persatuan_id,
+    persatuan_nama: user.persatuan_nama,
+    password_changed: Number(user.password_changed),
+    redirect_url: redirectUrls[user.role] ?? '/admin-dashboard.html',
+  };
+}
+
+export async function login(request: Request, env: Env): Promise<Response> {
+  const result = await authenticate(request, env);
+  if (result instanceof Response) return result;
+  const token = await startSession(env, result.user, result.limitKey, SESSION_SECONDS);
+  if (token instanceof Response) return token;
+  return json({ error: false, message: 'Log masuk berjaya.', data: loginData(result.user) },
+    200, sessionCookie(request, token, SESSION_SECONDS));
+}
+
+/** Mobile app login: the session token is returned in the body for `Authorization: Bearer`. */
+export async function mobileLogin(request: Request, env: Env): Promise<Response> {
+  const result = await authenticate(request, env);
+  if (result instanceof Response) return result;
+  const token = await startSession(env, result.user, result.limitKey, MOBILE_SESSION_SECONDS);
+  if (token instanceof Response) return token;
   return json({
     error: false,
     message: 'Log masuk berjaya.',
-    data: {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      jenis_pengadil: user.jenis_pengadil,
-      can_referee: Number(user.can_referee),
-      can_ra: Number(user.can_ra),
-      nama_penuh: user.nama_penuh,
-      persatuan_id: user.persatuan_id,
-      persatuan_nama: user.persatuan_nama,
-      password_changed: Number(user.password_changed),
-      redirect_url: redirectUrls[user.role] ?? '/admin-dashboard.html',
-    },
-  }, 200, sessionCookie(request, token, SESSION_SECONDS));
+    token,
+    expires_in: MOBILE_SESSION_SECONDS,
+    data: loginData(result.user),
+  });
+}
+
+/** Ends the app session and stops pushes to the devices it registered. */
+export async function mobileLogout(request: Request, env: Env): Promise<Response> {
+  if (request.method !== 'POST') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
+  const token = bearerValue(request);
+  if (token) {
+    const hash = await sha256(token);
+    await env.DB.batch([
+      env.DB.prepare('DELETE FROM worker_push_devices WHERE session_token_hash=?').bind(hash),
+      env.DB.prepare('DELETE FROM worker_sessions WHERE token_hash=?').bind(hash),
+    ]);
+  }
+  return json({ error: false, message: 'Log keluar berjaya.' });
 }
 
 export async function session(request: Request, env: Env): Promise<Response> {

@@ -250,7 +250,7 @@ export async function deleteApplication(request: Request, env: Env): Promise<Res
   }
   const label = formLabel(exists.jenis_borang, exists.tahun_permohonan);
   const notified = await notifyApplicant(env, exists, {
-    subject: `Permohonan Dipadam: ${label} - PBNP`,
+    subject: `Permohonan Dipadam: ${label} - PBNP`, email: 'always',
     title: 'Permohonan Dipadam',
     accent: '#6B7280',
     mailType: 'daftar',
@@ -473,7 +473,7 @@ function formLabel(jenisBorang: string | null, tahun: number | null): string {
 
 function resultNotice(label: string, decision: string, id: number): Notice {
   return {
-    subject: `Keputusan ${label}: ${decision} - PBNP`,
+    subject: `Keputusan ${label}: ${decision} - PBNP`, email: 'always',
     title: `Keputusan ${label}`,
     accent: decision === 'Lulus' ? '#16A34A' : '#DC2626',
     mailType: 'daftar',
@@ -495,7 +495,7 @@ async function notifyApplicant(env: Env, application: ApplicantRow, notice: Noti
       email: application.user_email || application.emel || contact?.email,
       telegramChatId: contact?.telegram_chat_id ?? null,
     }, notice);
-    return result.email === 'sent';
+    return result.email === 'sent' || result.telegram === 'sent';
   } catch (error) {
     console.error('[admin-applications] applicant notice failed', error instanceof Error ? error.message : error);
     return false;

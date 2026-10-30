@@ -4,6 +4,131 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [27 Oktober 2026] — Draf lantikan hanya untuk pentadbir
+
+- Calon tidak melihat draf melalui Tugasan, Utama, dashboard portal, senarai rakan bertugas atau surat lantikan. Admin dan PP yang mengurus lantikan masih boleh menyusun calon sebelum menghantar.
+- Hantar Notifikasi/Blast menerbitkan calon yang telah disemak secara atomik. Penerbitan berasingan daripada kejayaan e-mel/Telegram: lantikan yang sudah diterbitkan boleh dijawab dalam aplikasi walaupun saluran luar gagal, tanpa memulakan tempoh jawapan secara palsu.
+- Jawapan portal/mobile, pautan e-mel dan Telegram disekat di server selagi lantikan masih draf. Menyediakan atau menyalin pautan manual tidak menerbitkan lantikan; pengesahan penghantaran manual menerbitkannya.
+- Penggantian calon kembali menjadi draf dan memerlukan penghantaran semula. Jawapan serta lantikan lama yang sudah dihantar/diterima dikekalkan tanpa mengubah status atau tarikh asal.
+- Memerlukan migrasi tambahan `0035_appointment_publication.sql` sebelum Worker baharu. Pembetulan pada API dikongsi oleh app sedia ada; tiada APK atau patch mobile diperlukan.
+
+## [24 Oktober 2026] — Sistem Demo (demo.refpahang.com)
+
+- Salinan latihan dengan data rekaan dan akaun kongsi untuk setiap peranan. Ia berjalan atas Worker, D1 dan R2 sendiri, jadi pangkalan data utama tidak disentuh. Panduan: `docs/demo.md`.
+- Emel dan Telegram kepada orang rekaan disimpan dalam **Peti Keluar Demo** (Admin) dan tidak dihantar. Penguji yang mendaftar akaun sendiri menerima mesej sebenar bertanda `[DEMO]`.
+- Bot Telegram dikongsi. Production meneruskan pautan `/start` dan butang lantikan yang tidak dikenalinya ke demo. Token production diproses tanpa perubahan.
+- App mobile: pautan **Cuba Sistem Demo** di skrin log masuk menukar app ke demo, dengan reben DEMO dan butang kembali ke sistem sebenar.
+
+## [22 Oktober 2026] — Padam perlawanan selepas lantikan dibuang
+
+- Perlawanan yang semua lantikannya telah dibuang kini boleh dipadam dari jadual, sama seperti sistem PHP. Rekod audit lantikan tidak lagi menghalang padam dan kekal sebagai sejarah.
+- Perlawanan yang masih mempunyai lantikan atau laporan RA tetap tidak boleh dipadam; padam pukal kekal semua-atau-tiada.
+
+## [21 Oktober 2026] — Catatan perubahan dalam popup kemas kini mobile
+
+- Popup kemas kini daripada sepanduk/notifikasi dan Profil memaparkan **Apa yang baharu**, versi, patch, tarikh dan senarai perubahan daripada API versi. Aliran pengesahan mula semula dikekalkan.
+- Catatan mengikut release/build dan julat patch sebenar yang dimuat turun; popup APK menggunakan catatan release native. Ralat rangkaian menyediakan cubaan semula tanpa menyekat mula semula.
+- Changelog pengguna disimpan dalam `cloudflare/src/mobile-release-notes.json`; pemeriksaan penerbitan menolak patch tanpa catatan yang sama di production. Prosedur setiap keluaran direkodkan di `mobile/AGENTS.md` dan `docs/mobile-releases.md`.
+- Sokongan popup baharu perlu dipasang dahulu sebelum changelog boleh muncul dalam popup kemas kini seterusnya.
+
+## [21 Oktober 2026] — Pengumuman dalam aplikasi mobile
+
+- Semua peranan mendapat tiga pengumuman terkini pada Utama, senarai penuh melalui **Lihat semua**, dan kandungan penuh dalam aplikasi.
+- Penanda **Baharu** disimpan mengikut pengguna di pelayan selepas kandungan dibuka. Membuka senarai sahaja tidak menandai pengumuman dibaca.
+- Pengumuman baharu menambah notifikasi untuk akaun aktif secara atomik bersama penerbitan. Baris notifikasi menggunakan saluran push sedia ada; Telegram diteruskan. Push dan senarai notifikasi membuka pengumuman yang tepat.
+- Pengumuman terdahulu tersedia untuk dibaca tanpa penghantaran push semula. Suntingan tidak menghantar hebahan baharu; pautan pengumuman dipadam memaparkan ralat yang boleh difahami.
+- Memerlukan migrasi `0033_mobile_announcements.sql` sebelum Worker baharu. Pengurusan pengumuman kekal melalui portal Admin.
+- Membetulkan muat semula `AsyncView` dan menghadkan animasi Hero kepada tab aktif supaya status bacaan serta navigasi ke kandungan penuh berfungsi tanpa ralat Flutter.
+
+## [21 Oktober 2026] — Kelayakan lantikan dan pilihan saluran aplikasi
+
+- Akaun dinyahaktifkan dan pengadil berstatus tahunan **Pengadil Tidak Aktif** tidak boleh dilantik, termasuk daripada pool lama atau melalui override Admin. Status tahunan menggunakan tahun perlawanan: pernah diluluskan pada tahun terdahulu tetapi tiada permohonan pengadil bagi tahun perlawanan. Status RA kekal berasingan.
+- Sebelum perlawanan bermula, pegawai berakaun portal perlu mempunyai **Telegram atau aplikasi mudah alih**. Peranti aplikasi mesti mempunyai sesi sah milik pengguna yang sama; langganan Web Push turut diterima. Memasang aplikasi sahaja tidak memadai tanpa log masuk dan notifikasi aktif.
+- Semakan digunakan ketika menyimpan lantikan, termasuk semakan atomik bagi perubahan status/sesi, serta sebelum notis individu atau pukal. Paparan web dan aplikasi menunjukkan sebab pegawai tidak boleh dipilih.
+- Emel rasmi masih dicuba dahulu. Notis portal/app tetap dijadualkan apabila emel atau Telegram gagal; kewujudan peranti sahaja tidak dianggap bukti penghantaran dan tidak memulakan tempoh jawapan.
+- Tiada migrasi data atau perubahan automatik kepada lantikan lama.
+
+## [20 Oktober 2026] — Urusan rasmi melalui emel dahulu
+
+- Emel dicuba dahulu bagi akaun/keselamatan, lantikan rasmi (termasuk pengadil luar), penggantian, pembatalan, penangguhan, perubahan butiran penting dan pengesahan penerimaan oleh Admin. Telegram dan notifikasi portal/app menyusul; kegagalan emel tidak menggugurkan saluran lain.
+- Keputusan rasmi permohonan/ujian, resit permohonan serta pautan pengesahan laporan Pengerusi kekal melalui emel. Laluan Pengerusi sedia ada sudah mencuba emel sebelum Telegram.
+- `email: 'always'` dalam notis bersama kini bermaksud emel dahulu; outbox menyusun baris emel sebelum Telegram bagi kategori ini. Makluman rutin mengekalkan Telegram/app dahulu dan emel sebagai sandaran.
+- Laluan PP, pautan borang RA dan KUP tidak lagi menganggap ID Telegram tersimpan sebagai bukti penghantaran berjaya; apabila cubaan Telegram gagal, sandaran emel masih dicuba.
+- Ujian menggunakan penghantar contoh sahaja: tertib emel/Telegram, kegagalan emel tanpa menyekat saluran lain, sandaran PP/RA/KUP, perubahan jadual, pembatalan dan penangguhan. Tiada emel/Telegram produksi dihantar untuk ujian.
+
+## [20 Oktober 2026] — Kurangkan emel: Telegram dan app dahulu
+
+Perbezaan sengaja daripada PHP (keputusan pemilik sistem: maksimumkan Telegram dan app mobile).
+
+- **Dasar baharu dalam `notifyUser`**: Telegram → notis portal (push app/Web Push) → emel hanya jika Telegram tidak sampai dan pengguna tiada app aktif. Notis rasmi/keselamatan kekal **sentiasa** beremel (`email: 'always'`): emel/kata laluan ditukar, akaun dinyahaktif, keputusan permohonan/Kelas III, permohonan dipadam. Dalam outbox, baris emel menunggu keputusan Telegram (cuba semula) sebelum dihantar sebagai sandaran.
+- **Lantikan**: notifikasi lantikan, gantian, padam, batal, peringatan jawab, perubahan jadual/kejohanan, pool, Pengerusi Pengadil, laporan RA, borang RA, salinan KUP dan pengesahan perlawanan sendiri — emel hanya jika Telegram gagal/tiada. Mesej kejayaan lantikan menyatakan berapa pegawai tidak menerima apa-apa.
+- **Salinan daerah** (migrasi `0031`): Admin tidak lagi menerima salinan; PP Daerah hanya untuk **penolakan** (tolak sendiri atau auto-tolak), dihantar sebagai notis "Pengganti Diperlukan" melalui Telegram/app dengan emel sandaran. Salinan lama yang masih beratur ditutup. Sebelum ini ~384 emel salinan dalam 3–4 hari.
+- **Ringkasan Mingguan** (migrasi `0032`, `weekly-digest.ts`): Isnin dari 08:00 untuk Admin/PP Daerah, sekali seminggu, dihantar melalui emel (satu-satunya emel rutin), hanya jika ada tindakan: perlawanan 7 hari akan datang belum lengkap pegawai, lantikan ditolak minggu lepas, rekod perlawanan belum disahkan, permohonan menunggu, dan laporan RA menunggu (Admin).
+- `notification_sent` notis pemohon kini benar jika sampai melalui emel atau Telegram.
+- Ujian: `tests/email-policy.mjs` baharu; `notify-lantikan`, `notify-laporan`, `notify-perlawanan`, `laporan-flow`, `lantikan-write`, `appointment-response`, `appointment-expiry-policy` dikemas kini kepada dasar baharu. 8 ujian yang sudah gagal sebelum perubahan ini (annual-match-year, district-appointments, imap-mailbox, kelas3-settings, legacy-smtp, notify-akaun, original-templates, user-master-data) kekal gagal dengan sebab yang sama.
+
+## [20 Oktober 2026] — Statistik penggunaan app mobile
+
+- Tab baharu **App Mobile** di Statistik Admin, dan panel yang sama di Statistik PP Daerah (pengguna daerahnya sahaja): ringkasan ikut peranan (notifikasi aktif, log masuk sahaja, belum guna, Android versi lama, peratus guna app), senarai nama dengan status, peranti dan masa terakhir, carian, penapis peranan/status dan eksport CSV.
+- `GET /api/mobile-usage.php` (Admin dan PP Daerah), berdasarkan sesi app 90 hari, peranti FCM berdaftar dan langganan Web Push. Ujian: `tests/mobile-usage.mjs`.
+
+## [20 Oktober 2026] — Muat turun app di halaman log masuk
+
+- Halaman log masuk kini ada satu baris ringkas di bawah butang Log Masuk: "Guna app telefon: Android · iPhone · Cara pasang". Android memuat turun `/app/refpahang.apk`, iPhone membuka `/app/`, dan "Cara pasang" membuka tetingkap tatacara pemasangan kedua-duanya. Lencana rasmi Google Play/App Store tidak digunakan kerana app belum diterbitkan di kedai tersebut.
+
+## [20 Oktober 2026] — Laporan RA, peringatan perlawanan dan "Perlu tindakan" dalam app
+
+- **Laporan RA dalam app**: Penilai (dan PP Daerah yang juga RA) mengisi laporan terus di app — tahap kesukaran, cuaca, satu skrin bagi setiap pegawai (markah, prestasi, kekuatan/kelemahan pilihan kriteria dari server, nasihat), ulasan keseluruhan, panduan skala. Simpan draf (`POST laporan-penilaian.php`) dan Hantar (`PUT action=hantar`), aliran sama dengan website.
+- **Peringatan perlawanan**: notifikasi telefon (app dan Web Push) kira-kira 24 jam dan 2 jam sebelum sepak mula untuk lantikan Diterima; sekali sahaja setiap jenis (jadual `worker_match_reminders`, migrasi `0030`), tidak untuk perlawanan dibatal/ditangguh. Push sahaja — tiada baris baharu dalam senarai notifikasi portal.
+- **Perlu tindakan** (Admin, PP Daerah): `GET /api/lantikan-perlu-tindakan.php` menyenaraikan perlawanan 14 hari akan datang yang belum lengkap Pengadil/AR1/AR2 (termasuk yang ditolak); dipaparkan di tab Utama dan skrin penuh, tekan untuk lantik pengganti. PP Daerah hanya daerahnya.
+- **Batal/Tangguh perlawanan** dari skrin Lantik (menu ⋮) dengan sebab; menggunakan `batal_jadual` sedia ada yang memaklumkan pegawai.
+- Ujian: `tests/match-reminders.mjs` (24j/2j, sekali, langkau batal/lepas; skop dan slot "Perlu tindakan"), goldens app (borang laporan, perlu tindakan, menu batal/tangguh). `district-appointments` gagal pada cetakan Jadual Lantikan — tidak berkaitan, tiada fail berkenaan diubah.
+
+## [20 Oktober 2026] — Jadual perlawanan dan Surat Lantikan dalam app
+
+- App (Android dan iPhone /app/): Admin dan PP Daerah boleh **tambah perlawanan** (butang terapung di jadual kejohanan; medan dan senarai kategori/peringkat sama seperti website) dan **padam perlawanan** yang belum mempunyai lantikan (menu ⋮). Menggunakan `POST`/`DELETE /api/jadual-perlawanan.php` sedia ada; server menolak padam jika ada lantikan, laporan atau audit, dan mengehadkan PP Daerah kepada kejohanan daerahnya.
+- **Surat Lantikan (PDF)** baharu untuk lantikan berstatus Diterima: `GET /api/surat-lantikan.php?id=` (sesi pegawai berkenaan atau Admin), `POST` mengeluarkan pautan bertandatangan 10 minit (secret `APPOINTMENT_LETTER_SECRET`) supaya app membukanya dalam pelayar/pemapar PDF. Kandungan: kepala surat PBNP, rujukan `PBNP/LTK/<tahun>/<id>`, butiran perlawanan, pegawai bertugas bersama (nama sahaja, tiada telefon). Dijana melalui Browser Rendering. Butang turut ditambah di halaman Tugasan website.
+- App Android 1.3.0+7 (keluaran baharu kerana ikon baharu mengubah fon ikon; kini dibina dengan `--no-tree-shake-icons` supaya patch akan datang boleh guna sebarang ikon). Versi terkini 1.3.0, minimum kekal 1.2.0.
+- Ujian: `tests/appointment-letter.mjs` (akses pemilik/Admin, Diterima sahaja, escaping, tiada telefon, pautan sah/tamat/diubah), goldens app, build web; satu PDF sebenar dijana di produksi melalui pautan bertandatangan dan disemak.
+
+## [18 Oktober 2026] — App RefPahang untuk iPhone di refpahang.com/app
+
+- App Flutter yang sama dengan Android kini dibina untuk web dan dihidangkan di `/app/` (paparan, tab dan aliran sama seperti app Android). Pengguna iPhone: Safari → `refpahang.com/app` → Kongsi → Add to Home Screen; notifikasi diaktifkan dari kad di tab Utama/Profil. Tiada akaun Apple diperlukan.
+- Web Push dalam app web melalui `mobile/web/sw.js` (skop `/app/`); payload kini membawa `screen` supaya notifikasi membuka tab berkaitan. `flutter_bootstrap.js` sendiri tanpa service worker Flutter (yang memadam pendaftaran skop yang sama).
+- Gambar profil di web: dikecilkan ke 400px oleh pemilih gambar (tiada pemangkas natif). Semakan versi dan Shorebird dilangkau di web kerana setiap pembukaan memuat versi terkini.
+- Build: `mobile/tool/build_web.sh` (dijalankan oleh `deploy:production`/`deploy:staging`) menyalin build web ke `frontend/dist/.../app` tanpa simbol nyahpepijat dan renderer skwasm (21MB). Worker menghidangkan `/app/refpahang.apk` dari R2 dan selebihnya `/app/*` dari aset statik.
+- Banner portal untuk iPhone kini menunjuk ke `/app/`.
+- Ujian: WebKit emulasi iPhone — log masuk, tab Utama, Tugasan, Terima tugasan (POST `lantikan-jawab.php` dan muat semula); production `/app/` dimuatkan tanpa ralat dengan hanya `sw.js` berdaftar; ujian web-push dan mobile-push lulus.
+
+## [18 Oktober 2026] — Website sebagai app iPhone (PWA) dengan notifikasi push
+
+- Pembetulan: halaman Tugasan Pengadil berhenti dipaparkan di iPhone (Safari dan app skrin utama) — butang penapis dan senarai lantikan tiada, jadi tidak boleh Terima/Tolak. Templat meletakkan `@if` di dalam tag `<tr>`, menghasilkan atribut bernama `(a.sebab_status`; Chrome menerimanya tetapi WebKit menolak. Ditukar kepada `[class.bg-slate-50/70]`. 59 laluan portal diimbas dalam WebKit; tiada corak sama ditemui.
+- Pembetulan: app skrin utama iPhone beku selepas membuka menu (☰). Menu mudah alih kini wujud hanya semasa dibuka (tiada lapisan `fixed` tersembunyi yang berubah bentuk), latar penutup ialah butang, dan menu ditutup apabila halaman bertukar atau Escape ditekan. Disahkan dengan WebKit (emulasi iPhone, mod Safari dan skrin utama).
+- Portal boleh dipasang ke skrin utama (manifest, ikon `pwa-*.png`, `sw.js`). Di iPhone (iOS 16.4+): Safari → Kongsi → Add to Home Screen, kemudian aktifkan notifikasi. Tiada akaun Apple atau App Store diperlukan.
+- Web Push: kad "Notifikasi Telefon" di halaman profil dan banner di atas portal (panduan iPhone, pautan APK untuk Android, butang aktifkan). Langganan dibuang sebelum log keluar supaya pengguna seterusnya di peranti sama tidak menerima notifikasi orang lain.
+- Server: `GET /api/webpush-key.php`, `POST/DELETE /api/webpush-subscribe.php` (hanya perkhidmatan push Apple, Google, Mozilla dan Microsoft diterima). Payload disulitkan RFC 8291 (aes128gcm) dan dibenarkan VAPID (ES256) dengan WebCrypto; setiap baris `notifications` dihantar ke langganan pengguna melalui kursor yang sama dengan app Android dan membuka halaman berkaitan ikut peranan.
+- Migrasi baharu: `0029_webpush_subscriptions.sql` (dipasang di produksi melalui `d1 execute`). `VAPID_PUBLIC_KEY` dalam konfigurasi, `VAPID_PRIVATE_KEY` sebagai secret.
+- Ujian: `tests/web-push.mjs` (payload dinyahsulit oleh pustaka bebas `http_ece`), ujian push mudah alih dan auth berkaitan, build frontend, smoke test produksi, dan semakan tandatangan VAPID terhadap perkhidmatan push Apple sebenar.
+
+## [18 Oktober 2026] — App mobile Android dan notifikasi push
+
+- App Flutter baharu dalam `mobile/` mengikut tema website (Inter, hitam/kuning PBNP, kad dan status yang sama). Fungsi ikut peranan, menggunakan API website yang sama:
+  - Pengadil: Tugasan (terima/tolak), Rekod Perlawanan (+ tambah rekod), Penilaian Saya, Permohonan, Profil (tukar gambar melalui kamera/galeri).
+  - Penilai: Tugasan, Tugasan Penilai (status laporan; isi laporan di website), Permohonan, Profil.
+  - PP Daerah: Tugasan, Lantikan Daerah (lantik/buang/hantar notifikasi), Pengesahan Perlawanan, Semakan Permohonan, Profil.
+  - Admin: Dashboard ringkas, Kelulusan Permohonan, Lantikan Pegawai, Profil.
+  - Butang Terima/Tolak disembunyikan selepas perlawanan bermula (server menolak jawapan selepas sepak mula dengan mesej "sudah dijawab" — kekal seperti PHP).
+- Android sahaja buat masa ini; iOS menunggu akaun Apple Developer dan konfigurasi Firebase iOS.
+- Muat turun APK: `https://refpahang.com/app/refpahang.apk` (objek R2 `app/refpahang.apk`, laluan Worker `/app/*`). `mobile-version.php` memaparkan `MOBILE_MIN_VERSION`/`MOBILE_LATEST_VERSION` 1.1.0 supaya APK ujian lama diminta naik taraf.
+- Keluaran 1.2.0+6: UI direka semula sebagai app mobile (tab Utama dengan ringkasan ikut peranan, kad dan blok tarikh, bottom sheet, chip penapis, butang terapung, menu Profil menggantikan sidebar) dengan warna PBNP yang sama. Versi minimum dinaikkan ke 1.2.0.
+- Notifikasi kemas kini OTA: app menyemak patch Shorebird semasa dibuka dan kembali ke depan, memuat turunnya, kemudian memaparkan notifikasi telefon dan banner "Mula semula". `POST /api/mobile-broadcast.php` (secret `MOBILE_BROADCAST_TOKEN`) menghantar push "Kemas kini tersedia" kepada semua telefon; `mobile/tool/publish_patch.sh <versi>` menerbitkan patch dan memanggilnya.
+- Ikon app: logo PBNP bulat tanpa latar (ikon adaptif berlatar lutsinar), keluaran 1.1.1+5.
+- Kemas kini OTA melalui Shorebird (app RefPahang, keluaran asas 1.1.0+4). Perubahan kod Dart dihantar dengan `shorebird patch android --release-version=1.1.0+4`; perubahan native (plugin, kebenaran, ikon) perlu keluaran dan APK baharu.
+- Setiap notifikasi portal (baris `notifications`) turut dihantar sebagai push FCM ke telefon yang log masuk melalui app. Tiada titik notifikasi sedia ada diubah; `processPushQueue()` mengikut jadual `notifications` dengan kursor selepas setiap tulisan dan dalam cron. Peringatan lantikan yang tiada baris portal tidak dihantar sebagai push.
+- Endpoint baharu: `mobile-login.php` (token sesi 90 hari untuk `Authorization: Bearer`), `mobile-logout.php`, `push-register.php`, `mobile-version.php`. `currentUser()` menerima Bearer selain kuki; log masuk website tidak berubah.
+- Migrasi baharu: `0028_push_devices.sql` (dipasang di produksi melalui `d1 execute`; kursor bermula pada notifikasi terakhir, jadi notifikasi lama tidak dihantar). Secret `FCM_SERVICE_ACCOUNT` (projek Firebase `refpahangmobile`) dan `PUSH_ENABLED=1` di produksi; staging `0`.
+- Ujian: `tests/mobile-push.mjs`, typecheck, ujian auth/QA/lantikan berkaitan, semakan kelayakan FCM sebenar, dan smoke test endpoint produksi.
+
 ## [18 Oktober 2026] — Pulihkan borang rasmi dan kandungan emel sebelum migrasi
 
 - Hapus penjana HTML/CSS yang mereka semula R1/R2/R4/R11, laporan RA, Futsal, kecergasan dan jadual lantikan. Worker menggunakan terus template PHP dan TCPDF asal melalui perkhidmatan dalaman `refpahang-original-templates`; tiada hos PHP/cPanel atau laluan awam tambahan.

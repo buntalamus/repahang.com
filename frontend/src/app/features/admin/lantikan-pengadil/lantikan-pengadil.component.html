@@ -234,7 +234,7 @@
             Lihat Jadual
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
           </button>
-          <button (click)="selectedKejohanan = null; selectedKejohananId = null; poolList = []; jadualList = []; jadualSearch = ''; closeTelegramOnboardingModal()"
+          <button (click)="onKejohananSelect(null)"
             class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-blue-100 rounded-lg transition" title="Tutup">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -455,6 +455,12 @@
       </div>
     } @else if (loadingJadual) {
       <app-loading message="Memuatkan jadual..." />
+    } @else if (jadualError()) {
+      <div role="alert" class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <p>{{ jadualError() }}</p>
+        <button type="button" (click)="loadJadual(selectedKejohananId!)"
+          class="mt-3 rounded-lg border border-rose-300 bg-white px-3 py-2 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2">Cuba semula</button>
+      </div>
     } @else {
       <!-- Bulk action toolbar -->
       @if (selectedJadualIds.size > 0) {
@@ -1097,8 +1103,12 @@
                             @if (ref.jenis_sumber === 'Luar') {
                               <span class="text-[10px] text-amber-600 font-medium">Luar</span>
                             }
-                            @if (ref.telegram_required) {
-                              <span class="text-[10px] text-amber-700 font-medium">Telegram wajib dipaut</span>
+                            @if (ref.inactive_official) {
+                              <span class="text-[10px] text-red-700 font-medium">Tidak aktif — tidak boleh dilantik</span>
+                            } @else if (ref.contact_channel_required) {
+                              <span class="text-[10px] text-amber-700 font-medium">Perlu Telegram atau aplikasi mudah alih</span>
+                            } @else if (ref.app_linked) {
+                              <span class="text-[10px] text-emerald-700 font-medium">Aplikasi mudah alih dipaut</span>
                             }
                           </div>
                           <div class="flex items-center gap-2 mt-1">
@@ -1117,7 +1127,8 @@
                         <span class="text-[10px] text-slate-400 shrink-0 mt-1">Sudah dilantik</span>
                       } @else if (activeJawatan) {
                         <button (click)="assignFromPool(ref)"
-                          class="shrink-0 px-2 py-1 bg-pahang-black text-pahang-yellow text-[10px] font-bold rounded-lg hover:bg-gray-800 transition whitespace-nowrap mt-0.5">
+                          [disabled]="ref.inactive_official || ref.contact_channel_required"
+                          class="shrink-0 px-2 py-1 bg-pahang-black text-pahang-yellow text-[10px] font-bold rounded-lg hover:bg-gray-800 transition whitespace-nowrap mt-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
                           Lantik
                         </button>
                       } @else {
@@ -1166,6 +1177,12 @@
       </div>
     } @else if (loadingJadualLantikan) {
       <app-loading message="Memuatkan jadual lantikan..." />
+    } @else if (jadualLantikanError()) {
+      <div role="alert" class="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        <p>{{ jadualLantikanError() }}</p>
+        <button type="button" (click)="loadJadualLantikan()"
+          class="mt-3 rounded-lg border border-rose-300 bg-white px-3 py-2 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2">Cuba semula</button>
+      </div>
     } @else if (jadualLantikanData) {
 
       @let stats = jadualLantikanData.stats;

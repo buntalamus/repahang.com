@@ -1,4 +1,6 @@
 import {originalEmail} from './original-templates';
+import { reachStaff } from './channels';
+import { h } from './php/format';
 import { sendRefpahangEmail } from '../mail';
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
@@ -71,7 +73,10 @@ export async function ppVerify(request: Request, env: Env): Promise<Response> {
         VALUES(?,'Semakan Permohonan','Permohonan Menunggu Admin',?,datetime('now','+8 hours'))`)
         .bind(admin.id, `Permohonan #${id} telah disahkan oleh ${actor.nama_penuh}.`).run();
     }
+    const adminTelegram = `<b>📋 Permohonan Menunggu Admin</b>\n\nPermohonan #${id} telah disahkan oleh ${h(actor.nama_penuh)}.\n\nSila semak di app atau portal.`;
     const adminEmails = await Promise.allSettled(admins.results.map(async (admin) => {
+      // In-app notice above; Telegram next; email only if neither reaches the Admin.
+      if (await reachStaff(env, admin.id, adminTelegram)) return;
       const {html,text,subject}=await originalEmail(env,'ppAdmin',
         [application,actor.nama_penuh],[admin]);
       await sendRefpahangEmail(env,'admin',admin.email,admin.nama_penuh,subject,html,text);

@@ -24,7 +24,7 @@ export async function notifyOldEmailAddress(env: Env, oldEmail: string, name: st
   actor: string): Promise<boolean> {
   if (!validEmail(oldEmail) || oldEmail.trim().toLowerCase() === newEmail.trim().toLowerCase()) return false;
   const result = await notifyUser(env, { name, email: oldEmail }, {
-    subject: 'Alamat Emel Akaun Ditukar - Sistem Pengurusan Pengadil PBNP',
+    subject: 'Alamat Emel Akaun Ditukar - Sistem Pengurusan Pengadil PBNP', email: 'always',
     title: 'Alamat Emel Akaun Ditukar',
     accent: '#F59E0B',
     paragraphs: [`Alamat emel log masuk akaun anda telah ditukar oleh ${actor} pada ${klNowText()}.`,
@@ -48,7 +48,7 @@ export async function notifyAccountUpdated(env: Env, recipient: Recipient,
   if (changes.email) rows.push(['Emel Log Masuk Baharu', changes.email.to]);
   if (rows.length === 0) return false;
   const result = await notifyUser(env, recipient, {
-    subject: 'Akaun Dikemaskini - Sistem Pengurusan Pengadil PBNP',
+    subject: 'Akaun Dikemaskini - Sistem Pengurusan Pengadil PBNP', email: 'always',
     title: 'Akaun Dikemaskini',
     paragraphs: [`Maklumat akaun anda telah dikemaskini oleh pentadbir pada ${klNowText()}.`],
     rows,
@@ -60,10 +60,11 @@ export async function notifyAccountUpdated(env: Env, recipient: Recipient,
 }
 
 /** Email + Telegram; no portal notice because the account can no longer log in. */
-export async function notifyAccountDeactivated(env: Env, recipient: Recipient): Promise<boolean> {
+export async function notifyAccountDeactivated(env: Env, recipient: Recipient, reason?: string): Promise<boolean> {
   const result = await notifyUser(env, { ...recipient, userId: null }, {
-    subject: 'Akaun Dinyahaktifkan - Sistem Pengurusan Pengadil PBNP',
+    subject: 'Akaun Dinyahaktifkan - Sistem Pengurusan Pengadil PBNP', email: 'always',
     title: 'Akaun Dinyahaktifkan',
+    ...(reason ? { rows: [['Sebab Tidak Aktif', reason]] as Array<[string, string]> } : {}),
     accent: '#DC2626',
     paragraphs: [`Akaun anda dalam Sistem Pengurusan Pengadil PBNP telah dinyahaktifkan oleh pentadbir pada ${klNowText()}.`,
       'Anda tidak lagi boleh log masuk atau menerima lantikan. Rekod sejarah perlawanan anda dikekalkan.'],
@@ -77,7 +78,7 @@ export async function notifyAccountDeactivated(env: Env, recipient: Recipient): 
 export async function notifyPasswordChanged(env: Env, recipient: Recipient, via: 'change' | 'reset'):
   Promise<boolean> {
   const result = await notifyUser(env, recipient, {
-    subject: 'Kata Laluan Ditukar - Sistem Pengurusan Pengadil PBNP',
+    subject: 'Kata Laluan Ditukar - Sistem Pengurusan Pengadil PBNP', email: 'always',
     title: 'Kata Laluan Ditukar',
     accent: '#F59E0B',
     paragraphs: [via === 'reset'
@@ -98,6 +99,7 @@ export async function notifyProfileEdited(env: Env, recipient: Recipient, labels
   const list = labels.join(', ');
   const notice: Notice = {
     subject: 'Profil Dikemaskini - Sistem Pengurusan Pengadil PBNP',
+    email: oldEmail ? 'always' : 'fallback',
     title: 'Profil Dikemaskini',
     paragraphs: [`Profil anda telah dikemaskini oleh ${actor} pada ${klNowText()}.`,
       'Maklumat yang dikemaskini:', labels.map((label) => `• ${label}`).join('\n'),

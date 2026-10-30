@@ -152,6 +152,11 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/test-applications/test-applications.component').then((m) => m.TestApplicationsComponent),
       },
+      {
+        path: 'peti-keluar-demo',
+        loadComponent: () =>
+          import('./features/admin/demo-outbox/demo-outbox.component').then((m) => m.DemoOutboxComponent),
+      },
     ],
   },
 

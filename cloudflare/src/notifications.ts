@@ -9,7 +9,7 @@ export async function notifications(request: Request, env: Env): Promise<Respons
   if (request.method === 'GET') {
     const [rows, count] = await Promise.all([
       env.DB.prepare(`
-        SELECT id, type, subject, message, is_read, created_at
+        SELECT id, type, subject, message, is_read, created_at, announcement_id
         FROM notifications WHERE user_id=? ORDER BY created_at DESC, id DESC LIMIT 50
       `).bind(user.id).all(),
       env.DB.prepare('SELECT COUNT(*) AS total FROM notifications WHERE user_id=? AND is_read=0')
@@ -50,7 +50,8 @@ export async function notifications(request: Request, env: Env): Promise<Respons
 }
 
 export async function announcements(request: Request, env: Env): Promise<Response> {
-  if (!await currentUser(request, env)) {
+  const user = await currentUser(request, env);
+  if (!user) {
     return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   }
   const idRaw = new URL(request.url).searchParams.get('id');
@@ -58,12 +59,17 @@ export async function announcements(request: Request, env: Env): Promise<Respons
     if (!/^[1-9][0-9]*$/.test(idRaw) || !Number.isSafeInteger(Number(idRaw))) {
       return json({ error: true, message: 'ID pengumuman tidak sah.' }, 400);
     }
-    const row = await env.DB.prepare('SELECT id,title,content,created_by,created_at FROM announcements WHERE id=?')
-      .bind(Number(idRaw)).first();
+    const row = await env.DB.prepare(`SELECT a.id,a.title,a.content,a.created_by,a.created_at,
+      CASE WHEN r.user_id IS NULL THEN 0 ELSE 1 END AS is_read FROM announcements a
+      LEFT JOIN worker_announcement_reads r ON r.announcement_id=a.id AND r.user_id=? WHERE a.id=?`)
+      .bind(user.id,Number(idRaw)).first();
     if (!row) return json({ error: true, message: 'Pengumuman tidak ditemui' }, 404);
     return json({ error: false, announcement: formatAnnouncement(row) });
   }
-  const rows = await env.DB.prepare('SELECT id,title,content,created_by,created_at FROM announcements ORDER BY created_at DESC, id DESC').all();
+  const rows = await env.DB.prepare(`SELECT a.id,a.title,a.content,a.created_by,a.created_at,
+    CASE WHEN r.user_id IS NULL THEN 0 ELSE 1 END AS is_read FROM announcements a
+    LEFT JOIN worker_announcement_reads r ON r.announcement_id=a.id AND r.user_id=?
+    ORDER BY a.created_at DESC, a.id DESC`).bind(user.id).all();
   return json({ error: false, announcements: rows.results.map(formatAnnouncement) });
 }
 

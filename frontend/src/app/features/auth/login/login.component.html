@@ -53,7 +53,46 @@
         </button>
       </form>
 
-      <p class="text-xs text-gray-400 mt-6">
+      @if (demo.accounts(); as accounts) {
+        <!-- demo.refpahang.com only: shared training accounts, one per role. -->
+        <div class="mt-6 rounded-xl border-2 border-dashed border-orange-300 bg-orange-50 p-4" role="group" aria-labelledby="demo-title">
+          <p id="demo-title" class="text-sm font-bold text-orange-900">🧪 Sistem Demo: pilih peranan untuk mencuba</p>
+          <p class="mt-1 text-xs text-orange-800">Semua data di sini rekaan. Emel dan Telegram kepada orang rekaan disimpan dalam Peti Keluar Demo (Admin). Daftar akaun sendiri jika mahu menerima notifikasi sebenar.</p>
+          <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            @for (account of accounts; track account.emel) {
+              <button type="button" (click)="loginAsDemo(account)" [disabled]="loading"
+                class="min-h-11 rounded-lg bg-white px-3 py-2 text-left shadow-sm ring-1 ring-orange-200 hover:ring-orange-400 disabled:opacity-60">
+                <span class="block text-sm font-semibold text-gray-900">{{ account.peranan }}</span>
+                <span class="block text-xs text-gray-600">{{ account.keterangan }}</span>
+                <span class="mt-1 block font-mono text-[11px] text-gray-500">{{ account.emel }} · {{ account.kata_laluan }}</span>
+              </button>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Mobile app (not on Google Play / App Store): APK and the web app at /app/. -->
+      <div class="mobile-app" role="group" aria-labelledby="mobile-app-title">
+        <p id="mobile-app-title" class="mobile-app-title">Guna app telefon</p>
+        <div class="mobile-app-platforms">
+          <a href="/app/refpahang.apk" download class="mobile-app-platform"
+            aria-label="Muat turun app RefPahang untuk Android">
+            <span class="material-icons mobile-app-android" aria-hidden="true">android</span>
+            <span>Android</span>
+          </a>
+          <a href="/app/" class="mobile-app-platform" aria-label="Buka app RefPahang untuk iPhone">
+            <span class="material-icons" aria-hidden="true">phone_iphone</span>
+            <span>iPhone</span>
+          </a>
+        </div>
+        <button type="button" (click)="showAppHelp = true" class="mobile-app-help"
+          aria-haspopup="dialog" aria-controls="app-help-dialog" [attr.aria-expanded]="showAppHelp">
+          <span class="material-icons" aria-hidden="true">help_outline</span>
+          <span>Cara pasang</span>
+        </button>
+      </div>
+
+      <p class="text-xs text-gray-400 mt-4">
         Hanya pegawai yang dibenarkan boleh mengakses panel ini.
         Sila hubungi pentadbir sistem jika anda menghadapi masalah log masuk.
       </p>
@@ -102,5 +141,51 @@
         </p>
       </div>
     </aside>
+
   </div>
 </div>
+
+@if (showAppHelp) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <button type="button" aria-label="Tutup" class="absolute inset-0 w-full h-full bg-black/50 cursor-default" (click)="showAppHelp = false"></button>
+    <div id="app-help-dialog" role="dialog" aria-modal="true" aria-labelledby="app-help-title"
+      class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-6">
+      <div class="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h2 id="app-help-title" class="text-lg font-extrabold text-pahang-black">Cara pasang app RefPahang</h2>
+          <p class="text-sm text-gray-600">Log masuk dengan akaun yang sama seperti portal.</p>
+        </div>
+        <button type="button" (click)="showAppHelp = false" aria-label="Tutup" class="p-1 rounded hover:bg-gray-100">
+          <span class="material-icons" aria-hidden="true">close</span>
+        </button>
+      </div>
+      <h3 class="flex items-center gap-2 font-bold text-gray-900"><span class="material-icons text-[#3ddc84]" aria-hidden="true">android</span>Android</h3>
+      <ol class="mt-2 mb-5 text-sm text-gray-700 list-decimal list-inside space-y-1">
+        <li>Tekan <a href="/app/refpahang.apk" download class="font-semibold underline">muat turun</a> dan buka fail <strong>RefPahang.apk</strong>.</li>
+        <li>Jika diminta, benarkan <strong>Pasang apl tidak diketahui</strong> untuk pelayar anda.</li>
+        <li>Tekan <strong>Pasang</strong>, buka app, log masuk dan benarkan notifikasi.</li>
+      </ol>
+      <h3 class="flex items-center gap-2 font-bold text-gray-900"><span class="material-icons" aria-hidden="true">phone_iphone</span>iPhone (iOS 16.4+)</h3>
+      <ol class="mt-2 text-sm text-gray-700 list-decimal list-inside space-y-1">
+        <li>Buka <a href="/app/" class="font-semibold underline">refpahang.com/app</a> dalam <strong>Safari</strong>.</li>
+        <li>Tekan <strong>Kongsi</strong>, pilih <strong>Add to Home Screen</strong>, kemudian <strong>Add</strong>.</li>
+        <li>Buka RefPahang dari skrin utama, log masuk, tekan <strong>Aktifkan</strong> notifikasi dan <strong>Allow</strong>.</li>
+      </ol>
+    </div>
+  </div>
+}
+
+@if (inactiveNotice(); as notice) {
+  <div class="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+    <section appModalFocus (modalDismiss)="inactiveNotice.set(null)" role="alertdialog" aria-modal="true"
+      aria-labelledby="inactive-title" aria-describedby="inactive-description inactive-detail"
+      class="w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl">
+      <h2 id="inactive-title" class="text-xl font-bold text-slate-900">Akaun Tidak Aktif</h2>
+      <p id="inactive-description" class="mt-3 text-sm text-slate-700">{{ notice.message }}</p>
+      <h3 class="mt-4 text-sm font-bold text-slate-900">Sebab Tidak Aktif</h3>
+      <p id="inactive-detail" class="mt-1 whitespace-pre-line break-words text-sm text-slate-800">{{ notice.reason }}</p>
+      <p class="mt-4 text-sm text-slate-700">Sila hubungi pentadbir untuk mengaktifkan semula akaun.</p>
+      <button type="button" (click)="inactiveNotice.set(null)" class="mt-6 w-full min-h-11 rounded-lg bg-black text-yellow-300 font-semibold">Tutup</button>
+    </section>
+  </div>
+}

@@ -1,4 +1,5 @@
 import { currentUser, json } from './auth';
+import { activeOfficialSql, MATCH_YEAR_SQL } from './appointment-eligibility';
 import { notifyAcceptanceOverride } from './lantikan-notify';
 import { boundedJson } from './request';
 import type { Env } from './types';
@@ -256,7 +257,8 @@ async function markManualDelivery(request: Request, env: Env, actorId: number,
   const results = deliveryType === 'appointment'
     ? await env.DB.batch([
       env.DB.prepare(`
-        UPDATE lantikan_pengadil SET notif_hantar=1,tarikh_notif=datetime('now','+8 hours')
+        UPDATE lantikan_pengadil SET notif_hantar=1,tarikh_notif=datetime('now','+8 hours'),
+          published_at=COALESCE(published_at,datetime('now','+8 hours'))
         WHERE id=? AND status='Belum Jawab' AND COALESCE(notif_hantar,0)=0
           AND trim(COALESCE(email_token,''))<>''
       `).bind(id),audit,
@@ -319,10 +321,17 @@ async function adminOverrideAcceptance(request: Request, env: Env, actorId: numb
   }
   const reason = isAutoRejected ? 'Diterima melalui override Admin selepas tempoh tamat'
     : 'Diterima melalui override Admin selepas penolakan tersilap';
+  const activeGuard = `(lp.pengadil_id IS NULL OR EXISTS(SELECT 1 FROM users u
+    WHERE u.id=lp.pengadil_id AND ${activeOfficialSql('u', MATCH_YEAR_SQL)}))`;
+  if (!await env.DB.prepare(`SELECT lp.id FROM lantikan_pengadil lp
+    JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id WHERE lp.id=? AND ${activeGuard}`)
+    .bind(id).first()) {
+    return json({error:true,inactive_official:true,message:'Pegawai tidak aktif tidak boleh dilantik atau disahkan melalui override.'},409);
+  }
   const done = await runGuarded(env,[
     guardStatement(env,'lantikan_override',`EXISTS(SELECT 1 FROM lantikan_pengadil lp
       JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id WHERE lp.id=? AND lp.status='Ditolak'
-        AND lp.komen IS ? AND jp.status NOT IN ('Dibatalkan','Ditangguhkan'))`,[id,snapshot.komen]),
+        AND lp.komen IS ? AND jp.status NOT IN ('Dibatalkan','Ditangguhkan') AND ${activeGuard})`,[id,snapshot.komen]),
     env.DB.prepare(`UPDATE lantikan_pengadil SET status='Diterima',komen=?,sebab_status=?,
         tarikh_jawab=datetime('now','+8 hours'),status_dikemaskini_at=datetime('now','+8 hours'),
         tg_token=NULL,email_token=NULL WHERE id=? AND status='Ditolak'`).bind(reason,reason,id),

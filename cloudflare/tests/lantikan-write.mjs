@@ -5,14 +5,19 @@ const worker=await bundle(`
   export {lantikanWrite} from '../src/lantikan-write';
   export {setEmailSenderForTests} from '../src/php/email';
   export {setTelegramSenderForTests} from '../src/php/telegram';
-  export {autoTolakLantikanTertunggak,processQueuedKupCrewNotifications} from '../src/php/lantikan-helper';
+  export {autoTolakLantikanTertunggak,processQueuedKupCrewNotifications,notifyCompleteKupCrew,generatePenilaianToken,notifyPPDaerahLantikan} from '../src/php/lantikan-helper';
 `);
 const {db,DB,hooks,close}=openDatabase(['0009_mysql_on_update_triggers','0010_worker_write_guards','0022_district_appointments']);
 const emails=[];
 const telegrams=[];
+const sendOrder=[];
 worker.setEmailSenderForTests(async(to,subject,html,name,type,images)=>{
-  emails.push({to,subject,html,name,type,images});return true;});
+  emails.push({to,subject,html,name,type,images});sendOrder.push({channel:"email",to,subject});return true;});
+// Set to a chat id to make Telegram fail for that official (email fallback).
+let failingChat=null;
 worker.setTelegramSenderForTests(async(chatId,text,markup)=>{
+  sendOrder.push({channel:"telegram",chatId:String(chatId)});
+  if (failingChat!==null && String(chatId)===failingChat) return false;
   telegrams.push({chatId,text,markup});return true;});
 const env={DB,BASE_URL:'https://refpahang.com',TELEGRAM_BOT_USERNAME:'refpahang_bot',
   STAGING_AUTH_ENABLED:'0',STAGING_WRITES_ENABLED:'0',APPOINTMENT_DELIVERY_ENABLED:'0',
@@ -96,14 +101,23 @@ try {
   await call({jadual_id:future,pengadil_id:kup[1].id,jawatan:'Penolong Pengadil 1'});
   await call({jadual_id:future,pengadil_id:kup[2].id,jawatan:'Penolong Pengadil 2'});
 
+  // Formal appointments always attempt email first, even when Telegram also succeeds.
+  failingChat=String(one('SELECT telegram_chat_id FROM users WHERE id=?',kup[0].id).telegram_chat_id);
   const notified=await read(await call({action:'notify',jadual_id:future}));
+  failingChat=null;
   assert.equal(notified.status,200);
+  assert.equal(emails.filter((mail)=>mail.subject.startsWith('Lantikan Perlawanan:')).length,3);
   assert.deepEqual(notified.body,{error:false,
-    message:'Notifikasi berjaya dihantar kepada 3 pegawai. 3 emel dihantar. 3 notifikasi Telegram dihantar.',
-    tg_sent:3,tg_skipped:0,email_sent:3,delivery_failed:0,appointment_complete:true,renotify_count:0});
+    message:'Notifikasi berjaya dihantar kepada 3 pegawai. 3 emel dihantar. 2 notifikasi Telegram dihantar. 1 pegawai tidak menerima notifikasi Telegram; saluran emel digunakan jika berjaya.',
+    tg_sent:2,tg_skipped:1,email_sent:3,delivery_failed:0,appointment_complete:true,renotify_count:0});
   const rows=db.prepare("SELECT * FROM lantikan_pengadil WHERE jadual_id=? ORDER BY id").all(future);
+  for (const person of kup.slice(0,3)) {
+    const email=sendOrder.findIndex(e=>e.channel==='email' && e.to===person.email && e.subject.startsWith('Lantikan Perlawanan:'));
+    const telegram=sendOrder.findIndex(e=>e.channel==='telegram' && e.chatId===String(person.telegram_chat_id));
+    assert.ok(email>=0 && telegram>email,'official appointment email is attempted before Telegram');
+  }
   for (const row of rows) {
-    assert.equal(row.notif_hantar,1);assert.equal(row.tg_notif_hantar,1);
+    assert.equal(row.notif_hantar,1);assert.equal(row.tg_notif_hantar,row.pengadil_id===kup[0].id?0:1);
     assert.match(row.email_token,/^[a-f0-9]{32}$/);assert.match(row.tg_token,/^[a-f0-9]{32}$/);
     assert.ok(row.tarikh_notif);
   }
@@ -124,12 +138,14 @@ try {
     .all(kup[0].id,kup[1].id,kup[2].id).map((row)=>row.persatuan_id);
   const statewide=!one('SELECT lantikan_persatuan_id FROM kejohanan WHERE id=?',tournament).lantikan_persatuan_id;
   const ppCount=statewide&&districts.length ? db.prepare(`SELECT COUNT(*) n FROM users WHERE role='PP Daerah' AND aktif=1
-    AND email IS NOT NULL AND email<>'' AND persatuan_id IN (SELECT value FROM json_each(?))`).get(JSON.stringify(districts)).n : 0;
+    AND email IS NOT NULL AND email<>'' AND trim(COALESCE(telegram_chat_id,''))=''
+    AND persatuan_id IN (SELECT value FROM json_each(?))`).get(JSON.stringify(districts)).n : 0;
+  // PP with Telegram (or the app) get the portal notice and Telegram; email only as the fallback.
   assert.equal(ppMails.length,ppCount);
   assert.ok(ppMails.every((mail)=>mail.type==='lantikan'));
-  const firstTelegram=telegrams.find((message)=>Number(message.chatId)===Number(kup[0].telegram_chat_id));
-  assert.match(firstTelegram.text,/^<b>🏟 Lantikan Pengadil<\/b>/);
-  assert.equal(firstTelegram.markup.inline_keyboard[0][0].callback_data,`act:accept:token:${rows[0].tg_token}`);
+  const secondTelegram=telegrams.find((message)=>Number(message.chatId)===Number(kup[1].telegram_chat_id));
+  assert.match(secondTelegram.text,/^<b>🏟 Lantikan Pengadil<\/b>/);
+  assert.equal(secondTelegram.markup.inline_keyboard[0][0].callback_data,`act:accept:token:${rows[1].tg_token}`);
   assert.equal(count(`SELECT count(*) FROM lantikan_audit_log WHERE jadual_id=?
     AND event_type IN ('appointment_links_prepared','appointment_notification','appointment_dispatched')`,future),12);
   const portal=one("SELECT * FROM notifications WHERE user_id=? AND type='Lantikan' ORDER BY id DESC",kup[0].id);
@@ -145,8 +161,11 @@ try {
     .map((row)=>row.email_token),tokens);
 
   // Replacement before kickoff resets the response state.
+  // Telegram fails for the replaced official, so the cancellation goes by email (the fallback).
   emails.length=0;telegrams.length=0;
+  failingChat=String(kup[0].telegram_chat_id);
   const replacement=await read(await call({jadual_id:future,pengadil_id:kup[3].id,jawatan:'Pengadil'}));
+  failingChat=null;
   assert.deepEqual(replacement.body,{error:false,message:'Lantikan dikemaskini.',previous_holder_notified:true});
   const replaced=one('SELECT * FROM lantikan_pengadil WHERE id=?',r1.id);
   assert.deepEqual([replaced.pengadil_id,replaced.status,replaced.notif_hantar,replaced.email_token,replaced.tg_token],
@@ -157,8 +176,7 @@ try {
   assert.deepEqual(emails.map((mail)=>mail.to),[kup[0].email]);
   assert.match(emails[0].subject,/^Pembatalan Lantikan: /);
   assert.ok(emails[0].html.includes('diganti oleh pegawai lain'));
-  assert.deepEqual(telegrams.map((message)=>Number(message.chatId)),[Number(kup[0].telegram_chat_id)]);
-  assert.match(telegrams[0].text,/Pembatalan Lantikan/);
+  assert.deepEqual(telegrams,[]);
   assert.equal(count(`SELECT count(*) FROM lantikan_audit_log WHERE lantikan_id=?
     AND event_type='reassignment_notification' AND pengadil_id=?`,r1.id,kup[0].id),2);
   assert.equal(one('SELECT status FROM jadual_perlawanan WHERE id=?',future).status,'Menunggu Pengesahan');
@@ -170,15 +188,17 @@ try {
   assert.equal(count('SELECT count(*) FROM lantikan_pengadil WHERE id=?',ar2.id),0);
   assert.equal(count(`SELECT count(*) FROM lantikan_audit_log WHERE lantikan_id=?
     AND event_type IN ('appointment_deleted','cancellation_notification')`,ar2.id),3);
-  assert.equal(emails.at(-1).to,kup[2].email);
-  assert.match(emails.at(-1).subject,/^Pembatalan Perlawanan: /);
+  // Formal cancellation still emails an official reached by Telegram.
+  assert.ok(emails.some((mail)=>mail.to===kup[2].email));
   assert.match(telegrams.at(-1).text,/Pembatalan Perlawanan/);
   assert.equal(one('SELECT status FROM jadual_perlawanan WHERE id=?',future).status,'Belum Lantik');
 
   // Cancel the match: rows keep history, tokens revoked, notified officials told.
   emails.length=0;telegrams.length=0;
   assert.equal((await call({action:'batal_jadual',jadual_id:future,status:'Ditangguhkan',sebab:''})).status,400);
+  failingChat=String(kup[1].telegram_chat_id);
   const cancelled=await read(await call({action:'batal_jadual',jadual_id:future,status:'Ditangguhkan',sebab:'Hujan lebat'}));
+  failingChat=null;
   assert.deepEqual(cancelled.body,{error:false,
     message:'2 lantikan ditanda Ditangguhkan untuk 1 perlawanan. 1 notifikasi pembatalan dihantar.'});
   assert.deepEqual(db.prepare('SELECT DISTINCT status,email_token,penilaian_token FROM lantikan_pengadil WHERE jadual_id=?')
@@ -197,7 +217,7 @@ try {
     assert.equal(result.status,200);
     if (index<2) assert.equal(result.body.message,'Lantikan rekod lama disahkan terus dan sejarah pengadil dikemaskini.');
     else assert.equal(result.body.message,'Lantikan rekod lama disahkan terus dan sejarah pengadil dikemaskini.'
-      +' Krew KUP lengkap dimaklumkan melalui 3 Telegram dan 3 emel.');
+      +' Krew KUP lengkap dimaklumkan melalui 3 Telegram dan 0 emel.');
   }
   assert.equal(count("SELECT count(*) FROM lantikan_pengadil WHERE jadual_id=? AND status='Diterima'",past),3);
   assert.equal(count('SELECT count(*) FROM perlawanan WHERE lantikan_id IN (SELECT id FROM lantikan_pengadil WHERE jadual_id=?)',past),3);
@@ -206,7 +226,9 @@ try {
   assert.deepEqual([history.head_referee_id,history.assistant_referee_2_id,history.status_pp,history.home_team],
     [kup[3].id,kup[5].id,'Disahkan','Home FC']);
   assert.equal(count("SELECT count(*) FROM kup_crew_notifications WHERE jadual_id=? AND completed_at IS NOT NULL",past),3);
-  assert.match(emails[0].subject,/^Krew KUP Lengkap: Home FC vs Away FC — 01 Sep 2026$/);
+  // The crew all have Telegram, so the KUP notice goes there and not by email.
+  assert.equal(emails.filter((mail)=>mail.subject.startsWith('Krew KUP Lengkap:')).length,0);
+  assert.ok(telegrams.length>=3);
   assert.equal(one('SELECT status FROM jadual_perlawanan WHERE id=?',past).status,'Disahkan');
 
   // RA after kickoff receives the form link (PHP sends it from the admin identity).
@@ -216,8 +238,14 @@ try {
     'Lantikan rekod lama disahkan terus dan sejarah pengadil dikemaskini. Pautan borang Penilai Pengadil telah dihantar.');
   const raRow=one("SELECT * FROM lantikan_pengadil WHERE jadual_id=? AND jawatan='Penilai Pengadil'",past);
   assert.match(raRow.penilaian_token,/^[a-f0-9]{64}$/);
-  assert.equal(emails[0].type,'admin');
-  assert.ok(emails[0].html.includes(`penilaian-borang.html?token=${raRow.penilaian_token}`));
+  // Telegram-linked assessors get the form link there; others by email (from the admin identity).
+  if (one('SELECT telegram_chat_id FROM users WHERE id=?',ra.id).telegram_chat_id) {
+    assert.equal(emails.length,0);
+    assert.ok(telegrams.at(-1).markup.inline_keyboard[0][0].url.includes(`penilaian-borang.html?token=${raRow.penilaian_token}`));
+  } else {
+    assert.equal(emails[0].type,'admin');
+    assert.ok(emails[0].html.includes(`penilaian-borang.html?token=${raRow.penilaian_token}`));
+  }
   assert.equal(count(`SELECT count(*) FROM lantikan_audit_log WHERE lantikan_id=?
     AND event_type IN ('ra_form_notification','ra_form_dispatched')`,raRow.id),3);
 
@@ -238,5 +266,23 @@ try {
 
   // MySQL ON UPDATE CURRENT_TIMESTAMP is restored by triggers.
   assert.notEqual(one('SELECT updated_at FROM jadual_perlawanan WHERE id=?',past).updated_at,'2026-10-01 10:00:00');
+  // A linked but failed Telegram must not suppress email for PP, RA forms or KUP.
+  const fallbackPP=one("SELECT id,persatuan_id,telegram_chat_id FROM users WHERE role='PP Daerah' AND aktif=1 AND persatuan_id IS NOT NULL AND trim(COALESCE(email,''))<>'' LIMIT 1");
+  db.prepare('UPDATE users SET telegram_chat_id=99112345 WHERE id=?').run(fallbackPP.id);
+  db.prepare('DELETE FROM worker_push_devices WHERE user_id=?').run(fallbackPP.id);
+  db.prepare('DELETE FROM worker_webpush_subscriptions WHERE user_id=?').run(fallbackPP.id);
+  emails.length=0;failingChat='99112345';
+  await worker.notifyPPDaerahLantikan(env,fallbackPP.persatuan_id,[{nama:'CONTOH',jawatan:'Pengadil'}],'Ujian','2099-01-01','10:00','Padang','A','B');
+  assert.ok(emails.some(e=>e.subject.startsWith('Lantikan Pengadil Daerah:')),'failed PP Telegram falls back to email');
+  db.prepare('UPDATE users SET telegram_chat_id=99112346 WHERE id=?').run(ra.id);
+  emails.length=0;failingChat='99112346';
+  await worker.generatePenilaianToken(env,raRow.id,{ip:null,userAgent:null});
+  assert.ok(emails.some(e=>e.subject.startsWith('Borang Penilaian Pengadil')),'failed RA Telegram falls back to email');
+  const crew=one("SELECT u.telegram_chat_id FROM lantikan_pengadil lp JOIN users u ON u.id=lp.pengadil_id WHERE lp.jadual_id=? AND lp.jawatan='Pengadil'",past);
+  db.prepare('DELETE FROM kup_crew_notifications WHERE jadual_id=?').run(past);
+  emails.length=0;failingChat=String(crew.telegram_chat_id);
+  await worker.notifyCompleteKupCrew(env,past);
+  assert.equal(emails.filter(e=>e.subject.startsWith('Krew KUP Lengkap:')).length,1,'failed KUP Telegram enables email fallback');
+  failingChat=null;
   console.log('lantikan.php writes: assign, replace, notify, delete, cancel, after-kickoff crew/RA and auto-reject passed');
 } finally {close();}
