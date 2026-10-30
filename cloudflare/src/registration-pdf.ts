@@ -41,6 +41,8 @@ async function imageData(env: Env, request: Request, profilePath?: string): Prom
 
 async function application(env: Env, user: SessionUser, type: FormType, id: number | null): Promise<Row | null> {
   const scope = user.role === 'PP Daerah' ? user.persatuan_id : null;
+  // Admin reviews any applicant's form when the application is named.
+  const adminReview = user.role === 'Admin' && id !== null;
   let isWritten = type === 'ujian_bertulis' || type === 'ujian_kelas1';
   let currentClassOne=false;
   if (type === 'ujian_kelas1') {
@@ -48,8 +50,8 @@ async function application(env: Env, user: SessionUser, type: FormType, id: numb
     // table as a fallback without requiring its historically missing column.
     const current=await env.DB.prepare(`SELECT id FROM permohonan
       WHERE jenis_borang='ujian_kelas1_fam' AND lower(status)='approved'
-        AND (user_id=? OR COALESCE(district_id,persatuan_id)=?) ${id?'AND id=?':''}
-      LIMIT 1`).bind(user.id,scope,...(id?[id]:[])).first();
+        AND (?=1 OR user_id=? OR COALESCE(district_id,persatuan_id)=?) ${id?'AND id=?':''}
+      LIMIT 1`).bind(adminReview?1:0,user.id,scope,...(id?[id]:[])).first();
     currentClassOne=!!current;
     if(currentClassOne)isWritten=false;
     else {
@@ -67,8 +69,7 @@ async function application(env: Env, user: SessionUser, type: FormType, id: numb
   // while district_id is NULL. Both identify the same PP Daerah scope.
   const districtField = isWritten ? 'p.persatuan_id' : 'COALESCE(p.district_id,p.persatuan_id)';
   const districtAccess = type === 'kelas3_fam' ? '' : ` OR (${districtField}=?${type === 'pengadil_berdaftar' || type === 'penilai_berdaftar' ? " AND lower(p.status)='approved'" : ''})`;
-  const params = id ? [id, user.id, ...(districtAccess ? [scope] : [])]
-    : [user.id, ...(districtAccess ? [scope] : [])];
+  const params = [...(id ? [id] : []), adminReview ? 1 : 0, user.id, ...(districtAccess ? [scope] : [])];
   const sql = `SELECT p.*,u.tahun_mula_aktif AS user_tahun_mula_aktif,
     u.tahun_lulus_kelas3,u.url_gambar_profil AS user_gambar_profil,
     u.persatuan_id AS user_persatuan_id,u.nama_penuh AS user_nama_penuh,
@@ -79,7 +80,7 @@ async function application(env: Env, user: SessionUser, type: FormType, id: numb
     u.nama_majikan AS user_nama_majikan,u.nama_waris AS user_nama_waris,
     u.hubungan_waris AS user_hubungan_waris,u.telefon_waris AS user_telefon_waris
     FROM ${table} p JOIN users u ON u.id=p.user_id
-    WHERE ${id ? 'p.id=? AND ' : ''}(p.user_id=?${districtAccess}) AND ${typeCondition} ${approved}
+    WHERE ${id ? 'p.id=? AND ' : ''}(?=1 OR p.user_id=?${districtAccess}) AND ${typeCondition} ${approved}
     ${id ? '' : `ORDER BY ${isWritten ? 'p.id' : 'p.tarikh_hantar'} DESC LIMIT 1`}`;
   const raw = await env.DB.prepare(sql).bind(...params).first<Row>();
   if (!raw) return null;

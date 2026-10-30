@@ -182,9 +182,11 @@ class _TambahPerlawananScreenState extends State<TambahPerlawananScreen> {
             _text('away_team', 'Pasukan Pelawat', required: true),
             _picker('Tarikh', _tarikh == null ? '-- Pilih tarikh --' : formatDate('${_tarikh!.year}-${two(_tarikh!.month)}-${two(_tarikh!.day)}'),
                 () async {
-              final now = DateTime.now();
-              final picked = await showDatePicker(context: context, firstDate: DateTime(now.year - 1),
-                  lastDate: now, initialDate: _tarikh ?? now);
+              // A played match, recorded within 14 days (the server's rule), in Malaysia time.
+              final kl = DateTime.now().toUtc().add(const Duration(hours: 8));
+              final today = DateTime(kl.year, kl.month, kl.day);
+              final picked = await showDatePicker(context: context, firstDate: today.subtract(const Duration(days: 14)),
+                  lastDate: today, initialDate: _tarikh ?? today);
               if (picked != null) setState(() => _tarikh = picked);
             }, required: true),
             _picker('Masa', _masa == null ? '-- Pilih masa --' : '${two(_masa!.hour)}:${two(_masa!.minute)}', () async {

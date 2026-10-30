@@ -53,6 +53,13 @@ function tooOld(value: string): boolean {
   return Date.parse(`${localToday()}T00:00:00Z`) - Date.parse(`${value}T00:00:00Z`) > 14 * 86400000;
 }
 
+/** A match record is for a match already played, so it cannot be dated after today. */
+function inFuture(value: string): boolean {
+  return value > localToday();
+}
+
+const FUTURE_MESSAGE = 'Tarikh perlawanan belum berlangsung. Rekod hanya boleh dihantar selepas perlawanan.';
+
 function requiredText(value: unknown, max = 255): string | null {
   if (typeof value !== 'string') return null;
   const text = value.trim();
@@ -82,6 +89,7 @@ async function addMatch(input: Record<string, unknown>, env: Env,
   actorId: number, actorName: string): Promise<Response> {
   const date = input.tarikh;
   if (!validMatchDate(date)) return json({ error: true, message: 'Tarikh perlawanan tidak sah.' }, 400);
+  if (inFuture(date)) return json({ error: true, message: FUTURE_MESSAGE }, 400);
   if (tooOld(date)) return json({ error: true,
     message: 'Rekod perlawanan tidak boleh dihantar melebihi 14 hari dari tarikh perlawanan.' }, 400);
   const kind = requiredText(input.jenis);
@@ -234,6 +242,7 @@ async function editMatch(input: Record<string, unknown>, env: Env, userId: numbe
     if (!validMatchDate(input.tarikh) || tooOld(input.tarikh)) {
       return json({ error: true, message: 'Tarikh perlawanan tidak sah atau melebihi 14 hari.' }, 400);
     }
+    if (inFuture(input.tarikh)) return json({ error: true, message: FUTURE_MESSAGE }, 400);
     fields.push('tarikh=?'); values.push(input.tarikh);
   }
   for (const field of textFields) {

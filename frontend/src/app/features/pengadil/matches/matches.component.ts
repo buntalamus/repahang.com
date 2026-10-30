@@ -23,6 +23,9 @@ export class PengadilMatchesComponent implements OnInit {
   filtered: any[] = [];
   search = '';
   stats = { total: 0, disahkan: 0, belum_disahkan: 0, ditolak: 0, year: new Date().getFullYear() };
+  /** Records are for matches already played, at most 14 days ago (Malaysia time). */
+  readonly maxDate = klDate(0);
+  readonly minDate = klDate(-14);
   filterStatus = '';
   showForm = false;
   submitting = false;
@@ -160,6 +163,10 @@ export class PengadilMatchesComponent implements OnInit {
       this.toast.warning('Sila isi maklumat perlawanan yang diperlukan.');
       return;
     }
+    if (this.form.tarikh > this.maxDate) {
+      this.toast.warning('Tarikh perlawanan belum berlangsung. Rekod hanya boleh dihantar selepas perlawanan.');
+      return;
+    }
 
     const filledOfficials = this.officials.filter((o) => o.referee && o.jawatan);
     if (filledOfficials.length === 0) {
@@ -242,4 +249,11 @@ export class PengadilMatchesComponent implements OnInit {
         return 'bg-yellow-100 text-yellow-700';
     }
   }
+}
+
+/** YYYY-MM-DD in Asia/Kuala_Lumpur, offset by whole days. */
+function klDate(offsetDays: number): string {
+  const day = new Date(Date.now() + offsetDays * 86_400_000);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .format(day);
 }
