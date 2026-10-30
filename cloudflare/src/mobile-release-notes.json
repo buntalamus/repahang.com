@@ -51,5 +51,14 @@
       "Susun atur lebih kemas pada telefon berskrin kecil: Tindakan Pantas tidak lagi bersesak dan label tidak terpotong.",
       "Admin: Statistik, Laporan Permohonan, Tetapan, Pengguna, PP Daerah dan Permohonan Penilai kini dibuka terus dalam aplikasi."
     ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 2,
+    "date": "2026-10-31",
+    "changes": [
+      "Tarikh rekod perlawanan hanya boleh dipilih dari 14 hari lalu hingga hari ini; perlawanan yang belum berlangsung tidak boleh direkod.",
+      "Admin: butang Muat turun borang (PDF) pada butiran permohonan."
+    ]
   }
 ]

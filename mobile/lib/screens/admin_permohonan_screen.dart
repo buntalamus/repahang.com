@@ -165,6 +165,15 @@ class _ApplicationSheetState extends State<_ApplicationSheet> {
 
   Map<String, dynamic> get a => widget.app;
 
+  /// download-borang-pendaftaran.php `type`; Kelas I has a form only once approved.
+  String? get _pdfType => switch ('${a['application_category'] ?? a['jenis_borang']}') {
+        'pengadil_berdaftar' => 'pengadil_berdaftar',
+        'penilai_berdaftar' => 'penilai_berdaftar',
+        'kelas3_fam' => 'kelas3_fam',
+        'ujian_kelas1_fam' when a['status'] == 'Lengkap' => 'ujian_kelas1',
+        _ => null,
+      };
+
   Future<void> _decide(bool approve) async {
     final notes = _notes.text.trim();
     if (!approve && notes.isEmpty) {
@@ -240,6 +249,13 @@ class _ApplicationSheetState extends State<_ApplicationSheet> {
         DetailRow(Icons.receipt_long_outlined, 'Resit bayaran', 'Lihat resit',
             onTap: () => downloadAndOpen(context, text(a['url_resit']), fallbackName: 'resit-${a['id']}'),
             trailing: const Icon(Icons.open_in_new_rounded, size: 18, color: AppColors.faint)),
+      if (_pdfType != null)
+        OutlinedButton.icon(
+          onPressed: () => downloadAndOpen(context, '/api/download-borang-pendaftaran.php',
+              query: {'type': _pdfType, 'application_id': a['id']}, fallbackName: 'Borang_${a['id']}.pdf'),
+          icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+          label: const Text('Muat turun borang (PDF)'),
+        ),
       const SizedBox(height: 12),
       if (pending) ...[
         LabeledField(label: 'Nota / sebab penolakan', controller: _notes, maxLines: 3,
