@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'screens/daerah_screens.dart';
 import 'screens/notifikasi_screen.dart';
 import 'screens/pengumuman_screen.dart';
 import 'screens/perlu_tindakan_screen.dart';
@@ -84,9 +85,10 @@ List<MenuSection> menuFor(SessionUser user) {
           page('Semakan', Icons.fact_check_outlined, 'semakan'),
           page('Lantikan Daerah', Icons.event_note_outlined, 'lantikan'),
           perluTindakan,
-          web('Pengadil Berdaftar', Icons.groups_outlined, '/pp-daerah/pengadil'),
-          web('Penilai Berdaftar', Icons.rate_review_outlined, '/pp-daerah/ra-berdaftar'),
-          web('Laporan Penilaian', Icons.assessment_outlined, '/pp-daerah/laporan-penilaian'),
+          screen('Permohonan Daerah', Icons.folder_shared_outlined, () => const DaerahPermohonanScreen()),
+          screen('Pengadil Berdaftar', Icons.groups_outlined, () => const DaerahPegawaiScreen()),
+          screen('Penilai Berdaftar', Icons.rate_review_outlined, () => const DaerahPegawaiScreen(role: 'Penilai')),
+          screen('Laporan Penilaian', Icons.assessment_outlined, () => const DaerahPenilaianScreen()),
           web('Statistik Daerah', Icons.insights_outlined, '/pp-daerah/statistik'),
         ]),
         MenuSection('Tugasan Saya', [

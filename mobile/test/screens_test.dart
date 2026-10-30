@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refpahang/api.dart';
 import 'package:refpahang/main.dart';
+import 'package:refpahang/screens/daerah_screens.dart';
 import 'package:refpahang/screens/notifikasi_screen.dart';
 import 'package:refpahang/screens/permohonan_form_screen.dart';
 import 'package:refpahang/theme.dart';
@@ -18,6 +19,25 @@ String _notif(int offsetHours) =>
     _today.toUtc().add(const Duration(hours: 8)).add(Duration(hours: offsetHours)).toIso8601String().substring(0, 19).replaceFirst('T', ' ');
 
 final Map<String, Object> _responses = {
+  '/api/pp-referees.php': {
+    'error': false,
+    'statistics': {'total': 86, 'active': 71, 'inactive': 15},
+    'referees': [
+      {'id': 5, 'nama_penuh': 'KAMAL BIN SALLEH', 'jenis_pengadil': 'Pengadil Negeri', 'no_telefon': '0131112222', 'aktif': 1},
+      {'id': 6, 'nama_penuh': 'NUR AINA BINTI ZAKARIA', 'jenis_pengadil': 'Pengadil Baharu', 'no_telefon': '0145556666', 'aktif': 1},
+      {'id': 7, 'nama_penuh': 'RAZAK BIN OTHMAN', 'jenis_pengadil': 'Pengadil Kebangsaan', 'no_telefon': '0198887777', 'aktif': 0},
+    ],
+  },
+  '/api/pp-penilaian.php': {
+    'error': false,
+    'data': [
+      {'id': 3, 'tarikh': '2026-10-12', 'pasukan_home': 'KUANTAN FC', 'pasukan_away': 'BERA UTD', 'nama_kejohanan': 'Liga Pahang 2026',
+        'nama_penilai': 'ROSLAN BIN ISA', 'pegawai': [
+          {'jawatan': 'Pengadil', 'nama_pengadil': 'KAMAL BIN SALLEH', 'markah': '8.4', 'prestasi': 'Sangat Baik'},
+          {'jawatan': 'Penolong Pengadil 1', 'nama_pengadil': 'ALI BIN ABU', 'markah': '7.2', 'prestasi': 'Baik'},
+        ]},
+    ],
+  },
   '/api/application-settings.php': {
     'error': false,
     'settings': {'application_year': '2028', 'payment_amount': '80.00', 'payment_bank_name': 'Maybank',
@@ -312,6 +332,14 @@ void main() {
     await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: const PermohonanFormScreen(form: AppForm(
         'pengadil_berdaftar', 'Pendaftaran Tahunan Pengadil (R1+R2+R4)', '', Icons.badge_outlined, 'berdaftar', 'berdaftar'))));
     await _show(tester, 'borang_permohonan', then: () => tester.drag(find.byType(ListView).first, const Offset(0, -500)));
+  });
+
+  testWidgets('pp daerah senarai', (tester) async {
+    _login('PP Daerah');
+    await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: const DaerahPegawaiScreen()));
+    await _show(tester, 'pp_pengadil_berdaftar');
+    await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: const DaerahPenilaianScreen()));
+    await _show(tester, 'pp_laporan_penilaian');
   });
 
   testWidgets('daftar', (tester) async {
