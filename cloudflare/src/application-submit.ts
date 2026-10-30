@@ -333,8 +333,10 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
         const pdfUrl = new URL('/api/download-borang-pendaftaran.php', request.url);
         pdfUrl.searchParams.set('type', type);
         pdfUrl.searchParams.set('application_id', String(applicationId));
+        // Same session as the submission: the website's cookie or the app's Bearer token.
         const pdf = await registrationPdf(new Request(pdfUrl, {
-          headers: {Cookie: request.headers.get('Cookie') || ''},
+          headers: {Cookie: request.headers.get('Cookie') || '',
+            Authorization: request.headers.get('Authorization') || ''},
         }), env);
         if (!pdf.ok || !pdf.headers.get('Content-Type')?.includes('application/pdf')) {
           throw new Error('Registration PDF unavailable');

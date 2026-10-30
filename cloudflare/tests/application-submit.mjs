@@ -103,6 +103,16 @@ try {
   assert.equal(raResult.email_sent,true);
   assert.match(applicantEmails().at(-1).attachments[0].filename,/RA_R1/);
   assert.equal(applicantEmails().at(-1).attachments.length,1);
+  // The mobile app sends its session as a Bearer token, not a cookie; the copy still gets its PDF.
+  const appRa=db.prepare("SELECT id FROM users WHERE role='Penilai' AND aktif=1 AND id NOT IN (SELECT user_id FROM permohonan WHERE jenis_borang='penilai_berdaftar' AND tahun_permohonan=2027) LIMIT 1").get();
+  assert.ok(appRa);
+  const appToken=(await sessionCookie(db,appRa.id)).split('=')[1];
+  const appResponse=await submitRefereeApplication(new Request('https://staging.refpahang.example/api/pengadil-application.php',{
+    method:'POST',headers:{Authorization:`Bearer ${appToken}`},body:form('penilai_berdaftar'),
+  }),env);
+  assert.equal(appResponse.status,200);
+  assert.equal((await appResponse.json()).email_sent,true);
+  assert.match(applicantEmails().at(-1).attachments[0].filename,/RA_R1/);
   const admin=db.prepare("SELECT id FROM users WHERE role='Admin' AND aktif=1 LIMIT 1").get();
   const adminCookie=await sessionCookie(db,admin.id);
   const allMatchesBefore=db.prepare('SELECT COUNT(*) n FROM perlawanan WHERE user_id=80').get().n;
@@ -114,5 +124,5 @@ try {
   assert.equal((await deletion.json()).unlinked_matches,51);
   assert.equal(db.prepare("SELECT COUNT(*) n FROM perlawanan WHERE user_id=80 AND substr(tarikh,1,4)='2026' AND permohonan_id IS NULL").get().n,51);
   assert.equal(db.prepare('SELECT COUNT(*) n FROM perlawanan WHERE user_id=80').get().n,allMatchesBefore);
-  console.log('application submit/delete: auth/write gates, uploads, PDF mail, duplicate guard and 51 preserved matches passed');
+  console.log('application submit/delete: auth/write gates, uploads, PDF mail (cookie and Bearer), duplicate guard and 51 preserved matches passed');
 } finally {close();}
