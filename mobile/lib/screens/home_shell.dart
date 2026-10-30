@@ -80,7 +80,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           AppPage('kelulusan', 'Kelulusan', 'Kelulusan', Icons.task_alt_outlined, Icons.task_alt,
               (k) => KelulusanView(key: k, admin: true)),
           lantikan(center: true),
-          AppPage('menu', 'Menu', 'Semua Menu', Icons.grid_view_outlined, Icons.grid_view_rounded,
+          AppPage('semua', 'Semua', 'Semua Fungsi', Icons.grid_view_outlined, Icons.grid_view_rounded,
               (k) => MenuScreen(key: k, user: user, onOpen: _openEntry, embedded: true)),
           profil,
         ],
@@ -289,7 +289,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final tab = _tabs[_index];
     final home = tab.id == 'utama';
     return Scaffold(
-      drawer: AppDrawer(user: _user, onOpen: _openEntry),
       appBar: home
           ? null
           : AppBar(

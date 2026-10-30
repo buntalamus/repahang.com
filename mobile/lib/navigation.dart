@@ -30,9 +30,12 @@ class MenuSection {
   final List<MenuEntry> entries;
 }
 
-/// Shortcuts in the home screen's "Menu Pantas" row: in-app pages only.
-List<MenuEntry> quickMenuFor(SessionUser user) =>
-    menuFor(user).expand((s) => s.entries).where((e) => !e.external).take(6).toList();
+/// The home screen's quick actions: in-app pages first, then website pages.
+/// Profile is left out because the avatar in the header opens it.
+List<MenuEntry> quickMenuFor(SessionUser user, {int count = 8}) {
+  final all = menuFor(user).expand((s) => s.entries).where((e) => e.page != 'profil').toList();
+  return [...all.where((e) => !e.external), ...all.where((e) => e.external)].take(count).toList();
+}
 
 /// Everything each role can do, grouped like the website sidebar.
 List<MenuSection> menuFor(SessionUser user) {

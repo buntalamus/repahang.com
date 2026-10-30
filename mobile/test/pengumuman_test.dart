@@ -110,7 +110,7 @@ void main() {
       expect(find.text('Pengumuman 3'), findsOneWidget);
       expect(find.text('Pengumuman 4'), findsNothing);
       final all = find.descendant(of: find.widgetWithText(SectionTitle, 'Pengumuman'), matching: find.text('Lihat semua'));
-      await tester.ensureVisible(all);
+      await tester.scrollUntilVisible(all.hitTestable(), 200, scrollable: find.byType(Scrollable).first);
       await tester.tap(all);
       await tester.pumpAndSettle();
       expect(find.byType(PengumumanScreen), findsOneWidget);

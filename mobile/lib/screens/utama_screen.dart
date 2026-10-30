@@ -69,8 +69,19 @@ class _UtamaScreenState extends State<UtamaScreen> {
     return home;
   }
 
-  void _openMenu() => Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => MenuScreen(user: user, onOpen: widget.onOpenEntry)));
+  void _openMenu(_Home home) => Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => MenuScreen(user: user, onOpen: widget.onOpenEntry, badges: _badges(home))));
+
+  /// Pending counts shown on quick-action icons, keyed by shell page id.
+  Map<String?, int> _badges(_Home home) {
+    final t = home.totals;
+    return {
+      'tugasan': _int(t['response']),
+      'semakan': _int(t['pending_units']) + _int(t['review_applications']),
+      'laporan': _int(t['needs_report']),
+      'kelulusan': _int(home.adminStats?['pending_applications']),
+    };
+  }
 
   Future<void> _openGaps(Future<void> Function() reload) async {
     await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const PerluTindakanScreen()));
@@ -92,8 +103,8 @@ class _UtamaScreenState extends State<UtamaScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 const WebPushCard(),
-                SectionTitle('Menu Pantas', action: 'Lihat semua', onAction: _openMenu),
-                _quickMenu(),
+                SectionTitle('Tindakan Pantas', action: 'Lihat semua', onAction: () => _openMenu(home)),
+                _quickActions(home),
                 ..._focus(home, reload),
                 ..._summary(home),
                 if (user.isAdmin && home.adminStats != null) ..._adminPending(home.adminStats!),
@@ -127,31 +138,33 @@ class _UtamaScreenState extends State<UtamaScreen> {
     final first = user.name.split(RegExp(r'\s+')).firstWhere((w) => w.isNotEmpty, orElse: () => '');
     return HeroHeader(
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Row(children: [
-          IconButton(
-            tooltip: 'Menu',
-            onPressed: () => Scaffold.maybeOf(context)?.openDrawer(),
-            icon: const Icon(Icons.menu_rounded, color: Colors.white),
-          ),
-          const Spacer(),
-          IconButton(
-            tooltip: 'Notifikasi',
-            onPressed: widget.onOpenNotifications,
-            icon: Badge(
-              isLabelVisible: widget.unread > 0,
-              backgroundColor: Tw.red600,
-              label: Text(widget.unread > 9 ? '9+' : '${widget.unread}'),
-              child: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 26),
-            ),
-          ),
-        ]),
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+          padding: const EdgeInsets.fromLTRB(12, 12, 4, 20),
           child: Row(children: [
-            Container(
-              padding: const EdgeInsets.all(2),
-              decoration: const BoxDecoration(color: Tw.pahangYellow, shape: BoxShape.circle),
-              child: Avatar(name: user.name, photo: home.photo, radius: 26),
+            // The avatar opens the profile and settings.
+            Semantics(
+              button: true,
+              label: 'Profil dan tetapan',
+              child: GestureDetector(
+                onTap: () => widget.onOpenTab('profil'),
+                child: Stack(clipBehavior: Clip.none, children: [
+                  Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(color: Tw.pahangYellow, shape: BoxShape.circle),
+                    child: Avatar(name: user.name, photo: home.photo, radius: 25),
+                  ),
+                  Positioned(
+                    right: -4,
+                    bottom: -4,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.black, width: 1.5)),
+                      child: const Icon(Icons.settings_outlined, size: 14, color: AppColors.black),
+                    ),
+                  ),
+                ]),
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -159,10 +172,21 @@ class _UtamaScreenState extends State<UtamaScreen> {
                 Text('Hi, ${first.isEmpty ? 'Pengguna' : _title(first)}',
                     style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500)),
                 Text(greeting(), style: const TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Pill(user.jenisPengadil.isNotEmpty && user.jenisPengadil != 'null' ? user.jenisPengadil : user.role,
+                    (Tw.pahangYellow, AppColors.black)),
               ]),
             ),
-            Pill(user.jenisPengadil.isNotEmpty && user.jenisPengadil != 'null' ? user.jenisPengadil : user.role,
-                (Tw.pahangYellow, AppColors.black)),
+            IconButton(
+              tooltip: 'Notifikasi',
+              onPressed: widget.onOpenNotifications,
+              icon: Badge(
+                isLabelVisible: widget.unread > 0,
+                backgroundColor: Tw.red600,
+                label: Text(widget.unread > 9 ? '9+' : '${widget.unread}'),
+                child: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 26),
+              ),
+            ),
           ]),
         ),
         Padding(
@@ -215,17 +239,22 @@ class _UtamaScreenState extends State<UtamaScreen> {
     ];
   }
 
-  Widget _quickMenu() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      clipBehavior: Clip.none,
-      child: Row(children: [
-        for (final entry in quickMenuFor(user))
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: QuickMenuChip(label: entry.label, icon: entry.icon, onTap: () => widget.onOpenEntry(entry)),
-          ),
-      ]),
+  /// Four-column grid of the role's main actions, like a banking app.
+  Widget _quickActions(_Home home) {
+    final badges = _badges(home);
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(6, 10, 6, 6),
+      child: GridView.count(
+        crossAxisCount: 4,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        childAspectRatio: 0.88,
+        children: [
+          for (final entry in quickMenuFor(user))
+            MenuTile(label: entry.label, icon: entry.icon, external: entry.external, badge: badges[entry.page],
+                onTap: () => widget.onOpenEntry(entry)),
+        ],
+      ),
     );
   }
 

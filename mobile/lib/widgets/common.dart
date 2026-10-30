@@ -588,38 +588,6 @@ class SummaryCard extends StatelessWidget {
   }
 }
 
-/// Pill shortcut in the "Menu Pantas" row.
-class QuickMenuChip extends StatelessWidget {
-  const QuickMenuChip({super.key, required this.label, required this.icon, required this.onTap});
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      shape: const StadiumBorder(side: BorderSide(color: AppColors.line)),
-      child: InkWell(
-        customBorder: const StadiumBorder(),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(6, 6, 14, 6),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              padding: const EdgeInsets.all(5),
-              decoration: const BoxDecoration(color: AppColors.grey100, shape: BoxShape.circle),
-              child: Icon(icon, size: 15, color: AppColors.black),
-            ),
-            const SizedBox(width: 8),
-            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-          ]),
-        ),
-      ),
-    );
-  }
-}
-
 /// Small number box with a coloured top edge, for the yearly summary strip.
 class MiniStat extends StatelessWidget {
   const MiniStat({super.key, required this.label, required this.value, this.color = AppColors.yellow, this.onTap});
@@ -659,7 +627,8 @@ class MiniStat extends StatelessWidget {
 
 /// Square tile in the full menu grid.
 class MenuTile extends StatelessWidget {
-  const MenuTile({super.key, required this.label, required this.icon, required this.onTap, this.external = false});
+  const MenuTile({super.key, required this.label, required this.icon, required this.onTap, this.external = false,
+      this.badge, this.color = Colors.white});
   final String label;
   final IconData icon;
   final VoidCallback onTap;
@@ -667,27 +636,37 @@ class MenuTile extends StatelessWidget {
   /// Opens the website instead of an in-app screen.
   final bool external;
 
+  /// Pending count shown on the icon.
+  final int? badge;
+  final Color color;
+
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: color,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
-        child: Stack(children: [
+        child: Stack(alignment: Alignment.topCenter, children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(8, 14, 8, 10),
-            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                    color: external ? AppColors.grey100 : AppColors.yellowSoft, borderRadius: BorderRadius.circular(12)),
-                child: Icon(icon, size: 22, color: AppColors.black),
+            padding: const EdgeInsets.fromLTRB(2, 10, 2, 4),
+            child: Column(mainAxisAlignment: MainAxisAlignment.start, children: [
+              Badge(
+                isLabelVisible: (badge ?? 0) > 0,
+                backgroundColor: Tw.red600,
+                offset: const Offset(6, -6),
+                label: Text((badge ?? 0) > 99 ? '99+' : '$badge'),
+                child: Container(
+                  padding: const EdgeInsets.all(11),
+                  decoration: BoxDecoration(
+                      color: external ? AppColors.grey100 : AppColors.yellowSoft, borderRadius: BorderRadius.circular(14)),
+                  child: Icon(icon, size: 24, color: AppColors.black),
+                ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 7),
               Text(label, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, height: 1.2)),
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, height: 1.2)),
             ]),
           ),
           if (external)
