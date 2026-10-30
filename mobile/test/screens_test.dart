@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refpahang/api.dart';
 import 'package:refpahang/main.dart';
+import 'package:refpahang/screens/admin_screens.dart';
+import 'package:refpahang/screens/chat_screen.dart';
 import 'package:refpahang/screens/daerah_screens.dart';
 import 'package:refpahang/screens/notifikasi_screen.dart';
 import 'package:refpahang/screens/permohonan_form_screen.dart';
@@ -20,6 +22,25 @@ String _notif(int offsetHours) =>
     _today.toUtc().add(const Duration(hours: 8)).add(Duration(hours: offsetHours)).toIso8601String().substring(0, 19).replaceFirst('T', ' ');
 
 final Map<String, Object> _responses = {
+  '/api/admin-matches.php': {
+    'error': false,
+    'statistics': {'total': 1486, 'pending': 68, 'verified': 1418, 'rejected': 0},
+    'pagination': {'page': 1, 'per_page': 25, 'total_pages': 3, 'total_items': 68},
+    'matches': [
+      {'id': 41, 'match_group_id': 'g41', 'tarikh': '2026-10-24', 'masa': '16:30', 'jenis': 'Liga', 'nama_kejohanan': 'Liga Pahang 2026',
+        'tempat': 'Padang Gambang', 'home_team': 'GAMBANG FC', 'away_team': 'SRI DAMAI', 'status_pp': null,
+        'daerah_perlawanan_nama': 'Kuantan', 'submitter_name': 'MOHD HAFIZ',
+        'officials': [{'jawatan': 'Pengadil', 'nama': 'MOHD HAFIZ'}, {'jawatan': 'Penolong Pengadil 1', 'nama': 'ALI BIN ABU'}]},
+    ],
+  },
+  '/api/support-chat.php': {
+    'error': false,
+    'has_more': false,
+    'data': [
+      {'id': 1, 'body': 'Assalamualaikum, saya tidak dapat memuat naik resit bayaran.', 'is_admin': 0, 'created_at': '2026-10-29 09:12:00', 'sender_name': 'MOHD HAFIZ'},
+      {'id': 2, 'body': 'Waalaikumsalam. Sila pastikan saiz fail kurang daripada 5MB dan cuba sekali lagi.', 'is_admin': 1, 'created_at': '2026-10-29 09:20:00', 'sender_name': 'Admin'},
+    ],
+  },
   '/api/pp-referees.php': {
     'error': false,
     'statistics': {'total': 86, 'active': 71, 'inactive': 15},
@@ -349,6 +370,16 @@ void main() {
     _login('Pengadil');
     await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: const StatistikScreen()));
     await _show(tester, 'pengadil_statistik');
+  });
+
+  testWidgets('admin perlawanan dan chat', (tester) async {
+    _login('Admin');
+    await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: const AdminPerlawananScreen()));
+    await _show(tester, 'admin_perlawanan');
+    _login('Pengadil');
+    await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: const ChatScreen()));
+    await _show(tester, 'chat');
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('daftar', (tester) async {

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'screens/admin_screens.dart';
+import 'screens/chat_screen.dart';
 import 'screens/daerah_screens.dart';
 import 'screens/notifikasi_screen.dart';
 import 'screens/pengumuman_screen.dart';
@@ -48,30 +50,35 @@ List<MenuSection> menuFor(SessionUser user) {
   final profil = page('Profil Saya', Icons.person_outline_rounded, 'profil');
   final notifikasi = screen('Notifikasi', Icons.notifications_none_rounded, () => const NotifikasiScreen());
   final pengumuman = screen('Pengumuman', Icons.campaign_outlined, () => const PengumumanScreen());
+  // Support chat is for officials (support-chat.ts).
+  final chat = user.isAdmin || (user.isDistrict && !user.canReferee && !user.canRa)
+      ? null
+      : screen('Hubungi Admin', Icons.support_agent_rounded, () => const ChatScreen());
   final perluTindakan = screen('Perlu Tindakan', Icons.warning_amber_rounded, () => const PerluTindakanScreen());
 
   return switch (user.role) {
     'Admin' => [
         MenuSection('Permohonan', [
           page('Kelulusan', Icons.task_alt_rounded, 'kelulusan'),
+          screen('Permohonan Ujian', Icons.fact_check_outlined, () => const AdminUjianScreen()),
           web('Permohonan Penilai', Icons.rate_review_outlined, '/admin/permohonan-ra'),
         ]),
         MenuSection('Lantikan & Perlawanan', [
           page('Lantikan Pegawai', Icons.event_note_outlined, 'lantikan'),
           perluTindakan,
-          web('Rekod Perlawanan', Icons.sports_soccer_outlined, '/admin/perlawanan'),
+          screen('Rekod Perlawanan', Icons.sports_soccer_outlined, () => const AdminPerlawananScreen()),
           web('Pengadil Luar', Icons.person_add_alt, '/admin/pengadil-luar'),
         ]),
         MenuSection('Pengadil & Pegawai', [
-          web('Pengadil Berdaftar', Icons.groups_outlined, '/admin/pengadil-berdaftar'),
-          web('Penilai Berdaftar', Icons.rate_review_outlined, '/admin/ra-berdaftar'),
+          screen('Pengadil Berdaftar', Icons.groups_outlined, () => const AdminPengadilScreen()),
+          screen('Penilai Berdaftar', Icons.rate_review_outlined, () => const AdminPengadilScreen(assessors: true)),
           web('PP Daerah', Icons.admin_panel_settings_outlined, '/admin/pp-daerah'),
           web('Pengguna', Icons.manage_accounts_outlined, '/admin/pengguna'),
         ]),
         MenuSection('Komunikasi', [
           notifikasi,
-          pengumuman,
-          web('Chat Pengguna', Icons.forum_outlined, '/admin/chat'),
+          screen('Pengumuman', Icons.campaign_outlined, () => const AdminPengumumanScreen()),
+          screen('Chat Pengguna', Icons.forum_outlined, () => const ChatInboxScreen()),
           web('Peti Emel', Icons.mail_outline_rounded, '/admin/emel'),
         ]),
         MenuSection('Sistem', [
@@ -97,7 +104,7 @@ List<MenuSection> menuFor(SessionUser user) {
           if (user.canRa) page('Laporan RA', Icons.rate_review_outlined, 'laporan'),
           page('Permohonan Saya', Icons.description_outlined, 'permohonan'),
         ]),
-        MenuSection('Komunikasi', [notifikasi, pengumuman]),
+        MenuSection('Komunikasi', [notifikasi, pengumuman, ?chat]),
         MenuSection('Akaun', [profil]),
       ],
     'Penilai' => [
@@ -107,7 +114,7 @@ List<MenuSection> menuFor(SessionUser user) {
           screen('Statistik', Icons.bar_chart_rounded, () => const StatistikScreen()),
         ]),
         MenuSection('Permohonan', [page('Permohonan Saya', Icons.description_outlined, 'permohonan')]),
-        MenuSection('Komunikasi', [notifikasi, pengumuman]),
+        MenuSection('Komunikasi', [notifikasi, pengumuman, ?chat]),
         MenuSection('Akaun', [profil]),
       ],
     _ => [
@@ -117,7 +124,7 @@ List<MenuSection> menuFor(SessionUser user) {
           screen('Statistik Saya', Icons.insights_outlined, () => const StatistikScreen()),
         ]),
         MenuSection('Permohonan', [page('Permohonan Saya', Icons.description_outlined, 'permohonan')]),
-        MenuSection('Komunikasi', [notifikasi, pengumuman]),
+        MenuSection('Komunikasi', [notifikasi, pengumuman, ?chat]),
         MenuSection('Akaun', [profil]),
       ],
   };
