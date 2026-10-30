@@ -69,7 +69,7 @@
     // Keep in step with wrangler.production.jsonc: the same app talks to both.
     "MOBILE_ANDROID_URL": "https://refpahang.com/app/refpahang.apk",
     "MOBILE_MIN_VERSION": "1.2.0",
-    "MOBILE_LATEST_VERSION": "1.3.0",
+    "MOBILE_LATEST_VERSION": "1.4.0",
     "VAPID_PUBLIC_KEY": "BO4kEmtoPWuRdkdFQttS_KLYhetpVzDsvdGp3vVH0-TV6DyFp3pR4D74sG9KBtrW_Swlvm4creFEGIzM6UK5aiE",
     "VAPID_SUBJECT": "mailto:sokongan@pbnppahang.my"
   },
