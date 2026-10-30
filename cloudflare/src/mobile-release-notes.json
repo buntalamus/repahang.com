@@ -42,5 +42,14 @@
       "Admin: semakan rekod perlawanan, pengumuman, permohonan ujian, pengadil berdaftar dan chat pengguna.",
       "Butang Hubungi Admin untuk bertanya terus kepada Admin."
     ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 1,
+    "date": "2026-10-30",
+    "changes": [
+      "Susun atur lebih kemas pada telefon berskrin kecil: Tindakan Pantas tidak lagi bersesak dan label tidak terpotong.",
+      "Admin: Statistik, Laporan Permohonan, Tetapan, Pengguna, PP Daerah dan Permohonan Penilai kini dibuka terus dalam aplikasi."
+    ]
   }
 ]
