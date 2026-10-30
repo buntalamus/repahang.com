@@ -178,6 +178,38 @@ class Api {
             field: MultipartFile.fromBytes(bytes, filename: filename),
           })));
 
+  /// Downloads a file the server streams (PDF, Excel), with the session
+  /// header. Errors arrive as JSON and are thrown as [ApiException].
+  Future<(List<int>, String filename, String mimeType)> download(String path,
+      {Map<String, dynamic>? query, Map<String, dynamic>? body}) async {
+    Response<List<int>> response;
+    try {
+      final options = Options(responseType: ResponseType.bytes);
+      response = body == null
+          ? await _dio.get<List<int>>(path, queryParameters: query, options: options)
+          : await _dio.post<List<int>>(path, data: body, queryParameters: query, options: options);
+    } on DioException {
+      throw ApiException('Tiada sambungan internet. Sila cuba lagi.');
+    }
+    final status = response.statusCode ?? 0;
+    final type = response.headers.value('content-type') ?? 'application/octet-stream';
+    final bytes = response.data ?? const <int>[];
+    if (status >= 400 || type.contains('json')) {
+      var message = status >= 400 ? 'Ralat pelayan ($status).' : 'Fail tidak tersedia.';
+      try {
+        final decoded = jsonDecode(utf8.decode(bytes));
+        if (decoded is Map && decoded['message'] != null) message = '${decoded['message']}';
+      } catch (_) {
+        // Not JSON: keep the generic message.
+      }
+      if (status == 401 && _token != null) await _clear();
+      throw ApiException(message, status);
+    }
+    final disposition = response.headers.value('content-disposition') ?? '';
+    final name = RegExp(r'filename="?([^";]+)"?').firstMatch(disposition)?.group(1);
+    return (bytes, Uri.decodeComponent(name ?? 'fail'), type.split(';').first.trim());
+  }
+
   /// Multipart form with text fields and optional files, like the website's
   /// FormData posts (e.g. /api/register.php).
   Future<Map<String, dynamic>> postForm(String path, Map<String, String> fields,

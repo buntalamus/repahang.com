@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:refpahang/api.dart';
 import 'package:refpahang/main.dart';
 import 'package:refpahang/screens/notifikasi_screen.dart';
+import 'package:refpahang/screens/permohonan_form_screen.dart';
 import 'package:refpahang/theme.dart';
 
 final _today = DateTime.now();
@@ -17,6 +18,13 @@ String _notif(int offsetHours) =>
     _today.toUtc().add(const Duration(hours: 8)).add(Duration(hours: offsetHours)).toIso8601String().substring(0, 19).replaceFirst('T', ' ');
 
 final Map<String, Object> _responses = {
+  '/api/application-settings.php': {
+    'error': false,
+    'settings': {'application_year': '2028', 'payment_amount': '80.00', 'payment_bank_name': 'Maybank',
+      'payment_account_name': 'Persatuan Bolasepak Negeri Pahang', 'payment_account_no': '5060 1234 5678'},
+    'windows': {'berdaftar': {'state': 'open', 'open_date': '', 'close_date': ''},
+      'bertulis': {'state': 'not_yet', 'open_date': '2026-12-01', 'close_date': ''}},
+  },
   '/api/registration-status.php': {'error': false, 'registration_open': true, 'registration_message': null},
   '/api/public-persatuan.php': {
     'error': false,
@@ -280,8 +288,30 @@ void main() {
     await _show(tester, 'pengadil_rekod', then: () => tester.tap(find.text('Rekod').last));
     await _show(tester, 'pengadil_penilaian', then: () => tester.tap(find.text('Penilaian').last));
     await _show(tester, 'pengadil_permohonan', then: () => tester.tap(find.text('Permohonan').last));
+    await _show(tester, 'pengadil_mohon', then: () async {
+      await tester.tap(find.text('Mohon'));
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.tap(find.text('Pendaftaran Tahunan Pengadil (R1+R2+R4)'));
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    });
+    await tester.pageBack();
+    await tester.pump(const Duration(milliseconds: 500));
     await _show(tester, 'pengadil_profil', then: () => tester.tap(find.text('Profil').last));
     await _show(tester, 'pengadil_profil_edit', then: () => tester.tap(find.text('Kemaskini').first));
+  });
+
+  testWidgets('borang permohonan', (tester) async {
+    _login('Pengadil');
+    final profile = _responses['/api/get-user-profile.php']! as Map<String, Object>;
+    _responses['/api/get-user-profile.php'] = {...profile, 'profile_missing_labels': <String>[]};
+    addTearDown(() => _responses['/api/get-user-profile.php'] = profile);
+    await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: const PermohonanFormScreen(form: AppForm(
+        'pengadil_berdaftar', 'Pendaftaran Tahunan Pengadil (R1+R2+R4)', '', Icons.badge_outlined, 'berdaftar', 'berdaftar'))));
+    await _show(tester, 'borang_permohonan', then: () => tester.drag(find.byType(ListView).first, const Offset(0, -500)));
   });
 
   testWidgets('daftar', (tester) async {

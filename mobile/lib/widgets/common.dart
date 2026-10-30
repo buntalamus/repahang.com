@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
 import '../config.dart';
+import '../files/file_opener.dart';
 import '../theme.dart';
 
 const _monthsMs = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun', 'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
@@ -674,5 +675,21 @@ class MenuTile extends StatelessWidget {
         ]),
       ),
     );
+  }
+}
+
+/// Downloads a file from the server and shows it (see files/file_opener.dart),
+/// with toasts for progress and errors.
+Future<void> downloadAndOpen(BuildContext context, String path,
+    {Map<String, dynamic>? query, Map<String, dynamic>? body, String fallbackName = 'fail.pdf'}) async {
+  showToast(context, 'Memuat turun...', ToastType.info);
+  try {
+    final (bytes, name, type) = await Api.instance.download(path, query: query, body: body);
+    final ok = await openFileBytes(bytes, name == 'fail' ? fallbackName : name, type);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    if (!ok) showToast(context, 'Tiada aplikasi untuk membuka fail ini.', ToastType.warning);
+  } on ApiException catch (error) {
+    if (context.mounted) showToast(context, error.message, ToastType.error);
   }
 }

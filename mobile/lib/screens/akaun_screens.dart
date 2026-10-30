@@ -1,13 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:image_cropper/image_cropper.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
 import '../push.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/photo_picker.dart';
 import '../widgets/profile_form.dart';
 
 /// Shown instead of the app until a new account replaces its emailed
@@ -171,7 +170,7 @@ class DaftarScreen extends StatefulWidget {
 class _DaftarScreenState extends State<DaftarScreen> {
   final Map<String, dynamic> _form = {'role': 'Pengadil', 'negeri': 'Pahang'};
   late final Future<(Map<String, dynamic>, List<(Object, String)>)> _setup = _load();
-  List<int>? _photo;
+  Uint8List? _photo;
   bool _agreed = false;
   bool _busy = false;
 
@@ -244,54 +243,8 @@ class _DaftarScreenState extends State<DaftarScreen> {
   }
 
   Future<void> _pickPhoto() async {
-    final source = await showAppSheet<ImageSource>(context, title: 'Gambar profil', builder: (context) => Column(children: [
-      ListTile(
-        leading: const Icon(Icons.photo_camera_outlined),
-        title: const Text('Ambil gambar'),
-        onTap: () => Navigator.pop(context, ImageSource.camera),
-      ),
-      ListTile(
-        leading: const Icon(Icons.photo_library_outlined),
-        title: const Text('Pilih dari galeri'),
-        onTap: () => Navigator.pop(context, ImageSource.gallery),
-      ),
-    ]));
-    if (source == null) return;
-    XFile? picked;
-    try {
-      picked = await ImagePicker().pickImage(source: source, maxWidth: kIsWeb ? 400 : 1600,
-          maxHeight: kIsWeb ? 400 : 1600, imageQuality: kIsWeb ? 80 : null, preferredCameraDevice: CameraDevice.front);
-    } catch (_) {
-      if (mounted) showToast(context, 'Kebenaran kamera/galeri diperlukan.', ToastType.error);
-      return;
-    }
-    if (picked == null) return;
-    List<int> bytes;
-    if (kIsWeb) {
-      bytes = await picked.readAsBytes();
-    } else {
-      // Square 400×400 JPEG within the server's 200 KB / 150-400 px limits.
-      final cropped = await ImageCropper().cropImage(
-        sourcePath: picked.path,
-        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
-        maxWidth: 400,
-        maxHeight: 400,
-        compressQuality: 80,
-        uiSettings: [
-          AndroidUiSettings(toolbarTitle: 'Pangkas gambar', toolbarColor: AppColors.black,
-              toolbarWidgetColor: Tw.pahangYellow, activeControlsWidgetColor: Tw.pahangYellow, lockAspectRatio: true,
-              initAspectRatio: CropAspectRatioPreset.square, aspectRatioPresets: const [CropAspectRatioPreset.square]),
-          IOSUiSettings(title: 'Pangkas gambar', aspectRatioLockEnabled: true, resetAspectRatioEnabled: false),
-        ],
-      );
-      if (cropped == null) return;
-      bytes = await cropped.readAsBytes();
-    }
-    if (bytes.length > 200 * 1024) {
-      if (mounted) showToast(context, 'Gambar melebihi 200 KB. Sila pilih gambar lain.', ToastType.warning);
-      return;
-    }
-    setState(() => _photo = bytes);
+    final bytes = await pickProfilePhoto(context);
+    if (bytes != null && mounted) setState(() => _photo = bytes);
   }
 
   Future<void> _submit(List<FieldSection> sections) async {
@@ -370,7 +323,7 @@ class _DaftarScreenState extends State<DaftarScreen> {
                   clipBehavior: Clip.antiAlias,
                   child: _photo == null
                       ? const Icon(Icons.add_a_photo_outlined, color: AppColors.black)
-                      : Image.memory(Uint8List.fromList(_photo!), fit: BoxFit.cover),
+                      : Image.memory(_photo!, fit: BoxFit.cover),
                 ),
                 const SizedBox(width: 14),
                 Expanded(

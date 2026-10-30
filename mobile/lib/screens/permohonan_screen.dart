@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../api.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'permohonan_form_screen.dart';
 
 const _formLabels = {
   'pengadil_berdaftar': 'Pendaftaran Tahunan (R1)',
@@ -22,54 +23,36 @@ String formLabel(Object? raw) {
   return words.isEmpty ? 'Permohonan' : words.join(' ');
 }
 
-/// The user's applications and their status. New applications need uploads
-/// and payment, so the form opens on the website.
+/// The user's applications and their status, and the forms to apply.
 class PermohonanScreen extends StatelessWidget {
   const PermohonanScreen({super.key});
 
-  List<(String, String, IconData, String)> _forms() {
-    final user = Api.instance.user.value;
-    if (user?.isDistrict == true) {
-      return [
-        ('Pendaftaran Pengadil', 'Pendaftaran tahunan pengadil', Icons.badge_outlined, '/pengadil/permohonan/berdaftar'),
-        ('Kelas III FAM', 'Kursus pengadil Kelas III', Icons.quiz_outlined, '/pp-daerah/daftar/kelas3'),
-        ('Kelas I FAM', 'Ujian pengadil Kelas I', Icons.military_tech_outlined, '/pp-daerah/daftar/kelas1'),
-      ];
-    }
-    if (user?.role == 'Penilai') {
-      return [('Pendaftaran Tahunan (R1)', 'Pendaftaran penilai pengadil', Icons.how_to_reg_outlined, '/penilai/permohonan/tahunan')];
-    }
-    return [
-      ('Pendaftaran Tahunan (R1)', 'Pendaftaran tahunan pengadil', Icons.badge_outlined, '/pengadil/permohonan/berdaftar'),
-      ('Kelas III FAM', 'Kursus pengadil Kelas III', Icons.quiz_outlined, '/pengadil/permohonan/kelas3'),
-      ('Ujian Kelas I FAM', 'Ujian pengadil Kelas I', Icons.military_tech_outlined, '/pengadil/permohonan/kelas1'),
-    ];
-  }
-
-  void _newApplication(BuildContext context) {
-    showAppSheet<void>(context, title: 'Permohonan baharu', builder: (context) => Column(
+  Future<void> _newApplication(BuildContext context, Future<void> Function() reload) async {
+    final forms = appFormsFor(Api.instance.user.value!);
+    final picked = await showAppSheet<AppForm>(context, title: 'Permohonan baharu', builder: (context) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('Borang dan muat naik dokumen dibuat di website.', style: TextStyle(color: AppColors.muted)),
-        const SizedBox(height: 12),
-        for (final (title, subtitle, icon, path) in _forms())
+        for (final f in forms)
           AppCard(
             color: AppColors.background,
-            onTap: () => openWebsite(context, path),
+            onTap: () => Navigator.pop(context, f),
             child: Row(children: [
-              CircleAvatar(backgroundColor: Tw.pahangYellow, foregroundColor: AppColors.black, child: Icon(icon)),
+              CircleAvatar(backgroundColor: Tw.pahangYellow, foregroundColor: AppColors.black, child: Icon(f.icon)),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                  Text(subtitle, style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+                  Text(f.label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  Text(f.subtitle, style: const TextStyle(fontSize: 13, color: AppColors.muted)),
                 ]),
               ),
-              const Icon(Icons.open_in_new_rounded, size: 18, color: AppColors.faint),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.faint),
             ]),
           ),
       ],
     ));
+    if (picked == null || !context.mounted) return;
+    await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => PermohonanFormScreen(form: picked)));
+    await reload();
   }
 
   void _details(BuildContext context, Map<String, dynamic> p) {
@@ -88,23 +71,33 @@ class PermohonanScreen extends StatelessWidget {
       if (text(p['payment_amount'], '').isNotEmpty) DetailRow(Icons.payments_outlined, 'Bayaran', 'RM ${text(p['payment_amount'])}'),
       if (text(p['pp_notes'], '').isNotEmpty) DetailRow(Icons.comment_outlined, 'Catatan PP Daerah', text(p['pp_notes'])),
       if (text(p['admin_notes'], '').isNotEmpty) DetailRow(Icons.comment_outlined, 'Catatan Admin', text(p['admin_notes'])),
+      if (registrationPdfType(p) != null) ...[
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () => downloadApplicationPdf(context, p),
+          icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+          label: const Text('Muat turun borang (PDF)'),
+        ),
+      ],
     ]));
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _newApplication(context),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Mohon'),
-      ),
-      body: AsyncView<List<Map<String, dynamic>>>(
-        load: () async => ((await Api.instance.get('/api/pengadil-application-history.php'))['data'] as List? ?? [])
-            .map((e) => Map<String, dynamic>.from(e as Map))
-            .toList(),
-        builder: (context, items, reload) => RefreshList(onRefresh: reload, bottomPadding: 96, children: [
+    return AsyncView<List<Map<String, dynamic>>>(
+      load: () async => ((await Api.instance.get('/api/pengadil-application-history.php'))['data'] as List? ?? [])
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList(),
+      builder: (context, items, reload) => Scaffold(
+        backgroundColor: Colors.transparent,
+        floatingActionButton: appFormsFor(Api.instance.user.value!).isEmpty
+            ? null
+            : FloatingActionButton.extended(
+                onPressed: () => _newApplication(context, reload),
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Mohon'),
+              ),
+        body: RefreshList(onRefresh: reload, bottomPadding: 96, children: [
           if (items.isEmpty)
             const EmptyState(icon: Icons.description_outlined, title: 'Tiada permohonan',
                 subtitle: 'Tekan "Mohon" untuk membuat permohonan baharu.'),
