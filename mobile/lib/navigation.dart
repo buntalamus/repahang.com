@@ -4,6 +4,7 @@ import 'api.dart';
 import 'screens/daerah_screens.dart';
 import 'screens/notifikasi_screen.dart';
 import 'screens/pengumuman_screen.dart';
+import 'screens/statistik_screen.dart';
 import 'screens/perlu_tindakan_screen.dart';
 
 /// Something the full menu can open: a shell page (by id), an in-app screen,
@@ -89,7 +90,7 @@ List<MenuSection> menuFor(SessionUser user) {
           screen('Pengadil Berdaftar', Icons.groups_outlined, () => const DaerahPegawaiScreen()),
           screen('Penilai Berdaftar', Icons.rate_review_outlined, () => const DaerahPegawaiScreen(role: 'Penilai')),
           screen('Laporan Penilaian', Icons.assessment_outlined, () => const DaerahPenilaianScreen()),
-          web('Statistik Daerah', Icons.insights_outlined, '/pp-daerah/statistik'),
+          screen('Statistik Daerah', Icons.insights_outlined, () => const StatistikScreen()),
         ]),
         MenuSection('Tugasan Saya', [
           page('Tugasan', Icons.assignment_outlined, 'tugasan'),
@@ -103,7 +104,7 @@ List<MenuSection> menuFor(SessionUser user) {
         MenuSection('Tugasan', [
           page('Tugasan', Icons.assignment_outlined, 'tugasan'),
           page('Laporan Penilaian', Icons.rate_review_outlined, 'laporan'),
-          web('Statistik', Icons.bar_chart_rounded, '/penilai/statistik'),
+          screen('Statistik', Icons.bar_chart_rounded, () => const StatistikScreen()),
         ]),
         MenuSection('Permohonan', [page('Permohonan Saya', Icons.description_outlined, 'permohonan')]),
         MenuSection('Komunikasi', [notifikasi, pengumuman]),
@@ -113,7 +114,7 @@ List<MenuSection> menuFor(SessionUser user) {
         MenuSection('Tugasan & Rekod', [
           page('Tugasan', Icons.assignment_outlined, 'tugasan'),
           page('Rekod Perlawanan', Icons.sports_outlined, 'rekod'),
-          web('Statistik Saya', Icons.insights_outlined, '/pengadil/statistik'),
+          screen('Statistik Saya', Icons.insights_outlined, () => const StatistikScreen()),
         ]),
         MenuSection('Permohonan', [page('Permohonan Saya', Icons.description_outlined, 'permohonan')]),
         MenuSection('Komunikasi', [notifikasi, pengumuman]),

@@ -11,6 +11,7 @@ import 'package:refpahang/main.dart';
 import 'package:refpahang/screens/daerah_screens.dart';
 import 'package:refpahang/screens/notifikasi_screen.dart';
 import 'package:refpahang/screens/permohonan_form_screen.dart';
+import 'package:refpahang/screens/statistik_screen.dart';
 import 'package:refpahang/theme.dart';
 
 final _today = DateTime.now();
@@ -60,6 +61,8 @@ final Map<String, Object> _responses = {
       'totals': {'records': 24, 'verified': 18, 'pending': 5, 'rejected': 1, 'response': 1,
         'accepted': 9, 'no_report': 2, 'submitted': 3, 'confirmed': 4, 'needs_report': 2, 'drafts': 1,
         'registered': 86, 'licensed': 71, 'pending_units': 4, 'review_applications': 2},
+      'monthly': [for (var m = 1; m <= 12; m++) {'month': m, 'total': m <= 10 ? (m * 7) % 5 + 1 : 0, 'verified': m <= 9 ? (m * 7) % 5 : 0}],
+      'positions': [{'label': 'Pengadil', 'total': 9}, {'label': 'Penolong Pengadil 1', 'total': 11}, {'label': 'Pengadil Keempat', 'total': 4}],
       'upcoming': [
         {'id': 13, 'jawatan': 'Penolong Pengadil 2', 'status': 'Diterima', 'date': _day(5), 'time': '20:45:00',
           'subtitle': 'Padang MPT', 'tournament': 'Karnival B-18', 'title': 'TEMERLOH lwn LIPIS'},
@@ -340,6 +343,12 @@ void main() {
     await _show(tester, 'pp_pengadil_berdaftar');
     await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: const DaerahPenilaianScreen()));
     await _show(tester, 'pp_laporan_penilaian');
+  });
+
+  testWidgets('statistik', (tester) async {
+    _login('Pengadil');
+    await tester.pumpWidget(MaterialApp(theme: buildTheme(), home: const StatistikScreen()));
+    await _show(tester, 'pengadil_statistik');
   });
 
   testWidgets('daftar', (tester) async {
