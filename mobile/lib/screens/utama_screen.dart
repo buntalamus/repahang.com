@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../api.dart';
 import '../navigation.dart';
@@ -39,6 +40,9 @@ List<Map<String, dynamic>> _rows(Object? list) =>
     (list as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
 
 int _int(Object? value) => int.tryParse('${value ?? ''}') ?? 0;
+
+/// Third yearly-summary edge colour, between the yellow and the black.
+const _gold = Color(0xFFC99A00);
 
 class _UtamaScreenState extends State<UtamaScreen> {
   SessionUser get user => Api.instance.user.value!;
@@ -93,7 +97,10 @@ class _UtamaScreenState extends State<UtamaScreen> {
     return AsyncView<_Home>(
       load: _load,
       builder: (context, home, reload) {
-        return RefreshIndicator(
+        // Dark status-bar icons over the yellow header.
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle.dark,
+          child: RefreshIndicator(
           color: AppColors.black,
           backgroundColor: Tw.pahangYellow,
           onRefresh: reload,
@@ -129,6 +136,7 @@ class _UtamaScreenState extends State<UtamaScreen> {
               ]),
             ),
           ]),
+          ),
         );
       },
     );
@@ -150,8 +158,8 @@ class _UtamaScreenState extends State<UtamaScreen> {
                 child: Stack(clipBehavior: Clip.none, children: [
                   Container(
                     padding: const EdgeInsets.all(2),
-                    decoration: const BoxDecoration(color: Tw.pahangYellow, shape: BoxShape.circle),
-                    child: Avatar(name: user.name, photo: home.photo, radius: 25),
+                    decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                    child: Avatar(name: user.name, photo: home.photo, radius: 25, dark: true),
                   ),
                   Positioned(
                     right: -4,
@@ -170,11 +178,11 @@ class _UtamaScreenState extends State<UtamaScreen> {
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Hi, ${first.isEmpty ? 'Pengguna' : _title(first)}',
-                    style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500)),
-                Text(greeting(), style: const TextStyle(color: Colors.white, fontSize: 21, fontWeight: FontWeight.w800)),
+                    style: const TextStyle(color: Color(0xB8111111), fontSize: 14, fontWeight: FontWeight.w500)),
+                Text(greeting(), style: const TextStyle(color: AppColors.black, fontSize: 21, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 4),
                 Pill(user.jenisPengadil.isNotEmpty && user.jenisPengadil != 'null' ? user.jenisPengadil : user.role,
-                    (Tw.pahangYellow, AppColors.black)),
+                    (AppColors.black, Tw.pahangYellow)),
               ]),
             ),
             IconButton(
@@ -184,7 +192,7 @@ class _UtamaScreenState extends State<UtamaScreen> {
                 isLabelVisible: widget.unread > 0,
                 backgroundColor: Tw.red600,
                 label: Text(widget.unread > 9 ? '9+' : '${widget.unread}'),
-                child: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 26),
+                child: const Icon(Icons.notifications_none_rounded, color: AppColors.black, size: 26),
               ),
             ),
           ]),
@@ -203,9 +211,6 @@ class _UtamaScreenState extends State<UtamaScreen> {
   }
 
   static String _title(String word) => word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1).toLowerCase()}';
-
-  static const _tones = <Tone>[(AppColors.yellowSoft, AppColors.black), (Colors.white, AppColors.black),
-      (AppColors.grey100, AppColors.black)];
 
   List<Widget> _cards(_Home home, Future<void> Function() reload) {
     final t = home.totals;
@@ -234,8 +239,8 @@ class _UtamaScreenState extends State<UtamaScreen> {
         ],
     };
     return [
-      for (final (i, (label, value, icon, onTap)) in cards.indexed)
-        SummaryCard(label: label, value: value ?? '-', icon: icon, tone: _tones[i], onTap: onTap),
+      for (final (label, value, icon, onTap) in cards)
+        SummaryCard(label: label, value: value ?? '-', icon: icon, onTap: onTap),
     ];
   }
 
@@ -304,33 +309,33 @@ class _UtamaScreenState extends State<UtamaScreen> {
           ? null
           : [
               ('Pengadil aktif', home.adminStats!['total_pengadil'], AppColors.yellow),
-              ('Perlawanan bulan ini', home.adminStats!['matches_this_month'], AppColors.charcoal),
-              ('Permohonan', home.adminStats!['pending_applications'], Tw.amber300),
-              ('Laporan RA', home.adminStats!['pending_reports'], Tw.gray300),
+              ('Perlawanan bulan ini', home.adminStats!['matches_this_month'], AppColors.black),
+              ('Permohonan', home.adminStats!['pending_applications'], _gold),
+              ('Laporan RA', home.adminStats!['pending_reports'], AppColors.faint),
             ],
       'PP Daerah' => home.dashboard == null
           ? null
           : [
               ('Berdaftar', t['registered'], AppColors.yellow),
-              ('Berlesen', t['licensed'], AppColors.charcoal),
-              ('Rekod', t['records'], Tw.gray300),
-              ('Disahkan', t['verified'], Tw.emerald500),
+              ('Berlesen', t['licensed'], AppColors.black),
+              ('Rekod', t['records'], _gold),
+              ('Disahkan', t['verified'], AppColors.faint),
             ],
       'Penilai' => home.dashboard == null
           ? null
           : [
               ('Diterima', t['accepted'], AppColors.yellow),
-              ('Tiada laporan', t['no_report'], Tw.amber300),
-              ('Dihantar', t['submitted'], Tw.gray300),
-              ('Disahkan', t['confirmed'], Tw.emerald500),
+              ('Tiada laporan', t['no_report'], AppColors.black),
+              ('Dihantar', t['submitted'], _gold),
+              ('Disahkan', t['confirmed'], AppColors.faint),
             ],
       _ => home.dashboard == null
           ? null
           : [
               ('Rekod', t['records'], AppColors.yellow),
-              ('Disahkan', t['verified'], Tw.emerald500),
-              ('Menunggu', t['pending'], Tw.amber300),
-              ('Ditolak', t['rejected'], Tw.rose300),
+              ('Disahkan', t['verified'], AppColors.black),
+              ('Menunggu', t['pending'], _gold),
+              ('Ditolak', t['rejected'], AppColors.faint),
             ],
     };
     if (stats == null) return const [];
@@ -452,13 +457,13 @@ class _NextDuty extends StatelessWidget {
         const SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(color: AppColors.yellowSoft, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(color: AppColors.black, borderRadius: BorderRadius.circular(12)),
           child: Row(children: [
-            const Icon(Icons.timer_outlined, size: 18, color: AppColors.black),
+            const Icon(Icons.timer_outlined, size: 18, color: Tw.pahangYellow),
             const SizedBox(width: 8),
-            const Text('Masa berbaki', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+            const Text('Masa berbaki', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white)),
             const Spacer(),
-            Text(_remaining(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+            Text(_remaining(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Tw.pahangYellow)),
           ]),
         ),
       ]),

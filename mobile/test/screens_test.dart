@@ -278,7 +278,7 @@ void _login(String role) {
 
 Future<void> _show(WidgetTester tester, String name, {Future<void> Function()? then}) async {
   await tester.runAsync(() async {
-    for (final asset in ['assets/images/bg.jpg', 'assets/images/logo-pahang.png']) {
+    for (final asset in ['assets/images/bg.jpg', 'assets/images/logo-pahang.png', 'assets/images/logo-outline.png']) {
       await precacheImage(AssetImage(asset), tester.element(find.byType(MaterialApp)));
     }
   });

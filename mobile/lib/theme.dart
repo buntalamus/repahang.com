@@ -89,24 +89,29 @@ class Tw {
   static const shadowSm = [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))];
 }
 
-/// App surfaces: Pahang yellow as the accent on black, white and soft greys.
+/// App surfaces ("Kuning Berani"): full Pahang yellow for the hero and the
+/// main button, black for icons and the bottom bar, on warm whites and greys.
 class AppColors {
   static const black = Color(0xFF111111);
   static const charcoal = Color(0xFF2A2A2D);
   static const yellow = Tw.pahangYellow;
-  static const yellowSoft = Color(0xFFFFF7D1);
-  static const yellowDeep = Color(0xFF8A6D00);
-  static const background = Color(0xFFF5F6F8);
+  static const yellowSoft = Color(0xFFFFF4C2);
+  static const yellowDeep = Color(0xFF7A5A00);
+  static const background = Color(0xFFF7F5EF);
   static const surface = Colors.white;
-  static const grey100 = Color(0xFFEEF0F3);
-  static const grey200 = Color(0xFFE4E7EB);
-  static const line = Color(0xFFE6E8EC);
-  static const text = Tw.gray900;
-  static const muted = Tw.gray500;
-  static const faint = Tw.gray400;
+  static const grey100 = Color(0xFFEFECE4);
+  static const grey200 = Color(0xFFE2DED3);
+  static const line = Color(0xFFE8E4DA);
+  static const text = Color(0xFF111111);
+  static const muted = Color(0xFF5F5A4E);
+  static const faint = Color(0xFF9A9486);
 
-  /// Very soft card shadow.
-  static const shadow = [BoxShadow(color: Color(0x0A000000), blurRadius: 12, offset: Offset(0, 3))];
+  /// The dark bottom bar and its inactive items.
+  static const bar = Color(0xFF161616);
+  static const barIdle = Color(0xFFA3A3A3);
+
+  /// Soft card shadow.
+  static const shadow = [BoxShadow(color: Color(0x12000000), blurRadius: 14, offset: Offset(0, 4))];
 }
 
 ThemeData buildTheme() {

@@ -222,7 +222,7 @@ class SectionTitle extends StatelessWidget {
         if (action != null)
           GestureDetector(
             onTap: onAction,
-            child: Text(action!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Tw.gray600)),
+            child: Text(action!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.yellowDeep)),
           ),
       ]),
     );
@@ -484,11 +484,14 @@ Future<bool> confirmSheet(BuildContext context, {required String title, required
 
 /// Round avatar for a private profile photo, falling back to initials.
 class Avatar extends StatelessWidget {
-  const Avatar({super.key, required this.name, this.photo, this.radius = 24, this.version = 0});
+  const Avatar({super.key, required this.name, this.photo, this.radius = 24, this.version = 0, this.dark = false});
   final String name;
   final String? photo;
   final double radius;
   final int version;
+
+  /// Black disc with yellow initials, for use on the yellow header.
+  final bool dark;
 
   @override
   Widget build(BuildContext context) {
@@ -497,13 +500,13 @@ class Avatar extends StatelessWidget {
     final url = text(photo, '');
     return CircleAvatar(
       radius: radius,
-      backgroundColor: Tw.pahangYellow,
+      backgroundColor: dark ? AppColors.black : Tw.pahangYellow,
       foregroundImage: url.isEmpty
           ? null
           : NetworkImage('${Api.instance.absoluteUrl(url)}${url.contains('?') ? '&' : '?'}v=$version',
               headers: Api.instance.imageHeaders),
       child: Text(initials.isEmpty ? '?' : initials,
-          style: TextStyle(fontSize: radius * 0.7, fontWeight: FontWeight.w800, color: AppColors.black)),
+          style: TextStyle(fontSize: radius * 0.7, fontWeight: FontWeight.w800, color: dark ? Tw.pahangYellow : AppColors.black)),
     );
   }
 }
@@ -537,7 +540,8 @@ class LabeledField extends StatelessWidget {
   }
 }
 
-/// Black rounded header at the top of the home screen.
+/// Yellow rounded header at the top of the home screen, with the PBNP logo
+/// drawn as a faint tilted outline behind the content.
 class HeroHeader extends StatelessWidget {
   const HeroHeader({super.key, required this.child, this.bottom = 24});
   final Widget child;
@@ -547,10 +551,27 @@ class HeroHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        color: AppColors.black,
+        color: AppColors.yellow,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
       ),
-      child: SafeArea(bottom: false, child: Padding(padding: EdgeInsets.fromLTRB(8, 4, 8, bottom), child: child)),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(children: [
+        Positioned(
+          right: -70,
+          top: -30,
+          child: IgnorePointer(
+            child: Transform.rotate(
+              angle: -0.26,
+              child: Opacity(
+                opacity: 0.09,
+                child: Image.asset('assets/images/logo-outline.png', width: 260, height: 260,
+                    excludeFromSemantics: true),
+              ),
+            ),
+          ),
+        ),
+        SafeArea(bottom: false, child: Padding(padding: EdgeInsets.fromLTRB(8, 4, 8, bottom), child: child)),
+      ]),
     );
   }
 }
@@ -558,7 +579,7 @@ class HeroHeader extends StatelessWidget {
 /// One of the three soft summary cards under the home header.
 class SummaryCard extends StatelessWidget {
   const SummaryCard({super.key, required this.label, required this.value, required this.icon,
-      this.tone = (AppColors.yellowSoft, AppColors.black), this.onTap});
+      this.tone = (Colors.white, AppColors.black), this.onTap});
   final String label;
   final Object? value;
   final IconData icon;
@@ -567,16 +588,25 @@ class SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [BoxShadow(color: Color(0x1F5A4600), blurRadius: 12, offset: Offset(0, 4))],
+      ),
+      child: Material(
       color: tone.$1,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           child: Column(children: [
-            Icon(icon, size: 20, color: tone.$2),
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: const BoxDecoration(color: AppColors.black, shape: BoxShape.circle),
+              child: Icon(icon, size: 17, color: AppColors.yellow),
+            ),
             const SizedBox(height: 6),
             Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: tone.$2)),
@@ -584,6 +614,7 @@ class SummaryCard extends StatelessWidget {
             Text('${value ?? '-'}', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: tone.$2)),
           ]),
         ),
+      ),
       ),
     );
   }
@@ -659,10 +690,9 @@ class MenuTile extends StatelessWidget {
                 offset: const Offset(6, -6),
                 label: Text((badge ?? 0) > 99 ? '99+' : '$badge'),
                 child: Container(
-                  padding: const EdgeInsets.all(11),
-                  decoration: BoxDecoration(
-                      color: external ? AppColors.grey100 : AppColors.yellowSoft, borderRadius: BorderRadius.circular(14)),
-                  child: Icon(icon, size: 24, color: AppColors.black),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: external ? AppColors.grey100 : AppColors.black, shape: BoxShape.circle),
+                  child: Icon(icon, size: 22, color: external ? AppColors.black : AppColors.yellow),
                 ),
               ),
               const SizedBox(height: 7),

@@ -348,12 +348,10 @@ class _BottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BottomAppBar(
-      shape: const CircularNotchedRectangle(),
-      notchMargin: 7,
       height: 68,
       padding: EdgeInsets.zero,
-      elevation: 2,
-      shadowColor: const Color(0x14000000),
+      color: AppColors.bar,
+      elevation: 0,
       child: Row(children: [
         for (var i = 0; i < tabs.length; i++)
           Expanded(
@@ -365,7 +363,7 @@ class _BottomBar extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 40),
                       child: Text(tabs[i].label, textAlign: TextAlign.center,
                           style: TextStyle(fontSize: 11.5, fontWeight: i == index ? FontWeight.w700 : FontWeight.w500,
-                              color: i == index ? AppColors.text : AppColors.muted)),
+                              color: i == index ? Tw.pahangYellow : AppColors.barIdle)),
                     ),
                   )
                 : _BarItem(page: tabs[i], selected: i == index, onTap: () => onSelect(i)),
@@ -391,21 +389,22 @@ class _BarItem extends StatelessWidget {
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
           decoration: BoxDecoration(
-            color: selected ? AppColors.yellowSoft : Colors.transparent,
+            color: selected ? const Color(0x26FADA00) : Colors.transparent,
             borderRadius: BorderRadius.circular(999),
           ),
-          child: Icon(selected ? page.selectedIcon : page.icon, size: 22, color: selected ? AppColors.black : AppColors.muted),
+          child: Icon(selected ? page.selectedIcon : page.icon, size: 22,
+              color: selected ? Tw.pahangYellow : AppColors.barIdle),
         ),
         const SizedBox(height: 3),
         Text(page.label, maxLines: 1, overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: 11.5, fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                color: selected ? AppColors.text : AppColors.muted)),
+                color: selected ? Tw.pahangYellow : AppColors.barIdle)),
       ]),
     );
   }
 }
 
-/// The round black button in the middle of the bottom bar.
+/// The yellow button in the middle of the bottom bar.
 class _CenterButton extends StatelessWidget {
   const _CenterButton({required this.page, required this.selected, required this.onTap});
   final AppPage page;
@@ -418,17 +417,17 @@ class _CenterButton extends StatelessWidget {
       button: true,
       label: page.label,
       child: Material(
-        color: AppColors.black,
-        shape: CircleBorder(side: BorderSide(color: selected ? Tw.pahangYellow : AppColors.black, width: 2)),
-        elevation: 4,
-        shadowColor: const Color(0x55000000),
+        color: Tw.pahangYellow,
+        // A ring in the bar's colour seats the button on the dark bar.
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22),
+            side: const BorderSide(color: AppColors.bar, width: 5)),
         child: InkWell(
-          customBorder: const CircleBorder(),
+          customBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
           onTap: onTap,
           child: SizedBox(
-            width: 60,
-            height: 60,
-            child: Icon(selected ? page.selectedIcon : page.icon, color: Tw.pahangYellow, size: 28),
+            width: 66,
+            height: 66,
+            child: Icon(selected ? page.selectedIcon : page.icon, color: AppColors.black, size: 28),
           ),
         ),
       ),
