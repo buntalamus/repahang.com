@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'api.dart';
 import 'config.dart';
 import 'push.dart';
+import 'screens/akaun_screens.dart';
 import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
 import 'theme.dart';
@@ -40,7 +41,11 @@ class RefPahangApp extends StatelessWidget {
       theme: buildTheme(),
       home: ValueListenableBuilder<SessionUser?>(
         valueListenable: Api.instance.user,
-        builder: (context, user, _) => user == null ? const LoginScreen() : const HomeShell(),
+        builder: (context, user, _) => user == null
+            ? const LoginScreen()
+            : user.mustChangePassword
+                ? const ForceChangePasswordScreen()
+                : const HomeShell(),
       ),
     );
   }

@@ -12,43 +12,12 @@ import '../updater.dart';
 import '../widgets/common.dart';
 import '../widgets/update_notes.dart';
 import '../widgets/web_push_card.dart';
-import 'home_shell.dart' show AppPage;
 import 'notifikasi_screen.dart';
+import 'profil_edit_screen.dart';
 
-String profileWebPath(SessionUser? user) => switch (user?.role) {
-      'Admin' => '/admin/profil',
-      'PP Daerah' => '/pp-daerah/profil',
-      'Penilai' => '/penilai/profil',
-      _ => '/pengadil/profil',
-    };
-
-/// Website pages listed under "Di website" for each role.
-List<(String, IconData, String)> webLinksFor(SessionUser user) => switch (user.role) {
-      'Admin' => [
-          ('Dashboard penuh', Icons.dashboard_outlined, '/admin'),
-          ('Pengguna', Icons.people_outline, '/admin/pengguna'),
-          ('Statistik', Icons.insights_outlined, '/admin/statistik'),
-          ('Pengumuman', Icons.campaign_outlined, '/admin/pengumuman'),
-        ],
-      'PP Daerah' => [
-          ('Dashboard penuh', Icons.dashboard_outlined, '/pp-daerah'),
-          ('Statistik daerah', Icons.insights_outlined, '/pp-daerah/statistik'),
-        ],
-      'Penilai' => [
-          ('Dashboard penuh', Icons.dashboard_outlined, '/penilai'),
-          ('Statistik', Icons.bar_chart_outlined, '/penilai/statistik'),
-        ],
-      _ => [
-          ('Dashboard penuh', Icons.dashboard_outlined, '/pengadil'),
-          ('Statistik saya', Icons.insights_outlined, '/pengadil/statistik'),
-        ],
-    };
-
-/// Profile and settings: photo, account, website links, app version, logout.
+/// Profile and settings: photo, details, account, app version, logout.
 class ProfilScreen extends StatefulWidget {
-  const ProfilScreen({super.key, this.extraPages = const [], this.onOpenPage});
-  final List<AppPage> extraPages;
-  final void Function(String id, {bool refresh})? onOpenPage;
+  const ProfilScreen({super.key});
 
   @override
   State<ProfilScreen> createState() => _ProfilScreenState();
@@ -156,29 +125,32 @@ class _ProfilScreenState extends State<ProfilScreen> {
     }
   }
 
-  void _details(Map<String, dynamic> u) {
-    showAppSheet<void>(context, title: 'Maklumat saya', builder: (context) => Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        DetailRow(Icons.mail_outline, 'Emel', text(u['email'])),
-        DetailRow(Icons.phone_outlined, 'No. telefon', text(u['no_telefon'])),
-        DetailRow(Icons.badge_outlined, 'No. KP', text(u['no_ic'])),
-        DetailRow(Icons.groups_outlined, 'Persatuan', text(u['persatuan_bolasepak_daerah'])),
-        DetailRow(Icons.home_outlined, 'Alamat', [u['alamat1'], u['alamat2'], u['poskod'], u['daerah'], u['negeri']]
-            .map((e) => text(e, '')).where((e) => e.isNotEmpty).join(', ')),
-        DetailRow(Icons.calendar_month_outlined, 'Tahun mula aktif', text(u['tahun_mula_aktif'])),
-        DetailRow(Icons.checkroom_outlined, 'Saiz baju', text(u['saiz_baju'])),
-        DetailRow(Icons.family_restroom_outlined, 'Waris',
-            '${text(u['nama_waris'])} (${text(u['hubungan_waris'], '-')}) ${text(u['telefon_waris'], '')}'),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: () => openWebsite(context, profileWebPath(Api.instance.user.value)),
-          icon: const Icon(Icons.edit_outlined, size: 18),
-          label: const Text('Kemaskini di website'),
-        ),
-      ],
-    ));
+  Future<void> _edit(Map<String, dynamic> u) async {
+    final saved = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (_) => ProfilEditScreen(profile: u)));
+    if (saved == true) await _view.currentState?.reload();
   }
+
+  /// Read-only summary of the profile, grouped like the edit form.
+  Widget _summary(Map<String, dynamic> u) {
+    String join(List<Object?> parts) => parts.map((e) => text(e, '')).where((e) => e.isNotEmpty).join(', ');
+    return _group([
+      _info(Icons.badge_outlined, 'No. KP', text(u['no_ic'])),
+      _info(Icons.phone_outlined, 'No. telefon', text(u['no_telefon'])),
+      _info(Icons.groups_outlined, 'Persatuan', text(u['persatuan_bolasepak_daerah'])),
+      _info(Icons.home_outlined, 'Alamat', text(join([u['alamat1'], u['alamat2'], u['poskod'], u['daerah'], u['negeri']]))),
+      _info(Icons.work_outline_rounded, 'Pekerjaan', text(join([u['status_kerja'], u['jawatan'], u['nama_majikan']]))),
+      _info(Icons.family_restroom_outlined, 'Waris',
+          text(join([u['nama_waris'], u['hubungan_waris'], u['telefon_waris']]))),
+      _info(Icons.calendar_month_outlined, 'Tahun mula aktif · Saiz baju',
+          '${text(u['tahun_mula_aktif'])} · ${text(u['saiz_baju'])}'),
+    ]);
+  }
+
+  Widget _info(IconData icon, String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: DetailRow(icon, label, value),
+      );
 
   Future<void> _logout() async {
     final ok = await confirmSheet(context, title: 'Log keluar?',
@@ -275,7 +247,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
           if (missing.isNotEmpty)
             AppCard(
               color: Tw.amber50,
-              onTap: () => openWebsite(context, profileWebPath(user)),
+              onTap: () => _edit(u),
               child: Row(children: [
                 const Icon(Icons.warning_amber_rounded, color: Tw.amber700),
                 const SizedBox(width: 12),
@@ -289,9 +261,11 @@ class _ProfilScreenState extends State<ProfilScreen> {
               ]),
             ),
           if (kIsWeb) const WebPushCard(showWhenOn: true),
+          SectionTitle('Maklumat Saya', action: 'Kemaskini', onAction: () => _edit(u)),
+          _summary(u),
           const SectionTitle('Akaun'),
           _group([
-            _tile(Icons.person_outline, 'Maklumat saya', onTap: () => _details(u)),
+            _tile(Icons.edit_outlined, 'Kemaskini profil', onTap: () => _edit(u)),
             _tile(Icons.send_outlined, 'Telegram',
                 subtitle: linked ? 'Dihubungkan' : 'Belum dihubungkan — tekan untuk hubungkan',
                 trailing: Icon(linked ? Icons.check_circle_rounded : Icons.link_rounded,
@@ -302,18 +276,6 @@ class _ProfilScreenState extends State<ProfilScreen> {
                 onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const NotifikasiScreen()))),
             _tile(Icons.lock_outline_rounded, 'Tukar kata laluan',
                 onTap: () => showAppSheet<void>(context, title: 'Tukar kata laluan', builder: (_) => const _PasswordForm())),
-          ]),
-          if (widget.extraPages.isNotEmpty) ...[
-            const SectionTitle('Lagi'),
-            _group([
-              for (final p in widget.extraPages) _tile(p.icon, p.title, onTap: () => widget.onOpenPage?.call(p.id)),
-            ]),
-          ],
-          const SectionTitle('Di website'),
-          _group([
-            for (final (label, icon, path) in webLinksFor(user))
-              _tile(icon, label, trailing: const Icon(Icons.open_in_new_rounded, size: 18, color: AppColors.faint),
-                  onTap: () => openWebsite(context, path)),
           ]),
           const SectionTitle('App'),
           _group([

@@ -6,6 +6,7 @@ import '../config.dart';
 import '../push.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'akaun_screens.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -116,6 +117,17 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _register() async {
+    final email = await Navigator.of(context).push<String>(MaterialPageRoute(builder: (_) => const DaftarScreen()));
+    if (email != null && email.isNotEmpty && mounted) {
+      setState(() {
+        _email.text = email;
+        _password.clear();
+        _error = null;
+      });
     }
   }
 
@@ -233,7 +245,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           Align(
                             alignment: Alignment.centerRight,
                             child: TextButton(
-                              onPressed: () => openWebsite(context, '/lupa-kata-laluan'),
+                              onPressed: () => showForgotPassword(context, email: _email.text.trim()),
                               child: const Text('Lupa kata laluan?', style: TextStyle(color: AppColors.muted, fontSize: 13)),
                             ),
                           ),
@@ -261,7 +273,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 16),
                           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                             const Text('Belum ada akaun?', style: TextStyle(color: AppColors.muted)),
-                            TextButton(onPressed: () => openWebsite(context, '/daftar'), child: const Text('Daftar')),
+                            TextButton(onPressed: _register, child: const Text('Daftar')),
                           ]),
                           if (!demoMode.value && !kIsWeb)
                             TextButton.icon(

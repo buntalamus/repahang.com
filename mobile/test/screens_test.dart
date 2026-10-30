@@ -17,6 +17,14 @@ String _notif(int offsetHours) =>
     _today.toUtc().add(const Duration(hours: 8)).add(Duration(hours: offsetHours)).toIso8601String().substring(0, 19).replaceFirst('T', ' ');
 
 final Map<String, Object> _responses = {
+  '/api/registration-status.php': {'error': false, 'registration_open': true, 'registration_message': null},
+  '/api/public-persatuan.php': {
+    'error': false,
+    'data': [
+      {'id': 3, 'nama_persatuan': 'PB Daerah Kuantan', 'kod_persatuan': 'KTN', 'daerah': 'Kuantan'},
+      {'id': 4, 'nama_persatuan': 'PB Daerah Temerloh', 'kod_persatuan': 'TML', 'daerah': 'Temerloh'},
+    ],
+  },
   '/api/portal-dashboard.php': {
     'error': false,
     'data': {
@@ -181,7 +189,9 @@ final Map<String, Object> _responses = {
     'profile_missing_labels': ['Saiz baju'],
     'user': {'nama_penuh': 'MOHD HAFIZ BIN ISMAIL', 'email': 'hafiz@example.com', 'jenis_pengadil': 'Pengadil Negeri', 'no_telefon': '0139876543',
       'no_ic': '900101-06-1234', 'persatuan_bolasepak_daerah': 'PB Daerah Kuantan', 'alamat1': 'No 1 Jalan Bukit', 'poskod': '25000',
-      'daerah': 'Kuantan', 'negeri': 'Pahang', 'tahun_mula_aktif': '2015', 'telegram_linked': 1, 'url_gambar_profil': ''},
+      'daerah': 'Kuantan', 'negeri': 'Pahang', 'tahun_mula_aktif': '2015', 'telegram_linked': 1, 'url_gambar_profil': '',
+      'persatuan_id': 3, 'jantina': 'Lelaki', 'status_kerja': 'Bekerja (Swasta)', 'jawatan': 'Juruteknik',
+      'nama_majikan': 'Syarikat ABC', 'nama_waris': 'AISYAH BINTI ALI', 'hubungan_waris': 'Pasangan', 'telefon_waris': '0123334444'},
   },
   '/api/kejohanan.php': {
     'error': false,
@@ -271,6 +281,23 @@ void main() {
     await _show(tester, 'pengadil_penilaian', then: () => tester.tap(find.text('Penilaian').last));
     await _show(tester, 'pengadil_permohonan', then: () => tester.tap(find.text('Permohonan').last));
     await _show(tester, 'pengadil_profil', then: () => tester.tap(find.text('Profil').last));
+    await _show(tester, 'pengadil_profil_edit', then: () => tester.tap(find.text('Kemaskini').first));
+  });
+
+  testWidgets('daftar', (tester) async {
+    Api.instance.user.value = null;
+    await tester.pumpWidget(const RefPahangApp());
+    await tester.pump(const Duration(milliseconds: 300));
+    await _show(tester, 'daftar', then: () async {
+      await tester.ensureVisible(find.text('Daftar'));
+      await tester.tap(find.text('Daftar'));
+    });
+  });
+
+  testWidgets('tukar kata laluan', (tester) async {
+    Api.instance.user.value = SessionUser({'id': 1, 'role': 'Pengadil', 'nama_penuh': 'MOHD HAFIZ', 'password_changed': 0});
+    await tester.pumpWidget(const RefPahangApp());
+    await _show(tester, 'tukar_kata_laluan');
   });
 
   testWidgets('admin', (tester) async {

@@ -27,6 +27,9 @@ class SessionUser {
   bool get canReferee => '${json['can_referee']}' == '1';
   bool get canRa => '${json['can_ra']}' == '1';
   bool get isAdmin => role == 'Admin';
+
+  /// New accounts get an emailed password and must replace it first.
+  bool get mustChangePassword => '${json['password_changed']}' == '0';
   bool get isDistrict => role == 'PP Daerah';
 
   /// Roles that receive appointments (/api/tugasan.php).
@@ -90,6 +93,7 @@ class Api {
         'jenis_pengadil': session['user_jenis_pengadil'],
         'can_referee': session['can_referee'],
         'can_ra': session['can_ra'],
+        'password_changed': session['password_changed'],
       });
     } on ApiException catch (error) {
       // Offline: keep the stored session and let screens retry.
@@ -107,6 +111,15 @@ class Api {
     _token = '${body['token']}';
     final data = Map<String, dynamic>.from(body['data'] as Map);
     await _storage.write(key: _tokenKey, value: _token);
+    await _storage.write(key: _userKey, value: _encode(data));
+    user.value = SessionUser(data);
+  }
+
+  /// Records a completed password change so the app stops asking for one.
+  Future<void> markPasswordChanged() async {
+    final current = user.value;
+    if (current == null) return;
+    final data = {...current.json, 'password_changed': 1};
     await _storage.write(key: _userKey, value: _encode(data));
     user.value = SessionUser(data);
   }
@@ -163,6 +176,16 @@ class Api {
   Future<Map<String, dynamic>> upload(String path, String field, List<int> bytes, String filename) =>
       _send(() => _dio.post(path, data: FormData.fromMap({
             field: MultipartFile.fromBytes(bytes, filename: filename),
+          })));
+
+  /// Multipart form with text fields and optional files, like the website's
+  /// FormData posts (e.g. /api/register.php).
+  Future<Map<String, dynamic>> postForm(String path, Map<String, String> fields,
+          {Map<String, (List<int>, String)> files = const {}}) =>
+      _send(() => _dio.post(path, data: FormData.fromMap({
+            ...fields,
+            for (final MapEntry(key: name, value: (bytes, filename)) in files.entries)
+              name: MultipartFile.fromBytes(bytes, filename: filename),
           })));
 
   Future<Map<String, dynamic>> _send(Future<Response<dynamic>> Function() request) async {

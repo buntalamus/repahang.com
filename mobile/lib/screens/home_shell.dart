@@ -73,7 +73,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     AppPage semakan({bool center = false}) => AppPage('semakan', 'Semakan', 'Semakan', Icons.fact_check_outlined,
         Icons.fact_check, (k) => SemakanScreen(key: k), center: center);
     final profil = AppPage('profil', 'Profil', 'Profil', Icons.person_outline, Icons.person,
-        (k) => ProfilScreen(key: k, extraPages: _extra, onOpenPage: _openTab));
+        (k) => ProfilScreen(key: k));
     return switch (user.role) {
       'Admin' => [
           utama(),
