@@ -604,6 +604,10 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
   laporanList: any[] = [];
   laporanSearch = '';
   laporanKejohananFilter = '';
+  // 'tertunggak' lists accepted RA appointments whose report is missing or still a draft.
+  laporanView: 'laporan' | 'tertunggak' = 'laporan';
+  loadingTertunggak = false;
+  tertunggakList: any[] = [];
   showLaporanModal = false;
   laporanDetail: any = null;
   loadingLaporanDetail = false;
@@ -624,6 +628,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadKejohanan();
     this.loadLaporan();
+    this.loadTertunggak();
   }
 
   // ===================== KEJOHANAN =====================
@@ -2030,7 +2035,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
 
   get laporanKejohananOptions(): Array<{ id: number; nama: string }> {
     const options = new Map<number, string>();
-    this.laporanList.forEach(laporan => {
+    [...this.laporanList, ...this.tertunggakList].forEach(laporan => {
       const id = Number(laporan.kejohanan_id);
       if (id && laporan.nama_kejohanan) {
         options.set(id, laporan.nama_kejohanan);
@@ -2067,6 +2072,54 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
     }
 
     return list;
+  }
+
+  get filteredTertunggak(): any[] {
+    let list = this.tertunggakList;
+    if (this.laporanKejohananFilter) {
+      const kejohananId = Number(this.laporanKejohananFilter);
+      list = list.filter(row => Number(row.kejohanan_id) === kejohananId);
+    }
+    const search = this.laporanSearch.trim().toLowerCase();
+    if (search) {
+      list = list.filter(row => [
+        row.nama_kejohanan,
+        row.no_perlawanan,
+        row.pasukan_home,
+        row.pasukan_away,
+        row.nama_penilai,
+        row.no_telefon,
+      ].join(' ').toLowerCase().includes(search));
+    }
+    return list;
+  }
+
+  daysSinceMatch(tarikh: string): number {
+    const match = new Date(`${tarikh}T00:00:00+08:00`).getTime();
+    const today = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }) + 'T00:00:00+08:00').getTime();
+    return Math.max(0, Math.round((today - match) / 86_400_000));
+  }
+
+  loadTertunggak(): void {
+    if (this.isDistrict) return;
+    this.loadingTertunggak = true;
+    this.api.get<any>('laporan-penilaian.php', { tertunggak: '1' }).subscribe({
+      next: (res) => { this.tertunggakList = res.data || []; this.loadingTertunggak = false; },
+      error: () => this.loadingTertunggak = false,
+    });
+  }
+
+  prepareRaFormLink(lantikanId: number): void {
+    this.api.post<{ message: string }>('lantikan-audit.php', {
+      action: 'prepare_links',
+      lantikan_id: lantikanId,
+    }).subscribe({
+      next: (res) => {
+        this.toast.show(res.message, 'success');
+        this.loadTertunggak();
+      },
+      error: (err) => this.toast.show(err?.error?.message || 'Ralat menyediakan pautan.', 'error'),
+    });
   }
 
   clearLaporanFilters(): void {

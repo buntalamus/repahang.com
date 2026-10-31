@@ -8,17 +8,23 @@ const source=readFileSync(new URL('../src/assessment-reports.ts',import.meta.url
   .replace("import { currentUser, json } from './auth';",`
     const currentUser=async()=>globalThis.assessmentUser;
     const json=(body,status=200)=>Response.json(body,{status});`)
-  .replace("import criteria from './kriteria-penilaian.json';",`const criteria=${JSON.stringify(criteria)};`);
+  .replace("import criteria from './kriteria-penilaian.json';",`const criteria=${JSON.stringify(criteria)};`)
+  .replace("import { publishedAppointmentSql } from './appointment-publication';",
+    // The 13 Oct snapshot predates published_at; accepted appointments count as published anyway.
+    `const publishedAppointmentSql=(a)=>\`(\${a}.status='Diterima')\`;`)
+  .replace("import { baseUrl } from './php/email';",'const baseUrl=(env)=>env.BASE_URL;');
 const compiled=ts.transpileModule(source,{
   compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext},
 }).outputText;
 const {assessmentReports}=await import(`data:text/javascript,${encodeURIComponent(compiled)}`);
 
 function d1(db) {
-  return {DB:{prepare:(sql)=>({bind:(...params)=>({
+  const bound=(sql,params)=>({
     first:async()=>db.prepare(sql).get(...params)??null,
     all:async()=>({results:db.prepare(sql).all(...params)}),
-  })})},BASE_URL:'https://staging.example.test'};
+  });
+  return {DB:{prepare:(sql)=>({...bound(sql,[]),bind:(...params)=>bound(sql,params)})},
+    BASE_URL:'https://staging.example.test'};
 }
 const db=new DatabaseSync(':memory:');
 db.exec(`
@@ -110,6 +116,51 @@ if (existsSync(snapshotPath)) {
   const admin=await assessmentReports(new Request(base),snapshotEnv);
   assert.equal(admin.status,200);
   assert.equal((await admin.json()).data.length,91);
+  const outstanding=await assessmentReports(new Request(`${base}?tertunggak=1`),snapshotEnv);
+  assert.equal(outstanding.status,200,'outstanding RA list must match imported schema');
   snapshot.close();
 }
-console.log('assessment reports: role scoping, token redaction, GET modes and write gate passed');
+{
+  // Admin-only list of accepted RA appointments whose report is missing or a draft.
+  const pending=new DatabaseSync(':memory:');
+  pending.exec(`
+    CREATE TABLE users(id INTEGER PRIMARY KEY,nama_penuh TEXT,no_telefon TEXT);
+    CREATE TABLE pengadil_luar(id INTEGER PRIMARY KEY,nama TEXT,no_tel TEXT);
+    CREATE TABLE kejohanan(id INTEGER PRIMARY KEY,nama TEXT);
+    CREATE TABLE jadual_perlawanan(id INTEGER PRIMARY KEY,kejohanan_id INTEGER,
+      no_perlawanan TEXT,tarikh TEXT,masa TEXT,pasukan_home TEXT,pasukan_away TEXT,tempat TEXT);
+    CREATE TABLE lantikan_pengadil(id INTEGER PRIMARY KEY,jadual_id INTEGER,pengadil_id INTEGER,
+      pengadil_luar_id INTEGER,jawatan TEXT,status TEXT,penilaian_token TEXT,published_at TEXT);
+    CREATE TABLE laporan_penilaian(id INTEGER PRIMARY KEY,jadual_id INTEGER,status TEXT,updated_at TEXT);
+    INSERT INTO users VALUES(1,'RA Berdaftar','0111');
+    INSERT INTO pengadil_luar VALUES(5,'RA Luar','0222');
+    INSERT INTO kejohanan VALUES(1,'Liga A');
+    INSERT INTO jadual_perlawanan VALUES
+      (1,1,'1','2026-01-01','16:00','A','B','P'),(2,1,'2','2026-01-02','16:00','C','D','P'),
+      (3,1,'3','2026-01-03','16:00','E','F','P'),(4,1,'4','2099-01-01','16:00','G','H','P'),
+      (5,1,'5','2026-01-05','16:00','I','J','P'),(6,1,'6','2026-01-06','16:00','K','L','P');
+    INSERT INTO lantikan_pengadil VALUES
+      (11,1,1,NULL,'Penilai Pengadil','Diterima','tok1',NULL),
+      (12,2,NULL,5,'Penilai Pengadil','Diterima',NULL,NULL),
+      (13,3,1,NULL,'Penilai Pengadil','Diterima','tok3',NULL),
+      (14,4,1,NULL,'Penilai Pengadil','Diterima','tok4',NULL),
+      (15,5,1,NULL,'Penilai Pengadil','Belum Jawab',NULL,'2026-01-01'),
+      (16,6,1,NULL,'Pengadil','Diterima',NULL,NULL);
+    INSERT INTO laporan_penilaian VALUES(21,2,'Draf','2026-01-03 10:00:00'),(23,3,'Dihantar',NULL);
+  `);
+  const pendingEnv=d1(pending);
+  globalThis.assessmentUser={id:1,role:'Penilai'};
+  assert.equal((await assessmentReports(new Request(`${base}?tertunggak=1`),pendingEnv)).status,403);
+  globalThis.assessmentUser={id:9,role:'Admin'};
+  const rows=(await (await assessmentReports(new Request(`${base}?tertunggak=1`),pendingEnv)).json()).data;
+  // Submitted (3), future (4), unanswered (5) and non-RA (6) rows are left out; newest first.
+  assert.deepEqual(rows.map((row)=>[row.lantikan_id,row.status,row.pegawai_luar]),
+    [[12,'Draf',1],[11,'Belum diisi',0]]);
+  assert.equal(rows[0].nama_penilai,'RA Luar');
+  assert.equal(rows[0].no_telefon,'0222');
+  assert.equal(rows[0].ra_form_url,null);
+  assert.equal(rows[1].ra_form_url,'https://staging.example.test/penilaian-borang.html?token=tok1');
+  assert.equal('penilaian_token' in rows[1],false);
+  pending.close();
+}
+console.log('assessment reports: role scoping, token redaction, GET modes, outstanding RA list and write gate passed');

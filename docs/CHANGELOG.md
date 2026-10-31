@@ -4,6 +4,13 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [31 Oktober 2026] — Semakan laporan RA tertunggak untuk Admin
+
+- Lantikan Pengadil → tab **Laporan Penilaian** kini ada paparan **Belum dihantar RA**. Ia menyenaraikan setiap perlawanan yang telah bermula dan RA telah menerima lantikan, tetapi laporan belum diisi atau masih Draf.
+- Setiap baris memaparkan kejohanan, perlawanan, tarikh, nama RA (bertanda *Luar* bagi pegawai luar), nombor telefon, status dan bilangan hari sejak perlawanan. Carian dan tapisan kejohanan sedia ada turut digunakan.
+- **Salin pautan borang** menyalin pautan borang RA dan merekodkan salinan dalam log lantikan. Jika pautan belum wujud, **Sediakan pautan** menjananya dahulu.
+- API: `GET /api/laporan-penilaian.php?tertunggak=1`, khusus untuk Admin. Tiada migrasi atau patch mobile diperlukan.
+
 ## [31 Oktober 2026] — RA dalam senarai Krew KUP
 
 - Senarai pegawai dalam emel/Telegram lantikan, balasan terima Telegram dan notifikasi "Krew KUP Lengkap" kini memaparkan **Penilai Pengadil (RA)** selepas P4, dengan nama, nombor telefon dan negeri/daerah.

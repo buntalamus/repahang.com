@@ -1618,14 +1618,30 @@
 
   <!-- ===================== TAB 5: PENILAIAN ===================== -->
   @if (activeTab === 'penilaian') {
-    <div class="flex items-center justify-between mb-3">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
       <h2 class="text-base font-semibold text-slate-900">Laporan Penilaian</h2>
-      @if (!loadingLaporan) {
-        <span class="text-xs text-slate-500">{{ filteredLaporan.length }} daripada {{ laporanList.length }} laporan</span>
-      }
+      <div class="inline-flex rounded-lg border border-slate-300 bg-white p-0.5" role="group" aria-label="Paparan laporan penilaian">
+        <button type="button" (click)="laporanView = 'laporan'" [attr.aria-pressed]="laporanView === 'laporan'"
+          class="px-3 py-1.5 rounded-md text-xs font-medium transition"
+          [class]="laporanView === 'laporan' ? 'bg-pahang-black text-pahang-yellow' : 'text-slate-600 hover:bg-slate-50'">
+          Laporan diterima ({{ laporanList.length }})
+        </button>
+        <button type="button" (click)="laporanView = 'tertunggak'" [attr.aria-pressed]="laporanView === 'tertunggak'"
+          class="px-3 py-1.5 rounded-md text-xs font-medium transition"
+          [class]="laporanView === 'tertunggak' ? 'bg-pahang-black text-pahang-yellow' : 'text-slate-600 hover:bg-slate-50'">
+          Belum dihantar RA ({{ tertunggakList.length }})
+        </button>
+      </div>
     </div>
 
-    @if (loadingLaporan) {
+    @if (laporanView === 'tertunggak') {
+      <p class="text-xs text-slate-500 mb-3">
+        Perlawanan yang telah bermula dan RA telah menerima lantikan, tetapi laporan belum diisi atau masih Draf.
+        Hubungi RA atau salin pautan borang untuk dihantar kepada mereka.
+      </p>
+    }
+
+    @if (laporanView === 'laporan' ? loadingLaporan : loadingTertunggak) {
       <app-loading message="Memuatkan laporan..." />
     } @else {
       <div class="flex flex-col lg:flex-row gap-3 mb-4">
@@ -1651,6 +1667,71 @@
         }
       </div>
 
+      @if (laporanView === 'tertunggak') {
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Kejohanan</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Perlawanan</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Penilai (RA)</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Status</th>
+                  <th class="px-4 py-3 text-center text-xs font-semibold text-slate-500 uppercase w-40">Tindakan</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                @for (row of filteredTertunggak; track row.lantikan_id) {
+                  <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-4 py-3 text-xs text-slate-700">{{ row.nama_kejohanan }}</td>
+                    <td class="px-4 py-3">
+                      <p class="text-xs font-semibold">{{ row.no_perlawanan || '-' }} · {{ row.tarikh | date:'d MMM y' }}{{ row.masa ? ', ' + row.masa.slice(0, 5) : '' }}</p>
+                      <p class="text-xs text-slate-400">{{ row.pasukan_home }} vs {{ row.pasukan_away }}</p>
+                    </td>
+                    <td class="px-4 py-3">
+                      <p class="text-xs text-slate-700">{{ row.nama_penilai }}
+                        @if (row.pegawai_luar) { <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500">Luar</span> }
+                      </p>
+                      @if (row.no_telefon) {
+                        <a [href]="'tel:' + row.no_telefon" class="text-xs text-blue-600 hover:underline">{{ row.no_telefon }}</a>
+                      }
+                    </td>
+                    <td class="px-4 py-3">
+                      <span class="px-2 py-0.5 rounded text-xs font-medium"
+                        [class]="row.status === 'Draf' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-700'">
+                        {{ row.status }}
+                      </span>
+                      <p class="text-[10px] text-slate-400 mt-1">{{ daysSinceMatch(row.tarikh) === 0 ? 'Hari ini' : daysSinceMatch(row.tarikh) + ' hari lalu' }}</p>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                      @if (row.ra_form_url) {
+                        <button type="button" (click)="copyDirectLink(row.lantikan_id, 'ra_form_url', row.ra_form_url)"
+                          class="px-3 py-1 bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 rounded text-xs transition shadow-sm">
+                          Salin pautan borang
+                        </button>
+                      } @else {
+                        <button type="button" (click)="prepareRaFormLink(row.lantikan_id)"
+                          class="px-3 py-1 bg-white border border-slate-300 text-slate-600 hover:bg-slate-50 rounded text-xs transition shadow-sm">
+                          Sediakan pautan
+                        </button>
+                      }
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="5" class="px-4 py-16 text-center">
+                      <span class="material-symbols-outlined text-4xl text-slate-300">task_alt</span>
+                      <p class="text-slate-400 text-sm mt-2">
+                        {{ tertunggakList.length === 0 ? 'Semua laporan RA telah dihantar.' : 'Tiada perlawanan sepadan dengan carian atau kejohanan dipilih.' }}
+                      </p>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      } @else {
       <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
@@ -1721,6 +1802,7 @@
           </table>
         </div>
       </div>
+      }
     }
   }
 </div>
