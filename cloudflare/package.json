@@ -74,7 +74,8 @@
     "test:original-email-decisions": "node --no-warnings tests/original-email-decisions.mjs",
     "test:account-access": "node --no-warnings tests/account-access.mjs",
     "test:demo-mode": "node --no-warnings tests/demo-mode.mjs",
-    "deploy:demo": "npm run typecheck && npm run build:frontend && npm run build:mobile-web && wrangler deploy --config wrangler.demo.jsonc"
+    "deploy:demo": "npm run typecheck && npm run build:frontend && npm run build:mobile-web && wrangler deploy --config wrangler.demo.jsonc",
+    "test:media-cache": "node --no-warnings tests/private-media-cache.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
