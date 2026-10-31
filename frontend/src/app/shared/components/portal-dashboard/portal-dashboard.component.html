@@ -28,7 +28,14 @@
             <div><p>{{ action.title }}</p><strong>{{ action.count }}</strong><small>{{ action.detail }}</small></div>
             <span class="material-icons" aria-hidden="true">arrow_forward</span>
           </a>
-        }</div>
+        }
+          @if (d.can_referee || view === 'pengadil') {
+            <a class="action-card" href="/api/jfa-c13.php?view=page">
+              <div><p>Laporan pengadil C13 · JFA</p><small>Cetak atau lengkapkan C13 bagi perlawanan JFA yang anda terima sebagai Pengadil (R).</small></div>
+              <span class="material-icons" aria-hidden="true">arrow_forward</span>
+            </a>
+          }
+        </div>
       </section>
     }
     <section aria-label="Ringkasan tahun dipilih" class="metric-grid">@for (card of metricCards(); track card.label) {
