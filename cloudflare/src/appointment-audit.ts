@@ -5,7 +5,7 @@ import { boundedJson } from './request';
 import type { Env } from './types';
 import { guardStatement, runGuarded } from './php/guard';
 import { auditMetaFrom, getLantikanAuditSnapshot, lantikanAuditStatement } from './php/lantikan-audit';
-import { createPortalNotification, generatePenilaianToken, historySyncStatements,
+import { affectsCrewNotice, createPortalNotification, generatePenilaianToken, historySyncStatements,
   isAcceptedKupCrewComplete, isKupPosition, markMatchDispatchedIfComplete,
   notifyCompleteKupCrew } from './php/lantikan-helper';
 import { wroteRow } from './d1-changes';
@@ -347,7 +347,7 @@ async function adminOverrideAcceptance(request: Request, env: Env, actorId: numb
   if (!done) return json({error:true,message:'Ralat pelayan.'},500);
   await markMatchDispatchedIfComplete(env,jadualId);
   const jawatan = String(snapshot.jawatan ?? '');
-  const shouldNotifyCompleteKup = isKupPosition(jawatan) && await isAcceptedKupCrewComplete(env,jadualId);
+  const shouldNotifyCompleteKup = affectsCrewNotice(jawatan) && await isAcceptedKupCrewComplete(env,jadualId);
   const matchLabel = `${snapshot.pasukan_home ?? ''} lwn ${snapshot.pasukan_away ?? ''}`.trim();
   if (snapshot.pengadil_id) {
     try {

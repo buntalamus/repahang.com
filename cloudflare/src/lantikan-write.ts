@@ -16,7 +16,7 @@ import { sendBatalEmail, sendLantikanEmail } from './php/email';
 import type { AuditMeta, LantikanSnapshot } from './php/lantikan-audit';
 import { NOW, buildAppointmentDirectLinks, buildTelegramLink, getLantikanAuditSnapshot,
   lantikanAuditSelectStatement, lantikanAuditStatement, recordLantikanAudit } from './php/lantikan-audit';
-import { autoTolakLantikanTertunggak, createPortalNotification, generatePenilaianToken,
+import { affectsCrewNotice, autoTolakLantikanTertunggak, createPortalNotification, generatePenilaianToken,
   getAppointmentSlotValidation, getMatchKupOfficials, hasMatchStarted, historySyncStatements,
   isAcceptedKupCrewComplete, isKupPosition, markAppointmentExternallyDelivered,
   markMatchDispatchedIfComplete, matchStartedMessage, notifyCompleteKupCrew, notifyLantikanPortal,
@@ -267,7 +267,7 @@ async function assign(env: Env, input: Record<string, unknown>, user: User, meta
     previousHolderNotified = await notifyReplacedOfficial(env, previousHolder, user, meta);
   }
 
-  const shouldNotifyCompleteKup = matchStarted && requiresFreshResponse && isKupPosition(jawatan)
+  const shouldNotifyCompleteKup = matchStarted && requiresFreshResponse && affectsCrewNotice(jawatan)
     && await isAcceptedKupCrewComplete(env, jadualId);
   let message = matchStarted
     ? 'Lantikan rekod lama disahkan terus dan sejarah pengadil dikemaskini.'

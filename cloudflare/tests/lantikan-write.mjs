@@ -234,8 +234,10 @@ try {
   // RA after kickoff receives the form link (PHP sends it from the admin identity).
   emails.length=0;telegrams.length=0;
   const raResult=await read(await call({jadual_id:past,pengadil_id:ra.id,jawatan:'Penilai Pengadil'}));
+  // The RA joins the complete crew's notice alone; the three KUP are not re-notified.
   assert.equal(raResult.body.message,
-    'Lantikan rekod lama disahkan terus dan sejarah pengadil dikemaskini. Pautan borang Penilai Pengadil telah dihantar.');
+    'Lantikan rekod lama disahkan terus dan sejarah pengadil dikemaskini.'
+    +' Krew KUP lengkap dimaklumkan melalui 1 Telegram dan 0 emel. Pautan borang Penilai Pengadil telah dihantar.');
   const raRow=one("SELECT * FROM lantikan_pengadil WHERE jadual_id=? AND jawatan='Penilai Pengadil'",past);
   assert.match(raRow.penilaian_token,/^[a-f0-9]{64}$/);
   // Telegram-linked assessors get the form link there; others by email (from the admin identity).
@@ -248,6 +250,10 @@ try {
   }
   assert.equal(count(`SELECT count(*) FROM lantikan_audit_log WHERE lantikan_id=?
     AND event_type IN ('ra_form_notification','ra_form_dispatched')`,raRow.id),3);
+  assert.equal(count("SELECT count(*) FROM kup_crew_notifications WHERE jadual_id=? AND superseded_at IS NULL",past),4);
+  const crewNotices=telegrams.filter((message)=>message.text.includes('Krew KUP Lengkap'));
+  assert.equal(crewNotices.length,1);
+  assert.equal(crewNotices[0].text.includes('Penilai Pengadil'),true);
 
   // Auto-reject: an expired answer window before kickoff, as on every PHP view.
   const lazy=insertMatch('2026-12-02','10:21:00','U04');

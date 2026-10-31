@@ -4,6 +4,13 @@ Semua perubahan penting sejak **11 Julai 2026**.
 
 ---
 
+## [31 Oktober 2026] — RA dalam senarai Krew KUP
+
+- Senarai pegawai dalam emel/Telegram lantikan, balasan terima Telegram dan notifikasi "Krew KUP Lengkap" kini memaparkan **Penilai Pengadil (RA)** selepas P4, dengan nama, nombor telefon dan negeri/daerah.
+- RA yang telah menerima lantikan juga menerima notifikasi "Krew KUP Lengkap" apabila KUP lengkap. RA yang menerima selepas krew lengkap menerimanya seorang diri; KUP tidak dihantar semula.
+- Lengkap atau tidak krew masih ditentukan oleh KUP (R, AR1, AR2 dan P4 jika ada) sahaja; RA tidak menghalang.
+- Pembetulan pada Worker sahaja; tiada migrasi, APK atau patch mobile diperlukan.
+
 ## [27 Oktober 2026] — Draf lantikan hanya untuk pentadbir
 
 - Calon tidak melihat draf melalui Tugasan, Utama, dashboard portal, senarai rakan bertugas atau surat lantikan. Admin dan PP yang mengurus lantikan masih boleh menyusun calon sebelum menghantar.

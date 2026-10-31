@@ -8,7 +8,7 @@ import { publishedAppointmentSql } from '../appointment-publication';
 import { guardStatement, runGuarded } from './guard';
 import type { AuditMeta } from './lantikan-audit';
 import { NOW, getLantikanAuditSnapshot, lantikanAuditStatement } from './lantikan-audit';
-import { historySyncStatements, isAcceptedKupCrewComplete, isKupPosition } from './lantikan-helper';
+import { affectsCrewNotice, historySyncStatements, isAcceptedKupCrewComplete } from './lantikan-helper';
 import { getMatchKickoffTimestamp } from './format';
 
 export interface ResponseChange {
@@ -49,7 +49,7 @@ export async function applyAppointmentResponse(env: Env, change: ResponseChange,
       change.details, change.linkUrl, 'official', change.actorUserId, snapshot, meta),
   ]);
   if (!done) return { updated: false, shouldNotifyCompleteKup: false };
-  const shouldNotifyCompleteKup = isKupPosition(change.jawatan)
+  const shouldNotifyCompleteKup = affectsCrewNotice(change.jawatan)
     && await isAcceptedKupCrewComplete(env, change.jadualId);
   return { updated: true, shouldNotifyCompleteKup };
 }

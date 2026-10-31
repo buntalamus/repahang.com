@@ -16,7 +16,7 @@ const source = readFileSync(new URL('../src/appointment-audit.ts',import.meta.ur
     'const wroteRow = (result) => Number(result?.meta.changes ?? 0) > 0;')
   .replace("import { guardStatement, runGuarded } from './php/guard';",'')
   .replace("import { auditMetaFrom, getLantikanAuditSnapshot, lantikanAuditStatement } from './php/lantikan-audit';",'')
-  .replace(`import { createPortalNotification, generatePenilaianToken, historySyncStatements,
+  .replace(`import { affectsCrewNotice, createPortalNotification, generatePenilaianToken, historySyncStatements,
   isAcceptedKupCrewComplete, isKupPosition, markMatchDispatchedIfComplete,
   notifyCompleteKupCrew } from './php/lantikan-helper';`,'');
 const compiled = ts.transpileModule(source,{

@@ -21,10 +21,18 @@ export const LANTIKAN_AUTO_TOLAK_KOMEN = 'Ditolak automatik - tiada jawapan dala
 export const KUP_POSITIONS = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4'];
 const KUP_SQL = "'Pengadil','Penolong Pengadil 1','Penolong Pengadil 2','Pegawai ke4'";
 const KUP_ORDER = `CASE lp.jawatan WHEN 'Pengadil' THEN 1 WHEN 'Penolong Pengadil 1' THEN 2
-  WHEN 'Penolong Pengadil 2' THEN 3 WHEN 'Pegawai ke4' THEN 4 ELSE 0 END`;
+  WHEN 'Penolong Pengadil 2' THEN 3 WHEN 'Pegawai ke4' THEN 4 WHEN 'Penilai Pengadil' THEN 5 ELSE 0 END`;
+// The roster shown to officials and the "Krew KUP Lengkap" recipients include the RA,
+// but only the KUP decides when the crew is complete.
+const CREW_SQL = `${KUP_SQL},'Penilai Pengadil'`;
 
 export function isKupPosition(jawatan: string): boolean {
   return KUP_POSITIONS.includes(jawatan);
+}
+
+/** KUP answers can complete the crew; an RA answer can add the RA to a complete crew. */
+export function affectsCrewNotice(jawatan: string): boolean {
+  return isKupPosition(jawatan) || jawatan === 'Penilai Pengadil';
 }
 
 export function randomHex(bytes: number): string {
@@ -68,7 +76,7 @@ export async function getMatchKupOfficials(env: Env, jadualId: number):
     LEFT JOIN kejohanan kj ON kj.id=jp.kejohanan_id
     LEFT JOIN users u ON u.id=lp.pengadil_id
     LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
-    WHERE lp.jadual_id=? AND lp.jawatan IN (${KUP_SQL})
+    WHERE lp.jadual_id=? AND lp.jawatan IN (${CREW_SQL})
       AND lp.status IN ('Belum Jawab','Diterima')
       AND ${publishedAppointmentSql('lp')}
     ORDER BY ${KUP_ORDER}`).bind(jadualId)
@@ -420,7 +428,8 @@ interface CrewRecipient {
 async function getCompleteKupCrewContext(env: Env, jadualId: number) {
   if (!(await isAcceptedKupCrewComplete(env, jadualId))) return null;
   const roster = await getMatchKupOfficials(env, jadualId);
-  if (roster.officials.length < 3 || roster.officials.length > 4) return null;
+  const kupCount = roster.officials.filter((official) => isKupPosition(String(official.jawatan))).length;
+  if (kupCount < 3 || kupCount > 4) return null;
   const recipients = (await env.DB.prepare(`
     SELECT lp.id AS lantikan_id,lp.jawatan,
       COALESCE(NULLIF(trim(u.nama_penuh),''),NULLIF(trim(pl.nama),''),'Pengadil') AS nama,
@@ -433,11 +442,14 @@ async function getCompleteKupCrewContext(env: Env, jadualId: number) {
     LEFT JOIN kejohanan kj ON kj.id=jp.kejohanan_id
     LEFT JOIN users u ON u.id=lp.pengadil_id
     LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
-    WHERE lp.jadual_id=? AND lp.status='Diterima' AND lp.jawatan IN (${KUP_SQL})
+    WHERE lp.jadual_id=? AND lp.status='Diterima' AND lp.jawatan IN (${CREW_SQL})
     ORDER BY ${KUP_ORDER}`).bind(jadualId).all<CrewRecipient>()).results;
-  if (recipients.length !== roster.officials.length) return null;
+  const kupRecipients = recipients.filter((recipient) => isKupPosition(recipient.jawatan));
+  if (kupRecipients.length !== kupCount) return null;
+  // The RA stays out of the fingerprint: an RA who accepts later joins the same crew
+  // signature and is notified alone, without re-notifying the KUP.
   const fingerprint = await sha256Hex([String(jadualId),
-    ...recipients.map((recipient) => `${recipient.jawatan}:${recipient.lantikan_id}`)].join('|'));
+    ...kupRecipients.map((recipient) => `${recipient.jawatan}:${recipient.lantikan_id}`)].join('|'));
   return { fingerprint, roster, recipients };
 }
 

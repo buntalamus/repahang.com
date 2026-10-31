@@ -119,6 +119,12 @@ try {
   assert.match(rowOf('Penilai Pengadil').penilaian_token,/^[a-f0-9]{64}$/);
   const raMail=emails.find((mail)=>mail.subject.startsWith('Borang Penilaian Pengadil'));
   assert.equal(raMail.type,'admin');
+  // The RA joins the complete crew's notice; without Telegram it goes by email and lists the RA.
+  const raCrewMail=emails.filter((mail)=>mail.subject.startsWith('Krew KUP Lengkap:'));
+  assert.equal(raCrewMail.length,1);
+  assert.equal(raCrewMail[0].to,ra.email);
+  assert.match(raCrewMail[0].html,/Penilai Pengadil/);
+  assert.equal(count("SELECT count(*) FROM kup_crew_notifications WHERE jadual_id=? AND completed_at IS NOT NULL",match),4);
 
   // An expired window: GET explains, POST auto-rejects like PHP.
   const late=Number(db.prepare(`INSERT INTO jadual_perlawanan (kejohanan_id,no_perlawanan,tarikh,masa,
