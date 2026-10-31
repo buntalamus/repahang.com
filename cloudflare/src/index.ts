@@ -1,4 +1,5 @@
 import { enforceAccountPolicy, recordAccountActivity } from './account-policy';
+import {jfaC13} from './jfa-c13';
 import { userProfile } from './self-profile';
 import { announcementRead } from './announcement-read';
 import { adminMailboxCampaigns, processMailboxCampaigns } from './mailbox-campaigns';
@@ -230,6 +231,7 @@ async function privateMedia(request: Request, env: Env, pathname: string): Promi
 }
 
 async function api(request: Request, env: Env, pathname: string, ctx: ExecutionContext): Promise<Response> {
+  if(pathname==='/api/jfa-c13.php')return jfaC13(request,env);
   if (pathname === '/api/support-chat.php') return supportChat(request, env);
   if (pathname === '/api/demo-info.php') return demoInfo(request, env);
   if (pathname === '/api/demo-status.php') return demoStatus(request, env);

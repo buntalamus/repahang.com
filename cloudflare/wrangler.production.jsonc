@@ -40,7 +40,7 @@
     }
   ],
   "browser": { "binding": "BROWSER" },
-  "services": [{"binding":"ORIGINAL_TEMPLATES","service":"refpahang-original-templates"}],
+  "services": [{"binding":"ORIGINAL_TEMPLATES","service":"refpahang-original-templates"},{"binding":"JFA_C13_SERVICE","service":"jerantutfa-refpahang-sync"}],
   "send_email": [
     {
       "name": "EMAIL",

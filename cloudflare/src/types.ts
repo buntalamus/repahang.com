@@ -6,6 +6,7 @@ export interface Env extends EmailEnv {
   ASSETS: Fetcher;
   BROWSER: BrowserRun;
   ORIGINAL_TEMPLATES?: Fetcher;
+  JFA_C13_SERVICE?: Fetcher;
   BASE_URL: string;
   STAGING_AUTH_ENABLED: string;
   STAGING_LOGIN_EMAILS?: string;
