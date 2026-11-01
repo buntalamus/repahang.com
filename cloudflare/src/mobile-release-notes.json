@@ -60,5 +60,14 @@
       "Tarikh rekod perlawanan hanya boleh dipilih dari 14 hari lalu hingga hari ini; perlawanan yang belum berlangsung tidak boleh direkod.",
       "Admin: butang Muat turun borang (PDF) pada butiran permohonan."
     ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 3,
+    "date": "2026-11-01",
+    "changes": [
+      "Penilai: kekuatan, kelemahan dan nasihat untuk Penolong Pengadil 1, Penolong Pengadil 2 dan Pegawai Keempat kini disimpan dan dipaparkan dalam laporan PDF.",
+      "Penilai: ruangan baharu Skor perlawanan (separuh masa, tamat, masa tambahan dan sepakan penalti) dalam borang laporan."
+    ]
   }
 ]

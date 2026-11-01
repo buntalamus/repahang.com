@@ -150,7 +150,9 @@ export async function assessmentReports(request: Request, env: Env): Promise<Res
   if (params.has('penilai')) {
     const result = await env.DB.prepare(`
       SELECT lp.id,lp.jadual_id,lp.lantikan_id,lp.tahap_kesukaran,lp.ulasan_keseluruhan,
-        lp.status,lp.tarikh_hantar,lp.catatan_admin,lp.created_at,
+        lp.status,lp.tarikh_hantar,lp.catatan_admin,lp.created_at,lp.cuaca,
+        lp.skor_ht_home,lp.skor_ht_away,lp.skor_ft_home,lp.skor_ft_away,
+        lp.skor_et_home,lp.skor_et_away,lp.skor_ps_home,lp.skor_ps_away,
         jp.no_perlawanan,jp.tarikh,jp.masa,jp.pasukan_home,jp.pasukan_away,jp.tempat,
         k.nama AS nama_kejohanan
       FROM laporan_penilaian lp JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id

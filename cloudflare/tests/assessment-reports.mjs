@@ -37,7 +37,9 @@ db.exec(`
     pengadil_luar_id INTEGER,jawatan TEXT,status TEXT);
   CREATE TABLE laporan_penilaian(id INTEGER PRIMARY KEY,jadual_id INTEGER,lantikan_id INTEGER,
     penilai_id INTEGER,status TEXT,tahap_kesukaran TEXT,ulasan_keseluruhan TEXT,
-    tarikh_hantar TEXT,catatan_admin TEXT,created_at TEXT);
+    tarikh_hantar TEXT,catatan_admin TEXT,created_at TEXT,cuaca TEXT,
+    skor_ht_home INTEGER,skor_ht_away INTEGER,skor_ft_home INTEGER,skor_ft_away INTEGER,
+    skor_et_home INTEGER,skor_et_away INTEGER,skor_ps_home INTEGER,skor_ps_away INTEGER);
   CREATE TABLE laporan_penilaian_pegawai(id INTEGER PRIMARY KEY,laporan_id INTEGER,
     lantikan_pengadil_id INTEGER,jawatan TEXT,nama_pengadil TEXT,markah TEXT,
     kawalan_kekuatan TEXT,kawalan_kelemahan TEXT,fizikal_kekuatan TEXT,
@@ -58,7 +60,7 @@ db.exec(`
     (21,10,2,NULL,'Pengadil','Diterima'),
     (22,10,3,NULL,'Penolong Pengadil 1','Ditolak');
   INSERT INTO laporan_penilaian VALUES
-    (30,10,20,1,'Dihantar','Normal','Baik',NULL,NULL,'2027-01-02');
+    (30,10,20,1,'Dihantar','Normal','Baik',NULL,NULL,'2027-01-02','Cerah',1,0,2,1,NULL,NULL,NULL,NULL);
   INSERT INTO laporan_penilaian_pegawai VALUES
     (40,30,21,'Pengadil','Pengadil R','8','["Baik"]','[]','[]','[]','[]','[]');
   INSERT INTO laporan_pengesahan_pengerusi VALUES
@@ -84,6 +86,9 @@ assert.equal(officials.data[0].sections[0].key,'kawalan');
 const mine=await (await assessmentReports(new Request(`${base}?penilai=1`),env)).json();
 assert.equal(mine.data.length,1);
 assert.deepEqual(mine.data[0].pegawai[0].kawalan_kekuatan,['Baik']);
+// Drafts reopen from this list, so it must carry every RA-entered field.
+assert.equal(mine.data[0].cuaca,'Cerah');
+assert.deepEqual([mine.data[0].skor_ht_home,mine.data[0].skor_ft_away,mine.data[0].skor_ps_home],[1,1,null]);
 assert.equal(mine.data[0].pengesahan.email_applicable,1);
 assert.equal(mine.data[0].pengesahan.approval_url,undefined);
 assert.equal(mine.data[0].pengesahan.approval_token,undefined);

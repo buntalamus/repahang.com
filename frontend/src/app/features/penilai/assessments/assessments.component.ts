@@ -61,6 +61,13 @@ export class PenilaiAssessmentsComponent implements OnInit {
   tahapKesukaran = 'Normal';
   cuaca = '';
   ulasanKeseluruhan = '';
+  skor: Record<string, number | null> = {};
+  readonly skorPeriods = [
+    { key: 'ht', label: 'Separuh Masa' },
+    { key: 'ft', label: 'Tamat' },
+    { key: 'et', label: 'Masa Tambahan' },
+    { key: 'ps', label: 'Sepakan Penalti' },
+  ];
 
   cuacaOptions = ['Cerah', 'Mendung', 'Hujan Renyai', 'Hujan Lebat', 'Panas Terik', 'Berangin'];
   pegawaiList: PegawaiForm[] = [];
@@ -141,6 +148,13 @@ export class PenilaiAssessmentsComponent implements OnInit {
     this.tahapKesukaran = existing?.tahap_kesukaran ?? 'Normal';
     this.cuaca = existing?.cuaca ?? '';
     this.ulasanKeseluruhan = existing?.ulasan_keseluruhan ?? '';
+    this.skor = {};
+    for (const period of this.skorPeriods) {
+      for (const side of ['home', 'away']) {
+        const field = `skor_${period.key}_${side}`;
+        this.skor[field] = existing?.[field] ?? null;
+      }
+    }
 
     // Load officials for this match
     this.loadingOfficials = true;
@@ -256,6 +270,7 @@ export class PenilaiAssessmentsComponent implements OnInit {
       tahap_kesukaran: this.tahapKesukaran,
       cuaca: this.cuaca,
       ulasan_keseluruhan: this.ulasanKeseluruhan,
+      ...this.skor,
       pegawai: this.pegawaiList.map(p => ({
         lantikan_pengadil_id: p.lantikan_pengadil_id,
         jawatan: p.jawatan,

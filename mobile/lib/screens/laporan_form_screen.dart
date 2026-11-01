@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../api.dart';
 import '../theme.dart';
@@ -19,6 +20,7 @@ const _skala = [
   ('7.5 – 7.7', 'Tidak memuaskan: dua key match incident'),
   ('7.0 – 7.4', 'Buruk: tiga atau lebih key match incident / mempengaruhi keputusan'),
 ];
+const _skor = [('ht', 'Separuh masa'), ('ft', 'Tamat'), ('et', 'Masa tambahan'), ('ps', 'Sepakan penalti')];
 
 class _Section {
   _Section(this.key, this.label, this.items);
@@ -39,11 +41,16 @@ class _Official {
     markah.text = saved?['markah'] == null ? '' : '${saved!['markah']}';
     prestasi = text(saved?['prestasi'], '');
     for (final s in sections) {
-      kekuatan[s.key] = _list(saved?['${s.key}_kekuatan']);
-      kelemahan[s.key] = _list(saved?['${s.key}_kelemahan']);
-      nasihat[s.key] = TextEditingController(text: text(saved?['${s.key}_nasihat'], ''));
+      final column = _column(s.key);
+      kekuatan[s.key] = _list(saved?['${column}_kekuatan']);
+      kelemahan[s.key] = _list(saved?['${column}_kelemahan']);
+      nasihat[s.key] = TextEditingController(text: text(saved?['${column}_nasihat'], ''));
     }
   }
+
+  /// AR (`penolong`) and 4th official (`keempat`) criteria live in the
+  /// `kawalan_*` columns, as on the website and in the printed report.
+  static String _column(String key) => key == 'penolong' || key == 'keempat' ? 'kawalan' : key;
 
   final Object? lantikanId;
   final String jawatan;
@@ -66,19 +73,22 @@ class _Official {
 
   double? get mark => double.tryParse(markah.text.trim().replaceAll(',', '.'));
 
-  Map<String, dynamic> toJson() => {
-        'lantikan_pengadil_id': lantikanId,
-        'jawatan': jawatan,
-        'nama_pengadil': nama,
-        'markah': mark,
-        'prestasi': prestasi,
-        // Every field the website sends; sections this role lacks stay empty.
-        for (final key in ['kawalan', 'fizikal', 'kerjasama']) ...{
-          '${key}_kekuatan': (kekuatan[key] ?? <String>{}).toList(),
-          '${key}_kelemahan': (kelemahan[key] ?? <String>{}).toList(),
-          '${key}_nasihat': nasihat[key]?.text.trim() ?? '',
-        },
-      };
+  Map<String, dynamic> toJson() {
+    final byColumn = {for (final s in sections) _column(s.key): s.key};
+    return {
+      'lantikan_pengadil_id': lantikanId,
+      'jawatan': jawatan,
+      'nama_pengadil': nama,
+      'markah': mark,
+      'prestasi': prestasi,
+      // Every field the website sends; sections this role lacks stay empty.
+      for (final column in ['kawalan', 'fizikal', 'kerjasama']) ...{
+        '${column}_kekuatan': (kekuatan[byColumn[column]] ?? <String>{}).toList(),
+        '${column}_kelemahan': (kelemahan[byColumn[column]] ?? <String>{}).toList(),
+        '${column}_nasihat': nasihat[byColumn[column]]?.text.trim() ?? '',
+      },
+    };
+  }
 
   void dispose() {
     markah.dispose();
@@ -102,6 +112,10 @@ class LaporanFormScreen extends StatefulWidget {
 
 class _LaporanFormScreenState extends State<LaporanFormScreen> {
   final _ulasan = TextEditingController();
+  final _skorFields = {
+    for (final (p, _) in _skor)
+      for (final side in ['home', 'away']) 'skor_${p}_$side': TextEditingController(),
+  };
   List<_Official>? _officials;
   String? _error;
   String _tahapKesukaran = 'Normal';
@@ -120,6 +134,7 @@ class _LaporanFormScreenState extends State<LaporanFormScreen> {
     _tahapKesukaran = text(r?['tahap_kesukaran'], 'Normal');
     _cuacaValue = text(r?['cuaca'], '');
     _ulasan.text = text(r?['ulasan_keseluruhan'], '');
+    _skorFields.forEach((field, c) => c.text = r?[field] == null ? '' : '${r![field]}');
     _load();
   }
 
@@ -141,6 +156,9 @@ class _LaporanFormScreenState extends State<LaporanFormScreen> {
   @override
   void dispose() {
     _ulasan.dispose();
+    for (final c in _skorFields.values) {
+      c.dispose();
+    }
     for (final o in _officials ?? <_Official>[]) {
       o.dispose();
     }
@@ -172,6 +190,7 @@ class _LaporanFormScreenState extends State<LaporanFormScreen> {
         'tahap_kesukaran': _tahapKesukaran,
         'cuaca': _cuacaValue,
         'ulasan_keseluruhan': _ulasan.text.trim(),
+        for (final MapEntry(:key, :value) in _skorFields.entries) key: int.tryParse(value.text.trim()),
         'pegawai': [for (final o in officials) o.toJson()],
       });
       _reportId = saved['id'] ?? _reportId;
@@ -293,6 +312,43 @@ class _LaporanFormScreenState extends State<LaporanFormScreen> {
                         value: _cuacaValue,
                         onChanged: (v) => setState(() => _cuacaValue = v),
                       ),
+                    ]),
+                  ),
+                  const SectionTitle('Skor perlawanan'),
+                  AppCard(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      Row(children: [
+                        const Spacer(flex: 3),
+                        for (final team in [a['pasukan_home'], a['pasukan_away']])
+                          Expanded(
+                            flex: 2,
+                            child: Text(text(team), textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Tw.slate700)),
+                          ),
+                      ]),
+                      for (final (p, label) in _skor)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Row(children: [
+                            Expanded(flex: 3, child: Text(label, style: const TextStyle(fontSize: 13, color: Tw.slate700))),
+                            for (final side in ['home', 'away'])
+                              Expanded(
+                                flex: 2,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                                  child: TextField(
+                                    controller: _skorFields['skor_${p}_$side'],
+                                    keyboardType: TextInputType.number,
+                                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                                    decoration: const InputDecoration(hintText: '-', isDense: true),
+                                  ),
+                                ),
+                              ),
+                          ]),
+                        ),
                     ]),
                   ),
                   if (officials.isEmpty)
