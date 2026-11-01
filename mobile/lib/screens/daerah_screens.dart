@@ -4,6 +4,7 @@ import '../api.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'permohonan_screen.dart' show formLabel;
+import 'laporan_view.dart' show finalScore;
 import 'rekod_screen.dart' show markahTone;
 
 List<Map<String, dynamic>> _rows(Object? list) =>
@@ -176,8 +177,7 @@ class DaerahPenilaianScreen extends StatelessWidget {
         const SizedBox(height: 8),
         DetailRow(Icons.person_outline, 'Penilai', text(d['nama_penilai'])),
         DetailRow(Icons.speed_rounded, 'Tahap kesukaran', text(d['tahap_kesukaran'])),
-        DetailRow(Icons.scoreboard_outlined, 'Keputusan',
-            'HT ${text(d['skor_ht_home'])}-${text(d['skor_ht_away'])} · FT ${text(d['skor_ft_home'])}-${text(d['skor_ft_away'])}'),
+        DetailRow(Icons.scoreboard_outlined, 'Keputusan akhir', finalScore(d) ?? '-'),
         const SizedBox(height: 8),
         for (final o in _rows(d['pegawai'])) _OfficialCard(official: o),
         if (text(d['ulasan_keseluruhan'], '').isNotEmpty) ...[
@@ -186,6 +186,12 @@ class DaerahPenilaianScreen extends StatelessWidget {
           const SizedBox(height: 6),
           Text(text(d['ulasan_keseluruhan']), style: const TextStyle(fontSize: 14, height: 1.5)),
         ],
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: () => openReportPdf(context, report['id']),
+          icon: const Icon(Icons.picture_as_pdf_outlined),
+          label: const Text('Lihat PDF'),
+        ),
       ]),
     ));
   }

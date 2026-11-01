@@ -1,8 +1,14 @@
-import {currentUser} from './auth';
+import {signedLink,signedUser} from './appointment-letter';
+import {currentUser,json} from './auth';
 import {originalHtml} from './original-templates';
+import {boundedJson} from './request';
 import type {Env} from './types';
 
 type Row=Record<string,unknown>;
+type Actor={id:number;role:string};
+const ROLES=['Admin','Penilai','PP Daerah','Pengadil'];
+// Keeps report link signatures apart from appointment letter ones.
+const LINK_SCOPE='laporan-penilaian:';
 const JSON_COLUMNS=['kawalan_kekuatan','kawalan_kelemahan','fizikal_kekuatan',
   'fizikal_kelemahan','kerjasama_kekuatan','kerjasama_kelemahan'] as const;
 
@@ -51,34 +57,8 @@ async function reportLogo(env:Env,raw:unknown):Promise<string> {
   return `data:${mime};base64,${btoa(binary)}`;
 }
 
-/** Read-only, printable RA report with the same three access modes as PHP. */
-export async function printAssessment(request:Request,env:Env):Promise<Response> {
-  if (request.method!=='GET') return error('Kaedah tidak disokong.',405);
-  if (env.STAGING_AUTH_ENABLED!=='1') return error('Laporan RA belum tersedia di staging.',503);
-  const params=new URL(request.url).searchParams;
-  const id=positiveId(params.get('id'));
-  if (!id) return error('ID laporan diperlukan.',400);
-  const approval=params.get('approval_token');
-  const view=params.get('view_token');
-  if ((approval && view) || params.getAll('approval_token').length>1 || params.getAll('view_token').length>1) {
-    return error('Pautan laporan tidak sah.',400);
-  }
-  let actor:Awaited<ReturnType<typeof currentUser>>=null;
-  if (approval) {
-    if (!/^[a-fA-F0-9]{64}$/.test(approval)) return error('Pautan semakan laporan tidak sah.',404);
-    const permission=await env.DB.prepare(`SELECT 1 FROM laporan_pengesahan_pengerusi a
-      JOIN laporan_penilaian r ON r.id=a.laporan_id
-      WHERE a.laporan_id=? AND a.approval_token=?
-        AND r.status IN ('Dihantar','Disahkan') LIMIT 1`).bind(id,approval).first();
-    if (!permission) return error('Pautan semakan laporan tidak sah.',404);
-  } else if (!view) {
-    actor=await currentUser(request,env);
-    if (!actor) return error('Sila log masuk terlebih dahulu.',403);
-    if (!['Admin','Penilai','PP Daerah','Pengadil'].includes(actor.role)) {
-      return error('Akses tidak dibenarkan untuk peranan anda.',403);
-    }
-  }
-  const report=await env.DB.prepare(`SELECT r.*,jp.no_perlawanan,jp.tarikh,jp.masa,
+function loadReport(env:Env,id:number,approval:boolean):Promise<Row|null> {
+  return env.DB.prepare(`SELECT r.*,jp.no_perlawanan,jp.tarikh,jp.masa,
     jp.pasukan_home,jp.pasukan_away,jp.tempat,jp.logo_home,jp.logo_away,
     k.nama AS nama_kejohanan,k.logo_kiri,k.logo_kanan,
     COALESCE(u.nama_penuh,pl.nama) AS nama_penilai,
@@ -95,6 +75,83 @@ export async function printAssessment(request:Request,env:Env):Promise<Response>
     LEFT JOIN laporan_pengesahan_pengerusi a ON a.laporan_id=r.id
     WHERE r.id=? AND (r.status='Disahkan' OR (?=1 AND r.status='Dihantar')) LIMIT 1`)
     .bind(id,approval ? 1 : 0).first<Row>();
+}
+
+/** Why [actor] may not read [report], or null when they may. */
+async function accessError(env:Env,report:Row,id:number,actor:Actor):Promise<{message:string;status:number}|null> {
+  const denied={message:'Anda tidak mempunyai akses kepada laporan ini.',status:403};
+  if (actor.role==='Penilai' && Number(report.penilai_id)!==actor.id) {
+    return denied;
+  } else if (actor.role==='Pengadil') {
+    const allowed=await env.DB.prepare(`SELECT 1 FROM laporan_penilaian_pegawai p
+      JOIN lantikan_pengadil la ON la.id=p.lantikan_pengadil_id
+      WHERE p.laporan_id=? AND la.pengadil_id=? LIMIT 1`).bind(id,actor.id).first();
+    if (!allowed) return denied;
+  } else if (actor.role==='PP Daerah') {
+    const allowed=await env.DB.prepare(`SELECT 1 FROM users pp WHERE pp.id=? AND
+      (?=pp.id OR EXISTS (SELECT 1 FROM laporan_penilaian_pegawai p
+        JOIN lantikan_pengadil la ON la.id=p.lantikan_pengadil_id
+        JOIN users kup ON kup.id=la.pengadil_id
+        WHERE p.laporan_id=? AND kup.persatuan_id=pp.persatuan_id)) LIMIT 1`)
+      .bind(actor.id,report.penilai_id,id).first();
+    if (!allowed) return denied;
+  }
+  return null;
+}
+
+/** POST {id} → {url}: a short-lived signed link the app opens in the phone's browser. */
+async function reportLink(request:Request,env:Env):Promise<Response> {
+  const user=await currentUser(request,env);
+  if (!user) return json({error:true,message:'Sesi tidak sah. Sila log masuk semula.'},401);
+  if (!ROLES.includes(user.role)) return json({error:true,message:'Akses tidak dibenarkan untuk peranan anda.'},403);
+  const input=await boundedJson(request);
+  if (input instanceof Response) return input;
+  const id=positiveId(String((input as Row|null)?.id ?? ''));
+  if (!id) return json({error:true,message:'ID laporan diperlukan.'},400);
+  const report=await loadReport(env,id,false);
+  if (!report) return json({error:true,message:'Laporan tidak dijumpai atau belum disahkan.'},404);
+  const denied=await accessError(env,report,id,user);
+  if (denied) return json({error:true,message:denied.message},denied.status);
+  const link=await signedLink(env,new URL(request.url).origin,'/api/download-laporan-penilaian.php',id,user.id,LINK_SCOPE);
+  if (!link) return json({error:true,message:'Laporan belum tersedia.'},503);
+  return json({error:false,url:link});
+}
+
+/** Read-only, printable RA report with the same three access modes as PHP,
+ * plus the app's signed link (`u`, `exp`, `sig`) standing in for the session. */
+export async function printAssessment(request:Request,env:Env):Promise<Response> {
+  if (env.STAGING_AUTH_ENABLED!=='1') return error('Laporan RA belum tersedia di staging.',503);
+  if (request.method==='POST') return reportLink(request,env);
+  if (request.method!=='GET') return error('Kaedah tidak disokong.',405);
+  const params=new URL(request.url).searchParams;
+  const id=positiveId(params.get('id'));
+  if (!id) return error('ID laporan diperlukan.',400);
+  const approval=params.get('approval_token');
+  const view=params.get('view_token');
+  const signed=params.has('sig');
+  if ([approval,view,signed].filter(Boolean).length>1 || params.getAll('approval_token').length>1
+    || params.getAll('view_token').length>1 || params.getAll('sig').length>1) {
+    return error('Pautan laporan tidak sah.',400);
+  }
+  let actor:Actor|null=null;
+  if (approval) {
+    if (!/^[a-fA-F0-9]{64}$/.test(approval)) return error('Pautan semakan laporan tidak sah.',404);
+    const permission=await env.DB.prepare(`SELECT 1 FROM laporan_pengesahan_pengerusi a
+      JOIN laporan_penilaian r ON r.id=a.laporan_id
+      WHERE a.laporan_id=? AND a.approval_token=?
+        AND r.status IN ('Dihantar','Disahkan') LIMIT 1`).bind(id,approval).first();
+    if (!permission) return error('Pautan semakan laporan tidak sah.',404);
+  } else if (signed) {
+    const userId=await signedUser(env,params,id,LINK_SCOPE);
+    if (!userId) return error('Pautan laporan telah tamat tempoh atau tidak sah. Sila buka semula dari app.',403);
+    actor=await env.DB.prepare('SELECT id,role FROM users WHERE id=? AND aktif=1').bind(userId).first<Actor>();
+    if (!actor) return error('Akaun tidak aktif.',403);
+  } else if (!view) {
+    actor=await currentUser(request,env);
+    if (!actor) return error('Sila log masuk terlebih dahulu.',403);
+  }
+  if (actor && !ROLES.includes(actor.role)) return error('Akses tidak dibenarkan untuk peranan anda.',403);
+  const report=await loadReport(env,id,!!approval);
   if (!report) return error('Laporan tidak dijumpai atau belum disahkan.',404);
   if (view) {
     if (report.status!=='Disahkan' || report.ra_status!=='Diterima'
@@ -102,21 +159,9 @@ export async function printAssessment(request:Request,env:Env):Promise<Response>
       || !await verifyViewToken(id,String(report.penilaian_token ?? ''),view)) {
       return error('Laporan tidak dijumpai atau belum disahkan.',404);
     }
-  } else if (actor?.role==='Penilai' && Number(report.penilai_id)!==actor.id) {
-    return error('Anda tidak mempunyai akses kepada laporan ini.',403);
-  } else if (actor?.role==='Pengadil') {
-    const allowed=await env.DB.prepare(`SELECT 1 FROM laporan_penilaian_pegawai p
-      JOIN lantikan_pengadil la ON la.id=p.lantikan_pengadil_id
-      WHERE p.laporan_id=? AND la.pengadil_id=? LIMIT 1`).bind(id,actor.id).first();
-    if (!allowed) return error('Anda tidak mempunyai akses kepada laporan ini.',403);
-  } else if (actor?.role==='PP Daerah') {
-    const allowed=await env.DB.prepare(`SELECT 1 FROM users pp WHERE pp.id=? AND
-      (?=pp.id OR EXISTS (SELECT 1 FROM laporan_penilaian_pegawai p
-        JOIN lantikan_pengadil la ON la.id=p.lantikan_pengadil_id
-        JOIN users kup ON kup.id=la.pengadil_id
-        WHERE p.laporan_id=? AND kup.persatuan_id=pp.persatuan_id)) LIMIT 1`)
-      .bind(actor.id,report.penilai_id,id).first();
-    if (!allowed) return error('Anda tidak mempunyai akses kepada laporan ini.',403);
+  } else if (actor) {
+    const denied=await accessError(env,report,id,actor);
+    if (denied) return error(denied.message,denied.status);
   }
   const officials=await env.DB.prepare(`SELECT p.*,
     COALESCE(NULLIF(trim(u.negeri),''),NULLIF(trim(pl.negeri),''),'-') AS negeri

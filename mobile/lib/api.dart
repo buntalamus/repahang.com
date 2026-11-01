@@ -47,7 +47,10 @@ class Api {
       // Follows the production/demo choice made on the login screen.
       options.baseUrl = apiBase;
       final token = _token;
-      if (token != null) options.headers['Authorization'] = 'Bearer $token';
+      // Absolute links (a receipt stored elsewhere) never get the session.
+      if (token != null && options.uri.host == Uri.parse(apiBase).host) {
+        options.headers['Authorization'] = 'Bearer $token';
+      }
       handler.next(options);
     }));
   }

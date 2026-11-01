@@ -83,23 +83,31 @@ function fromHex(text: string): Uint8Array<ArrayBuffer> | null {
   return Uint8Array.from(text.match(/../g)!.map((pair) => parseInt(pair, 16)));
 }
 
-/** A link to the letter for [userId], valid for ten minutes. */
-export async function signedLetterUrl(env: Env, origin: string, id: number, userId: number, now = Date.now()): Promise<string | null> {
+/** A link to [path] for record [id] and [userId], valid for ten minutes, so the
+ * phone's browser can open it without the app's session. [scope] keeps the
+ * signatures of different documents apart (the letter's is empty). */
+export async function signedLink(env: Env, origin: string, path: string, id: number, userId: number,
+  scope = '', now = Date.now()): Promise<string | null> {
   const key = await hmacKey(env);
   if (!key) return null;
   const exp = Math.floor(now / 1000) + LINK_SECONDS;
-  const sig = hex(await crypto.subtle.sign('HMAC', key, encoder.encode(`${id}.${userId}.${exp}`)));
-  return `${origin}/api/surat-lantikan.php?id=${id}&u=${userId}&exp=${exp}&sig=${sig}`;
+  const sig = hex(await crypto.subtle.sign('HMAC', key, encoder.encode(`${scope}${id}.${userId}.${exp}`)));
+  return `${origin}${path}?id=${id}&u=${userId}&exp=${exp}&sig=${sig}`;
+}
+
+/** A link to the letter for [userId], valid for ten minutes. */
+export function signedLetterUrl(env: Env, origin: string, id: number, userId: number, now = Date.now()): Promise<string | null> {
+  return signedLink(env, origin, '/api/surat-lantikan.php', id, userId, '', now);
 }
 
 /** The user a valid signed link was issued to, or null. */
-async function signedUser(env: Env, params: URLSearchParams, id: number): Promise<number | null> {
+export async function signedUser(env: Env, params: URLSearchParams, id: number, scope = ''): Promise<number | null> {
   const userId = idOf(params.get('u'));
   const exp = idOf(params.get('exp'));
   const sig = fromHex(params.get('sig') ?? '');
   const key = await hmacKey(env);
   if (!userId || !exp || !sig || !key || exp < Date.now() / 1000) return null;
-  const ok = await crypto.subtle.verify('HMAC', key, sig, encoder.encode(`${id}.${userId}.${exp}`));
+  const ok = await crypto.subtle.verify('HMAC', key, sig, encoder.encode(`${scope}${id}.${userId}.${exp}`));
   return ok ? userId : null;
 }
 

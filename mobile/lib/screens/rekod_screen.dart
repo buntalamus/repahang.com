@@ -240,9 +240,9 @@ class _AssessmentList extends StatelessWidget {
           ],
           const SizedBox(height: 16),
           OutlinedButton.icon(
-            onPressed: () => openWebsite(context, '/pengadil/penilaian'),
+            onPressed: () => openReportPdf(context, report['id']),
             icon: const Icon(Icons.picture_as_pdf_outlined),
-            label: const Text('PDF di website'),
+            label: const Text('Lihat PDF'),
           ),
         ]);
       },

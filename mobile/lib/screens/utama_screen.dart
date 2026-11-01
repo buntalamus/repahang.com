@@ -8,6 +8,7 @@ import '../widgets/app_menu.dart';
 import '../widgets/common.dart';
 import '../widgets/web_push_card.dart';
 import '../widgets/c13_button.dart';
+import 'admin_laporan_screen.dart';
 import 'permohonan_screen.dart' show formLabel;
 import 'perlu_tindakan_screen.dart';
 import 'pengumuman_screen.dart';
@@ -86,6 +87,11 @@ class _UtamaScreenState extends State<UtamaScreen> {
       'laporan': _int(t['needs_report']),
       'kelulusan': _int(home.adminStats?['pending_applications']),
     };
+  }
+
+  Future<void> _openReports(Future<void> Function() reload) async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AdminLaporanScreen()));
+    if (mounted) await reload();
   }
 
   Future<void> _openGaps(Future<void> Function() reload) async {
@@ -231,7 +237,7 @@ class _UtamaScreenState extends State<UtamaScreen> {
     final cards = switch (user.role) {
       'Admin' => [
           ('Permohonan', home.adminStats?['pending_applications'], Icons.pending_actions_rounded, () => widget.onOpenTab('kelulusan')),
-          ('Laporan RA', home.adminStats?['pending_reports'], Icons.rate_review_outlined, () => widget.onOpenTab('lantikan')),
+          ('Laporan RA', home.adminStats?['pending_reports'], Icons.rate_review_outlined, () => _openReports(reload)),
           ('Tindakan', gaps, Icons.warning_amber_rounded, () => _openGaps(reload)),
         ],
       'PP Daerah' => [

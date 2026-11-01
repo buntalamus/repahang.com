@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -725,6 +726,24 @@ Future<void> downloadAndOpen(BuildContext context, String path,
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     if (!ok) showToast(context, 'Tiada aplikasi untuk membuka fail ini.', ToastType.warning);
+  } on ApiException catch (error) {
+    if (context.mounted) showToast(context, error.message, ToastType.error);
+  }
+}
+
+/// Opens a printable RA report (/api/download-laporan-penilaian.php) in the
+/// phone's browser through a short-lived signed link, so it needs no second
+/// login; the page offers Cetak / Simpan sebagai PDF.
+Future<void> openReportPdf(BuildContext context, Object? reportId) async {
+  try {
+    final body = await Api.instance.post('/api/download-laporan-penilaian.php', {'id': reportId});
+    final url = text(body['url'], '');
+    if (url.isEmpty) throw ApiException('Laporan belum tersedia.');
+    // On the web (iPhone app) a new window after a network call is blocked as
+    // a pop-up, so the report opens in place.
+    final ok = await launchUrl(Uri.parse(url),
+        mode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication, webOnlyWindowName: kIsWeb ? '_self' : null);
+    if (!ok && context.mounted) showToast(context, 'Tidak dapat membuka laporan.', ToastType.error);
   } on ApiException catch (error) {
     if (context.mounted) showToast(context, error.message, ToastType.error);
   }

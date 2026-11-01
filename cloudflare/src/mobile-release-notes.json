@@ -99,5 +99,18 @@
       "Admin: menu Permohonan Ujian digantikan dengan Permohonan Pengadil (Pengadil Berdaftar, Kelas III FAM dan Ujian Kelas I FAM), sama seperti laman web.",
       "Admin: nama tab permohonan kini sama dengan laman web."
     ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 7,
+    "date": "2026-11-02",
+    "changes": [
+      "Admin: menu baharu Laporan RA untuk melihat laporan penilaian, status pengesahan Pengerusi, Override & Sahkan laporan, serta senarai RA yang belum menghantar laporan.",
+      "Kad Laporan RA di halaman Utama Admin kini membuka senarai laporan tersebut.",
+      "Penilai: butang Lihat laporan bagi laporan yang telah dihantar, dan butang PDF selepas laporan disahkan.",
+      "Laporan RA (PDF) kini dibuka terus di pelayar telefon tanpa perlu log masuk semula, untuk Pengadil, Penilai, PP Daerah dan Admin.",
+      "PP Daerah: keputusan perlawanan dalam laporan penilaian kini memaparkan keputusan akhir, sama seperti laporan PDF.",
+      "Resit bayaran lama yang disimpan di luar sistem kini dibuka di pelayar."
+    ]
   }
 ]

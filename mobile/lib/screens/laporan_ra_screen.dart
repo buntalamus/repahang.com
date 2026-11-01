@@ -4,6 +4,7 @@ import '../api.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'laporan_form_screen.dart';
+import 'laporan_view.dart';
 
 /// Assessor (RA) duties: accepted "Penilai Pengadil" appointments with their
 /// report status; reports are filled in LaporanFormScreen.
@@ -60,6 +61,14 @@ class _LaporanRaScreenState extends State<LaporanRaScreen> {
     );
   }
 
+  void _showReport(Map<String, dynamic> report) {
+    showAppSheet<void>(context, builder: (context) => AsyncView<Map<String, dynamic>>(
+      load: () async => Map<String, dynamic>.from(
+          (await Api.instance.get('/api/laporan-penilaian.php', {'id': report['id']}))['laporan'] as Map),
+      builder: (context, d, _) => LaporanDetail(report: d),
+    ));
+  }
+
   Widget _card(Map<String, dynamic> a, Map<String, dynamic>? report) {
     final status = report == null ? 'Belum diisi' : text(report['status']);
     final tone = switch (status) {
@@ -99,6 +108,28 @@ class _LaporanRaScreenState extends State<LaporanRaScreen> {
             icon: const Icon(Icons.edit_note_rounded, size: 20),
             label: Text(report == null ? 'Isi laporan' : 'Sambung draf'),
           ),
+        ] else ...[
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => _showReport(report),
+                icon: const Icon(Icons.visibility_outlined, size: 18),
+                label: const Text('Lihat laporan'),
+              ),
+            ),
+            // The printable report exists once it is approved, as on the website.
+            if (status == 'Disahkan') ...[
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => openReportPdf(context, report['id']),
+                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                  label: const Text('PDF'),
+                ),
+              ),
+            ],
+          ]),
         ],
       ]),
     );

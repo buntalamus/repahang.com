@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../api.dart';
 import '../theme.dart';
@@ -247,7 +248,10 @@ class _ApplicationSheetState extends State<_ApplicationSheet> {
             text(join([a['penilai_jenis'], '${text(a['penilai_tahun_pengalaman'], '')} tahun', a['penilai_kelayakan']]))),
       if (text(a['url_resit'], '').isNotEmpty)
         DetailRow(Icons.receipt_long_outlined, 'Resit bayaran', 'Lihat resit',
-            onTap: () => downloadAndOpen(context, text(a['url_resit']), fallbackName: 'resit-${a['id']}'),
+            // Old imported receipts link elsewhere; the browser opens those as the website does.
+            onTap: () => text(a['url_resit']).startsWith('http')
+                ? launchUrl(Uri.parse(text(a['url_resit'])), mode: LaunchMode.externalApplication)
+                : downloadAndOpen(context, text(a['url_resit']), fallbackName: 'resit-${a['id']}'),
             trailing: const Icon(Icons.open_in_new_rounded, size: 18, color: AppColors.faint)),
       if (_pdfType != null)
         OutlinedButton.icon(

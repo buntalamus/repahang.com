@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'screens/admin_laporan_screen.dart';
 import 'screens/admin_pengguna_screen.dart';
 import 'screens/admin_permohonan_screen.dart';
 import 'screens/admin_screens.dart';
@@ -72,6 +73,7 @@ List<MenuSection> menuFor(SessionUser user) {
         MenuSection('Lantikan & Perlawanan', [
           page('Lantikan Pegawai', Icons.event_note_outlined, 'lantikan'),
           perluTindakan,
+          screen('Laporan RA', Icons.rate_review_outlined, () => const AdminLaporanScreen()),
           screen('Rekod Perlawanan', Icons.sports_soccer_outlined, () => const AdminPerlawananScreen()),
           web('Pengadil Luar', Icons.person_add_alt, '/admin/pengadil-luar'),
         ]),
