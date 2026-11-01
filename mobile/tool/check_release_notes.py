@@ -27,6 +27,8 @@ def main():
         if not re.fullmatch(r'\d+\.\d+\.\d+\+\d+', key[0]) or type(key[1]) is not int or key[1] < 0:
             raise ValueError(f'Invalid release or patch: {key}')
         datetime.date.fromisoformat(entry['date'])
+        if 'critical' in entry and type(entry['critical']) is not bool:
+            raise ValueError(f'critical must be true or false: {key}')
         if not entry['changes'] or not all(isinstance(line, str) and len(line.strip()) > 10 for line in entry['changes']):
             raise ValueError(f'Write meaningful user-facing changes: {key}')
     patch = args.patch

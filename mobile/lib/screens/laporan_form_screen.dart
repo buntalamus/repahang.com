@@ -12,15 +12,27 @@ const _tahap = [
 ];
 const _cuaca = ['Cerah', 'Mendung', 'Hujan Renyai', 'Hujan Lebat', 'Panas Terik', 'Berangin'];
 const _prestasi = ['Sangat Baik', 'Baik', 'Memuaskan', 'Tidak Memuaskan'];
+// Same scale as the token form and the printed report.
 const _skala = [
-  ('9.0 – 10', 'Sangat baik, banyak keputusan sukar dibuat dengan betul'),
-  ('8.3 – 8.9', 'Baik, banyak keputusan dijangka dibuat dengan betul'),
-  ('8.0 – 8.2', 'Baik dengan beberapa perkara untuk penambahbaikan'),
-  ('7.8 – 7.9', 'Tidak memuaskan: satu key match incident'),
-  ('7.5 – 7.7', 'Tidak memuaskan: dua key match incident'),
-  ('7.0 – 7.4', 'Buruk: tiga atau lebih key match incident / mempengaruhi keputusan'),
+  ('9.0 – 10', 'Prestasi sangat baik dalam perlawanan dengan banyak keputusan sukar dibuat dengan betul'),
+  ('8.5 – 8.9', 'Prestasi sangat baik dalam perlawanan dengan banyak keputusan sukar dibuat dengan betul'),
+  ('8.3 – 8.4', 'Prestasi baik dalam perlawanan dengan banyak keputusan dijangka dibuat dengan betul'),
+  ('8.2', 'Memuaskan dengan beberapa perkara kecil untuk penambahbaikan'),
+  ('8.0 – 8.1', 'Memuaskan dengan beberapa perkara penting untuk penambahbaikan'),
+  ('7.9', 'Prestasi tidak memuaskan melibatkan satu key match incident, jika tidak 8.3 atau ke atas'),
+  ('7.8', 'Prestasi tidak memuaskan melibatkan satu key match incident jika tidak 8.0 - 8.2'),
+  ('7.5 – 7.7', 'Prestasi tidak memuaskan melibatkan dua key match incident'),
+  ('7.4', 'Satu kesilapan key match incident yang telah mempengaruhi pemenang perlawanan'),
+  ('7.0 – 7.4', 'Prestasi yang buruk dengan tiga atau lebih key match incident'),
 ];
-const _skor = [('ht', 'Separuh masa'), ('ft', 'Tamat'), ('et', 'Masa tambahan'), ('ps', 'Sepakan penalti')];
+// Goals per period, as on the token form and PDF: `ft` is the second half
+// only, and the final score is first + second half + extra time.
+const _skor = [
+  ('ht', 'Separuh masa pertama'),
+  ('ft', 'Separuh masa kedua'),
+  ('et', 'Masa tambahan'),
+  ('ps', 'Sepakan penalti'),
+];
 
 class _Section {
   _Section(this.key, this.label, this.items);
@@ -68,7 +80,7 @@ class _Official {
         'Pengadil' => 'R',
         'Penolong Pengadil 1' => 'AR1',
         'Penolong Pengadil 2' => 'AR2',
-        _ => jawatan.toLowerCase().contains('ke4') || jawatan.contains('Ke-4') ? '4th' : jawatan,
+        _ => jawatan.toLowerCase().contains('ke4') || jawatan.contains('Ke-4') ? 'P4' : jawatan,
       };
 
   double? get mark => double.tryParse(markah.text.trim().replaceAll(',', '.'));
@@ -205,6 +217,14 @@ class _LaporanFormScreenState extends State<LaporanFormScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  String _finalScore(String side) {
+    int? goals(String period) => int.tryParse(_skorFields['skor_${period}_$side']!.text);
+    final first = goals('ht'), second = goals('ft');
+    if (first == null || second == null) return '-';
+    final penalties = goals('ps');
+    return '${first + second + (goals('et') ?? 0)}${penalties == null ? '' : ' ($penalties)'}';
   }
 
   Future<void> _pick(String title, List<String> items, Set<String> selected) async {
@@ -344,11 +364,23 @@ class _LaporanFormScreenState extends State<LaporanFormScreen> {
                                     textAlign: TextAlign.center,
                                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                                     decoration: const InputDecoration(hintText: '-', isDense: true),
+                                    onChanged: (_) => setState(() {}),
                                   ),
                                 ),
                               ),
                           ]),
                         ),
+                      const Divider(height: 24),
+                      Row(children: [
+                        const Expanded(flex: 3, child: Text('Keputusan akhir',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700))),
+                        for (final side in ['home', 'away'])
+                          Expanded(
+                            flex: 2,
+                            child: Text(_finalScore(side), key: ValueKey('skor-akhir-$side'), textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                          ),
+                      ]),
                     ]),
                   ),
                   if (officials.isEmpty)

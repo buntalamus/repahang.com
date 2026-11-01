@@ -5,12 +5,16 @@ class MobileReleaseNote {
       : releaseVersion = json['release_version'] as String,
         patch = json['patch'] as int,
         date = json['date'] as String,
-        changes = (json['changes'] as List).cast<String>();
+        changes = (json['changes'] as List).cast<String>(),
+        critical = json['critical'] == true;
 
   final String releaseVersion;
   final int patch;
   final String date;
   final List<String> changes;
+
+  /// Marks a patch the user must install now: the app blocks until restart.
+  final bool critical;
 }
 
 List<MobileReleaseNote> releaseNotesFrom(Map<String, dynamic> body) =>

@@ -112,7 +112,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _openFromPush();
       _checkVersion();
-      AppUpdater.instance.check();
+      _checkPatch();
     });
     _loadUnread();
   }
@@ -128,8 +128,42 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _loadUnread();
-      AppUpdater.instance.check();
+      _checkPatch();
     }
+  }
+
+  bool _criticalShown = false;
+
+  /// Downloads any patch; a critical one blocks the app until it restarts.
+  Future<void> _checkPatch() async {
+    final updater = AppUpdater.instance;
+    if (!await updater.check() || _criticalShown || !await updater.pendingCritical() || !mounted) return;
+    _criticalShown = true;
+    await showModalBottomSheet<void>(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const Icon(Icons.system_update_rounded, size: 48),
+            const SizedBox(height: 12),
+            const Text('Kemas kini penting', textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            const Text('Kemas kini ini wajib dipasang sebelum anda boleh terus menggunakan app. '
+                'Mula semula app sekarang untuk menggunakannya.',
+                textAlign: TextAlign.center, style: TextStyle(color: AppColors.muted, height: 1.5)),
+            UpdateNotes(load: updater.pendingReleaseNotes),
+            const SizedBox(height: 20),
+            FilledButton(onPressed: updater.restart, child: const Text('Mula semula sekarang')),
+          ]),
+        ),
+      ),
+    );
   }
 
   Future<void> _loadUnread() async {

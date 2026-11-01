@@ -57,8 +57,8 @@ void main() {
     expect(find.text('• Ofsaid'), findsOneWidget);
     expect(find.text('Bendera lurus'), findsOneWidget);
 
-    // Pick a 4th official criterion and enter the full-time score.
-    await tester.tap(find.text('4th'));
+    // Pick a 4th official criterion and enter the second-half goals.
+    await tester.tap(find.text('P4'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Kekuatan'));
     await tester.pumpAndSettle();
@@ -68,6 +68,10 @@ void main() {
     final scores = find.byWidgetPredicate((w) => w is TextField && w.decoration?.hintText == '-');
     await tester.enterText(scores.at(2), '2');
     await tester.enterText(scores.at(3), '1');
+    await tester.pump();
+    // Final score adds both halves, as on the token form and PDF: 1+2 and 0+1.
+    expect(tester.widget<Text>(find.byKey(const ValueKey('skor-akhir-home'))).data, '3');
+    expect(tester.widget<Text>(find.byKey(const ValueKey('skor-akhir-away'))).data, '1');
 
     await tester.tap(find.text('Simpan draf'));
     await tester.pumpAndSettle();

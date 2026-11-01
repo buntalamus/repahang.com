@@ -38,6 +38,15 @@ class AppUpdater {
         currentPatch: current?.number ?? 0, nextPatch: next.number);
   }
 
+  /// True when any downloaded-but-uninstalled patch is marked critical.
+  Future<bool> pendingCritical() async {
+    try {
+      return (await pendingReleaseNotes()).any((note) => note.critical);
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Current patch number, for the profile's version line.
   Future<int?> currentPatch() async {
     if (!available) return null;

@@ -62,9 +62,10 @@ export class PenilaiAssessmentsComponent implements OnInit {
   cuaca = '';
   ulasanKeseluruhan = '';
   skor: Record<string, number | null> = {};
+  /** Goals per period, as on the token form and PDF: `ft` is the second half only. */
   readonly skorPeriods = [
-    { key: 'ht', label: 'Separuh Masa' },
-    { key: 'ft', label: 'Tamat' },
+    { key: 'ht', label: 'Separuh Masa Pertama' },
+    { key: 'ft', label: 'Separuh Masa Kedua' },
     { key: 'et', label: 'Masa Tambahan' },
     { key: 'ps', label: 'Sepakan Penalti' },
   ];
@@ -235,6 +236,19 @@ export class PenilaiAssessmentsComponent implements OnInit {
     if (jawatan.includes('Pembantu') || jawatan.includes('Penolong')) return 'flag';
     if (jawatan.includes('Keempat') || jawatan.includes('Ke-4')) return 'person';
     return 'sports';
+  }
+
+  /** Final score = first + second half + extra time, penalties in brackets. */
+  finalScore(source: Record<string, unknown> | null, side: 'home' | 'away'): string {
+    const goals = (period: string): number | null => {
+      const value = source?.[`skor_${period}_${side}`];
+      return value === null || value === undefined || value === '' ? null : Number(value);
+    };
+    const first = goals('ht');
+    const second = goals('ft');
+    if (first === null || second === null) return '-';
+    const penalties = goals('ps');
+    return `${first + second + (goals('et') ?? 0)}${penalties === null ? '' : ` (${penalties})`}`;
   }
 
   getJawatanShort(jawatan: string): string {

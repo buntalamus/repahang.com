@@ -249,6 +249,9 @@
                           [attr.aria-label]="period.label + ' ' + activeAssignment.pasukan_away"
                           class="w-16 border rounded-lg px-2 py-1 text-sm text-center focus:ring-2 focus:ring-pahang-yellow" placeholder="-" />
                       }
+                      <span class="font-semibold text-gray-800 border-t pt-2">Keputusan Akhir</span>
+                      <span class="w-16 text-center font-bold text-base border-t pt-2">{{ finalScore(skor, 'home') }}</span>
+                      <span class="w-16 text-center font-bold text-base border-t pt-2">{{ finalScore(skor, 'away') }}</span>
                     </div>
                   </div>
 
@@ -508,10 +511,10 @@
                     <p class="text-xs text-gray-500 mb-1">Tarikh</p>
                     <p class="font-medium">{{ viewingReport.tarikh | date:'d MMM yyyy' }}</p>
                   </div>
-                  @if (viewingReport.skor_ft_home != null || viewingReport.skor_ht_home != null) {
+                  @if (viewingReport.skor_ht_home != null && viewingReport.skor_ft_home != null) {
                     <div class="text-center">
-                      <p class="text-xs text-gray-500 mb-1">Skor (HT / FT)</p>
-                      <p class="font-medium">{{ viewingReport.skor_ht_home ?? '-' }}–{{ viewingReport.skor_ht_away ?? '-' }} / {{ viewingReport.skor_ft_home ?? '-' }}–{{ viewingReport.skor_ft_away ?? '-' }}</p>
+                      <p class="text-xs text-gray-500 mb-1">Keputusan Akhir</p>
+                      <p class="font-medium">{{ finalScore(viewingReport, 'home') }} – {{ finalScore(viewingReport, 'away') }}</p>
                     </div>
                   }
                   <div class="text-center">

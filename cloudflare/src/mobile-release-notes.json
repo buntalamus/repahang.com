@@ -69,5 +69,16 @@
       "Penilai: kekuatan, kelemahan dan nasihat untuk Penolong Pengadil 1, Penolong Pengadil 2 dan Pegawai Keempat kini disimpan dan dipaparkan dalam laporan PDF.",
       "Penilai: ruangan baharu Skor perlawanan (separuh masa, tamat, masa tambahan dan sepakan penalti) dalam borang laporan."
     ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 4,
+    "date": "2026-11-01",
+    "critical": true,
+    "changes": [
+      "Penilai: Skor perlawanan kini diisi mengikut gol Separuh Masa Pertama dan Separuh Masa Kedua, dengan Keputusan Akhir dikira sendiri, sama seperti laporan PDF.",
+      "Penilai: Panduan Skala Pemarkahan dikemas kini mengikut skala dalam laporan PDF, dan Pegawai Keempat dilabel P4.",
+      "Kemas kini penting kini wajib dipasang: app akan meminta anda mula semula sebelum boleh digunakan."
+    ]
   }
 ]

@@ -23,6 +23,16 @@ void main() {
     expect(selectPatchNotes(notes, releaseVersion: '2.0.0+10', currentPatch: 0, nextPatch: 5), isEmpty);
   });
 
+  test('a skipped critical patch still marks the pending update critical', () {
+    final notes = releaseNotesFrom({'release_notes': [
+      {'release_version': '1.4.0+8', 'patch': 4, 'date': '2026-11-01', 'changes': ['Pembetulan penting'], 'critical': true},
+      {'release_version': '1.4.0+8', 'patch': 5, 'date': '2026-11-02', 'changes': ['Perubahan biasa']},
+    ]});
+    expect(notes.map((n) => n.critical), [true, false]);
+    expect(selectPatchNotes(notes, releaseVersion: '1.4.0+8', currentPatch: 3, nextPatch: 5).any((n) => n.critical), isTrue);
+    expect(selectPatchNotes(notes, releaseVersion: '1.4.0+8', currentPatch: 4, nextPatch: 5).any((n) => n.critical), isFalse);
+  });
+
   test('APK prompt uses only the target native release notes', () {
     final notes = [note(0, release: '1.4.0+8'), note(1, release: '1.4.0+8'), note(0)];
     expect(selectNativeNotes(notes, '1.4.0').single.releaseVersion, '1.4.0+8');
