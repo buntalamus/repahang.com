@@ -7,6 +7,7 @@ import '../theme.dart';
 import '../widgets/app_menu.dart';
 import '../widgets/common.dart';
 import '../widgets/web_push_card.dart';
+import '../widgets/c13_button.dart';
 import 'permohonan_screen.dart' show formLabel;
 import 'perlu_tindakan_screen.dart';
 import 'pengumuman_screen.dart';
@@ -110,6 +111,17 @@ class _UtamaScreenState extends State<UtamaScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 const WebPushCard(),
+                if (_rows(home.dashboard?['c13']).isNotEmpty) ...[
+                  const SectionTitle('C13 · Laporan pengadil'),
+                  for (final report in _rows(home.dashboard?['c13']))
+                    AppCard(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      Text(text(report['label']), style: const TextStyle(fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 8),
+                      Text(report['submitted'] == true ? 'Laporan telah diterima' : 'Belum dihantar'),
+                      const SizedBox(height: 8),
+                      C13Button(matchId: text(report['match_id']), submitted: report['submitted'] == true),
+                    ])),
+                ],
                 SectionTitle('Tindakan Pantas', action: 'Lihat semua', onAction: () => _openMenu(home)),
                 _quickActions(home),
                 ..._focus(home, reload),

@@ -2,6 +2,7 @@ import { currentUser, json, type SessionUser } from './auth';
 import { publishedAppointmentSql } from './appointment-publication';
 import { APPLICATION_CATEGORY_SQL, countApplicationRows } from './application-category';
 import type { Env } from './types';
+import { c13Links } from './c13-links';
 
 type Row = Record<string, string | number | null>;
 const dateNow = () => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Kuala_Lumpur',
@@ -29,8 +30,11 @@ export async function portalDashboard(request: Request, env: Env): Promise<Respo
     return json({ error: true, message: 'Tahun tidak sah.' }, 422);
   }
   const year = Number(rawYear);
-  const data = view === 'pp' ? await districtData(env, user, year) : await personalData(env, user, year, view === 'ra');
-  return json({ error: false, data: { ...data, view, year, updated_at: dateNow(),
+  const [data,reports]=await Promise.all([
+    view === 'pp' ? districtData(env, user, year) : personalData(env, user, year, view === 'ra'),
+    c13Links(env,user.id),
+  ]);
+  return json({ error: false, data: { ...data, c13:[...reports.values()], view, year, updated_at: dateNow(),
     name: user.nama_penuh, district: user.persatuan_nama,
     can_ra: user.can_ra === 1, can_referee: user.can_referee === 1 } });
 }

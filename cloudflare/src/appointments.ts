@@ -1,4 +1,5 @@
 import { currentUser, json } from './auth';
+import { c13Links } from './c13-links';
 import { publishedAppointmentSql } from './appointment-publication';
 import { appointmentWritesEnabled } from './lantikan-write';
 import { auditMetaFrom } from './php/lantikan-audit';
@@ -94,6 +95,8 @@ export async function appointments(request: Request, env: Env): Promise<Response
     `).bind(user.id).all<CrewMember>(),
   ]);
 
+  const reports=assigned.results.some(a=>a.status==='Diterima'&&String(a.jawatan).trim().toLowerCase()==='pengadil')
+    ?await c13Links(env,user.id):new Map();
   const crewBySchedule = new Map<number, CrewMember[]>();
   for (const member of crew.results) {
     const list = crewBySchedule.get(member.jadual_id) ?? [];
@@ -102,6 +105,8 @@ export async function appointments(request: Request, env: Env): Promise<Response
   }
   const data = assigned.results.map((appointment) => ({
     ...appointment,
+    c13_match_id:appointment.status==='Diterima'&&String(appointment.jawatan).trim().toLowerCase()==='pengadil'
+      ?reports.get(appointment.id)?.match_id??null:null,
     rakan_tugasan: (crewBySchedule.get(appointment.jadual_id) ?? [])
       .filter((member) => member.id !== appointment.id),
   }));

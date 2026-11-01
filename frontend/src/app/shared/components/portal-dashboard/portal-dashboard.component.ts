@@ -11,6 +11,7 @@ interface Registration { id: number; jenis_borang: string; tahun_permohonan: num
   status: string; status_workflow: string; status_seminar?: string; status_ujian?: string; }
 interface Application { total: number; pending: number; approved: number; rejected: number; }
 interface Dashboard {
+  c13?: {match_id:string;appointment_id:number;label:string;submitted:boolean}[];
   view: string; year: number; name: string; district: string; updated_at: string;
   totals: Record<string, number>; monthly: { month: number; total: number; verified: number }[];
   upcoming: Item[]; responses?: Item[]; recent: Item[]; registrations: Registration[];

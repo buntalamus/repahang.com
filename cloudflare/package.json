@@ -10,6 +10,7 @@
     "test:appointment-expiry-policy": "node --no-warnings tests/appointment-expiry-policy.mjs",
     "test:support-chat": "node --no-warnings tests/support-chat.mjs",
     "typecheck": "tsc --noEmit",
+    "test:jfa-c13": "node --no-warnings tests/jfa-c13.mjs && node --no-warnings tests/jfa-c13-access.mjs",
     "test:mobile-push": "node --no-warnings tests/mobile-push.mjs",
     "test:web-push": "node --no-warnings tests/web-push.mjs",
     "test:appointment-letter": "node --no-warnings tests/appointment-letter.mjs",

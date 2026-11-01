@@ -80,5 +80,15 @@
       "Penilai: Panduan Skala Pemarkahan dikemas kini mengikut skala dalam laporan PDF, dan Pegawai Keempat dilabel P4.",
       "Kemas kini penting kini wajib dipasang: app akan meminta anda mula semula sebelum boleh digunakan."
     ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 5,
+    "date": "2026-11-01",
+    "changes": [
+      "Pengadil utama: butang Isi C13 kini terus dipaparkan di halaman Utama bagi perlawanan JFA yang telah diterima.",
+      "Butang Isi C13 turut tersedia pada senarai dan butiran tugasan; borang dibuka di pelayar telefon tanpa perlu log masuk sekali lagi.",
+      "Tindakan bertukar kepada Lihat C13 selepas laporan diterima."
+    ]
   }
 ]

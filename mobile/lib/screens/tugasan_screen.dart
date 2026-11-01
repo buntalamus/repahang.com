@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/c13_button.dart';
 
 /// shared/appointment-deadline.ts: late replacements may answer until kickoff.
 DateTime? responseDeadline(String kind, DateTime? kickoff, DateTime? notified) {
@@ -140,6 +141,7 @@ class _TugasanScreenState extends State<TugasanScreen> {
       ],
       if (a['status'] == 'Diterima') ...[
         const SizedBox(height: 16),
+        if (text(a['c13_match_id'], '').isNotEmpty) C13Button(matchId: text(a['c13_match_id'])),
         _letterButton(a),
       ],
       if (_answerable(a)) ...[
@@ -255,6 +257,7 @@ class _TugasanScreenState extends State<TugasanScreen> {
         ],
         if (status == 'Diterima') ...[
           const SizedBox(height: 12),
+          if (text(a['c13_match_id'], '').isNotEmpty) C13Button(matchId: text(a['c13_match_id'])),
           _letterButton(a),
         ],
         if (answerable) ...[
