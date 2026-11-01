@@ -9,15 +9,15 @@ List<Map<String, dynamic>> _rows(Object? list) =>
 
 /// admin-applications.php `type` → (label, download-referees-excel.php `type`).
 const _types = {
-  'berdaftar': ('Pengadil', 'pengadil_berdaftar'),
-  'penilai': ('Penilai', 'penilai_berdaftar'),
-  'kelas3': ('Kelas III', 'kelas3_fam'),
-  'kelas1': ('Kelas I', 'ujian_kelas1_fam'),
+  'berdaftar': ('Pengadil Berdaftar', 'pengadil_berdaftar'),
+  'penilai': ('Penilai Pengadil Berdaftar', 'penilai_berdaftar'),
+  'kelas3': ('Kelas III FAM', 'kelas3_fam'),
+  'kelas1': ('Ujian Kelas I FAM', 'ujian_kelas1_fam'),
 };
 
 /// Admin: applications of one or more forms for a year
 /// (/api/admin-applications.php), with approve / reject / delete — the
-/// website's /admin/permohonan-ra and /admin/laporan.
+/// website's /admin/permohonan, /admin/permohonan-ra and /admin/laporan.
 class AdminPermohonanScreen extends StatefulWidget {
   const AdminPermohonanScreen({super.key, required this.title, this.types = const ['berdaftar', 'penilai', 'kelas3', 'kelas1']});
   final String title;

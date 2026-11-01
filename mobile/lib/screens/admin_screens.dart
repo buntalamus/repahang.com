@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../api.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
-import 'permohonan_screen.dart' show formLabel;
 
 List<Map<String, dynamic>> _rows(Object? list) =>
     (list as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
@@ -373,124 +372,6 @@ class _AnnouncementFormState extends State<_AnnouncementForm> {
             : const Text('Simpan'),
       ),
     ]);
-  }
-}
-
-/// Admin: pending fitness, written (Kelas III) and Kelas I test applications
-/// (/api/admin-test-applications.php).
-class AdminUjianScreen extends StatefulWidget {
-  const AdminUjianScreen({super.key});
-
-  @override
-  State<AdminUjianScreen> createState() => _AdminUjianScreenState();
-}
-
-class _AdminUjianScreenState extends State<AdminUjianScreen> {
-  final _view = GlobalKey<AsyncViewState<List<Map<String, dynamic>>>>();
-  String _type = 'fitness';
-
-  Future<void> _decide(Map<String, dynamic> a, String action) async {
-    String notes = '';
-    if (action == 'reject') {
-      final controller = TextEditingController();
-      final ok = await confirmSheet(context, title: 'Tolak permohonan?', message: text(a['nama_penuh']),
-          details: Padding(padding: const EdgeInsets.only(top: 12),
-              child: LabeledField(label: 'Sebab penolakan', controller: controller, maxLines: 3, required: true)),
-          confirmLabel: 'Tolak', color: Tw.rose600, textColor: Colors.white);
-      notes = controller.text.trim();
-      controller.dispose();
-      if (!ok) return;
-      if (notes.isEmpty) {
-        if (mounted) showToast(context, 'Sebab penolakan diperlukan.', ToastType.warning);
-        return;
-      }
-    } else {
-      final ok = await confirmSheet(context, title: action == 'approve' ? 'Luluskan?' : 'Tandakan tidak hadir?',
-          message: text(a['nama_penuh']), confirmLabel: action == 'approve' ? 'Lulus' : 'Tidak Hadir');
-      if (!ok) return;
-    }
-    try {
-      final result = await Api.instance.post('/api/admin-test-applications.php',
-          {'id': a['id'], 'type': _type, 'action': action, 'notes': notes});
-      if (mounted) showToast(context, text(result['message'], 'Dikemaskini.'));
-      await _view.currentState?.reload();
-    } on ApiException catch (error) {
-      if (mounted) showToast(context, error.message, ToastType.error);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Permohonan Ujian')),
-      body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-          child: FilterChips<String>(
-            options: const [('fitness', 'Kecergasan'), ('bertulis', 'Kelas III'), ('kelas1', 'Kelas I')],
-            value: _type,
-            onChanged: (v) => setState(() => _type = v),
-          ),
-        ),
-        Expanded(
-          child: AsyncView<List<Map<String, dynamic>>>(
-            key: _view,
-            load: () async => _rows((await Api.instance.get('/api/admin-test-applications.php',
-                {'type': _type, 'status': 'pending'}))['applications']),
-            builder: (context, items, reload) => RefreshList(onRefresh: reload, children: [
-              if (items.isEmpty) const EmptyState(icon: Icons.fact_check_outlined, title: 'Tiada permohonan menunggu'),
-              for (final a in items)
-                AppCard(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    Row(children: [
-                      Avatar(name: text(a['nama_penuh']), photo: a['url_gambar_profil'] as String?, radius: 20),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(text(a['nama_penuh']), style: const TextStyle(fontWeight: FontWeight.w700)),
-                          Text('${text(a['district_nama'])} · ${text(a['user_phone'])}',
-                              style: const TextStyle(fontSize: 12.5, color: AppColors.muted)),
-                        ]),
-                      ),
-                    ]),
-                    const SizedBox(height: 4),
-                    Text('${formLabel(a['jenis_borang'])} · Sesi ${text(a['tahun_permohonan'])}',
-                        style: const TextStyle(fontSize: 12.5, color: AppColors.muted)),
-                    const SizedBox(height: 10),
-                    if (text(a['workflow_status'], 'Pending') == 'Pending')
-                      Row(children: [
-                        Expanded(
-                          child: FilledButton(
-                            style: FilledButton.styleFrom(backgroundColor: Tw.emerald600, foregroundColor: Colors.white,
-                                minimumSize: const Size(0, 40)),
-                            onPressed: () => _decide(a, 'approve'),
-                            child: const Text('Lulus'),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 40)),
-                            onPressed: () => _decide(a, 'absent'),
-                            child: const Text('Tidak Hadir'),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton(
-                            style: OutlinedButton.styleFrom(foregroundColor: Tw.rose600, minimumSize: const Size(0, 40)),
-                            onPressed: () => _decide(a, 'reject'),
-                            child: const Text('Tolak'),
-                          ),
-                        ),
-                      ]),
-                  ]),
-                ),
-            ]),
-          ),
-        ),
-      ]),
-    );
   }
 }
 

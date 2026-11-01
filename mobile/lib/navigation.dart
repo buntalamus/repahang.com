@@ -64,7 +64,8 @@ List<MenuSection> menuFor(SessionUser user) {
     'Admin' => [
         MenuSection('Permohonan', [
           page('Kelulusan', Icons.task_alt_rounded, 'kelulusan'),
-          screen('Permohonan Ujian', Icons.fact_check_outlined, () => const AdminUjianScreen()),
+          screen('Permohonan Pengadil', Icons.description_outlined,
+              () => const AdminPermohonanScreen(title: 'Permohonan Pengadil', types: ['berdaftar', 'kelas3', 'kelas1'])),
           screen('Permohonan Penilai', Icons.rate_review_outlined,
               () => const AdminPermohonanScreen(title: 'Permohonan Penilai', types: ['penilai'])),
         ]),

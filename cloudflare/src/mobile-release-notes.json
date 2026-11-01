@@ -90,5 +90,14 @@
       "Butang Isi C13 turut tersedia pada senarai dan butiran tugasan; borang dibuka di pelayar telefon tanpa perlu log masuk sekali lagi.",
       "Tindakan bertukar kepada Lihat C13 selepas laporan diterima."
     ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 6,
+    "date": "2026-11-01",
+    "changes": [
+      "Admin: menu Permohonan Ujian digantikan dengan Permohonan Pengadil (Pengadil Berdaftar, Kelas III FAM dan Ujian Kelas I FAM), sama seperti laman web.",
+      "Admin: nama tab permohonan kini sama dengan laman web."
+    ]
   }
 ]
