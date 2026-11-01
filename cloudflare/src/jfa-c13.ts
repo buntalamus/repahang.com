@@ -12,6 +12,8 @@ export async function jfaC13(request:Request,env:Env):Promise<Response>{
   const authRequest=browser?c13BrowserRequest(request,browser):request;
   const user=session??await currentUser(authRequest,env);
   if(!user)return json({error:true,message:'Sesi tidak sah. Sila log masuk RefPahang semula.'},401);
+  if(view==='admin'&&(user.role!=='Admin'||browser))return json({error:true,message:'Salinan C13 ini hanya untuk Admin RefPahang.'},403);
+  if(view==='admin'&&request.method!=='GET')return json({error:true,message:'Salinan C13 Admin ialah bacaan sahaja.'},405);
   if(browser&&view!=='open'&&incoming.searchParams.get('match')!==browser.matchId)return json({error:true,message:'Akses ini hanya untuk C13 perlawanan yang dibuka melalui aplikasi.'},403);
   if(!env.JFA_C13_SERVICE)return json({error:true,message:'Sambungan C13 JFA belum tersedia.'},503);
   if(!['GET','POST'].includes(request.method))return json({error:true,message:'Kaedah tidak disokong.'},405);
@@ -21,6 +23,7 @@ export async function jfaC13(request:Request,env:Env):Promise<Response>{
   const target=new URL('https://jfa-c13.internal/c13');target.search=incoming.search;
   if(view==='page')target.pathname='/c13/page';
   if(view==='links')target.pathname='/c13/links';
+  if(view==='admin')target.pathname='/c13/admin';
   if(view==='open'){target.search='';target.searchParams.set('match',browser!.matchId);}
   const headers=new Headers({'X-RefPahang-User-Id':String(user.id)});
   if(browser)headers.set('X-C13-Match-Id',browser.matchId);

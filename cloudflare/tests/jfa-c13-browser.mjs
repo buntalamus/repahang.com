@@ -7,12 +7,13 @@ import path from 'node:path';
 import os from 'node:os';
 const root=new URL('../../frontend/dist/frontend/browser/',import.meta.url).pathname;
 const out=new URL('../../output/c13-access/',import.meta.url).pathname;await mkdir(out,{recursive:true});
-const match='01234567-1234-1234-1234-0123456789ab';let eligible=true;
+const match='01234567-1234-1234-1234-0123456789ab';let eligible=true,role='Pengadil';
 const dashboard=()=>({c13:eligible?[{match_id:match,appointment_id:1,label:'03 · ALFA lwn BRAVO',submitted:false}]:[],
  view:'pengadil',year:2026,name:'PENGADIL UJIAN',totals:{},monthly:[],upcoming:[],responses:[],recent:[],registrations:[],announcements:[],ranking:[],applications:{},positions:[],minimum_matches:20,can_referee:true,can_ra:false});
 const server=createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://localhost');let body,type='application/json';
- if(url.pathname==='/api/session.php')body=JSON.stringify({authenticated:true,user_id:1,user_email:'test@example.invalid',user_role:'Pengadil',nama_penuh:'PENGADIL UJIAN',can_referee:1,can_ra:0,password_changed:1});
+ if(url.pathname==='/api/session.php')body=JSON.stringify({authenticated:true,user_id:1,user_email:'test@example.invalid',user_role:role,nama_penuh:'PENGADIL UJIAN',can_referee:1,can_ra:0,password_changed:1});
+ else if(url.pathname==='/api/jfa-c13.php'&&url.searchParams.get('view')==='admin')body=JSON.stringify({data:{records:[{id:'record',match_id:match,match_number:'03',recorded_at:1793509200,scheduled_start:1793509200,referee_name:'PENGADIL UJIAN',tournament_name:'LIGA JFA',home_name:'ALFA',away_name:'BRAVO'}]}});
  else if(url.pathname==='/api/portal-dashboard.php')body=JSON.stringify({error:false,data:dashboard()});
  else if(url.pathname==='/api/tugasan.php')body=JSON.stringify({error:false,data:[
   {id:1,jawatan:'Pengadil',status:'Diterima',no_perlawanan:'03',nama_kejohanan:'JFA',jenis_kejohanan:'Liga',tarikh:'2026-11-01',masa:'17:00',pasukan_home:'ALFA',pasukan_away:'BRAVO',c13_match_id:eligible?match:null},
@@ -41,11 +42,25 @@ try {
    const links=await ev("[...document.querySelectorAll('a[href*=\"jfa-c13.php\"]')].filter(a=>a.getBoundingClientRect().width>0).map(a=>({href:a.getAttribute('href'),text:a.textContent}))");
    assert.equal(links.length,1);assert(links[0].href.includes('match='+match));
    assert.equal(await ev('document.documentElement.scrollWidth>innerWidth+1'),false,'No horizontal overflow '+route+' '+width);
-   if(process.env.C13_AXE_PATH){const violations=await ev("axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']}}).then(r=>r.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)})))");assert.deepEqual(violations,[],JSON.stringify(violations));}
+   await ev('document.fonts.ready.then(()=>true)');
+   if(process.env.C13_AXE_PATH){const violations=await ev("axe.run(document.querySelector('app-c13-reports')??document.querySelector('.portal-page')??document.querySelector('app-pengadil-tugasan'),{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']}}).then(r=>r.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)})))");assert.deepEqual(violations,[],JSON.stringify(violations));}
    const shot=await send('Page.captureScreenshot',{format:'png'});await writeFile(path.join(out,(route.endsWith('tugasan')?'tasks':'dashboard')+'-'+width+'.png'),Buffer.from(shot.data,'base64'));
   }
  }
  eligible=false;await send('Page.navigate',{url:base+'/pengadil'});await wait("document.querySelector('#action-title')");
  assert.equal(await ev("document.querySelectorAll('a[href*=\"jfa-c13.php\"]').length"),0,'No action without an eligible R appointment');
+ role='Admin';
+ for(const width of [1280,390]){
+  await send('Emulation.setDeviceMetricsOverride',{width,height:900,deviceScaleFactor:1,mobile:width<500});
+  await send('Page.navigate',{url:base+'/admin/lantikan'});
+  await wait("[...document.querySelectorAll('button')].some(b=>b.textContent.includes('Laporan Perlawanan'))");
+  const tabs=await ev("[...document.querySelectorAll('button')].filter(b=>b.textContent.includes('Laporan Perlawanan')).map(b=>b.textContent)");assert.equal(tabs.length,1);
+  await ev("[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Laporan Perlawanan')).click()");
+  await wait("!!document.querySelector('app-c13-reports a[href*=record]')");
+  assert((await ev("document.querySelector('app-c13-reports').textContent")).includes('Selesai · Rasmi'));
+  assert((await ev("document.querySelector('app-c13-reports a').getAttribute('href')")).includes('view=admin&match='+match+'&record=record'));
+  if(process.env.C13_AXE_PATH){const violations=await ev("axe.run(document.querySelector('app-c13-reports'),{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']}}).then(r=>r.violations.map(v=>v.id))");assert.deepEqual(violations,[]);}
+  const shot=await send('Page.captureScreenshot',{format:'png'});await writeFile(path.join(out,'admin-reports-'+width+'.png'),Buffer.from(shot.data,'base64'));
+ }
  console.log('C13 Angular browser: dashboard and task actions at desktop/phone widths, exact match links, role eligibility, overflow and accessibility passed.');
 } finally {ws?.close();chrome.kill();await new Promise(r=>setTimeout(r,200));await rm(profile,{recursive:true,force:true,maxRetries:5,retryDelay:200});await new Promise(r=>server.close(r));}

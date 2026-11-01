@@ -8,6 +8,7 @@ import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { ProfileModalService } from '../../../core/services/profile-modal.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
+import { C13ReportsComponent } from '../../../shared/components/c13-reports/c13-reports.component';
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
 import { matchesJadualSearch } from './jadual-search';
 import { teamRegionCaution, type RefereeOrigin, type MatchTeamOrigins } from './team-region-caution';
@@ -125,7 +126,7 @@ interface PengerusiCandidate {
 
 @Component({
   selector: 'app-lantikan-pengadil',
-  imports: [FormsModule, DatePipe, SlicePipe, LoadingComponent, ConfirmModalComponent],
+  imports: [FormsModule, DatePipe, SlicePipe, LoadingComponent, ConfirmModalComponent, C13ReportsComponent],
   templateUrl: './lantikan-pengadil.component.html',
   styles: [`
     .region-caution { background-color: #fee2e2; }
@@ -151,7 +152,8 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
     { id: 'lantikan',        label: 'Lantikan Pengadil' },
     { id: 'jadual-lantikan', label: 'Jadual Lantikan' },
     { id: 'penilaian',       label: 'Laporan Penilaian' },
-  ].filter(tab=>!this.isDistrict || tab.id!=='penilaian');
+    { id: 'laporan-perlawanan',label:'Laporan Perlawanan' },
+  ].filter(tab=>!this.isDistrict || !['penilaian','laporan-perlawanan'].includes(tab.id));
   activeTab = 'kejohanan';
 
   jawatanList = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4', 'Penilai Pengadil'];
