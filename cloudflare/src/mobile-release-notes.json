@@ -112,5 +112,15 @@
       "PP Daerah: keputusan perlawanan dalam laporan penilaian kini memaparkan keputusan akhir, sama seperti laporan PDF.",
       "Resit bayaran lama yang disimpan di luar sistem kini dibuka di pelayar."
     ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 8,
+    "date": "2026-11-02",
+    "changes": [
+      "Permohonan Kelas III FAM dan Ujian Kelas I FAM kini dipaparkan untuk tahun semasa (contoh: Sesi 2026); Pendaftaran Tahunan kekal untuk sesi akan datang.",
+      "Admin: tab Kelas III FAM dan Ujian Kelas I FAM dalam Permohonan Pengadil kini dibuka pada sesi masing-masing.",
+      "Admin: senarai Kelulusan kini memaparkan semua permohonan yang menunggu Admin, termasuk Ujian Kelas I FAM."
+    ]
   }
 ]
