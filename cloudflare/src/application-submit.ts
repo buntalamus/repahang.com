@@ -10,6 +10,7 @@ import { dimensions } from './profile-write';
 import { applicationSettingDefaults } from './applications';
 import { applicationWindow, windowClosedMessage, type WindowName } from './application-window';
 import { CLASS_THREE_YEAR_SQL, ageInYear, classThreeDeadline, klYear, qualifyingMatchYear } from './application-eligibility';
+import { examYear, isExamForm } from './application-year';
 
 type FormType = 'pengadil_berdaftar' | 'penilai_berdaftar' | 'kelas3_fam' | 'ujian_kelas1_fam';
 type Profile = Record<string, string | number | null>;
@@ -146,7 +147,9 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
   if (formStatus.state !== 'open') {
     return json({error: true, message: windowClosedMessage(formWindow[type], formStatus, closedMessage[type])}, 400);
   }
-  const year = Number(settings.application_year || klYear());
+  // Annual registration is for the coming session (application_year, e.g. 2026 -> 2027);
+  // Kelas III / Kelas I FAM are examinations of the year they are applied in.
+  const year = isExamForm(type) ? examYear() : Number(settings.application_year || klYear());
   if (!Number.isSafeInteger(year) || year < 2020 || year > 2100) {
     return json({error: true, message: 'Tahun permohonan tidak sah.'}, 500);
   }
@@ -235,7 +238,9 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
     SELECT id,nama_penuh,email FROM users WHERE role='PP Daerah' AND aktif=1
       AND COALESCE(NULLIF(persatuan_id,0),district_id)=?`)
     .bind(Number(profile.persatuan_id ?? 0)).all<{id: number; nama_penuh: string; email: string | null}>()).results;
-  const initialWorkflow = user.role === 'PP Daerah' ? 'Menunggu Admin' : 'Menunggu PP Daerah';
+  // With no active PP Daerah in the district the application goes straight to Admin,
+  // who is the reviewer notified; otherwise it would wait for a PP who does not exist.
+  const initialWorkflow = user.role === 'PP Daerah' || !districtReviewers.length ? 'Menunggu Admin' : 'Menunggu PP Daerah';
   const reviewers = districtReviewers.length ? districtReviewers : (await env.DB.prepare(`
     SELECT id,nama_penuh,email FROM users WHERE role='Admin' AND aktif=1`)
     .all<{id: number; nama_penuh: string; email: string | null}>()).results;
@@ -324,21 +329,21 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
     let emailSent = false;
     try {
       const attachments: MailAttachment[] = [];
-      if (annual.has(type) || type === 'kelas3_fam') {
+      if (annual.has(type) || type === 'kelas3_fam' || type === 'ujian_kelas1_fam') {
         const pdfUrl = new URL('/api/download-borang-pendaftaran.php', request.url);
-        pdfUrl.searchParams.set('type', type);
+        pdfUrl.searchParams.set('type', type === 'ujian_kelas1_fam' ? 'ujian_kelas1' : type);
         pdfUrl.searchParams.set('application_id', String(applicationId));
         const pdf = await registrationPdf(new Request(pdfUrl, {
           headers: {Cookie: request.headers.get('Cookie') || ''},
-        }), env);
-        if (!pdf.ok || !pdf.headers.get('Content-Type')?.includes('application/pdf')) {
-          throw new Error('Registration PDF unavailable');
-        }
-        attachments.push({filename: type === 'penilai_berdaftar'
+        }), env).catch(() => null);
+        // Without the PDF the applicant still gets the receipt; the form stays downloadable.
+        if (pdf?.ok && pdf.headers.get('Content-Type')?.includes('application/pdf')) attachments.push({filename: type === 'penilai_berdaftar'
           ? `Borang_Pendaftaran_RA_R1_${applicationId}.pdf`
           : type === 'kelas3_fam' ? `Borang_Perakuan_Kesihatan_R4_${applicationId}.pdf`
-            : `Borang_Pendaftaran_R1_R2_R4_${applicationId}.pdf`,
+            : type === 'ujian_kelas1_fam' ? `Borang_R11_KelasI_${applicationId}.pdf`
+              : `Borang_Pendaftaran_R1_R2_R4_${applicationId}.pdf`,
         type: 'application/pdf', content: await pdf.arrayBuffer(), disposition: 'attachment'});
+        else console.error('Registration PDF unavailable for the application copy email');
       }
       const {html,text,subject}=await originalEmail(env,'receipt',
         [fromProfile('email'),fromProfile('nama_penuh'),applicationId,fromProfile('jenis_pengadil') || '-',

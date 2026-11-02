@@ -578,7 +578,7 @@ declare const Chart: any;
             <!-- ── TAB: KELAYAKAN ── -->
             @if (activeTab === 'kelayakan') {
               <div class="space-y-5">
-                <p class="text-sm text-slate-600">Pengadil yang layak memohon untuk sesi <strong>{{ eligibility.year }}</strong>, mengikut syarat yang sama dikuatkuasakan semasa permohonan dihantar.</p>
+                <p class="text-sm text-slate-600">Pengadil yang layak memohon untuk sesi <strong>{{ selectedEligibilityYear }}</strong>, mengikut syarat yang sama dikuatkuasakan semasa permohonan dihantar.</p>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                   @for (list of eligibilityLists; track list.key) {
                     <button type="button" (click)="selectedEligibility = list.key; eligibilitySearch = ''" [attr.aria-pressed]="selectedEligibility === list.key"
@@ -614,7 +614,7 @@ declare const Chart: any;
                         @if (selectedEligibility === 'kelas1') {
                           <th scope="col" class="text-right px-3 py-2 font-medium">Lulus Kelas III</th>
                         }
-                        <th scope="col" class="text-left px-3 py-2 font-medium">Permohonan {{ eligibility.year }}</th>
+                        <th scope="col" class="text-left px-3 py-2 font-medium">Permohonan {{ selectedEligibilityYear }}</th>
                         <th scope="col" class="text-left px-3 py-2 font-medium">Profil</th>
                       </tr>
                     </thead>
@@ -775,10 +775,16 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
       { key: 'berdaftar', label: 'Layak Memohon Pengadil Berdaftar Tahunan',
         rule: `Minimum ${r.min_matches ?? '-'} perlawanan disahkan pada ${r.match_year ?? '-'} (PP Daerah dikecualikan)` },
       { key: 'kelas3', label: 'Layak Memohon Kelas III FAM',
-        rule: `Umur ${r.kelas3_min_age ?? '-'}–${r.kelas3_max_age ?? '-'} tahun pada ${this.eligibility.year ?? '-'}; belum lulus Kelas III` },
+        rule: `Umur ${r.kelas3_min_age ?? '-'}–${r.kelas3_max_age ?? '-'} tahun pada ${this.eligibility.exam_year ?? this.eligibility.year ?? '-'}; belum lulus Kelas III` },
       { key: 'kelas1', label: 'Layak Memohon Ujian Kelas I FAM',
         rule: `Umur ${r.kelas1_max_age ?? '-'} tahun ke bawah; lulus Kelas III pada ${r.kelas3_deadline ?? '-'} atau sebelumnya` },
     ];
+  }
+
+  /** Pendaftaran Tahunan is for the coming session; Kelas III / Kelas I for the current year. */
+  get selectedEligibilityYear(): number | string {
+    return this.selectedEligibility === 'berdaftar' ? this.eligibility.year ?? '-'
+      : this.eligibility.exam_year ?? this.eligibility.year ?? '-';
   }
 
   get selectedEligibilityLabel(): string {

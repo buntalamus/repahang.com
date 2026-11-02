@@ -1,18 +1,22 @@
 import { currentUser, json } from './auth';
 import type { Env } from './types';
 import { APPLICATION_CATEGORY_SQL, countApplicationRows } from './application-category';
+import { ACTIVE_SESSION_SQL, loadSessionYears, windowYears, type SessionYears } from './application-year';
 
-function currentYear(): number {
-  return Number(new Intl.DateTimeFormat('en', {
-    timeZone: 'Asia/Kuala_Lumpur', year: 'numeric',
-  }).format(new Date()));
-}
-
-async function applicationCounts(env: Env, year: number) {
+/** Each form counted in its own active session: annual registration vs Kelas III / I FAM. */
+async function applicationCounts(env: Env, years: SessionYears) {
   const rows = await env.DB.prepare(`SELECT ${APPLICATION_CATEGORY_SQL} AS application_category,
     p.status,p.status_workflow,p.workflow_status
-    FROM permohonan p WHERE p.tahun_permohonan=?`).bind(year).all<Record<string, unknown>>();
+    FROM permohonan p WHERE ${ACTIVE_SESSION_SQL(APPLICATION_CATEGORY_SQL)}`)
+    .bind(years.exam, years.annual).all<Record<string, unknown>>();
   return countApplicationRows(rows.results);
+}
+
+/** Session year shown for each dashboard application card. */
+function categoryYears(years: SessionYears): Record<string, number> {
+  const byWindow = windowYears(years);
+  return { pengadil_berdaftar: byWindow.berdaftar, penilai_berdaftar: byWindow.penilai,
+    kelas3_fam: byWindow.bertulis, ujian_kelas1_fam: byWindow.kelas1 };
 }
 
 async function requireAdmin(request: Request, env: Env): Promise<Response | number> {
@@ -56,16 +60,17 @@ export async function adminProfile(request: Request, env: Env): Promise<Response
 export async function adminDashboardTasks(request: Request, env: Env): Promise<Response> {
   const id = await requireAdmin(request, env);
   if (id instanceof Response) return id;
-  const year = currentYear();
+  const years = await loadSessionYears(env.DB);
   const [applications, reports] = await Promise.all([
-    applicationCounts(env, year),
+    applicationCounts(env, years),
     env.DB.prepare("SELECT COUNT(*) AS total FROM laporan_penilaian WHERE status='Dihantar'")
       .first<{ total: number }>(),
   ]);
   return json({
     error: false,
     tasks: {
-      year,
+      year: years.annual,
+      application_years: categoryYears(years),
       pending_applications: Object.values(applications).reduce((total, item) => total + item.pending, 0),
       applications_by_type: applications,
       pending_reports: Number(reports?.total ?? 0),
@@ -79,11 +84,11 @@ export async function adminDashboardStats(request: Request, env: Env): Promise<R
   const month = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit',
   }).format(new Date());
-  const year = currentYear();
+  const years = await loadSessionYears(env.DB);
   const [referees, applications, reports, matches] = await Promise.all([
     env.DB.prepare("SELECT COUNT(*) AS total FROM users WHERE role='Pengadil' AND aktif=1")
       .first<{ total: number }>(),
-    applicationCounts(env, year),
+    applicationCounts(env, years),
     env.DB.prepare("SELECT COUNT(*) AS total FROM laporan_penilaian WHERE status='Dihantar'")
       .first<{ total: number }>(),
     env.DB.prepare('SELECT COUNT(*) AS total FROM perlawanan WHERE substr(tarikh,1,7)=?')
@@ -93,7 +98,8 @@ export async function adminDashboardStats(request: Request, env: Env): Promise<R
     error: false,
     stats: {
       total_pengadil: Number(referees?.total ?? 0),
-      year,
+      year: years.annual,
+      application_years: categoryYears(years),
       pending_applications: Object.values(applications).reduce((total, item) => total + item.pending, 0),
       applications_by_type: applications,
       pending_reports: Number(reports?.total ?? 0),

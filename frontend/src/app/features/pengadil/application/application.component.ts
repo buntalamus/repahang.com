@@ -23,6 +23,8 @@ export class PengadilApplicationComponent implements OnInit {
   appSettings: any = {};
   /** Opening windows computed by the server in Malaysia time. */
   windows: Record<string, { state: string; open_date: string; close_date: string }> = {};
+  /** Session year each form is recorded under, keyed like the windows. */
+  sessionYears: Record<string, number> = {};
   profile: any = {};
   profileMissing: string[] = [];
 
@@ -89,7 +91,14 @@ export class PengadilApplicationComponent implements OnInit {
     const [year, month, day] = value.split('-');
     return `${day}/${month}/${year}`;
   }
-  get applicationYear(): string { return this.appSettings.application_year || String(new Date().getFullYear()); }
+  // Pendaftaran Tahunan registers for the coming session (application_year);
+  // Kelas III / Kelas I FAM are for the current year. The server sends each form's year.
+  get applicationYear(): string {
+    const name = this.isBerdaftar || this.isPpBerdaftar ? 'berdaftar' : this.isPenilai ? 'penilai'
+      : this.isKelas3 ? 'bertulis' : this.isKelas1 ? 'kelas1' : '';
+    const year = this.sessionYears[name];
+    return year ? String(year) : this.appSettings.application_year || String(new Date().getFullYear());
+  }
   get paymentAmount(): string { return this.appSettings.payment_amount || '80.00'; }
   get bankName(): string { return this.appSettings.payment_bank_name || '-'; }
   get accountName(): string { return this.appSettings.payment_account_name || '-'; }
@@ -127,7 +136,11 @@ export class PengadilApplicationComponent implements OnInit {
         if (!history.error) {
           this.history = history.data || [];
         }
-        if (!settings.error) { this.appSettings = settings.settings || {}; this.windows = settings.windows || {}; }
+        if (!settings.error) {
+          this.appSettings = settings.settings || {};
+          this.windows = settings.windows || {};
+          this.sessionYears = settings.years || {};
+        }
         this.currentApp = this.history.find((a: any) =>
           +a.tahun_permohonan === +this.applicationYear) || null;
         if (!profile.error) {

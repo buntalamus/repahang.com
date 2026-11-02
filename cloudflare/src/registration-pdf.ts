@@ -46,9 +46,11 @@ async function application(env: Env, user: SessionUser, type: FormType, id: numb
   if (type === 'ujian_kelas1') {
     // Current applications live in permohonan; keep the legacy written-test
     // table as a fallback without requiring its historically missing column.
+    // The applicant may always print their own copy (it is emailed on submission);
+    // a PP Daerah sees the district's copies once approved.
     const current=await env.DB.prepare(`SELECT id FROM permohonan
-      WHERE jenis_borang='ujian_kelas1_fam' AND lower(status)='approved'
-        AND (user_id=? OR COALESCE(district_id,persatuan_id)=?) ${id?'AND id=?':''}
+      WHERE jenis_borang='ujian_kelas1_fam'
+        AND (user_id=? OR (COALESCE(district_id,persatuan_id)=? AND lower(status)='approved')) ${id?'AND id=?':''}
       LIMIT 1`).bind(user.id,scope,...(id?[id]:[])).first();
     currentClassOne=!!current;
     if(currentClassOne)isWritten=false;
@@ -59,14 +61,14 @@ async function application(env: Env, user: SessionUser, type: FormType, id: numb
   }
   const table = isWritten ? 'permohonan_ujian_bertulis' : 'permohonan';
   const typeCondition = isWritten ? (type === 'ujian_kelas1' ? "p.jenis_permohonan='kelas1'" : '1=1')
-    : currentClassOne ? "p.jenis_borang='ujian_kelas1_fam' AND lower(p.status)='approved'"
+    : currentClassOne ? "p.jenis_borang='ujian_kelas1_fam'"
     : type === 'ujian_kecergasan' ? "p.jenis_permohonan='ujian_kecergasan' AND p.workflow_status='Approved'"
     : `p.jenis_borang='${type}'`;
   const approved = isWritten || type === 'pengadil_futsal' ? "AND lower(p.status)='approved'" : '';
   // Imported annual applications commonly store the district in persatuan_id
   // while district_id is NULL. Both identify the same PP Daerah scope.
   const districtField = isWritten ? 'p.persatuan_id' : 'COALESCE(p.district_id,p.persatuan_id)';
-  const districtAccess = type === 'kelas3_fam' ? '' : ` OR (${districtField}=?${type === 'pengadil_berdaftar' || type === 'penilai_berdaftar' ? " AND lower(p.status)='approved'" : ''})`;
+  const districtAccess = type === 'kelas3_fam' ? '' : ` OR (${districtField}=?${type === 'pengadil_berdaftar' || type === 'penilai_berdaftar' || currentClassOne ? " AND lower(p.status)='approved'" : ''})`;
   const params = id ? [id, user.id, ...(districtAccess ? [scope] : [])]
     : [user.id, ...(districtAccess ? [scope] : [])];
   const sql = `SELECT p.*,u.tahun_mula_aktif AS user_tahun_mula_aktif,

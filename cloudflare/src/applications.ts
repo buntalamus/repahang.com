@@ -7,7 +7,8 @@ import { boundedJson } from './request';
 import type { Env } from './types';
 import { blastKelas3Welcome } from './kelas3-welcome';
 import { wroteRow } from './d1-changes';
-import { APPLICATION_CATEGORY_SQL } from './application-category';
+import { APPLICATION_CATEGORY_SQL, APPLICATION_WORKFLOW_SQL } from './application-category';
+import { sessionYears, windowYears } from './application-year';
 import { applicationWindow, klToday } from './application-window';
 
 const APPLICATION_TYPES: Record<string, string> = {
@@ -44,7 +45,10 @@ export async function applicationSettings(request: Request, env: Env): Promise<R
   const today = klToday();
   const windows = Object.fromEntries((['berdaftar', 'penilai', 'bertulis', 'kelas1'] as const)
     .map((name) => [name, applicationWindow(settings, name, today)]));
-  return json({ error: false, settings, windows });
+  // The session each form is recorded under: annual registration from application_year,
+  // Kelas III / Kelas I FAM the current year.
+  const years = windowYears(sessionYears(settings));
+  return json({ error: false, settings, windows, years });
 }
 
 /**
@@ -142,11 +146,7 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
              WHEN 'ujian_kecergasan' THEN 'Ujian Kecergasan (Rekod Lama)'
              WHEN 'pegawai_pembangunan' THEN 'Pegawai Pembangunan'
              ELSE p.jenis_borang END AS jenis_permohonan,
-           CASE WHEN p.jenis_borang='ujian_kelas1_fam' THEN
-             CASE p.workflow_status WHEN 'Pending' THEN 'Menunggu Admin'
-               WHEN 'Approved' THEN 'Lengkap' WHEN 'Rejected' THEN 'Ditolak'
-               ELSE p.workflow_status END
-             ELSE p.status_workflow END AS status,
+           ${APPLICATION_WORKFLOW_SQL} AS status,
            CASE WHEN p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan<2027
              THEN COALESCE(p.status_ujian,(SELECT f.status_ujian FROM permohonan f
                WHERE f.user_id=p.user_id AND f.tahun_permohonan=p.tahun_permohonan
@@ -170,12 +170,7 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
     LEFT JOIN users u ON u.id=p.user_id
     LEFT JOIN persatuan_bolasepak_daerah pb ON pb.id=p.persatuan_id
     LEFT JOIN penilai_permohonan penilai_det ON penilai_det.permohonan_id=p.id
-    WHERE (?='all' OR
-      CASE WHEN p.jenis_borang='ujian_kelas1_fam' THEN
-        CASE p.workflow_status WHEN 'Pending' THEN 'Menunggu Admin'
-          WHEN 'Approved' THEN 'Lengkap' WHEN 'Rejected' THEN 'Ditolak'
-          ELSE p.workflow_status END
-      ELSE p.status_workflow END=?)
+    WHERE (?='all' OR ${APPLICATION_WORKFLOW_SQL}=?)
       AND (? IS NULL OR ${APPLICATION_CATEGORY_SQL}=?)
       AND (? IS NULL OR p.tahun_permohonan=?)
     ORDER BY p.tarikh_hantar DESC
@@ -186,18 +181,11 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
   }).format(new Date());
   const stats = await env.DB.prepare(`
     SELECT
-      SUM(CASE WHEN p.status_workflow='Menunggu Admin'
-        OR (p.jenis_borang='ujian_kelas1_fam' AND p.workflow_status='Pending')
-        THEN 1 ELSE 0 END) AS pending,
-      SUM(CASE WHEN (p.status_workflow='Lengkap'
-        OR (p.jenis_borang='ujian_kelas1_fam' AND p.workflow_status='Approved'))
+      SUM(CASE WHEN ${APPLICATION_WORKFLOW_SQL}='Menunggu Admin' THEN 1 ELSE 0 END) AS pending,
+      SUM(CASE WHEN ${APPLICATION_WORKFLOW_SQL}='Lengkap'
         AND substr(p.tarikh_hantar,6,2)=? THEN 1 ELSE 0 END) AS approved_this_month,
-      SUM(CASE WHEN p.status_workflow='Lengkap'
-        OR (p.jenis_borang='ujian_kelas1_fam' AND p.workflow_status='Approved')
-        THEN 1 ELSE 0 END) AS total_approved,
-      SUM(CASE WHEN p.status_workflow='Ditolak'
-        OR (p.jenis_borang='ujian_kelas1_fam' AND p.workflow_status='Rejected')
-        THEN 1 ELSE 0 END) AS total_rejected
+      SUM(CASE WHEN ${APPLICATION_WORKFLOW_SQL}='Lengkap' THEN 1 ELSE 0 END) AS total_approved,
+      SUM(CASE WHEN ${APPLICATION_WORKFLOW_SQL}='Ditolak' THEN 1 ELSE 0 END) AS total_rejected
     FROM permohonan p
     WHERE (? IS NULL OR ${APPLICATION_CATEGORY_SQL}=?)
       AND (? IS NULL OR p.tahun_permohonan=?)
@@ -461,7 +449,9 @@ interface ApplicantRow {
 
 const FORM_LABELS: Record<string, string> = {
   pengadil_berdaftar: 'Pendaftaran Tahunan Pengadil',
+  penilai_berdaftar: 'Pendaftaran Tahunan Penilai Pengadil',
   kelas3_fam: 'Kelas III FAM',
+  ujian_kelas1_fam: 'Ujian Kelas I FAM',
   ujian_bertulis: 'Ujian Bertulis',
   ujian_kecergasan: 'Ujian Kecergasan',
 };

@@ -40,8 +40,10 @@ function form(type) {
 }
 const post=(type)=>submitRefereeApplication(new Request('https://staging.refpahang.example/api/pengadil-application.php',{
   method:'POST',headers:{Cookie:cookie},body:form(type)}),env);
+// Kelas III / Kelas I FAM are recorded for the year applied, whatever application_year says.
+const examYear=Number(new Intl.DateTimeFormat('en-CA',{year:'numeric',timeZone:'Asia/Kuala_Lumpur'}).format(new Date()));
 const saved=(type)=>db.prepare(`SELECT payment_amount FROM permohonan
-  WHERE user_id=? AND jenis_borang=? AND tahun_permohonan=2027`).get(userId,type);
+  WHERE user_id=? AND jenis_borang=? AND tahun_permohonan=?`).get(userId,type,examYear);
 
 try {
   // These tests are about other rules; the snapshot's past open/close dates would close the forms.
@@ -64,11 +66,12 @@ try {
   assert.equal(settings.bertulis_fee,'180');
   assert.equal(settings.bertulis_max_age,'30');
 
-  // Born 1996: 31 in 2027, above the Settings maximum of 30 (the old code allowed up to 40).
-  db.prepare("UPDATE users SET no_ic='960101061234' WHERE id=?").run(userId);
+  // 31 in the exam year, above the Settings maximum of 30 (the old code allowed up to 40).
+  // The age is taken in the exam year, not in application_year (2027).
+  db.prepare("UPDATE users SET no_ic=? WHERE id=?").run(`${String(examYear-31).slice(2)}0101061234`,userId);
   response=await post('kelas3_fam');
   assert.equal(response.status,400);
-  assert.match((await response.json()).message,/antara 15 hingga 30 tahun pada tahun 2027/);
+  assert.match((await response.json()).message,new RegExp(`antara 15 hingga 30 tahun pada tahun ${examYear}`));
 
   setting('bertulis_fee','');
   db.prepare("UPDATE users SET no_ic='070101061234' WHERE id=?").run(userId);
@@ -77,7 +80,7 @@ try {
   assert.match((await response.json()).message,/Tetapan yuran/);
   setting('bertulis_fee','180');
 
-  // Born 2007: 20 in 2027. The Kelas III fee, not the annual RM80, is recorded and emailed.
+  // Born 2007: within 15-30 in the exam year. The Kelas III fee, not the annual RM80, is recorded and emailed.
   response=await post('kelas3_fam');
   assert.equal(response.status,200,JSON.stringify(await response.clone().json()));
   assert.equal(saved('kelas3_fam').payment_amount,'180.00');
