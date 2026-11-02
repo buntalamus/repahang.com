@@ -24,3 +24,10 @@ SET status_workflow = 'Menunggu Admin'
 WHERE jenis_borang = 'ujian_kelas1_fam'
   AND status_workflow IS NULL
   AND workflow_status = 'Pending';
+
+-- Ujian Kelas I FAM is reviewed by Admin only, never by PP Daerah: hand any
+-- application still waiting for a PP Daerah over to Admin.
+UPDATE permohonan
+SET status_workflow = 'Menunggu Admin'
+WHERE jenis_borang = 'ujian_kelas1_fam'
+  AND status_workflow = 'Menunggu PP Daerah';

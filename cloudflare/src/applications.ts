@@ -326,6 +326,11 @@ async function updateFitnessResult(body: Record<string, unknown>, env: Env, admi
     return json({ error: true,
       message: 'Sahkan dokumen permohonan dahulu sebelum merekod keputusan ujian.' }, 409);
   }
+  // Like annual registration: Ujian Kelas I FAM is approved first, then its exam result is recorded.
+  if (application.jenis_borang === 'ujian_kelas1_fam' && application.status_workflow !== 'Lengkap') {
+    return json({ error: true,
+      message: 'Luluskan permohonan Ujian Kelas I FAM dahulu sebelum merekod keputusan ujian.' }, 409);
+  }
   if (application.status_ujian === decision) {
     return json({ error: false, message: 'Keputusan ujian tidak berubah.', email_sent: true });
   }

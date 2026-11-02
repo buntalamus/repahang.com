@@ -233,8 +233,9 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
   if (isResponse(pictureInfo)) return pictureInfo;
 
   // A PP Daerah cannot verify their own application, so it goes straight to Admin.
+  // Ujian Kelas I FAM is Admin's responsibility alone: it never goes through PP Daerah.
   // The first reviewer is told: the applicant's PP Daerah, or Admin when there is none.
-  const districtReviewers = user.role === 'PP Daerah' ? [] : (await env.DB.prepare(`
+  const districtReviewers = user.role === 'PP Daerah' || type === 'ujian_kelas1_fam' ? [] : (await env.DB.prepare(`
     SELECT id,nama_penuh,email FROM users WHERE role='PP Daerah' AND aktif=1
       AND COALESCE(NULLIF(persatuan_id,0),district_id)=?`)
     .bind(Number(profile.persatuan_id ?? 0)).all<{id: number; nama_penuh: string; email: string | null}>()).results;

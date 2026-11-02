@@ -375,11 +375,13 @@ try {
                 :nama_waris, :hubungan_waris, :telefon_waris,
                 :url_resit, :url_gambar_profil, :saiz_baju,
                 :payment_amount, :mohon_r1, :mohon_ujian_kecergasan,
-                'Pending', 'Menunggu PP Daerah', NOW()
+                'Pending', :status_workflow, NOW()
             )
         ");
 
         $insertStmt->execute([
+            // Ujian Kelas I FAM is reviewed by Admin only, never by PP Daerah.
+            'status_workflow'        => $jenisBorang === 'ujian_kelas1_fam' ? 'Menunggu Admin' : 'Menunggu PP Daerah',
             'user_id'                => $userId,
             'district_id'            => $districtId,
             'persatuan_id'           => $persatuanId,
