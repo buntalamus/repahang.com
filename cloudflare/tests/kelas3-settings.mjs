@@ -84,14 +84,14 @@ try {
   response=await post('kelas3_fam');
   assert.equal(response.status,200,JSON.stringify(await response.clone().json()));
   assert.equal(saved('kelas3_fam').payment_amount,'180.00');
-  assert.match(emails.at(-1).text,/Yuran permohonan: RM 180\.00/);
+  assert.match(emails.at(-1).text,/Yuran Permohonan\s+RM 180\.00/);
 
   setting('kelas1_open','1');
   db.prepare("UPDATE users SET tahun_lulus_kelas3='2020' WHERE id=?").run(userId);
   response=await post('ujian_kelas1_fam');
   assert.equal(response.status,200,JSON.stringify(await response.clone().json()));
   assert.equal(saved('ujian_kelas1_fam').payment_amount,'300.00');
-  assert.match(emails.at(-1).text,/Yuran permohonan: RM 300\.00/);
+  assert.match(emails.at(-1).text,/Yuran Permohonan\s+RM 300\.00/);
   console.log('kelas3 settings: open switch, age range and per-form fee follow Admin Settings');
 } finally {
   close();
