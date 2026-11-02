@@ -21,7 +21,8 @@ class _KelulusanViewState extends State<KelulusanView> {
 
   Future<List<Map<String, dynamic>>> _load() async {
     final body = widget.admin
-        ? await Api.instance.get('/api/admin-applications.php', {'status': 'Menunggu Admin', 'year': '${DateTime.now().year}'})
+        // Every application awaiting Admin, whatever its session year (as on the website).
+        ? await Api.instance.get('/api/admin-applications.php', {'status': 'Menunggu Admin'})
         : await Api.instance.get('/api/pp-applications.php', {'type': 'pengesahan'});
     final list = ((body['applications'] ?? body['data']) as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
     return widget.admin ? list.where((a) => text(a['status'], '') == 'Menunggu Admin').toList() : list;

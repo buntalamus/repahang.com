@@ -34,6 +34,31 @@ class _AdminPermohonanScreenState extends State<AdminPermohonanScreen> {
   final _view = GlobalKey<AsyncViewState<Map<String, dynamic>>>();
   late String _type = widget.types.first;
   int _year = DateTime.now().year + 1;
+
+  /// Session year per window from application-settings.php: Berdaftar/Penilai
+  /// follow application_year, Kelas III / Kelas I FAM the current year.
+  Map<String, dynamic> _sessionYears = {};
+  bool _yearChosen = false;
+  static const _tabWindow = {'berdaftar': 'berdaftar', 'penilai': 'penilai', 'kelas3': 'bertulis', 'kelas1': 'kelas1'};
+
+  @override
+  void initState() {
+    super.initState();
+    Api.instance.get('/api/application-settings.php').then((body) {
+      if (!mounted) return;
+      setState(() {
+        _sessionYears = Map<String, dynamic>.from(body['years'] as Map? ?? {});
+        _applyDefaultYear();
+      });
+    }).catchError((_) {});
+  }
+
+  /// Show the tab's own session unless the Admin picked a year.
+  void _applyDefaultYear() {
+    if (_yearChosen) return;
+    final year = int.tryParse('${_sessionYears[_tabWindow[_type]] ?? ''}');
+    if (year != null) _year = year;
+  }
   String _status = 'semua';
   String _query = '';
 
@@ -72,12 +97,18 @@ class _AdminPermohonanScreenState extends State<AdminPermohonanScreen> {
               FilterChips<String>(
                 options: [for (final t in widget.types) (t, _types[t]!.$1)],
                 value: _type,
-                onChanged: (v) => setState(() => _type = v),
+                onChanged: (v) => setState(() {
+                  _type = v;
+                  _applyDefaultYear();
+                }),
               ),
             FilterChips<int>(
               options: [for (var y = thisYear + 1; y >= thisYear - 2; y--) (y, 'Sesi $y')],
               value: _year,
-              onChanged: (v) => setState(() => _year = v),
+              onChanged: (v) => setState(() {
+                _year = v;
+                _yearChosen = true;
+              }),
             ),
           ]),
         ),

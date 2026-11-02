@@ -68,14 +68,19 @@ Future<void> downloadApplicationPdf(BuildContext context, Map<String, dynamic> a
 }
 
 class _Setup {
-  _Setup(this.settings, this.windows, this.profile, this.missing, this.history);
+  _Setup(this.settings, this.windows, this.years, this.window, this.profile, this.missing, this.history);
   final Map<String, dynamic> settings;
   final Map<String, dynamic> windows;
+
+  /// Session year per window from the server: annual registration follows
+  /// application_year, Kelas III / Kelas I FAM the current year.
+  final Map<String, dynamic> years;
+  final String window;
   final Map<String, dynamic> profile;
   final List<String> missing;
   final List<Map<String, dynamic>> history;
 
-  String get year => text(settings['application_year'], '${DateTime.now().year + 1}');
+  String get year => text(years[window], text(settings['application_year'], '${DateTime.now().year + 1}'));
 }
 
 class PermohonanFormScreen extends StatefulWidget {
@@ -116,6 +121,8 @@ class _PermohonanFormScreenState extends State<PermohonanFormScreen> {
     return _Setup(
       Map<String, dynamic>.from(results[0]['settings'] as Map? ?? {}),
       Map<String, dynamic>.from(results[0]['windows'] as Map? ?? {}),
+      Map<String, dynamic>.from(results[0]['years'] as Map? ?? {}),
+      form.window,
       profile,
       (results[1]['profile_missing_labels'] as List? ?? []).map((e) => '$e').toList(),
       (results[2]['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList(),
