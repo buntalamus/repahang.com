@@ -160,6 +160,29 @@ export class AdminApplicationsComponent implements OnInit {
     return `${environment.apiUrl}/download-borang-pendaftaran.php?type=${type}&application_id=${app.id}`;
   }
 
+  resendingId = 0;
+
+  /** The submission email reads "awaiting review", so it is resent only before a decision. */
+  canResendReceipt(app: any): boolean {
+    return app.status === 'Menunggu Admin' || app.status === 'Menunggu PP Daerah';
+  }
+
+  resendReceipt(app: any): void {
+    if (this.resendingId) return;
+    this.resendingId = app.id;
+    this.api.post<any>('admin-applications.php', { action: 'resend_receipt', id: app.id }).subscribe({
+      next: (res) => {
+        this.resendingId = 0;
+        if (!res.error) this.toast.success(res.message);
+        else this.toast.error(res.message);
+      },
+      error: (err: any) => {
+        this.resendingId = 0;
+        this.toast.error(err?.error?.message || 'Emel permohonan tidak berjaya dihantar.');
+      },
+    });
+  }
+
   ujianButtonTitle(app: any): string {
     return this.isUjianButtonDisabled(app)
       ? 'Luluskan permohonan dahulu sebelum merekod keputusan ujian'

@@ -14,7 +14,7 @@ import { applicationWindow, windowClosedMessage, type WindowName } from './appli
 import { CLASS_THREE_YEAR_SQL, ageInYear, classThreeDeadline, klYear, qualifyingMatchYear } from './application-eligibility';
 import { examYear, isExamForm } from './application-year';
 
-type FormType = 'pengadil_berdaftar' | 'penilai_berdaftar' | 'kelas3_fam' | 'ujian_kelas1_fam';
+export type FormType = 'pengadil_berdaftar' | 'penilai_berdaftar' | 'kelas3_fam' | 'ujian_kelas1_fam';
 type Profile = Record<string, string | number | null>;
 const annual = new Set<FormType>(['pengadil_berdaftar', 'penilai_berdaftar']);
 const allowed: Record<string, FormType[]> = {
@@ -332,36 +332,10 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
         console.error('Reviewer email for a new application could not be sent');
       }
     }));
-    let emailSent = false;
-    try {
-      const attachments: MailAttachment[] = [];
-      if (annual.has(type) || type === 'kelas3_fam' || type === 'ujian_kelas1_fam') {
-        const pdfUrl = new URL('/api/download-borang-pendaftaran.php', request.url);
-        pdfUrl.searchParams.set('type', type === 'ujian_kelas1_fam' ? 'ujian_kelas1' : type);
-        pdfUrl.searchParams.set('application_id', String(applicationId));
-        // Same session as the submission: the website's cookie or the app's Bearer token.
-        const pdf = await registrationPdf(new Request(pdfUrl, {
-          headers: {Cookie: request.headers.get('Cookie') || '',
-            Authorization: request.headers.get('Authorization') || ''},
-        }), env).catch(() => null);
-        // Without the PDF the applicant still gets the receipt; the form stays downloadable.
-        if (pdf?.ok && pdf.headers.get('Content-Type')?.includes('application/pdf')) attachments.push({filename: type === 'penilai_berdaftar'
-          ? `Borang_Pendaftaran_RA_R1_${applicationId}.pdf`
-          : type === 'kelas3_fam' ? `Borang_Perakuan_Kesihatan_R4_${applicationId}.pdf`
-            : type === 'ujian_kelas1_fam' ? `Borang_R11_KelasI_${applicationId}.pdf`
-              : `Borang_Pendaftaran_R1_R2_R4_${applicationId}.pdf`,
-        type: 'application/pdf', content: await pdf.arrayBuffer(), disposition: 'attachment'});
-        else console.error('Registration PDF unavailable for the application copy email');
-      }
-      const {html,text,subject}=await originalEmail(env,'receipt',
-        [fromProfile('email'),fromProfile('nama_penuh'),applicationId,fromProfile('jenis_pengadil') || '-',
-          attachments.length?[true]:[],year,type,fee,user.role],[],
-        {APPLICATION_STATUS:initialWorkflow==='Menunggu Admin'?'Menunggu Kelulusan Admin':'Menunggu Semakan PP Daerah'});
-      await sendRefpahangEmail(env,'daftar',fromProfile('email'),fromProfile('nama_penuh'),subject,html,text,attachments);
-      emailSent = true;
-    } catch {
-      console.error('Application copy email or PDF attachment could not be sent');
-    }
+    const emailSent = await sendApplicationReceipt(env, request, {
+      email: fromProfile('email'), nama: fromProfile('nama_penuh'), applicationId,
+      jenisPengadil: fromProfile('jenis_pengadil') || '-', year, type, fee, role: user.role, workflow: initialWorkflow,
+    });
     return json({error: false, message: 'Permohonan berjaya dihantar!',
       application_id: applicationId, linked_matches: linkedMatches, email_sent: emailSent,
       email_message: emailSent ? 'Salinan dihantar melalui emel.'
@@ -374,5 +348,48 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
     if (duplicate) return json({error: true, message:
       `Anda sudah mempunyai permohonan untuk tahun ${year}. Sila semak sejarah permohonan anda.`}, 400);
     throw error;
+  }
+}
+
+export interface ReceiptInput {
+  email: string; nama: string; applicationId: number; jenisPengadil: string;
+  year: number; type: FormType; fee: number; role: string; workflow: string;
+}
+
+/**
+ * The applicant's "Permohonan Berjaya Dihantar" email with their form attached.
+ * The PDF is opened with the caller's session: the applicant on submission, or
+ * Admin when resending. Without the PDF the receipt is still sent.
+ */
+export async function sendApplicationReceipt(env: Env, request: Request, input: ReceiptInput): Promise<boolean> {
+  const {applicationId, type} = input;
+  try {
+    const attachments: MailAttachment[] = [];
+    if (annual.has(type) || type === 'kelas3_fam' || type === 'ujian_kelas1_fam') {
+      const pdfUrl = new URL('/api/download-borang-pendaftaran.php', request.url);
+      pdfUrl.searchParams.set('type', type === 'ujian_kelas1_fam' ? 'ujian_kelas1' : type);
+      pdfUrl.searchParams.set('application_id', String(applicationId));
+      // Same session as the request: the website's cookie or the app's Bearer token.
+      const pdf = await registrationPdf(new Request(pdfUrl, {
+        headers: {Cookie: request.headers.get('Cookie') || '',
+          Authorization: request.headers.get('Authorization') || ''},
+      }), env).catch(() => null);
+      if (pdf?.ok && pdf.headers.get('Content-Type')?.includes('application/pdf')) attachments.push({filename: type === 'penilai_berdaftar'
+        ? `Borang_Pendaftaran_RA_R1_${applicationId}.pdf`
+        : type === 'kelas3_fam' ? `Borang_Perakuan_Kesihatan_R4_${applicationId}.pdf`
+          : type === 'ujian_kelas1_fam' ? `Borang_R11_KelasI_${applicationId}.pdf`
+            : `Borang_Pendaftaran_R1_R2_R4_${applicationId}.pdf`,
+      type: 'application/pdf', content: await pdf.arrayBuffer(), disposition: 'attachment'});
+      else console.error('Registration PDF unavailable for the application copy email');
+    }
+    const {html,text,subject}=await originalEmail(env,'receipt',
+      [input.email,input.nama,applicationId,input.jenisPengadil,
+        attachments.length?[true]:[],input.year,type,input.fee,input.role],[],
+      {APPLICATION_STATUS:input.workflow==='Menunggu Admin'?'Menunggu Kelulusan Admin':'Menunggu Semakan PP Daerah'});
+    await sendRefpahangEmail(env,'daftar',input.email,input.nama,subject,html,text,attachments);
+    return true;
+  } catch {
+    console.error('Application copy email or PDF attachment could not be sent');
+    return false;
   }
 }

@@ -10,6 +10,7 @@ import { wroteRow } from './d1-changes';
 import { APPLICATION_CATEGORY_SQL, APPLICATION_WORKFLOW_SQL } from './application-category';
 import { sessionYears, windowYears } from './application-year';
 import { applicationWindow, klToday } from './application-window';
+import { sendApplicationReceipt, type FormType } from './application-submit';
 
 const APPLICATION_TYPES: Record<string, string> = {
   berdaftar: 'pengadil_berdaftar',
@@ -217,6 +218,7 @@ export async function deleteApplication(request: Request, env: Env): Promise<Res
   if (body.action === 'blast_kelas3_welcome') return blastKelas3Welcome(env, user.id);
   if (body.action === 'update_status_ujian') return updateFitnessResult(body, env, user.id);
   if (body.action === 'update_status_seminar') return updateSeminarAttendance(body, env);
+  if (body.action === 'resend_receipt') return resendReceipt(body, env, request);
   if (body.action !== 'delete_application') {
     return json({ error: true, message: 'Tindakan belum tersedia di staging.' }, 503);
   }
@@ -294,6 +296,40 @@ async function updateSeminarAttendance(body: Record<string, unknown>, env: Env):
     message: status === null ? 'Rekod kehadiran seminar dikosongkan.'
       : `Kehadiran seminar dikemaskini: ${status}.`,
     status_seminar: status });
+}
+
+/** Sends the applicant's submission email again, form attached, while it awaits review. */
+async function resendReceipt(body: Record<string, unknown>, env: Env, request: Request): Promise<Response> {
+  const id = positiveId(String(body.id ?? ''));
+  if (!id) return json({ error: true, message: 'Parameter tidak sah.' }, 400);
+  const application = await env.DB.prepare(`SELECT p.id,p.nama_penuh,p.emel,p.jenis_borang,p.jenis_pengadil,
+    p.tahun_permohonan,p.payment_amount,p.status_workflow,u.email AS user_email,u.role AS user_role
+    FROM permohonan p LEFT JOIN users u ON u.id=p.user_id WHERE p.id=? LIMIT 1`).bind(id).first<{
+      id: number; nama_penuh: string; emel: string | null; jenis_borang: string; jenis_pengadil: string | null;
+      tahun_permohonan: number | null; payment_amount: string | null; status_workflow: string | null;
+      user_email: string | null; user_role: string | null;
+    }>();
+  if (!application) return json({ error: true, message: 'Permohonan tidak dijumpai.' }, 404);
+  if (!['pengadil_berdaftar', 'penilai_berdaftar', 'kelas3_fam', 'ujian_kelas1_fam'].includes(application.jenis_borang)) {
+    return json({ error: true, message: 'Emel permohonan tidak tersedia untuk jenis borang ini.' }, 400);
+  }
+  // The email reads "awaiting review", so it is only resent before a decision.
+  if (!['Menunggu Admin', 'Menunggu PP Daerah'].includes(application.status_workflow ?? '')) {
+    return json({ error: true, message: 'Emel permohonan hanya boleh dihantar semula sebelum keputusan dibuat.' }, 409);
+  }
+  const email = application.user_email || application.emel || '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json({ error: true, message: 'Pemohon tiada alamat emel yang sah.' }, 400);
+  }
+  const sent = await sendApplicationReceipt(env, request, {
+    email, nama: application.nama_penuh, applicationId: application.id,
+    jenisPengadil: application.jenis_pengadil || '-', year: Number(application.tahun_permohonan),
+    type: application.jenis_borang as FormType, fee: Number(application.payment_amount ?? 0),
+    role: application.user_role ?? '', workflow: application.status_workflow ?? '',
+  });
+  return sent
+    ? json({ error: false, message: `Emel permohonan dihantar semula kepada ${email}.`, email_sent: true })
+    : json({ error: true, message: 'Emel permohonan tidak berjaya dihantar. Sila cuba lagi.', email_sent: false }, 502);
 }
 
 async function updateFitnessResult(body: Record<string, unknown>, env: Env, adminId: number): Promise<Response> {

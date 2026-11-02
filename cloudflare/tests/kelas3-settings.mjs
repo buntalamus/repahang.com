@@ -3,8 +3,8 @@ import {bundle,openDatabase,sessionCookie} from './_harness.mjs';
 
 // Kelas III FAM and Ujian Kelas I FAM follow the Admin Settings page: the
 // Kelas III switch (bertulis_open), its age range and each form's own fee.
-const {submitRefereeApplication,applicationSettings}=await bundle(
-  "export {submitRefereeApplication} from '../src/application-submit'; export {applicationSettings} from '../src/applications';"
+const {submitRefereeApplication,applicationSettings,deleteApplication}=await bundle(
+  "export {submitRefereeApplication} from '../src/application-submit'; export {applicationSettings,deleteApplication} from '../src/applications';"
 );
 const {db,DB,close}=openDatabase(['0001_worker_sessions','0011_application_uniqueness']);
 const objects=new Map();
@@ -92,6 +92,19 @@ try {
   assert.equal(response.status,200,JSON.stringify(await response.clone().json()));
   assert.equal(saved('ujian_kelas1_fam').payment_amount,'300.00');
   assert.match(emails.at(-1).text,/Yuran Permohonan\s+RM 300\.00/);
+
+  // Ujian Kelas I FAM goes straight to Admin, who can resend the submission email with its R11.
+  const classOne=db.prepare(`SELECT id,status_workflow FROM permohonan
+    WHERE user_id=? AND jenis_borang='ujian_kelas1_fam' AND tahun_permohonan=?`).get(userId,examYear);
+  assert.equal(classOne.status_workflow,'Menunggu Admin');
+  const admin=db.prepare("SELECT id FROM users WHERE role='Admin' AND aktif=1 LIMIT 1").get();
+  const before=emails.length;
+  response=await deleteApplication(new Request('https://staging.refpahang.example/api/admin-applications.php',{method:'POST',
+    headers:{Cookie:await sessionCookie(db,admin.id)},body:JSON.stringify({action:'resend_receipt',id:classOne.id})}),env);
+  assert.equal(response.status,200,JSON.stringify(await response.clone().json()));
+  assert.equal(emails.length,before+1);
+  assert.match(emails.at(-1).subject,/Ujian Kelas I FAM/);
+  assert.ok(emails.at(-1).attachments?.some(file=>/Borang_R11_KelasI_/.test(file.filename)),'R11 attached');
   console.log('kelas3 settings: open switch, age range and per-form fee follow Admin Settings');
 } finally {
   close();
