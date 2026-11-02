@@ -34,7 +34,9 @@ async function apply(userId,type) {
   return {status:response.status,...await response.json()};
 }
 const ids=(list)=>new Set(list.map(item=>item.id));
-const icFor=(age)=>`${String((2027-age)%100).padStart(2,'0')}0101061234`;
+// Kelas III / Kelas I FAM are for the year applied; ages and deadlines use it, not application_year.
+const examYear=Number(new Intl.DateTimeFormat('en-CA',{year:'numeric',timeZone:'Asia/Kuala_Lumpur'}).format(new Date()));
+const icFor=(age)=>`${String((examYear-age)%100).padStart(2,'0')}0101061234`;
 
 try {
   db.prepare(`UPDATE application_settings SET setting_value='' WHERE setting_key LIKE '%\\_open\\_date' ESCAPE '\\'
@@ -43,7 +45,9 @@ try {
     min_verified_matches:'20',bertulis_min_age:'15',bertulis_max_age:'30',kelas1_max_age:'32'})) setting(key,value);
   let lists=await eligibilityLists(env);
   assert.equal(lists.year,2027);
+  assert.equal(lists.exam_year,examYear);
   assert.equal(lists.rules.match_year,2026);
+  assert.equal(lists.rules.kelas3_deadline,examYear-2);
   assert.ok(lists.berdaftar.length>0);
   assert.ok(lists.berdaftar.every(item=>item.perlawanan>=20 || db.prepare('SELECT role FROM users WHERE id=?').get(item.id).role==='PP Daerah'));
 
@@ -76,14 +80,14 @@ try {
   const holder=db.prepare("SELECT id FROM users WHERE jenis_pengadil='Kelas III FAM' AND aktif=1 LIMIT 1").get();
   assert.ok(!ids(lists.kelas3).has(holder.id));
 
-  // Ujian Kelas I FAM: Kelas III held by 2025 (two years before 2027) and age within the limit.
-  db.prepare("UPDATE users SET tahun_lulus_kelas3='2024',no_ic=? WHERE id=?").run(icFor(28),young[1]);
-  db.prepare("UPDATE users SET tahun_lulus_kelas3='2026' WHERE id=?").run(young[0]);
+  // Ujian Kelas I FAM: Kelas III held two years before the exam year and age within the limit.
+  db.prepare("UPDATE users SET tahun_lulus_kelas3=?,no_ic=? WHERE id=?").run(String(examYear-2),icFor(28),young[1]);
+  db.prepare("UPDATE users SET tahun_lulus_kelas3=? WHERE id=?").run(String(examYear-1),young[0]);
   lists=await eligibilityLists(env);
-  assert.deepEqual(lists.kelas1.find(item=>item.id===young[1])?.tahun_lulus_kelas3,2024);
+  assert.deepEqual(lists.kelas1.find(item=>item.id===young[1])?.tahun_lulus_kelas3,examYear-2);
   assert.ok(!ids(lists.kelas1).has(young[0]));
   assert.equal((await apply(young[1],'ujian_kelas1_fam')).status,200);
-  assert.match((await apply(young[0],'ujian_kelas1_fam')).message,/pada tahun 2025 atau sebelumnya/);
+  assert.match((await apply(young[0],'ujian_kelas1_fam')).message,new RegExp(`pada tahun ${examYear-2} atau sebelumnya`));
   assert.ok(lists.kelas1_missing_kelas3_year>0);
 
   // Statistik returns the lists for the application year whatever year is browsed.
@@ -91,6 +95,7 @@ try {
   const data=(await (await statistics(new Request('https://staging.refpahang.example/api/statistics.php?year=2025',
     {headers:{Cookie:await sessionCookie(db,admin.id)}}),env)).json()).data;
   assert.equal(data.kelayakan.year,2027);
+  assert.equal(data.kelayakan.exam_year,examYear);
   console.log('eligibility lists: berdaftar, Kelas III and Kelas I lists match the submission rules');
 } finally {
   close();

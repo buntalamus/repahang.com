@@ -58,13 +58,20 @@ export async function adminApprove(request: Request, env: Env): Promise<Response
   const status = action === 'reject' ? 'Rejected' : 'Approved';
   const workflow = action === 'reject' ? 'Ditolak' : fitness ? 'Admin Diluluskan' : 'Lengkap';
   const classOne = application.jenis_borang === 'ujian_kelas1_fam';
-  const subject = action === 'reject' ? 'Permohonan Pendaftaran Ditolak'
-    : fitness ? 'Dokumen Diluluskan - Menunggu Ujian Kecergasan'
-      : isRa ? 'Pendaftaran Penilai Pengadil Diluluskan' : 'Pendaftaran Pengadil Diluluskan';
-  const message = action === 'reject' ? `Permohonan pendaftaran anda telah ditolak. Sebab: ${notes}`
-    : fitness ? 'Anda telah didaftarkan untuk sesi ini. Kelayakan patch dan lesen Pengadil Negeri menunggu keputusan ujian kecergasan.'
-      : isRa ? 'Pendaftaran tahunan Penilai Pengadil anda telah diluluskan.'
-        : 'Permohonan pendaftaran pengadil anda telah diluluskan.';
+  const classThree = application.jenis_borang === 'kelas3_fam';
+  // Kelas III / Kelas I FAM are examination applications, not annual registration.
+  const examLabel = classOne ? 'Ujian Kelas I FAM' : classThree ? 'Kelas III FAM' : '';
+  const subject = examLabel ? `Permohonan ${examLabel} ${action === 'reject' ? 'Ditolak' : 'Diluluskan'}`
+    : action === 'reject' ? 'Permohonan Pendaftaran Ditolak'
+      : fitness ? 'Dokumen Diluluskan - Menunggu Ujian Kecergasan'
+        : isRa ? 'Pendaftaran Penilai Pengadil Diluluskan' : 'Pendaftaran Pengadil Diluluskan';
+  const message = examLabel
+    ? action === 'reject' ? `Permohonan ${examLabel} ${application.tahun_permohonan ?? ''} anda telah ditolak. Sebab: ${notes}`
+      : `Permohonan ${examLabel} ${application.tahun_permohonan ?? ''} anda telah diluluskan. Keputusan ujian akan direkodkan selepas peperiksaan.`
+    : action === 'reject' ? `Permohonan pendaftaran anda telah ditolak. Sebab: ${notes}`
+      : fitness ? 'Anda telah didaftarkan untuk sesi ini. Kelayakan patch dan lesen Pengadil Negeri menunggu keputusan ujian kecergasan.'
+        : isRa ? 'Pendaftaran tahunan Penilai Pengadil anda telah diluluskan.'
+          : 'Permohonan pendaftaran pengadil anda telah diluluskan.';
   const update = env.DB.prepare(`
     UPDATE permohonan SET status=?,status_workflow=?,
       workflow_status=CASE WHEN ? THEN ? ELSE workflow_status END,
@@ -81,7 +88,8 @@ export async function adminApprove(request: Request, env: Env): Promise<Response
       INSERT INTO notifications(user_id,type,subject,message,created_at)
       SELECT ?,?,?,?,datetime('now','+8 hours') WHERE changes()=1
     `).bind(application.user_id,
-      action === 'reject' ? 'Permohonan Ditolak' : fitness ? 'Semakan Permohonan' : 'Pendaftaran Lengkap',
+      action === 'reject' ? 'Permohonan Ditolak' : fitness ? 'Semakan Permohonan'
+        : examLabel ? 'Permohonan Diluluskan' : 'Pendaftaran Lengkap',
       subject, message));
   }
   const results = await env.DB.batch(statements);

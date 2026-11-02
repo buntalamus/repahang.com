@@ -248,10 +248,11 @@ interface TelegramBlastBatch { id: string; status: string; total: number; create
             <!-- Sesi -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1">Tahun Sesi Permohonan</label>
-                <input type="number" [(ngModel)]="settings.application_year" min="2020" max="2035"
+                <label for="application-year" class="block text-sm font-medium text-slate-700 mb-1">Tahun Sesi Pendaftaran Tahunan</label>
+                <input id="application-year" type="number" [(ngModel)]="settings.application_year" min="2020" max="2035"
+                  aria-describedby="application-year-help"
                   class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-                <p class="text-xs text-slate-400 mt-1">Semua permohonan baru akan menggunakan tahun ini</p>
+                <p id="application-year-help" class="text-xs text-slate-500 mt-1">Untuk Pendaftaran Tahunan Pengadil dan Penilai Pengadil (cth. mohon 2026 untuk lesen 2027). Permohonan Kelas III FAM dan Ujian Kelas I FAM sentiasa direkod untuk tahun semasa.</p>
               </div>
             </div>
 

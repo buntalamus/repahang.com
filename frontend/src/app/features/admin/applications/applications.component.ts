@@ -24,7 +24,14 @@ export class AdminApplicationsComponent implements OnInit {
   districtFilter = 'all';
   searchQuery = '';
   yearFilter = new Date().getFullYear().toString();
-  years = Array.from({ length: Math.max(new Date().getFullYear(), 2027) - 2023 }, (_, i) => 2024 + i);
+  years = Array.from({ length: Math.max(new Date().getFullYear() + 1, 2027) - 2023 }, (_, i) => 2024 + i);
+  // Default session per tab: Pengadil/Penilai Berdaftar = application_year (the coming
+  // season), Kelas III / Kelas I FAM = the current year. Set from application-settings.
+  private sessionYears: Record<string, number> = {};
+  private yearChosen = false;
+  private readonly tabWindow: Record<string, string> = {
+    berdaftar: 'berdaftar', penilai: 'penilai', kelas3: 'bertulis', kelas1: 'kelas1',
+  };
   currentPage = 1;
   pageSize = 10;
   group = 'pengadil';
@@ -79,8 +86,18 @@ export class AdminApplicationsComponent implements OnInit {
     this.activeTab = this.tabs.some(tab => tab.key === requestedType)
       ? requestedType! : this.tabs[0]?.key || 'berdaftar';
     const requestedYear = this.route.snapshot.queryParamMap.get('year');
-    if (requestedYear && this.years.includes(Number(requestedYear))) this.yearFilter = requestedYear;
-    this.loadApplications();
+    if (requestedYear && this.years.includes(Number(requestedYear))) {
+      this.yearFilter = requestedYear;
+      this.yearChosen = true;
+    }
+    this.api.get<any>('application-settings.php').subscribe({
+      next: (res) => {
+        this.sessionYears = res?.years || {};
+        this.applyDefaultYear();
+        this.loadApplications();
+      },
+      error: () => this.loadApplications(),
+    });
     this.api.get<any>('admin-users.php').subscribe({
       next: (res) => { this.persatuanList = res.persatuan || []; },
     });
@@ -107,7 +124,27 @@ export class AdminApplicationsComponent implements OnInit {
   switchTab(tab: string): void {
     this.activeTab = tab;
     this.statusFilter = 'all';
+    this.applyDefaultYear();
     this.loadApplications();
+  }
+
+  onYearChange(): void {
+    this.yearChosen = true;
+    this.loadApplications();
+  }
+
+  /** Show the tab's own session unless the Admin picked a year. */
+  private applyDefaultYear(): void {
+    if (this.yearChosen) return;
+    const year = this.sessionYears[this.tabWindow[this.activeTab]];
+    if (!year) return;
+    if (!this.years.includes(year)) this.years = [...this.years, year].sort((a, b) => a - b);
+    this.yearFilter = String(year);
+  }
+
+  /** Kelas III / Kelas I awaiting Admin can be approved or rejected from their tab. */
+  canDecideExamApp(app: any): boolean {
+    return this.isUjianTab && app.status === 'Menunggu Admin';
   }
 
   getUjianDisplayStatus(app: any): string {
