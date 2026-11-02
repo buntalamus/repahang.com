@@ -142,6 +142,30 @@ export class AdminApplicationsComponent implements OnInit {
     this.yearFilter = String(year);
   }
 
+  /** Application decision on the Kelas III / Kelas I tabs, separate from the exam result. */
+  applicationStatusLabel(app: any): string {
+    if (app.status === 'Menunggu Admin') return 'Menunggu Admin';
+    if (app.status === 'Menunggu PP Daerah') return 'Menunggu PP Daerah';
+    return this.getDisplayStatus(app);
+  }
+
+  applicationStatusClass(app: any): string {
+    const status = this.getDisplayStatus(app);
+    return status === 'Diluluskan' ? 'text-emerald-700' : status === 'Ditolak' ? 'text-rose-700' : 'text-amber-700';
+  }
+
+  /** The applicant's own form (R4 for Kelas III, R11 for Kelas I), opened for Admin review. */
+  formCopyUrl(app: any): string {
+    const type = this.activeTab === 'kelas1' ? 'ujian_kelas1' : 'kelas3_fam';
+    return `${environment.apiUrl}/download-borang-pendaftaran.php?type=${type}&application_id=${app.id}`;
+  }
+
+  ujianButtonTitle(app: any): string {
+    return this.isUjianButtonDisabled(app)
+      ? 'Luluskan permohonan dahulu sebelum merekod keputusan ujian'
+      : 'Rekod keputusan ujian (Lulus / Tidak Lulus / Tidak Hadir)';
+  }
+
   /** Kelas III / Kelas I awaiting Admin can be approved or rejected from their tab. */
   canDecideExamApp(app: any): boolean {
     return this.isUjianTab && app.status === 'Menunggu Admin';
@@ -314,6 +338,11 @@ export class AdminApplicationsComponent implements OnInit {
 
   canRecordAnnualFitness(app: any): boolean {
     return this.isAnnualRefereeApp(app) && ['Admin Diluluskan', 'Lengkap'].includes(app.status);
+  }
+
+  get ujianModalTitle(): string {
+    return this.activeTab === 'kelas1' ? 'Keputusan Ujian Kelas I FAM'
+      : this.activeTab === 'kelas3' ? 'Keputusan Peperiksaan Kelas III FAM' : 'Keputusan Ujian Kecergasan';
   }
 
   get isUjianButtonAlwaysEnabled(): boolean {

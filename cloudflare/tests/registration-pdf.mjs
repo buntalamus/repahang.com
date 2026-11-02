@@ -79,5 +79,10 @@ try {
   assert.equal((await call(`?type=pengadil_berdaftar&application_id=${annual.id}`,admin.id)).status,200);
   assert.equal((await call(`?type=penilai_berdaftar&application_id=${ra.id}`,admin.id)).status,200);
   assert.equal((await call(`?type=ujian_kelas1&application_id=${classOne}`,admin.id)).status,200);
+  // A Kelas I still awaiting Admin is reviewed with its form before approval.
+  db.prepare("UPDATE permohonan SET status='Pending',status_workflow='Menunggu Admin' WHERE id=?").run(classOne);
+  assert.equal((await call(`?type=ujian_kelas1&application_id=${classOne}`,admin.id)).status,200);
+  const classThree=db.prepare("SELECT id FROM permohonan WHERE jenis_borang='kelas3_fam' LIMIT 1").get();
+  if (classThree) assert.equal((await call(`?type=kelas3_fam&application_id=${classThree.id}`,admin.id)).status,200);
   console.log('registration PDF route: ownership, Admin review, RA R1, original TCPDF contents and binary MIME passed');
 } finally { close(); }
