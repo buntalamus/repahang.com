@@ -239,7 +239,7 @@ export class RegisterComponent implements OnDestroy {
       error: (err: any) => {
         this.loading = false;
         this.cdr.markForCheck();
-        this.toast.error(err?.error?.message || 'Tidak dapat menyambung ke pelayan.');
+        this.toast.apiError(err, 'Tidak dapat menyambung ke pelayan.');
       },
     });
   }

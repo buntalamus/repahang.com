@@ -215,12 +215,12 @@ export class PengadilMatchesComponent implements OnInit {
           this.officials = [];
           this.loadMatches();
         } else {
-          this.toast.error(res.message || 'Gagal menambah perlawanan.');
+          this.toast.apiError(res, 'Gagal menambah perlawanan.');
         }
       },
       error: (err: any) => {
         this.submitting = false;
-        this.toast.error(err?.error?.message || 'Ralat pelayan.');
+        this.toast.apiError(err, 'Ralat pelayan.');
       },
     });
   }
@@ -233,7 +233,7 @@ export class PengadilMatchesComponent implements OnInit {
           this.toast.success('Perlawanan dipadam.');
           this.loadMatches();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
     });

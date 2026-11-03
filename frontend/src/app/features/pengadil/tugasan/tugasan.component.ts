@@ -83,7 +83,7 @@ export class PengadilTugasanComponent implements OnInit {
         this.load();
       },
       error: (err) => {
-        this.toast.show(err?.error?.message || 'Ralat.', 'error');
+        this.toast.apiError(err, 'Ralat.');
         this.saving = false;
         this.cdr.markForCheck();
       },

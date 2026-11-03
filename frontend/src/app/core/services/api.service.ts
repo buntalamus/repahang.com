@@ -1,8 +1,8 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpContext, HttpParams } from '@angular/common/http';
-import { BACKGROUND_REQUEST } from './background-request';
+import { BACKGROUND_REQUEST, REQUEST_TIMEOUT_MS } from './background-request';
 import { Observable } from 'rxjs';
-import { map, timeout } from 'rxjs/operators';
+import { map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
@@ -16,6 +16,9 @@ export class ApiService {
     }
 
     const payload = response as Record<string, unknown>;
+    // Keep the same error object so the shared reporter and page handler can
+    // recognise one failed request even when the payload contains a data array.
+    if (payload['error'] === true) return response;
     if ('data' in payload) {
       return response;
     }
@@ -93,7 +96,6 @@ export class ApiService {
       context: new HttpContext().set(BACKGROUND_REQUEST, options?.background ?? false),
       withCredentials: true,
     }).pipe(
-      timeout(this.requestTimeoutMs),
       map((response) => this.normalizeResponse(response)),
     );
   }
@@ -101,8 +103,8 @@ export class ApiService {
   post<T>(endpoint: string, body: unknown, timeoutMs?: number): Observable<T> {
     return this.http.post<T>(`${this.baseUrl}/${endpoint}`, body, {
       withCredentials: true,
+      context: new HttpContext().set(REQUEST_TIMEOUT_MS, timeoutMs ?? this.requestTimeoutMs),
     }).pipe(
-      timeout(timeoutMs ?? this.requestTimeoutMs),
       map((response) => this.normalizeResponse(response)),
     );
   }
@@ -111,7 +113,6 @@ export class ApiService {
     return this.http.put<T>(`${this.baseUrl}/${endpoint}`, body, {
       withCredentials: true,
     }).pipe(
-      timeout(this.requestTimeoutMs),
       map((response) => this.normalizeResponse(response)),
     );
   }
@@ -120,7 +121,6 @@ export class ApiService {
     return this.http.patch<T>(`${this.baseUrl}/${endpoint}`, body, {
       withCredentials: true,
     }).pipe(
-      timeout(this.requestTimeoutMs),
       map((response) => this.normalizeResponse(response)),
     );
   }
@@ -130,7 +130,6 @@ export class ApiService {
       withCredentials: true,
       body,
     }).pipe(
-      timeout(this.requestTimeoutMs),
       map((response) => this.normalizeResponse(response)),
     );
   }
@@ -139,7 +138,6 @@ export class ApiService {
     return this.http.post<T>(`${this.baseUrl}/${endpoint}`, formData, {
       withCredentials: true,
     }).pipe(
-      timeout(this.requestTimeoutMs),
       map((response) => this.normalizeResponse(response)),
     );
   }

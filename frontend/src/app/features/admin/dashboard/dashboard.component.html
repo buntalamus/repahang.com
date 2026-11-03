@@ -190,7 +190,7 @@
                               'bg-rose-50 text-rose-700 border-rose-200': app.status === 'Ditolak',
                               'bg-gray-50 text-gray-700 border-gray-200': app.status !== 'Menunggu Admin' && app.status !== 'Menunggu PP Daerah' && app.status !== 'Lengkap' && app.status !== 'Admin Diluluskan' && app.status !== 'Ditolak'
                             }">
-                        {{ app.status === 'Menunggu Admin' || app.status === 'Menunggu PP Daerah' ? 'Dalam Proses' : app.status }}
+                        {{ app.status }}
                       </span>
                     </td>
                     <td class="px-5 py-3 align-middle text-right">

@@ -122,7 +122,7 @@ export class AdminDashboardComponent implements OnInit {
           this.recentApplications = this.recentApplications.filter((a) => a.id !== id);
           this.groupRecentApplications();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
     });
@@ -148,7 +148,7 @@ export class AdminDashboardComponent implements OnInit {
           this.recentApplications = this.recentApplications.filter((a) => a.id !== this.rejectTargetId);
           this.groupRecentApplications();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
     });

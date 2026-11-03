@@ -732,9 +732,9 @@ export class AdminSettingsComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.saving = false;
         if (!res.error) this.toast.success('Semua tetapan berjaya disimpan.');
-        else this.toast.error(res.message);
+        else this.toast.apiError(res);
       },
-      error: (err: any) => { this.saving = false; this.toast.error(err?.error?.message || 'Gagal menyimpan tetapan.'); },
+      error: (err: any) => { this.saving = false; this.toast.apiError(err, 'Gagal menyimpan tetapan.'); },
     });
   }
 
@@ -745,9 +745,9 @@ export class AdminSettingsComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.resetting = false;
         if (!res.error) { this.toast.success('Tetapan direset.'); this.loadSettings(); }
-        else this.toast.error(res.message);
+        else this.toast.apiError(res);
       },
-      error: (err: any) => { this.resetting = false; this.toast.error(err?.error?.message || 'Gagal reset.'); },
+      error: (err: any) => { this.resetting = false; this.toast.apiError(err, 'Gagal reset.'); },
     });
   }
 
@@ -763,7 +763,7 @@ export class AdminSettingsComponent implements OnInit, OnDestroy {
           this.setTelegramBatch(res.batch ?? null);
         }
       },
-      error: () => { this.tgLoading = false; this.toast.error('Gagal memuatkan statistik Telegram.'); },
+      error: (apiFailure) => { this.tgLoading = false; this.toast.apiError(apiFailure, 'Gagal memuatkan statistik Telegram.'); },
     });
   }
 
@@ -799,12 +799,12 @@ export class AdminSettingsComponent implements OnInit, OnDestroy {
       next: (res) => {
         this.tgBusy = false;
         if (res.batch !== undefined) this.setTelegramBatch(res.batch);
-        if (res.error) this.toast.error(res.message); else this.toast.success(res.message);
+        if (res.error) this.toast.apiError(res); else this.toast.success(res.message);
         this.loadTelegramStats();
       },
       error: (err: any) => {
         this.tgBusy = false;
-        this.toast.error(err?.error?.message || 'Tindakan blast gagal.');
+        this.toast.apiError(err, 'Tindakan blast gagal.');
         this.loadTelegramStats();
       },
     });

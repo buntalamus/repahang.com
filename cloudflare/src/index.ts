@@ -289,6 +289,7 @@ export default {
   },
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const pathname = new URL(request.url).pathname;
+    const requestId = crypto.randomUUID();
     if (!qaWriteAllowed(request, env)) {
       return json({ error: true, message: 'Tindakan ujian memerlukan kunci QA.' }, 403);
     }
@@ -319,7 +320,13 @@ export default {
           ctx.waitUntil(processPushQueue(env).then(()=>undefined)
             .catch(()=>console.error('Push queue retry pending.')));
         }
-        return response;
+        const outgoing = new Response(response.body, response);
+        outgoing.headers.set('X-Request-ID', requestId);
+        if (!response.ok) {
+          console.warn('RefPahang API request rejected', { request_id: requestId,
+            method: request.method, path: pathname, status: response.status });
+        }
+        return outgoing;
       }
       if (pathname.startsWith('/app/')) return await mobileApk(request, env);
       if (pathname.startsWith('/uploads/')) {
@@ -330,8 +337,13 @@ export default {
       }
       return env.ASSETS.fetch(request);
     } catch (error) {
-      console.error('RefPahang Worker request failed', error);
-      return json({ error: true, message: 'Ralat pelayan dalaman.' }, 500);
+      console.error('RefPahang Worker request failed', { request_id: requestId,
+        method: request.method, path: pathname, error });
+      const response = json({ error: true, code: 'INTERNAL_ERROR', request_id: requestId,
+        message: 'Pelayan tidak dapat menyelesaikan permintaan ini. Punca terperinci perlu disemak oleh Admin menggunakan nombor rujukan.',
+        next_action: 'Muat semula halaman dan semak rekod sebelum mengulangi tindakan. Jika masih gagal, hubungi Admin dengan nombor rujukan ini.' }, 500);
+      response.headers.set('X-Request-ID', requestId);
+      return response;
     }
   },
   async scheduled(_event: ScheduledController, env: Env): Promise<void> {

@@ -174,7 +174,7 @@ export class AdminUsersComponent implements OnInit {
             this.toast.success('Akaun diaktifkan semula.');
             this.loadUsers();
           } else {
-            this.toast.error(res.message);
+            this.toast.apiError(res);
           }
         },
       });
@@ -220,8 +220,8 @@ export class AdminUsersComponent implements OnInit {
         this.editUser.user_role = this.editUser.role || this.editUser.user_role;
         this.showEditModal = true;
       },
-      error: () => {
-        this.toast.error('Gagal membaca profil penuh. Sila cuba semula.');
+      error: (apiFailure) => {
+        this.toast.apiError(apiFailure, 'Gagal membaca profil penuh. Sila cuba semula.');
       },
     });
   }
@@ -235,7 +235,7 @@ export class AdminUsersComponent implements OnInit {
           this.showEditModal = false;
           this.loadUsers();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
     });
@@ -289,14 +289,14 @@ export class AdminUsersComponent implements OnInit {
       }).subscribe({
         next: (res) => {
           if (res.error) {
-            this.toast.error(res.message);
+            this.toast.apiError(res);
             return;
           }
           this.editUser = { ...this.editUser, telegram_chat_id: null };
           this.toast.success(res.message);
           this.loadUsers();
         },
-        error: (err) => this.toast.error(err?.error?.message || 'Gagal membatalkan pautan Telegram.'),
+        error: (err) => this.toast.apiError(err, 'Gagal membatalkan pautan Telegram.'),
       });
     };
     this.showConfirmModal = true;
@@ -312,7 +312,7 @@ export class AdminUsersComponent implements OnInit {
           if (!res.error) {
             this.toast.success(res.message);
           } else {
-            this.toast.error(res.message);
+            this.toast.apiError(res);
           }
         },
       });
@@ -330,7 +330,7 @@ export class AdminUsersComponent implements OnInit {
           if (!res.error) {
             this.toast.success(res.message);
           } else {
-            this.toast.error(res.message);
+            this.toast.apiError(res);
           }
         },
       });
@@ -365,7 +365,7 @@ export class AdminUsersComponent implements OnInit {
           this.showAddModal = false;
           this.loadUsers();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
     });

@@ -175,9 +175,9 @@ export class PenilaiAssessmentsComponent implements OnInit {
         }
         this.loadingOfficials = false;
       },
-      error: () => {
+      error: (apiFailure) => {
         this.loadingOfficials = false;
-        this.toast.error('Gagal memuatkan senarai pegawai.');
+        this.toast.apiError(apiFailure, 'Gagal memuatkan senarai pegawai.');
       },
     });
   }
@@ -306,7 +306,7 @@ export class PenilaiAssessmentsComponent implements OnInit {
     this.api.post<any>('laporan-penilaian.php', body).subscribe({
       next: (res) => {
         if (res.error) {
-          this.toast.error(res.message || 'Gagal menyimpan.');
+          this.toast.apiError(res, 'Gagal menyimpan.');
           this.submitting = false;
           return;
         }
@@ -320,10 +320,10 @@ export class PenilaiAssessmentsComponent implements OnInit {
                 this.showForm = false;
                 this.loadData();
               } else {
-                this.toast.error(r2.message);
+                this.toast.apiError(r2);
               }
             },
-            error: (err: any) => { this.submitting = false; this.toast.error(err?.error?.message || 'Gagal menghantar laporan.'); },
+            error: (err: any) => { this.submitting = false; this.toast.apiError(err, 'Gagal menghantar laporan.'); },
           });
         } else {
           this.submitting = false;
@@ -331,7 +331,7 @@ export class PenilaiAssessmentsComponent implements OnInit {
           this.loadData();
         }
       },
-      error: (err: any) => { this.submitting = false; this.toast.error(err?.error?.message || 'Gagal menyimpan laporan.'); },
+      error: (err: any) => { this.submitting = false; this.toast.apiError(err, 'Gagal menyimpan laporan.'); },
     });
   }
 

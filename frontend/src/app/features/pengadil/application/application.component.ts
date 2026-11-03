@@ -237,13 +237,12 @@ export class PengadilApplicationComponent implements OnInit {
           this.selectedResit = this.selectedGambar = null;
           this.loadData();
         } else {
-          this.toast.error(res.message || 'Gagal menghantar permohonan.');
+          this.toast.apiError(res, 'Gagal menghantar permohonan.');
         }
       },
       error: (err) => {
         this.submitting = false;
-        const msg = err?.error?.message || 'Gagal menghantar permohonan.';
-        this.toast.error(msg);
+        this.toast.apiError(err, 'Gagal menghantar permohonan.');
       },
     });
   }

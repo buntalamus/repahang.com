@@ -86,13 +86,13 @@ export class PengadilProfileComponent implements OnInit {
           this.editing = false;
           this.loadProfile();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
       error: (err: any) => {
         this.cdr.markForCheck();
         this.saving = false;
-        this.toast.error(err?.error?.message || 'Gagal mengemaskini profil.');
+        this.toast.apiError(err, 'Gagal mengemaskini profil.');
       },
     });
   }
@@ -116,7 +116,7 @@ export class PengadilProfileComponent implements OnInit {
           this.profile.url_gambar_profil = this.profileImageUrl;
           this.loadProfile();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
     });

@@ -622,12 +622,12 @@ export class PpDaerahListComponent implements OnInit {
           this.loading = true;
           this.ngOnInit();
         } else {
-          this.toast.error(res.message || 'Gagal mengemaskini profil.');
+          this.toast.apiError(res, 'Gagal mengemaskini profil.');
         }
       },
-      error: () => {
+      error: (apiFailure) => {
         this.savingEdit = false;
-        this.toast.error('Gagal mengemaskini profil.');
+        this.toast.apiError(apiFailure, 'Gagal mengemaskini profil.');
       },
     });
   }

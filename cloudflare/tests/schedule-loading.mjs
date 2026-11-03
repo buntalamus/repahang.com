@@ -36,7 +36,7 @@ try {
   const injector = createEnvironmentInjector([
     {provide: AuthService, useValue: {currentUser: {role: 'Admin'}}},
     {provide: ChangeDetectorRef, useValue: {markForCheck() {renderNotifications++;}}},
-    {provide: ToastService, useValue: {error() {}, warning() {}}},
+    {provide: ToastService, useValue: {error() {}, warning() {}, apiError() {}}},
     {provide: Router, useValue: {navigate() {}}},
     HttpViewRefreshService,
   ]);

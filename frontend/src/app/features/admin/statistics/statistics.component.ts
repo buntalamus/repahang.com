@@ -835,9 +835,9 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
         this.loading = false;
         setTimeout(() => this.renderActiveCharts(), 100);
       },
-      error: () => {
+      error: (apiFailure) => {
         this.loading = false;
-        this.toast.error('Gagal memuatkan statistik.');
+        this.toast.apiError(apiFailure, 'Gagal memuatkan statistik.');
       },
     });
   }

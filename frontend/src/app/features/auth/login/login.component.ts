@@ -110,7 +110,7 @@ export class LoginComponent implements OnDestroy {
         this.loading = false;
         if (res.error) {
           this.errorMessage = res.message || 'Gagal log masuk. Sila cuba lagi.';
-          if (!this.showInactive(res)) this.toast.error(this.errorMessage);
+          if (!this.showInactive(res)) this.toast.apiError(res, 'Log masuk gagal.');
           return;
         }
         if (this.auth.currentUser?.password_changed === 0) {
@@ -123,7 +123,7 @@ export class LoginComponent implements OnDestroy {
         this.cdr.markForCheck();
         this.loading = false;
         this.errorMessage = err?.error?.message || 'Tidak dapat menyambung ke pelayan.';
-        if (!this.showInactive(err?.error)) this.toast.error(this.errorMessage);
+        if (!this.showInactive(err?.error)) this.toast.apiError(err);
       },
     });
   }

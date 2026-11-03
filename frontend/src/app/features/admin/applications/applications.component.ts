@@ -142,7 +142,7 @@ export class AdminApplicationsComponent implements OnInit {
     this.yearFilter = String(year);
   }
 
-  /** Application decision on the Kelas III / Kelas I tabs, separate from the exam result. */
+  /** Preserve the review stage instead of collapsing both queues to "Menunggu". */
   applicationStatusLabel(app: any): string {
     if (app.status === 'Menunggu Admin') return 'Menunggu Admin';
     if (app.status === 'Menunggu PP Daerah') return 'Menunggu PP Daerah';
@@ -174,11 +174,11 @@ export class AdminApplicationsComponent implements OnInit {
       next: (res) => {
         this.resendingId = 0;
         if (!res.error) this.toast.success(res.message);
-        else this.toast.error(res.message);
+        else this.toast.apiError(res);
       },
       error: (err: any) => {
         this.resendingId = 0;
-        this.toast.error(err?.error?.message || 'Emel permohonan tidak berjaya dihantar.');
+        this.toast.apiError(err, 'Emel permohonan tidak berjaya dihantar.');
       },
     });
   }
@@ -191,7 +191,18 @@ export class AdminApplicationsComponent implements OnInit {
 
   /** Kelas III / Kelas I awaiting Admin can be approved or rejected from their tab. */
   canDecideExamApp(app: any): boolean {
-    return this.isUjianTab && app.status === 'Menunggu Admin';
+    return this.isUjianTab && this.canDecideApplication(app);
+  }
+
+  canDecideApplication(app: { status?: string }): boolean {
+    return app.status === 'Menunggu Admin';
+  }
+
+  decisionTitle(app: { status?: string }): string {
+    return app.status === 'Menunggu PP Daerah'
+      ? 'Menunggu pengesahan PP Daerah sebelum kelulusan Admin'
+      : this.canDecideApplication(app) ? 'Lulus atau tolak permohonan'
+        : `Keputusan Admin hanya untuk status Menunggu Admin. Status semasa: ${app.status || 'Tidak diketahui'}.`;
   }
 
   getUjianDisplayStatus(app: any): string {
@@ -204,7 +215,7 @@ export class AdminApplicationsComponent implements OnInit {
       if (this.isUjianTab) {
         data = data.filter((a) => this.getUjianDisplayStatus(a) === this.statusFilter);
       } else {
-        data = data.filter((a) => this.getDisplayStatus(a) === this.statusFilter);
+        data = data.filter((a) => this.getDisplayStatus(a) === this.statusFilter || a.status === this.statusFilter);
       }
     }
     if (this.districtFilter !== 'all') {
@@ -273,6 +284,10 @@ export class AdminApplicationsComponent implements OnInit {
   }
 
   approve(app: any): void {
+    if (!this.canDecideApplication(app)) {
+      this.toast.error(this.decisionTitle(app));
+      return;
+    }
     this.approveTargetId = app.permohonan_id || app.id;
     this.approveTargetName = app.nama_penuh || '';
     this.approveNotes = '';
@@ -291,10 +306,11 @@ export class AdminApplicationsComponent implements OnInit {
           this.showApproveModal = false;
           this.loadApplications();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
-      error: () => this.toast.error('Gagal meluluskan permohonan.'),
+      error: (err: { error?: { message?: string } }) =>
+        this.toast.apiError(err, 'Gagal meluluskan permohonan.'),
     });
   }
 
@@ -308,6 +324,10 @@ export class AdminApplicationsComponent implements OnInit {
   }
 
   reject(app: any): void {
+    if (!this.canDecideApplication(app)) {
+      this.toast.error(this.decisionTitle(app));
+      return;
+    }
     this.rejectTargetId = app.permohonan_id || app.id;
     this.rejectTargetName = app.nama_penuh || '';
     this.rejectReason = '';
@@ -330,10 +350,11 @@ export class AdminApplicationsComponent implements OnInit {
           this.showRejectModal = false;
           this.loadApplications();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
-      error: () => this.toast.error('Gagal menolak permohonan.'),
+      error: (err: { error?: { message?: string } }) =>
+        this.toast.apiError(err, 'Gagal menolak permohonan.'),
     });
   }
 
@@ -400,10 +421,10 @@ export class AdminApplicationsComponent implements OnInit {
           this.toast.success(`Status ujian dikemaskini: ${status}`);
           this.loadApplications();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
-      error: (err: any) => this.toast.error(err?.error?.message || 'Gagal mengemaskini status ujian.'),
+      error: (err: any) => this.toast.apiError(err, 'Gagal mengemaskini status ujian.'),
     });
   }
 
@@ -433,14 +454,18 @@ export class AdminApplicationsComponent implements OnInit {
           this.toast.success(res.message || 'Kehadiran seminar dikemaskini.');
           this.loadApplications();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
-      error: (err: any) => this.toast.error(err?.error?.message || 'Gagal mengemaskini kehadiran seminar.'),
+      error: (err: any) => this.toast.apiError(err, 'Gagal mengemaskini kehadiran seminar.'),
     });
   }
 
   openStatusChange(app: any): void {
+    if (!this.canDecideApplication(app)) {
+      this.toast.error(this.decisionTitle(app));
+      return;
+    }
     this.statusChangeApp = app;
     this.showStatusChangeModal = true;
   }
@@ -481,10 +506,10 @@ export class AdminApplicationsComponent implements OnInit {
           this.showDeleteModal = false;
           this.loadApplications();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
-      error: (err: any) => this.toast.error(err?.error?.message || 'Gagal memadam permohonan.'),
+      error: (err: any) => this.toast.apiError(err, 'Gagal memadam permohonan.'),
     });
   }
 

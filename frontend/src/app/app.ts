@@ -1,5 +1,6 @@
 import { DOCUMENT } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
+import { BACKGROUND_REQUEST } from './core/services/background-request';
 import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from './core/services/auth.service';
@@ -37,7 +38,8 @@ export class App {
       lastUserId = auth.currentUser.id;
       lastSent = Date.now();
       // Only real interaction extends inactivity, never notification polling.
-      http.post('/api/account-activity.php', {}, { withCredentials: true }).subscribe({ error: () => { lastSent = 0; } });
+      http.post('/api/account-activity.php', {}, { withCredentials: true,
+        context: new HttpContext().set(BACKGROUND_REQUEST, true) }).subscribe({ error: () => { lastSent = 0; } });
     };
     document.addEventListener('pointerdown', activity, { passive: true });
     document.addEventListener('keydown', activity, { passive: true });

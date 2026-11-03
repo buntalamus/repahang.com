@@ -58,6 +58,7 @@ try {
   const body=await response.json();
   assert.equal(response.status,200,JSON.stringify(body));
   assert.equal(workflow(body.application_id),'Menunggu Admin');
+
   assert.match(emails.at(-1).text,/Menunggu Kelulusan Admin/);
 
   // An own application still waiting at district level (filed before this
@@ -70,6 +71,12 @@ try {
   result=await verify(otherCookie,body.application_id);
   assert.equal(result.status,200);
   assert.equal(workflow(body.application_id),'Menunggu Admin');
+
+  // Repeating an otherwise authorised district decision must expose the real
+  // workflow conflict, not report that the existing application disappeared.
+  result=await verify(otherCookie,body.application_id);
+  assert.equal(result.status,409);
+  assert.equal((await result.json()).status_workflow,'Menunggu Admin');
 
   // Referee applications in the district are verified by the PP Daerah as before.
   const referee=db.prepare(`SELECT p.id FROM permohonan p JOIN users u ON u.id=p.user_id

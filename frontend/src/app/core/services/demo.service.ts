@@ -1,5 +1,6 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpContext } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
+import { EXPECTED_ERROR_STATUSES } from './background-request';
 
 export interface DemoAccount {
   peranan: string;
@@ -17,7 +18,9 @@ export class DemoService {
   readonly closedMessage = signal('');
 
   constructor() {
-    inject(HttpClient).get<{ demo?: boolean; open?: boolean; message?: string; accounts?: DemoAccount[] }>('/api/demo-info.php').subscribe({
+    inject(HttpClient).get<{ demo?: boolean; open?: boolean; message?: string; accounts?: DemoAccount[] }>('/api/demo-info.php', {
+      context: new HttpContext().set(EXPECTED_ERROR_STATUSES, [404]),
+    }).subscribe({
       next: (res) => {
         if (!res?.demo) return;
         this.open.set(res.open !== false);
