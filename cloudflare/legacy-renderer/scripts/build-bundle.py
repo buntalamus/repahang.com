@@ -62,10 +62,9 @@ for source,names in selections.items():
   # These require only the shared helpers already loaded, never bootstrap/DB credentials.
   text=re.sub(r"require_once\s+__DIR__\s*\.\s*'[^']+'\s*;",'',text)
   if name=='sendWelcomeEmail':
-   # Preserve the later Telegram requirement and role split; keep the original email layout.
+   # Preserve the current channel requirement and role split; keep the original email layout.
    text=text.replace("} else {\n        $nextStepsList", "} elseif ($role === 'Penilai') {\n        $nextStepsList = emailOrderedList(['Log masuk menggunakan emel dan kata laluan di atas.','Lengkapkan profil anda (alamat, maklumat pekerjaan, waris).','Muat naik gambar profil.','Semak permohonan pendaftaran tahunan Penilai Pengadil di portal anda.']);\n    } else {\n        $nextStepsList")
-   text=text.replace('Aktifkan notifikasi Telegram untuk menerima maklumat lantikan', 'Wajib: Hubungkan Telegram sebelum anda boleh menerima lantikan. Aktifkan notifikasi Telegram untuk menerima maklumat lantikan')
-   text=text.replace("'Hubungkan Telegram');", "'Hubungkan Telegram (Wajib)');")
+   text=text.replace('Aktifkan notifikasi Telegram untuk menerima maklumat lantikan', 'Untuk menerima lantikan, hubungkan Telegram atau log masuk ke aplikasi mudah alih dan aktifkan notifikasi. Salah satu saluran sudah memadai.')
   chunks.append(text)
 # Direct original body blocks without standalone source functions.
 s=(ROOT/'api/admin-telegram-blast.php').read_text();sources['api/admin-telegram-blast.php']=hashlib.sha256((ROOT/'api/admin-telegram-blast.php').read_bytes()).hexdigest()

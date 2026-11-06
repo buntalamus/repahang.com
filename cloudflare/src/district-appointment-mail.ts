@@ -1,6 +1,6 @@
 import type { Env } from './types';
-import { baseUrl, buildEmailTemplate, emailButton, emailGreeting, emailInfoTable, emailPara, sendEmail } from './php/email';
-import { h } from './php/format';
+import { baseUrl } from './php/email';
+import { notifyUser } from './notify';
 
 const labels: Record<string,string> = {
   appointment_created:'Lantikan baharu', appointment_reassigned:'Penggantian pengadil',
@@ -10,8 +10,9 @@ const labels: Record<string,string> = {
 };
 type Delivery = {id:number;audit_id:number;recipient_user_id:number;recipient_email:string;recipient_name:string;attempts:number};
 
-/** Claimed per recipient, so a failed PP copy does not resend successful Admin copies.
- * These informational copies intentionally contain no referee response/form tokens. */
+/** District copies for PP Daerah when an official declines or is auto-rejected (migration 0031).
+ * Sent through Telegram and the in-app notice (app push); email only as the fallback.
+ * Claimed per recipient; the copies contain no referee response/form tokens. */
 export async function processDistrictAppointmentMail(env: Env, limit=30): Promise<{sent:number;failed:number}> {
   const result={sent:0,failed:0};
   const pending=await env.DB.prepare(`SELECT * FROM worker_district_appointment_mail
@@ -48,31 +49,39 @@ export async function processDistrictAppointmentMail(env: Env, limit=30): Promis
       if(value && typeof value==='object' && !Array.isArray(value)) details=value as Record<string,unknown>;
     } catch { /* Historical events can have no JSON details. */ }
     const label=labels[String(event.event_type)] ?? 'Makluman lantikan';
-    const info: Array<[string,string]> = [
-      ['Tindakan',h(label)],['Daerah',h(event.nama_persatuan)],['Kejohanan',h(event.kejohanan)],
-      ['Perlawanan',h(`${event.pasukan_home ?? '-'} lwn ${event.pasukan_away ?? '-'}`)],
-      ['Tarikh / Masa',h(`${event.tarikh ?? '-'} ${event.masa ?? ''}`)],['Tempat',h(event.tempat)],
-      ['Pegawai',h(event.nama_pegawai)],['Jawatan',h(event.jawatan)],
-      ['Oleh',h(event.actor_name ?? 'Sistem')],['Masa tindakan',h(event.created_at)],
-    ];
-    for(const [field,label] of [['new_status','Status'],['action','Jawapan'],['reason','Sebab'],['komen','Catatan'],['comment','Catatan']] as const) {
-      if (typeof details[field]==='string') info.push([label,h(details[field])]);
+    const rejected=event.event_type==='appointment_auto_rejected' || details.new_status==='Ditolak';
+    if (event.recipient_role!=='PP Daerah' || !rejected) {
+      await env.DB.prepare(`UPDATE worker_district_appointment_mail SET completed_at=datetime('now','+8 hours'),
+        claimed_at=NULL,last_error='Dihentikan: salinan hanya untuk PP dan penolakan.' WHERE id=?`).bind(row.id).run();
+      continue;
     }
-    const route=event.recipient_role==='Admin' ? '/admin/lantikan' : '/pp-daerah/lantikan';
-    const html=buildEmailTemplate('Salinan Lantikan Daerah','#d4a000','',emailGreeting(row.recipient_name)
-      +emailPara('Salinan makluman pengurusan lantikan pengadil daerah untuk rekod dan pemantauan anda.')
-      +emailInfoTable(info)+emailButton(`${baseUrl(env)}${route}`,'Buka Sistem Lantikan'));
-    let sent=false;
-    try { sent=await sendEmail(env,row.recipient_email,`[Salinan Daerah] ${label}: ${event.nama_pegawai}`,
-      html,row.recipient_name,'lantikan'); }
-    catch { /* Keep a redacted failure in the queue and retry. */ }
+    const match=`${event.pasukan_home ?? '-'} lwn ${event.pasukan_away ?? '-'}`;
+    const reason=[details.reason,details.komen,details.comment].find((v) => typeof v==='string' && v.trim()) as string | undefined;
+    const contact=await env.DB.prepare('SELECT telegram_chat_id FROM users WHERE id=?')
+      .bind(row.recipient_user_id).first<{telegram_chat_id:string|number|null}>();
+    const title=event.event_type==='appointment_auto_rejected' ? 'Lantikan ditolak automatik' : 'Lantikan ditolak';
+    const outcome=await notifyUser(env,{userId:row.recipient_user_id,name:row.recipient_name,email:row.recipient_email,
+      telegramChatId:contact?.telegram_chat_id ?? null},{
+      subject:`[Daerah] ${title}: ${event.nama_pegawai} — ${match}`,
+      title:`${title} — perlu pengganti`,
+      mailType:'lantikan',
+      paragraphs:[`${event.nama_pegawai} (${event.jawatan}) ${event.event_type==='appointment_auto_rejected'
+        ? 'tidak menjawab dalam tempoh dan lantikan ditolak automatik' : 'menolak lantikan'}. Sila lantik pengganti.`],
+      rows:[['Kejohanan',String(event.kejohanan ?? '-')],['Perlawanan',match],
+        ['Tarikh / Masa',`${event.tarikh ?? '-'} ${event.masa ?? ''}`.trim()],['Tempat',String(event.tempat ?? '-')],
+        ...(reason ? [['Sebab',reason] as [string,string]] : [])],
+      actions:[{label:'Lantik pengganti',url:`${baseUrl(env)}/pp-daerah/lantikan`}],
+      portal:{type:'Pengganti Diperlukan',subject:`Lantik pengganti: ${match}`,
+        message:`${event.nama_pegawai} (${event.jawatan}) ${event.event_type==='appointment_auto_rejected' ? 'ditolak automatik' : 'menolak'} — ${event.kejohanan ?? ''}, ${event.tarikh ?? ''}.`},
+    });
+    const sent=outcome.email==='sent' || outcome.telegram==='sent' || outcome.portal==='sent';
     if (sent) {
       await env.DB.prepare(`UPDATE worker_district_appointment_mail SET completed_at=datetime('now','+8 hours'),
         claimed_at=NULL,next_attempt_at=NULL,last_error=NULL WHERE id=? AND attempts=?`)
         .bind(row.id,claim.attempts).run(); result.sent++;
     } else {
       await env.DB.prepare(`UPDATE worker_district_appointment_mail SET claimed_at=NULL,
-        next_attempt_at=datetime('now','+8 hours',?),last_error='Penghantaran SMTP gagal; menunggu percubaan semula.'
+        next_attempt_at=datetime('now','+8 hours',?),last_error='Penghantaran gagal; menunggu percubaan semula.'
         WHERE id=? AND attempts=?`).bind(`+${Math.min(60,5*claim.attempts)} minutes`,row.id,claim.attempts).run(); result.failed++;
     }
   }

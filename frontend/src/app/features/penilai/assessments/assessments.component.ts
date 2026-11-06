@@ -61,6 +61,14 @@ export class PenilaiAssessmentsComponent implements OnInit {
   tahapKesukaran = 'Normal';
   cuaca = '';
   ulasanKeseluruhan = '';
+  skor: Record<string, number | null> = {};
+  /** Goals per period, as on the token form and PDF: `ft` is the second half only. */
+  readonly skorPeriods = [
+    { key: 'ht', label: 'Separuh Masa Pertama' },
+    { key: 'ft', label: 'Separuh Masa Kedua' },
+    { key: 'et', label: 'Masa Tambahan' },
+    { key: 'ps', label: 'Sepakan Penalti' },
+  ];
 
   cuacaOptions = ['Cerah', 'Mendung', 'Hujan Renyai', 'Hujan Lebat', 'Panas Terik', 'Berangin'];
   pegawaiList: PegawaiForm[] = [];
@@ -141,6 +149,13 @@ export class PenilaiAssessmentsComponent implements OnInit {
     this.tahapKesukaran = existing?.tahap_kesukaran ?? 'Normal';
     this.cuaca = existing?.cuaca ?? '';
     this.ulasanKeseluruhan = existing?.ulasan_keseluruhan ?? '';
+    this.skor = {};
+    for (const period of this.skorPeriods) {
+      for (const side of ['home', 'away']) {
+        const field = `skor_${period.key}_${side}`;
+        this.skor[field] = existing?.[field] ?? null;
+      }
+    }
 
     // Load officials for this match
     this.loadingOfficials = true;
@@ -160,9 +175,9 @@ export class PenilaiAssessmentsComponent implements OnInit {
         }
         this.loadingOfficials = false;
       },
-      error: () => {
+      error: (apiFailure) => {
         this.loadingOfficials = false;
-        this.toast.error('Gagal memuatkan senarai pegawai.');
+        this.toast.apiError(apiFailure, 'Gagal memuatkan senarai pegawai.');
       },
     });
   }
@@ -223,6 +238,19 @@ export class PenilaiAssessmentsComponent implements OnInit {
     return 'sports';
   }
 
+  /** Final score = first + second half + extra time, penalties in brackets. */
+  finalScore(source: Record<string, unknown> | null, side: 'home' | 'away'): string {
+    const goals = (period: string): number | null => {
+      const value = source?.[`skor_${period}_${side}`];
+      return value === null || value === undefined || value === '' ? null : Number(value);
+    };
+    const first = goals('ht');
+    const second = goals('ft');
+    if (first === null || second === null) return '-';
+    const penalties = goals('ps');
+    return `${first + second + (goals('et') ?? 0)}${penalties === null ? '' : ` (${penalties})`}`;
+  }
+
   getJawatanShort(jawatan: string): string {
     if (jawatan === 'Pengadil') return 'R';
     if (jawatan === 'Penolong Pengadil 1') return 'AR1';
@@ -256,6 +284,7 @@ export class PenilaiAssessmentsComponent implements OnInit {
       tahap_kesukaran: this.tahapKesukaran,
       cuaca: this.cuaca,
       ulasan_keseluruhan: this.ulasanKeseluruhan,
+      ...this.skor,
       pegawai: this.pegawaiList.map(p => ({
         lantikan_pengadil_id: p.lantikan_pengadil_id,
         jawatan: p.jawatan,
@@ -277,7 +306,7 @@ export class PenilaiAssessmentsComponent implements OnInit {
     this.api.post<any>('laporan-penilaian.php', body).subscribe({
       next: (res) => {
         if (res.error) {
-          this.toast.error(res.message || 'Gagal menyimpan.');
+          this.toast.apiError(res, 'Gagal menyimpan.');
           this.submitting = false;
           return;
         }
@@ -291,10 +320,10 @@ export class PenilaiAssessmentsComponent implements OnInit {
                 this.showForm = false;
                 this.loadData();
               } else {
-                this.toast.error(r2.message);
+                this.toast.apiError(r2);
               }
             },
-            error: (err: any) => { this.submitting = false; this.toast.error(err?.error?.message || 'Gagal menghantar laporan.'); },
+            error: (err: any) => { this.submitting = false; this.toast.apiError(err, 'Gagal menghantar laporan.'); },
           });
         } else {
           this.submitting = false;
@@ -302,7 +331,7 @@ export class PenilaiAssessmentsComponent implements OnInit {
           this.loadData();
         }
       },
-      error: (err: any) => { this.submitting = false; this.toast.error(err?.error?.message || 'Gagal menyimpan laporan.'); },
+      error: (err: any) => { this.submitting = false; this.toast.apiError(err, 'Gagal menyimpan laporan.'); },
     });
   }
 

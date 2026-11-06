@@ -233,7 +233,7 @@ export class PpApplicationsComponent implements OnInit {
             list.map(a => a.id === app.id ? { ...a, status_workflow: 'Menunggu Admin' } : a)
           );
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
     });
@@ -263,7 +263,7 @@ export class PpApplicationsComponent implements OnInit {
             list.map(a => a.id === this.rejectTarget()!.id ? { ...a, status_workflow: 'Ditolak' } : a)
           );
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
     });

@@ -1,0 +1,73 @@
+import assert from 'node:assert/strict';
+import {bundle,openDatabase,sessionCookie} from './_harness.mjs';
+const {jfaC13,appointments,portalDashboard,c13LaunchUrl,currentUser}=await bundle(`
+ export {jfaC13} from '../src/jfa-c13'; export {appointments} from '../src/appointments';
+ export {portalDashboard} from '../src/portal-dashboard'; export {currentUser} from '../src/auth';
+ export {c13LaunchUrl} from '../src/c13-browser';`);
+const {db,DB,close}=openDatabase(['0019_annual_seminar_attendance','0022_district_appointments']);
+const match='01234567-1234-1234-1234-0123456789ab',otherMatch='11234567-1234-1234-1234-0123456789ab';
+const owner=db.prepare("SELECT id FROM users WHERE role='Pengadil' AND aktif=1 LIMIT 1").get().id;
+const other=db.prepare("SELECT id FROM users WHERE role='Pengadil' AND aktif=1 AND id<>? LIMIT 1").get(owner).id;
+const fixture=db.prepare('SELECT id FROM jadual_perlawanan LIMIT 1').get().id;
+let sequence=0;
+const add=(role,status)=>{
+ const jid=Number(db.prepare(`INSERT INTO jadual_perlawanan(kejohanan_id,no_perlawanan,tarikh,masa,pasukan_home,pasukan_away,tempat,status)
+ SELECT kejohanan_id,?,'2026-11-01','17:00','ALFA','BRAVO','PADANG','Disahkan' FROM jadual_perlawanan WHERE id=?`).run('C13-TEST-'+(++sequence),fixture).lastInsertRowid);
+ return Number(db.prepare(`INSERT INTO lantikan_pengadil(jadual_id,pengadil_id,jawatan,status,notif_hantar) VALUES(?,?,?,?,1)`).run(jid,owner,role,status).lastInsertRowid);
+};
+const r=add('Pengadil','Diterima'),p4=add('Pegawai ke4','Diterima'),pending=add('Pengadil','Belum Jawab');
+db.prepare("UPDATE users SET registration_review_year=2026,created_at=datetime('now') WHERE id IN (?,?)").run(owner,other);
+let forwarded,submitted=false,available=true;
+const env={DB,STAGING_AUTH_ENABLED:'1',STAGING_WRITES_ENABLED:'0',APPOINTMENT_LETTER_SECRET:'k'.repeat(40),JFA_C13_SERVICE:{async fetch(request){
+ forwarded=request;assert.equal(request.headers.get('Cookie'),null);assert.equal(request.headers.get('Authorization'),null);
+ if(!available)throw Error('Unavailable');
+ const url=new URL(request.url),uid=Number(request.headers.get('X-RefPahang-User-Id'));
+ if(url.pathname==='/c13/links')return Response.json({data:uid===owner?[{match_id:match,appointment_id:r,label:'03 · ALFA lwn BRAVO',submitted}]:[]});
+ if(uid!==owner||url.searchParams.get('match')!==match)return Response.json({error:{message:'Wrong appointment'}},{status:403});
+ return url.pathname==='/c13/page'?new Response('<h1>Borang C13</h1>'):Response.json({data:{received:true}});
+}}};
+const base='https://refpahang.test/api/jfa-c13.php';
+const get=(query='',headers={})=>new Request(base+query,{headers});
+try {
+ const cookie=await sessionCookie(db,owner),otherCookie=await sessionCookie(db,other),headers={Cookie:cookie};
+ const mobile={Authorization:'Bearer '+cookie.split('=')[1]};
+ const post=(query,h=mobile)=>new Request(base+query,{method:'POST',headers:{...h,'Content-Type':'application/json'},body:JSON.stringify({action:'SAVE'})});
+ const tasks=await(await appointments(new Request('https://refpahang.test/api/tugasan.php',{headers}),env)).json();
+ assert.equal(tasks.data.find(a=>a.id===r).c13_match_id,match);
+ assert.equal(tasks.data.find(a=>a.id===p4).c13_match_id,null);assert.equal(tasks.data.find(a=>a.id===pending).c13_match_id,null);
+ const dashboard=async(h=headers)=>{const res=await portalDashboard(new Request('https://refpahang.test/api/portal-dashboard.php?view=pengadil&year=2020',{headers:h}),env);assert.equal(res.status,200);return(await res.json()).data;};
+ assert.equal((await dashboard()).c13[0].match_id,match,'Actions are independent of the statistics year');
+ assert.equal((await dashboard(mobile)).c13[0].submitted,false,'Mobile and web get the same pending C13');
+ submitted=true;assert.equal((await dashboard()).c13[0].submitted,true);
+ assert.deepEqual((await dashboard({Cookie:otherCookie})).c13,[]);
+ const page=await jfaC13(get('?view=page&match='+match,{...headers,'X-RefPahang-User-Id':String(other)}),env);
+ assert.equal(page.status,200);assert.match(await page.text(),/Borang C13/);assert.equal(forwarded.headers.get('X-RefPahang-User-Id'),String(owner));
+ env.STAGING_WRITES_ENABLED='1';
+ assert.equal((await jfaC13(post('?view=launch&match='+otherMatch),env)).status,403);
+ const launch=await jfaC13(post('?view=launch&match='+match),env);assert.equal(launch.status,200);
+ const link=(await launch.json()).url;assert(!link.includes(cookie.split('=')[1]),'Original mobile credential is encrypted');
+ const opened=await jfaC13(new Request(link),env);assert.equal(opened.status,303);
+ const scopedCookie=opened.headers.get('Set-Cookie').split(';')[0],scopedHeaders={Cookie:scopedCookie};
+ assert.match(opened.headers.get('Set-Cookie'),/Path=\/api\/jfa-c13.php;.*HttpOnly; SameSite=Lax; Secure/);
+ assert.equal(opened.headers.get('Referrer-Policy'),'no-referrer');assert(!opened.headers.get('Location').includes('ticket'));
+ assert.equal(await currentUser(get('',scopedHeaders),env),null,'C13 cookie cannot access the rest of the portal');
+ assert.equal((await jfaC13(get('?view=page&match='+match,scopedHeaders),env)).status,200);
+ assert.equal(forwarded.headers.get('X-C13-Match-Id'),match);
+ assert.equal((await jfaC13(get('?match='+otherMatch,scopedHeaders),env)).status,403);
+ assert.equal((await jfaC13(get('?view=links',scopedHeaders),env)).status,403);
+ assert.equal((await jfaC13(post('?match='+match,{...scopedHeaders,Origin:'https://refpahang.test'}),env)).status,200);
+ assert.equal((await jfaC13(post('?match='+match,{...scopedHeaders,Origin:'https://other.test'}),env)).status,403);
+ const tampered=new URL(link),ticket=tampered.searchParams.get('ticket');tampered.searchParams.set('ticket',(ticket[0]==='A'?'B':'A')+ticket.slice(1));
+ assert.equal((await jfaC13(new Request(tampered),env)).status,401);
+ const expired=await c13LaunchUrl(env,get('',headers),match,Date.now()-3*3600000);
+ assert.equal((await jfaC13(new Request(expired),env)).status,401);
+ db.prepare('UPDATE users SET aktif=0 WHERE id=?').run(owner);
+ assert.equal((await jfaC13(get('?match='+match,scopedHeaders),env)).status,401);
+ db.prepare('UPDATE users SET aktif=1 WHERE id=?').run(owner);
+ db.prepare('DELETE FROM worker_sessions WHERE user_id=?').run(owner);
+ assert.equal((await jfaC13(get('?match='+match,scopedHeaders),env)).status,401,'App logout revokes browser access');
+ const fresh=await sessionCookie(db,owner);available=false;env.STAGING_WRITES_ENABLED='0';
+ assert.deepEqual((await dashboard({Cookie:fresh})).c13,[],'Service failure does not break the dashboard');
+ assert.equal((await jfaC13(get('?match='+match,{Cookie:fresh}),env)).status,502);
+ console.log('C13 access: real sessions, web/app dashboard and tasks, main R eligibility, match-scoped mobile browser launch, encryption/tampering/expiry/CSRF, account/logout revocation and outage passed.');
+} finally {close();}

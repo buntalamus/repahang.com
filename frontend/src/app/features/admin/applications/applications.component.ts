@@ -24,7 +24,14 @@ export class AdminApplicationsComponent implements OnInit {
   districtFilter = 'all';
   searchQuery = '';
   yearFilter = new Date().getFullYear().toString();
-  years = Array.from({ length: Math.max(new Date().getFullYear(), 2027) - 2023 }, (_, i) => 2024 + i);
+  years = Array.from({ length: Math.max(new Date().getFullYear() + 1, 2027) - 2023 }, (_, i) => 2024 + i);
+  // Default session per tab: Pengadil/Penilai Berdaftar = application_year (the coming
+  // season), Kelas III / Kelas I FAM = the current year. Set from application-settings.
+  private sessionYears: Record<string, number> = {};
+  private yearChosen = false;
+  private readonly tabWindow: Record<string, string> = {
+    berdaftar: 'berdaftar', penilai: 'penilai', kelas3: 'bertulis', kelas1: 'kelas1',
+  };
   currentPage = 1;
   pageSize = 10;
   group = 'pengadil';
@@ -79,8 +86,18 @@ export class AdminApplicationsComponent implements OnInit {
     this.activeTab = this.tabs.some(tab => tab.key === requestedType)
       ? requestedType! : this.tabs[0]?.key || 'berdaftar';
     const requestedYear = this.route.snapshot.queryParamMap.get('year');
-    if (requestedYear && this.years.includes(Number(requestedYear))) this.yearFilter = requestedYear;
-    this.loadApplications();
+    if (requestedYear && this.years.includes(Number(requestedYear))) {
+      this.yearFilter = requestedYear;
+      this.yearChosen = true;
+    }
+    this.api.get<any>('application-settings.php').subscribe({
+      next: (res) => {
+        this.sessionYears = res?.years || {};
+        this.applyDefaultYear();
+        this.loadApplications();
+      },
+      error: () => this.loadApplications(),
+    });
     this.api.get<any>('admin-users.php').subscribe({
       next: (res) => { this.persatuanList = res.persatuan || []; },
     });
@@ -107,7 +124,85 @@ export class AdminApplicationsComponent implements OnInit {
   switchTab(tab: string): void {
     this.activeTab = tab;
     this.statusFilter = 'all';
+    this.applyDefaultYear();
     this.loadApplications();
+  }
+
+  onYearChange(): void {
+    this.yearChosen = true;
+    this.loadApplications();
+  }
+
+  /** Show the tab's own session unless the Admin picked a year. */
+  private applyDefaultYear(): void {
+    if (this.yearChosen) return;
+    const year = this.sessionYears[this.tabWindow[this.activeTab]];
+    if (!year) return;
+    if (!this.years.includes(year)) this.years = [...this.years, year].sort((a, b) => a - b);
+    this.yearFilter = String(year);
+  }
+
+  /** Preserve the review stage instead of collapsing both queues to "Menunggu". */
+  applicationStatusLabel(app: any): string {
+    if (app.status === 'Menunggu Admin') return 'Menunggu Admin';
+    if (app.status === 'Menunggu PP Daerah') return 'Menunggu PP Daerah';
+    return this.getDisplayStatus(app);
+  }
+
+  applicationStatusClass(app: any): string {
+    const status = this.getDisplayStatus(app);
+    return status === 'Diluluskan' ? 'text-emerald-700' : status === 'Ditolak' ? 'text-rose-700' : 'text-amber-700';
+  }
+
+  /** The applicant's own form (R4 for Kelas III, R11 for Kelas I), opened for Admin review. */
+  formCopyUrl(app: any): string {
+    const type = this.activeTab === 'kelas1' ? 'ujian_kelas1' : 'kelas3_fam';
+    return `${environment.apiUrl}/download-borang-pendaftaran.php?type=${type}&application_id=${app.id}`;
+  }
+
+  resendingId = 0;
+
+  /** The submission email reads "awaiting review", so it is resent only before a decision. */
+  canResendReceipt(app: any): boolean {
+    return app.status === 'Menunggu Admin' || app.status === 'Menunggu PP Daerah';
+  }
+
+  resendReceipt(app: any): void {
+    if (this.resendingId) return;
+    this.resendingId = app.id;
+    this.api.post<any>('admin-applications.php', { action: 'resend_receipt', id: app.id }).subscribe({
+      next: (res) => {
+        this.resendingId = 0;
+        if (!res.error) this.toast.success(res.message);
+        else this.toast.apiError(res);
+      },
+      error: (err: any) => {
+        this.resendingId = 0;
+        this.toast.apiError(err, 'Emel permohonan tidak berjaya dihantar.');
+      },
+    });
+  }
+
+  ujianButtonTitle(app: any): string {
+    return this.isUjianButtonDisabled(app)
+      ? 'Luluskan permohonan dahulu sebelum merekod keputusan ujian'
+      : 'Rekod keputusan ujian (Lulus / Tidak Lulus / Tidak Hadir)';
+  }
+
+  /** Kelas III / Kelas I awaiting Admin can be approved or rejected from their tab. */
+  canDecideExamApp(app: any): boolean {
+    return this.isUjianTab && this.canDecideApplication(app);
+  }
+
+  canDecideApplication(app: { status?: string }): boolean {
+    return app.status === 'Menunggu Admin';
+  }
+
+  decisionTitle(app: { status?: string }): string {
+    return app.status === 'Menunggu PP Daerah'
+      ? 'Menunggu pengesahan PP Daerah sebelum kelulusan Admin'
+      : this.canDecideApplication(app) ? 'Lulus atau tolak permohonan'
+        : `Keputusan Admin hanya untuk status Menunggu Admin. Status semasa: ${app.status || 'Tidak diketahui'}.`;
   }
 
   getUjianDisplayStatus(app: any): string {
@@ -120,7 +215,7 @@ export class AdminApplicationsComponent implements OnInit {
       if (this.isUjianTab) {
         data = data.filter((a) => this.getUjianDisplayStatus(a) === this.statusFilter);
       } else {
-        data = data.filter((a) => this.getDisplayStatus(a) === this.statusFilter);
+        data = data.filter((a) => this.getDisplayStatus(a) === this.statusFilter || a.status === this.statusFilter);
       }
     }
     if (this.districtFilter !== 'all') {
@@ -189,6 +284,10 @@ export class AdminApplicationsComponent implements OnInit {
   }
 
   approve(app: any): void {
+    if (!this.canDecideApplication(app)) {
+      this.toast.error(this.decisionTitle(app));
+      return;
+    }
     this.approveTargetId = app.permohonan_id || app.id;
     this.approveTargetName = app.nama_penuh || '';
     this.approveNotes = '';
@@ -207,10 +306,11 @@ export class AdminApplicationsComponent implements OnInit {
           this.showApproveModal = false;
           this.loadApplications();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
-      error: () => this.toast.error('Gagal meluluskan permohonan.'),
+      error: (err: { error?: { message?: string } }) =>
+        this.toast.apiError(err, 'Gagal meluluskan permohonan.'),
     });
   }
 
@@ -224,6 +324,10 @@ export class AdminApplicationsComponent implements OnInit {
   }
 
   reject(app: any): void {
+    if (!this.canDecideApplication(app)) {
+      this.toast.error(this.decisionTitle(app));
+      return;
+    }
     this.rejectTargetId = app.permohonan_id || app.id;
     this.rejectTargetName = app.nama_penuh || '';
     this.rejectReason = '';
@@ -246,10 +350,11 @@ export class AdminApplicationsComponent implements OnInit {
           this.showRejectModal = false;
           this.loadApplications();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
-      error: () => this.toast.error('Gagal menolak permohonan.'),
+      error: (err: { error?: { message?: string } }) =>
+        this.toast.apiError(err, 'Gagal menolak permohonan.'),
     });
   }
 
@@ -277,6 +382,11 @@ export class AdminApplicationsComponent implements OnInit {
 
   canRecordAnnualFitness(app: any): boolean {
     return this.isAnnualRefereeApp(app) && ['Admin Diluluskan', 'Lengkap'].includes(app.status);
+  }
+
+  get ujianModalTitle(): string {
+    return this.activeTab === 'kelas1' ? 'Keputusan Ujian Kelas I FAM'
+      : this.activeTab === 'kelas3' ? 'Keputusan Peperiksaan Kelas III FAM' : 'Keputusan Ujian Kecergasan';
   }
 
   get isUjianButtonAlwaysEnabled(): boolean {
@@ -311,10 +421,10 @@ export class AdminApplicationsComponent implements OnInit {
           this.toast.success(`Status ujian dikemaskini: ${status}`);
           this.loadApplications();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
-      error: (err: any) => this.toast.error(err?.error?.message || 'Gagal mengemaskini status ujian.'),
+      error: (err: any) => this.toast.apiError(err, 'Gagal mengemaskini status ujian.'),
     });
   }
 
@@ -344,14 +454,18 @@ export class AdminApplicationsComponent implements OnInit {
           this.toast.success(res.message || 'Kehadiran seminar dikemaskini.');
           this.loadApplications();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
-      error: (err: any) => this.toast.error(err?.error?.message || 'Gagal mengemaskini kehadiran seminar.'),
+      error: (err: any) => this.toast.apiError(err, 'Gagal mengemaskini kehadiran seminar.'),
     });
   }
 
   openStatusChange(app: any): void {
+    if (!this.canDecideApplication(app)) {
+      this.toast.error(this.decisionTitle(app));
+      return;
+    }
     this.statusChangeApp = app;
     this.showStatusChangeModal = true;
   }
@@ -392,10 +506,10 @@ export class AdminApplicationsComponent implements OnInit {
           this.showDeleteModal = false;
           this.loadApplications();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
-      error: (err: any) => this.toast.error(err?.error?.message || 'Gagal memadam permohonan.'),
+      error: (err: any) => this.toast.apiError(err, 'Gagal memadam permohonan.'),
     });
   }
 

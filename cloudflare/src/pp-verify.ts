@@ -1,4 +1,6 @@
 import {originalEmail} from './original-templates';
+import { reachStaff } from './channels';
+import { h } from './php/format';
 import { sendRefpahangEmail } from '../mail';
 import { currentUser, json } from './auth';
 import { boundedJson } from './request';
@@ -11,20 +13,22 @@ interface DistrictApplication {
   nama_penuh: string;
   emel: string;
   jenis_pengadil: string | null;
+  status_workflow: string | null;
 }
 
 export async function ppVerify(request: Request, env: Env): Promise<Response> {
   const actor = await currentUser(request, env);
   if (!actor) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
   if (actor.role !== 'PP Daerah') return json({ error: true, message: 'Akses ditolak.' }, 403);
-  if (!actor.persatuan_id) return json({ error: true, message: 'Persatuan not assigned.' }, 403);
+  if (!actor.persatuan_id) return json({ error: true,
+    message: 'Akaun PP Daerah anda belum dipautkan kepada persatuan. Minta Admin menetapkan persatuan sebelum membuat pengesahan.' }, 403);
   if (env.STAGING_WRITES_ENABLED !== '1') {
     return json({ error: true, message: 'Tindakan tulis belum tersedia di staging.' }, 503);
   }
   const input = await boundedJson(request, 8192);
   if (input instanceof Response) return input;
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    return json({ error: true, message: 'Invalid request parameters.' }, 422);
+    return json({ error: true, message: 'Data pengesahan permohonan tidak dapat dibaca. Muat semula halaman dan cuba semula.' }, 422);
   }
   const body = input as Record<string, unknown>;
   const id = Number(body.permohonan_id);
@@ -32,15 +36,23 @@ export async function ppVerify(request: Request, env: Env): Promise<Response> {
   const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
   if (!Number.isSafeInteger(id) || id < 1 || !['approve', 'reject'].includes(String(action)) ||
       (body.notes != null && typeof body.notes !== 'string') || notes.length > 2000) {
-    return json({ error: true, message: 'Invalid request parameters.' }, 422);
+    return json({ error: true,
+      message: 'Data pengesahan tidak sah. ID permohonan mesti nombor bulat positif, tindakan mesti lulus atau tolak, dan catatan mesti teks tidak melebihi 2,000 aksara.' }, 422);
   }
   if (action === 'reject' && !notes) return json({ error: true, message: 'Sebab penolakan diperlukan.' }, 422);
   const application = await env.DB.prepare(`
     SELECT * FROM permohonan
-    WHERE id=? AND persatuan_id=? AND status_workflow='Menunggu PP Daerah'
+    WHERE id=? AND persatuan_id=?
       AND (user_id IS NULL OR user_id<>?) LIMIT 1
   `).bind(id, actor.persatuan_id, actor.id).first<DistrictApplication>();
-  if (!application) return json({ error: true, message: 'Permohonan tidak dijumpai atau sudah diproses.' }, 404);
+  if (!application) return json({ error: true,
+    message: 'Permohonan tidak ditemui dalam senarai yang boleh disahkan oleh akaun PP Daerah anda. Semak persatuan permohonan; permohonan sendiri tidak boleh disahkan sendiri.' }, 404);
+  if (application.status_workflow !== 'Menunggu PP Daerah') {
+    return json({ error: true, code: 'APPLICATION_STATE_CONFLICT',
+      message: 'Permohonan ini tidak lagi menunggu pengesahan PP Daerah.',
+      status_workflow: application.status_workflow,
+      next_action: 'Muat semula senarai dan semak status semasa. Jika berstatus Menunggu Admin, keputusan seterusnya perlu dibuat oleh Admin.' }, 409);
+  }
   const approved = action === 'approve';
   const decisionMessage = approved
     ? 'Permohonan anda telah disahkan oleh Pegawai Pembangunan Daerah dan kini menunggu keputusan Admin.'
@@ -71,7 +83,10 @@ export async function ppVerify(request: Request, env: Env): Promise<Response> {
         VALUES(?,'Semakan Permohonan','Permohonan Menunggu Admin',?,datetime('now','+8 hours'))`)
         .bind(admin.id, `Permohonan #${id} telah disahkan oleh ${actor.nama_penuh}.`).run();
     }
+    const adminTelegram = `<b>📋 Permohonan Menunggu Admin</b>\n\nPermohonan #${id} telah disahkan oleh ${h(actor.nama_penuh)}.\n\nSila semak di app atau portal.`;
     const adminEmails = await Promise.allSettled(admins.results.map(async (admin) => {
+      // In-app notice above; Telegram next; email only if neither reaches the Admin.
+      if (await reachStaff(env, admin.id, adminTelegram)) return;
       const {html,text,subject}=await originalEmail(env,'ppAdmin',
         [application,actor.nama_penuh],[admin]);
       await sendRefpahangEmail(env,'admin',admin.email,admin.nama_penuh,subject,html,text);

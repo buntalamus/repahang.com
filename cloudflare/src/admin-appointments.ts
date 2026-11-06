@@ -1,11 +1,13 @@
 import { authorizeAppointmentResource, districtOf, localOfficialSql } from './appointment-access';
+import { activeOfficialSql, MATCH_YEAR_SQL } from './appointment-eligibility';
+import { appChannelSql } from './channels';
 import {currentUser,json} from './auth';
 import {appointmentWritesEnabled,lantikanWrite} from './lantikan-write';
-import {autoTolakLantikanTertunggak,retryPendingKupCrewNotifications} from './php/lantikan-helper';
+import {autoTolakLantikanTertunggak,retryPendingKupCrewNotifications,hasMatchStarted} from './php/lantikan-helper';
 import {auditMetaFrom} from './php/lantikan-audit';
 import type {Env} from './types';
 
-type Tournament = {kejohanan_id:number;peringkat_kejohanan:string};
+type Tournament = {kejohanan_id:number;peringkat_kejohanan:string;tarikh:string;masa:string|null};
 type PoolOfficial = Record<string,unknown> & {daerah:string|null;negeri:string|null};
 
 /** Admin match assignment view and the write actions of api/lantikan.php. */
@@ -28,7 +30,7 @@ export async function adminAppointments(request:Request,env:Env):Promise<Respons
       error instanceof Error ? error.message : error);}
   }
   const tournament=await env.DB.prepare(`
-    SELECT jp.kejohanan_id,COALESCE(k.peringkat_kejohanan,'Daerah') AS peringkat_kejohanan
+    SELECT jp.kejohanan_id,jp.tarikh,jp.masa,COALESCE(k.peringkat_kejohanan,'Daerah') AS peringkat_kejohanan
     FROM jadual_perlawanan jp LEFT JOIN kejohanan k ON k.id=jp.kejohanan_id
     WHERE jp.id=? LIMIT 1
   `).bind(jadualId).first<Tournament>();
@@ -65,7 +67,10 @@ export async function adminAppointments(request:Request,env:Env):Promise<Respons
         CASE WHEN pp.pengadil_id IS NOT NULL THEN u.email ELSE pl.emel END AS email,
         CASE WHEN pp.pengadil_id IS NOT NULL THEN u.jenis_pengadil ELSE pl.jenis_pengadil END AS jenis_pengadil,
         CASE WHEN pp.pengadil_id IS NOT NULL AND trim(COALESCE(u.telegram_chat_id,''))=''
-          THEN 1 ELSE 0 END AS telegram_required,
+          AND NOT ${appChannelSql('u.id')} THEN 1 ELSE 0 END AS contact_channel_required,
+        ${appChannelSql('u.id')} AS app_linked,
+        CASE WHEN pp.pengadil_id IS NOT NULL AND NOT ${activeOfficialSql('u', MATCH_YEAR_SQL)}
+          THEN 1 ELSE 0 END AS inactive_official,
         CASE WHEN COALESCE(u.telegram_chat_id,pl.telegram_chat_id) IS NOT NULL
           AND trim(COALESCE(u.telegram_chat_id,pl.telegram_chat_id))<>'' THEN 1 ELSE 0 END AS telegram_linked,
         CASE WHEN pp.pengadil_id IS NOT NULL THEN 'Berdaftar' ELSE 'Luar' END AS jenis_sumber,
@@ -78,14 +83,17 @@ export async function adminAppointments(request:Request,env:Env):Promise<Respons
               OR (pp.pengadil_luar_id IS NOT NULL AND lp2.pengadil_luar_id=pp.pengadil_luar_id)))
           AS jumlah_lantikan_kejohanan
       FROM pool_pengadil pp
+      JOIN jadual_perlawanan jp ON jp.kejohanan_id=pp.kejohanan_id AND jp.id=?
       LEFT JOIN users u ON u.id=pp.pengadil_id
       LEFT JOIN pengadil_luar pl ON pl.id=pp.pengadil_luar_id
       WHERE pp.kejohanan_id=? ${user.role==='PP Daerah' ? `AND pp.pengadil_luar_id IS NULL AND ${localOfficialSql('u')}` : ''} ORDER BY nama_penuh ASC
-    `).bind(tournament.kejohanan_id,...(user.role==='PP Daerah' ? [districtOf(user)] : [])).all<PoolOfficial>(),
+    `).bind(jadualId,tournament.kejohanan_id,...(user.role==='PP Daerah' ? [districtOf(user)] : [])).all<PoolOfficial>(),
   ]);
   const state=tournament.peringkat_kejohanan==='Negeri';
+  const started=hasMatchStarted(tournament.tarikh,tournament.masa ?? '');
   return json({error:false,data:assignments.results,
     referees:pool.results.map((official)=>({...official,
+      contact_channel_required:started ? 0 : official.contact_channel_required,
       wilayah:(state ? official.daerah : official.negeri) || '-'})),
     region_label:state ? 'Daerah' : 'Negeri'});
 }

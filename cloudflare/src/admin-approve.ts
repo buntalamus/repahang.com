@@ -14,6 +14,7 @@ interface Application {
   jenis_borang: string;
   jenis_pengadil: string | null;
   tahun_permohonan: number | null;
+  status_workflow: string | null;
 }
 
 export async function adminApprove(request: Request, env: Env): Promise<Response> {
@@ -27,15 +28,19 @@ export async function adminApprove(request: Request, env: Env): Promise<Response
   const input = await boundedJson(request, 8192);
   if (input instanceof Response) return input;
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    return json({ error: true, message: 'Parameter tidak sah.' }, 400);
+    return json({ error: true, message: 'Data keputusan permohonan tidak dapat dibaca. Muat semula halaman dan cuba semula.' }, 400);
   }
   const body = input as Record<string, unknown>;
   const id = Number(body.permohonan_id);
   const action = body.action;
   const notes = typeof body.notes === 'string' ? body.notes.trim() : '';
-  if (!Number.isSafeInteger(id) || id < 1 || !['approve', 'reject'].includes(String(action)) ||
-      (body.notes !== undefined && typeof body.notes !== 'string') || notes.length > 2000) {
-    return json({ error: true, message: 'Parameter tidak sah.' }, 400);
+  const errors: Record<string, string> = {};
+  if (!Number.isSafeInteger(id) || id < 1) errors['permohonan_id'] = 'ID permohonan mesti nombor bulat positif.';
+  if (!['approve', 'reject'].includes(String(action))) errors['action'] = 'Pilih tindakan lulus atau tolak yang sah.';
+  if (body.notes !== undefined && typeof body.notes !== 'string') errors['notes'] = 'Catatan mesti dalam bentuk teks.';
+  else if (notes.length > 2000) errors['notes'] = 'Catatan tidak boleh melebihi 2,000 aksara.';
+  if (Object.keys(errors).length) {
+    return json({ error: true, code: 'INVALID_APPLICATION_DECISION', message: 'Maklumat keputusan permohonan tidak sah.', errors }, 400);
   }
   if (action === 'reject' && !notes) {
     return json({ error: true, message: 'Sebab penolakan diperlukan.' }, 400);
@@ -43,10 +48,20 @@ export async function adminApprove(request: Request, env: Env): Promise<Response
   const application = await env.DB.prepare(`
     SELECT p.*,u.email AS user_email,u.role AS user_role
     FROM permohonan p LEFT JOIN users u ON u.id=p.user_id
-    WHERE p.id=? AND p.status_workflow='Menunggu Admin' LIMIT 1
+    WHERE p.id=? LIMIT 1
   `).bind(id).first<Application>();
   if (!application) {
-    return json({ error: true, message: 'Permohonan tidak dijumpai atau sudah diproses.' }, 404);
+    return json({ error: true, message: 'Permohonan tidak dijumpai.' }, 404);
+  }
+  if (application.status_workflow !== 'Menunggu Admin') {
+    const message = application.status_workflow === 'Menunggu PP Daerah'
+      ? 'Permohonan masih menunggu pengesahan PP Daerah sebelum boleh diluluskan atau ditolak oleh Admin.'
+      : `Permohonan tidak boleh diproses. Status semasa: ${application.status_workflow || 'Tidak diketahui'}.`;
+    return json({ error: true, code: 'APPLICATION_STATE_CONFLICT', message,
+      permohonan_id: id, status_workflow: application.status_workflow,
+      next_action: application.status_workflow === 'Menunggu PP Daerah'
+        ? 'Minta PP Daerah mengesahkan permohonan dahulu. Selepas itu muat semula senarai untuk kelulusan Admin.'
+        : 'Muat semula senarai dan semak keputusan atau status semasa. Hubungi Admin jika status tidak sepadan dengan rekod yang sepatutnya.' }, 409);
   }
   const refereeType = (application.jenis_pengadil ?? '').trim().toUpperCase();
   const isRa = application.jenis_borang === 'penilai_berdaftar' ||
@@ -58,13 +73,20 @@ export async function adminApprove(request: Request, env: Env): Promise<Response
   const status = action === 'reject' ? 'Rejected' : 'Approved';
   const workflow = action === 'reject' ? 'Ditolak' : fitness ? 'Admin Diluluskan' : 'Lengkap';
   const classOne = application.jenis_borang === 'ujian_kelas1_fam';
-  const subject = action === 'reject' ? 'Permohonan Pendaftaran Ditolak'
-    : fitness ? 'Dokumen Diluluskan - Menunggu Ujian Kecergasan'
-      : isRa ? 'Pendaftaran Penilai Pengadil Diluluskan' : 'Pendaftaran Pengadil Diluluskan';
-  const message = action === 'reject' ? `Permohonan pendaftaran anda telah ditolak. Sebab: ${notes}`
-    : fitness ? 'Anda telah didaftarkan untuk sesi ini. Kelayakan patch dan lesen Pengadil Negeri menunggu keputusan ujian kecergasan.'
-      : isRa ? 'Pendaftaran tahunan Penilai Pengadil anda telah diluluskan.'
-        : 'Permohonan pendaftaran pengadil anda telah diluluskan.';
+  const classThree = application.jenis_borang === 'kelas3_fam';
+  // Kelas III / Kelas I FAM are examination applications, not annual registration.
+  const examLabel = classOne ? 'Ujian Kelas I FAM' : classThree ? 'Kelas III FAM' : '';
+  const subject = examLabel ? `Permohonan ${examLabel} ${action === 'reject' ? 'Ditolak' : 'Diluluskan'}`
+    : action === 'reject' ? 'Permohonan Pendaftaran Ditolak'
+      : fitness ? 'Dokumen Diluluskan - Menunggu Ujian Kecergasan'
+        : isRa ? 'Pendaftaran Penilai Pengadil Diluluskan' : 'Pendaftaran Pengadil Diluluskan';
+  const message = examLabel
+    ? action === 'reject' ? `Permohonan ${examLabel} ${application.tahun_permohonan ?? ''} anda telah ditolak. Sebab: ${notes}`
+      : `Permohonan ${examLabel} ${application.tahun_permohonan ?? ''} anda telah diluluskan. Keputusan ujian akan direkodkan selepas peperiksaan.`
+    : action === 'reject' ? `Permohonan pendaftaran anda telah ditolak. Sebab: ${notes}`
+      : fitness ? 'Anda telah didaftarkan untuk sesi ini. Kelayakan patch dan lesen Pengadil Negeri menunggu keputusan ujian kecergasan.'
+        : isRa ? 'Pendaftaran tahunan Penilai Pengadil anda telah diluluskan.'
+          : 'Permohonan pendaftaran pengadil anda telah diluluskan.';
   const update = env.DB.prepare(`
     UPDATE permohonan SET status=?,status_workflow=?,
       workflow_status=CASE WHEN ? THEN ? ELSE workflow_status END,
@@ -81,7 +103,8 @@ export async function adminApprove(request: Request, env: Env): Promise<Response
       INSERT INTO notifications(user_id,type,subject,message,created_at)
       SELECT ?,?,?,?,datetime('now','+8 hours') WHERE changes()=1
     `).bind(application.user_id,
-      action === 'reject' ? 'Permohonan Ditolak' : fitness ? 'Semakan Permohonan' : 'Pendaftaran Lengkap',
+      action === 'reject' ? 'Permohonan Ditolak' : fitness ? 'Semakan Permohonan'
+        : examLabel ? 'Permohonan Diluluskan' : 'Pendaftaran Lengkap',
       subject, message));
   }
   const results = await env.DB.batch(statements);

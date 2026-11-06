@@ -8,7 +8,7 @@
     "directory": "../frontend/dist/frontend/browser",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/uploads/*"]
+    "run_worker_first": ["/api/*", "/uploads/*", "/app/*"]
   },
   "d1_databases": [
     {
@@ -45,7 +45,9 @@
     "APPOINTMENT_DELIVERY_ENABLED": "0",
     "REPORT_DELIVERY_ENABLED": "0",
     "BULK_EMAIL_ENABLED": "0",
-    "MAILBOX_SEND_ENABLED": "0"
+    "MAILBOX_SEND_ENABLED": "0",
+    // Mobile app push (FCM). Also needs the FCM_SERVICE_ACCOUNT secret.
+    "PUSH_ENABLED": "0"
   },
   "triggers": {
     "crons": ["*/5 * * * *"]

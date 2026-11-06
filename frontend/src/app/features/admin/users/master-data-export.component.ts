@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { firstValueFrom, timeout } from 'rxjs';
+import { HttpClient, HttpErrorResponse, HttpContext } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
+import { REQUEST_TIMEOUT_MS } from '../../../core/services/background-request';
 import { environment } from '../../../../environments/environment';
 import type { UserMasterData } from './master-data-workbook';
 
@@ -68,8 +69,8 @@ export class UserMasterDataExportComponent {
               error: boolean;
               message?: string;
               data: UserMasterData;
-            }>(`${environment.apiUrl}/admin-users-master-data.php`, { params: { year: String(year) }, withCredentials: true })
-            .pipe(timeout(90_000)),
+            }>(`${environment.apiUrl}/admin-users-master-data.php`, { params: { year: String(year) }, withCredentials: true,
+              context: new HttpContext().set(REQUEST_TIMEOUT_MS, 90_000) }),
         ),
       ]);
       if (response.error || !response.data)

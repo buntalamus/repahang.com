@@ -5,10 +5,9 @@
 import { applicationSettingDefaults } from './applications';
 import { missingRefereeProfile } from './referee-profile';
 import type { Env } from './types';
+import { klYear, sessionYears } from './application-year';
 
-export function klYear(now = new Date()): number {
-  return Number(new Intl.DateTimeFormat('en-CA', { year: 'numeric', timeZone: 'Asia/Kuala_Lumpur' }).format(now));
-}
+export { klYear } from './application-year';
 
 /** Age in the session year from the first two digits of the IC; null when unknown. */
 export function ageInYear(ic: unknown, year: number, now = new Date()): number | null {
@@ -43,15 +42,18 @@ export interface EligibleReferee {
 const settingNumber = (value: string | undefined): number =>
   value === undefined || value.trim() === '' ? NaN : Number(value);
 
-/** Referees eligible to apply, per form, for the session in the application_year setting. */
+/**
+ * Referees eligible to apply, per form: annual registration for the session in
+ * the application_year setting, Kelas III / Kelas I FAM for the current year.
+ */
 export async function eligibilityLists(env: Env) {
   const rows = await env.DB.prepare('SELECT setting_key,setting_value FROM application_settings')
     .all<{ setting_key: string; setting_value: string }>();
   const settings: Record<string, string> = { ...applicationSettingDefaults(),
     ...Object.fromEntries(rows.results.map((row) => [row.setting_key, row.setting_value])) };
-  const year = Number(settings.application_year) || klYear();
+  const { annual: year, exam: examYear } = sessionYears(settings);
   const matchYear = qualifyingMatchYear(year);
-  const deadline = classThreeDeadline(year);
+  const deadline = classThreeDeadline(examYear);
   const minimum = settingNumber(settings.min_verified_matches) || 20;
   const minAge = settingNumber(settings.bertulis_min_age);
   const maxAge = settingNumber(settings.bertulis_max_age);
@@ -75,15 +77,16 @@ export async function eligibilityLists(env: Env) {
     WHERE u.aktif=1 AND u.role IN ('Pengadil','PP Daerah')
     ORDER BY u.nama_penuh`).bind(String(matchYear)).all<Candidate>();
   const applications = await env.DB.prepare(`SELECT user_id,jenis_borang,status_workflow FROM permohonan
-    WHERE tahun_permohonan=? AND jenis_borang IN ('pengadil_berdaftar','kelas3_fam','ujian_kelas1_fam')`)
-    .bind(year).all<{ user_id: number; jenis_borang: string; status_workflow: string | null }>();
+    WHERE (tahun_permohonan=? AND jenis_borang='pengadil_berdaftar')
+      OR (tahun_permohonan=? AND jenis_borang IN ('kelas3_fam','ujian_kelas1_fam'))`)
+    .bind(year, examYear).all<{ user_id: number; jenis_borang: string; status_workflow: string | null }>();
   const applied = new Map(applications.results.map((row) =>
     [`${row.user_id}:${row.jenis_borang}`, row.status_workflow || 'Dihantar']));
   const notRa = (row: Candidate) => !['Penilai Pengadil', 'Pegawai Pembangunan']
     .includes((row.jenis_pengadil ?? '').trim());
   const entry = (row: Candidate, form: string, extra: Partial<EligibleReferee>): EligibleReferee => ({
     id: row.id, nama: row.nama_penuh, daerah: row.daerah, jenis: row.jenis_pengadil ?? '',
-    umur: ageInYear(row.no_ic, year), permohonan: applied.get(`${row.id}:${form}`) ?? null,
+    umur: ageInYear(row.no_ic, form === 'pengadil_berdaftar' ? year : examYear), permohonan: applied.get(`${row.id}:${form}`) ?? null,
     profil_lengkap: missingRefereeProfile({ ...row, daerah: row.alamat_daerah }).length === 0, ...extra,
   });
   const referees = candidates.results.filter((row) => Number(row.can_referee) === 1 && notRa(row));
@@ -92,14 +95,14 @@ export async function eligibilityLists(env: Env) {
   // Annual registration: the minimum verified matches of the previous season (PP Daerah are exempt).
   const berdaftar = referees.filter((row) => row.role === 'PP Daerah' || Number(row.matches) >= minimum)
     .map((row) => entry(row, 'pengadil_berdaftar', { perlawanan: Number(row.matches) }));
-  // Kelas III FAM: age range in the session year, not already holding Kelas III or Kelas I.
+  // Kelas III FAM: age range in the examination year, not already holding Kelas III or Kelas I.
   const kelas3 = referees.filter((row) => {
-    const age = ageInYear(row.no_ic, year);
+    const age = ageInYear(row.no_ic, examYear);
     return age !== null && age >= minAge && age <= maxAge && classThree(row) === null
       && !['Kelas III FAM', 'Kelas I FAM'].includes(row.jenis_pengadil ?? '');
   }).map((row) => entry(row, 'kelas3_fam', {}));
   // Ujian Kelas I FAM: age limit and Kelas III held by the deadline year.
-  const ageOk = (row: Candidate) => { const age = ageInYear(row.no_ic, year); return age !== null && age <= classOneMax; };
+  const ageOk = (row: Candidate) => { const age = ageInYear(row.no_ic, examYear); return age !== null && age <= classOneMax; };
   const kelas1 = referees.filter((row) => ageOk(row) && (classThree(row) ?? 9999) <= deadline
     && row.jenis_pengadil !== 'Kelas I FAM')
     .map((row) => entry(row, 'ujian_kelas1_fam', { tahun_lulus_kelas3: classThree(row) }));
@@ -107,7 +110,7 @@ export async function eligibilityLists(env: Env) {
     && ['Pengadil Negeri', 'Pengadil Kebangsaan'].includes(row.jenis_pengadil ?? '')).length;
 
   return {
-    year, rules: { match_year: matchYear, min_matches: minimum, kelas3_min_age: minAge,
+    year, exam_year: examYear, rules: { match_year: matchYear, min_matches: minimum, kelas3_min_age: minAge,
       kelas3_max_age: maxAge, kelas1_max_age: classOneMax, kelas3_deadline: deadline },
     berdaftar, kelas3, kelas1, kelas1_missing_kelas3_year: kelas1MissingYear,
   };

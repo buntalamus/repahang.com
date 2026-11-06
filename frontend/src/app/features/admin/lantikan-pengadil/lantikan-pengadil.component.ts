@@ -1,6 +1,6 @@
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
-import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { environment } from '../../../../environments/environment';
 import { DatePipe, SlicePipe } from '@angular/common';
@@ -8,6 +8,7 @@ import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { ProfileModalService } from '../../../core/services/profile-modal.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
+import { C13ReportsComponent } from '../../../shared/components/c13-reports/c13-reports.component';
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
 import { matchesJadualSearch } from './jadual-search';
 import { teamRegionCaution, type RefereeOrigin, type MatchTeamOrigins } from './team-region-caution';
@@ -125,7 +126,7 @@ interface PengerusiCandidate {
 
 @Component({
   selector: 'app-lantikan-pengadil',
-  imports: [FormsModule, DatePipe, SlicePipe, LoadingComponent, ConfirmModalComponent],
+  imports: [FormsModule, DatePipe, SlicePipe, LoadingComponent, ConfirmModalComponent, C13ReportsComponent],
   templateUrl: './lantikan-pengadil.component.html',
   styles: [`
     .region-caution { background-color: #fee2e2; }
@@ -135,6 +136,7 @@ interface PengerusiCandidate {
   `],
 })
 export class LantikanPengadilComponent implements OnInit, OnDestroy {
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly auth = inject(AuthService);
   readonly isDistrict = this.auth.currentUser?.role === 'PP Daerah';
   readonly districtName = this.auth.currentUser?.persatuan_nama || 'daerah anda';
@@ -150,7 +152,8 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
     { id: 'lantikan',        label: 'Lantikan Pengadil' },
     { id: 'jadual-lantikan', label: 'Jadual Lantikan' },
     { id: 'penilaian',       label: 'Laporan Penilaian' },
-  ].filter(tab=>!this.isDistrict || tab.id!=='penilaian');
+    { id: 'laporan-perlawanan',label:'Laporan Perlawanan' },
+  ].filter(tab=>!this.isDistrict || !['penilaian','laporan-perlawanan'].includes(tab.id));
   activeTab = 'kejohanan';
 
   jawatanList = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4', 'Penilai Pengadil'];
@@ -347,7 +350,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
           this.activeJawatan = null;
           this.loadLantikan(this.selectedJadual.id);
         },
-        error: (err) => this.toast.show(err?.error?.message || 'Ralat melantik.', 'error'),
+        error: (err) => this.toast.apiError(err, 'Ralat melantik.'),
       });
     };
     this.showConfirmModal = true;
@@ -367,7 +370,24 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
     {id:'admin',label:'Admin sahaja'}, {id:'pp',label:'PP sahaja'}, {id:'all',label:'Kedua-dua lantikan'},
   ] as const;
   private jadualLantikanRequest?: Subscription;
-  ngOnDestroy(): void { this.jadualLantikanRequest?.unsubscribe(); }
+  private jadualRequest?: Subscription;
+  private poolRequest?: Subscription;
+  private pengerusiRequest?: Subscription;
+  readonly jadualError = signal('');
+  readonly jadualLantikanError = signal('');
+  private cancelTournamentRequests(): void {
+    this.jadualLantikanRequest?.unsubscribe();
+    this.jadualRequest?.unsubscribe();
+    this.poolRequest?.unsubscribe();
+    this.pengerusiRequest?.unsubscribe();
+    this.loadingJadualLantikan = false;
+    this.loadingJadual = false;
+    this.loadingPool = false;
+    this.loadingPengerusi = false;
+    this.jadualError.set('');
+    this.jadualLantikanError.set('');
+  }
+  ngOnDestroy(): void { this.cancelTournamentRequests(); }
   changeAppointmentSource(source:'all' | 'admin' | 'pp'): void {
     if (this.appointmentSource()===source) return;
     this.appointmentSource.set(source);
@@ -376,8 +396,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
     if (available.some(item=>item.id===this.selectedKejohananId)) this.loadJadualLantikan();
     else if (available.length) this.selectReportTournament(available[0].id);
     else {
-      this.jadualLantikanRequest?.unsubscribe();
-      this.loadingJadualLantikan=false;
+      this.cancelTournamentRequests();
       this.selectedKejohanan=null;
       this.selectedKejohananId=null;
       this.jadualLantikanData=null;
@@ -448,12 +467,14 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
     if (!this.selectedKejohananId) return;
     this.jadualLantikanRequest?.unsubscribe();
     this.loadingJadualLantikan = true;
+    this.jadualLantikanError.set('');
     this.jadualLantikanData = null;
     this.selectedMatchIds.clear();
     this.jadualLantikanRequest = this.api.get<ScheduleReportResponse>('jadual-lantikan-report.php', {
       kejohanan_id: this.selectedKejohananId.toString(), appointment_source:this.appointmentSource(),
     }).subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         this.loadingJadualLantikan = false;
         if (!res.error) {
           this.jadualLantikanData = {
@@ -462,10 +483,10 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
           };
           this.showPengesahanForm = false;
         } else {
-          this.toast.error(res.message || 'Gagal memuatkan jadual lantikan.');
+          this.jadualLantikanError.set(res.message || 'Gagal memuatkan jadual lantikan.');
         }
       },
-      error: (err: any) => { this.loadingJadualLantikan = false; this.toast.error(err?.error?.message || 'Ralat memuatkan jadual lantikan.'); },
+      error: (err: any) => { this.loadingJadualLantikan = false; this.cdr.markForCheck(); this.jadualLantikanError.set(err?.error?.message || 'Ralat memuatkan jadual lantikan.'); },
     });
   }
 
@@ -495,10 +516,10 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
           this.toast.success('Jadual lantikan berjaya disahkan.');
           this.loadJadualLantikan();
         } else {
-          this.toast.error(res.message || 'Gagal mengesahkan.');
+          this.toast.apiError(res, 'Gagal mengesahkan.');
         }
       },
-      error: (err: any) => { this.submittingPengesahan = false; this.toast.error(err?.error?.message || 'Ralat semasa mengesahkan.'); },
+      error: (err: any) => { this.submittingPengesahan = false; this.toast.apiError(err, 'Ralat semasa mengesahkan.'); },
     });
   }
 
@@ -518,10 +539,10 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
             this.toast.success('Pengesahan dibatalkan.');
             this.loadJadualLantikan();
           } else {
-            this.toast.error(res.message || 'Gagal membatalkan.');
+            this.toast.apiError(res, 'Gagal membatalkan.');
           }
         },
-        error: (err: any) => { this.batallingPengesahan = false; this.toast.error(err?.error?.message || 'Ralat semasa membatalkan.'); },
+        error: (err: any) => { this.batallingPengesahan = false; this.toast.apiError(err, 'Ralat semasa membatalkan.'); },
       });
     };
     this.showConfirmModal = true;
@@ -549,10 +570,10 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
             this.toast.success(res.message || 'Perlawanan dinomborkan semula.');
             this.loadJadualLantikan();
           } else {
-            this.toast.error(res.message || 'Gagal menomborkan semula.');
+            this.toast.apiError(res, 'Gagal menomborkan semula.');
           }
         },
-        error: (err: any) => { this.renumbering = false; this.toast.error(err?.error?.message || 'Ralat semasa menomborkan semula.'); },
+        error: (err: any) => { this.renumbering = false; this.toast.apiError(err, 'Ralat semasa menomborkan semula.'); },
       });
     };
     this.showConfirmModal = true;
@@ -585,6 +606,10 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
   laporanList: any[] = [];
   laporanSearch = '';
   laporanKejohananFilter = '';
+  // 'tertunggak' lists accepted RA appointments whose report is missing or still a draft.
+  laporanView: 'laporan' | 'tertunggak' = 'laporan';
+  loadingTertunggak = false;
+  tertunggakList: any[] = [];
   showLaporanModal = false;
   laporanDetail: any = null;
   loadingLaporanDetail = false;
@@ -605,6 +630,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadKejohanan();
     this.loadLaporan();
+    this.loadTertunggak();
   }
 
   // ===================== KEJOHANAN =====================
@@ -642,8 +668,8 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
   loadKejohanan(): void {
     this.loadingKejohanan = true;
     this.api.get<any>('kejohanan.php').subscribe({
-      next: (res) => { this.kejohananList = res.data || []; this.loadingKejohanan = false; },
-      error: () => this.loadingKejohanan = false,
+      next: (res) => { this.kejohananList = res.data || []; this.loadingKejohanan = false; this.cdr.markForCheck(); },
+      error: () => { this.loadingKejohanan = false; this.cdr.markForCheck(); },
     });
   }
 
@@ -679,7 +705,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
         this.savingKejohanan = false;
         this.loadKejohanan();
       },
-      error: (err) => { this.toast.show(err?.error?.message || 'Ralat.', 'error'); this.savingKejohanan = false; },
+      error: (err) => { this.toast.apiError(err, 'Ralat.'); this.savingKejohanan = false; },
     });
   }
 
@@ -689,23 +715,20 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
     this.confirmFn = () => {
       this.api.delete<any>(`kejohanan.php?id=${id}`).subscribe({
         next: (res) => { this.toast.show(res.message, 'success'); this.loadKejohanan(); },
-        error: (err) => this.toast.show(err?.error?.message || 'Ralat.', 'error'),
+        error: (err) => this.toast.apiError(err, 'Ralat.'),
       });
     };
     this.showConfirmModal = true;
   }
 
   selectKejohanan(k: any): void {
-    if (this.selectedKejohanan?.id === k.id) {
-      this.selectedKejohanan = null;
-      this.selectedKejohananId = null;
-      this.poolList = [];
-      this.jadualList = [];
-      this.jadualLantikanSearch = '';
-      this.closeTelegramOnboardingModal();
-      this.resetPengerusiState();
-      return;
-    }
+    if (this.selectedKejohanan?.id === k.id) return;
+    this.cancelTournamentRequests();
+    this.jadualList = [];
+    this.poolList = [];
+    this.jadualLantikanData = null;
+    this.jadualSearch = '';
+    this.resetPengerusiState();
     const ownerSource=k.lantikan_persatuan_id==null ? 'admin' : 'pp';
     if (this.appointmentSource()!=='all' && this.appointmentSource()!==ownerSource) this.appointmentSource.set(ownerSource);
     this.selectedKejohanan = k;
@@ -734,8 +757,10 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
   loadPengerusi(kejohananId: number, openModal = false): void {
     if (this.isDistrict) return;
     this.loadingPengerusi = true;
-    this.api.get<any>('kejohanan-pengesah-laporan.php', { kejohanan_id: String(kejohananId) }).subscribe({
+    this.pengerusiRequest?.unsubscribe();
+    this.pengerusiRequest = this.api.get<any>('kejohanan-pengesah-laporan.php', { kejohanan_id: String(kejohananId) }).subscribe({
       next: (res) => {
+        this.cdr.markForCheck();
         this.loadingPengerusi = false;
         this.pengerusiCurrent = res.data?.current || null;
         this.pengerusiCandidates = res.data?.candidates || [];
@@ -743,7 +768,8 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.loadingPengerusi = false;
-        this.toast.show(err?.error?.message || 'Gagal memuatkan tetapan Pengerusi Pengadil.', 'error');
+        this.cdr.markForCheck();
+        this.toast.apiError(err, 'Gagal memuatkan tetapan Pengerusi Pengadil.');
       },
     });
   }
@@ -822,7 +848,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.savingPengerusi = false;
-        this.toast.show(err?.error?.message || 'Gagal menetapkan Pengerusi Pengadil.', 'error');
+        this.toast.apiError(err, 'Gagal menetapkan Pengerusi Pengadil.');
       },
     });
   }
@@ -860,7 +886,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
         this.uploadingJadualLogo = null;
         this.loadJadual(this.selectedKejohanan!.id);
       },
-      error: (err) => { this.toast.show(err?.error?.message || 'Gagal muat naik logo.', 'error'); this.uploadingJadualLogo = null; },
+      error: (err) => { this.toast.apiError(err, 'Gagal muat naik logo.'); this.uploadingJadualLogo = null; },
     });
   }
 
@@ -876,7 +902,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
         this.uploadingKejohananLogo = null;
         this.loadKejohanan();
       },
-      error: (err) => { this.toast.show(err?.error?.message || 'Gagal muat naik logo.', 'error'); this.uploadingKejohananLogo = null; },
+      error: (err) => { this.toast.apiError(err, 'Gagal muat naik logo.'); this.uploadingKejohananLogo = null; },
     });
   }
 
@@ -888,10 +914,11 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
   // ===================== POOL PENGADIL =====================
 
   loadPool(kejohananId: number): void {
+    this.poolRequest?.unsubscribe();
     this.loadingPool = true;
-    this.api.get<any>('pool-pengadil.php', { kejohanan_id: kejohananId.toString() }).subscribe({
-      next: (res) => { this.poolList = res.data || []; this.loadingPool = false; },
-      error: () => this.loadingPool = false,
+    this.poolRequest = this.api.get<any>('pool-pengadil.php', { kejohanan_id: kejohananId.toString() }).subscribe({
+      next: (res) => { this.poolList = res.data || []; this.loadingPool = false; this.cdr.markForCheck(); },
+      error: () => { this.loadingPool = false; this.cdr.markForCheck(); },
     });
   }
 
@@ -934,7 +961,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.loadingTelegramOnboarding = false;
-        this.toast.show(err?.error?.message || 'Gagal memuatkan status onboarding Telegram.', 'error');
+        this.toast.apiError(err, 'Gagal memuatkan status onboarding Telegram.');
       },
     });
   }
@@ -1013,7 +1040,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.sendingTelegramOnboarding = false;
-        this.toast.show(err?.error?.message || 'Blast onboarding Telegram gagal.', 'error');
+        this.toast.apiError(err, 'Blast onboarding Telegram gagal.');
         this.loadTelegramOnboardingPreview();
       },
     });
@@ -1093,7 +1120,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
         this.loadPool(this.selectedKejohanan!.id);
         this.loadAvailableForPool();
       },
-      error: (err) => { this.toast.show(err?.error?.message || 'Ralat.', 'error'); this.addingToPool = false; },
+      error: (err) => { this.toast.apiError(err, 'Ralat.'); this.addingToPool = false; },
     });
   }
 
@@ -1200,7 +1227,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
         this.toast.show(res.message, 'success');
         this.loadPool(this.selectedKejohanan!.id);
       },
-      error: (err) => this.toast.show(err?.error?.message || 'Ralat.', 'error'),
+      error: (err) => this.toast.apiError(err, 'Ralat.'),
     });
   }
 
@@ -1212,14 +1239,20 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
   // ===================== JADUAL =====================
 
   onKejohananSelect(id: number | null): void {
-    this.closeTelegramOnboardingModal();
-    if (!id) { this.selectedKejohanan = null; this.jadualList = []; this.jadualSearch = ''; this.poolList = []; this.resetPengerusiState(); return; }
+    if (!id) {
+      this.cancelTournamentRequests();
+      this.closeTelegramOnboardingModal();
+      this.selectedKejohanan = null;
+      this.selectedKejohananId = null;
+      this.jadualList = [];
+      this.jadualLantikanData = null;
+      this.jadualSearch = '';
+      this.poolList = [];
+      this.resetPengerusiState();
+      return;
+    }
     const k = this.kejohananList.find(x => x.id === id);
-    this.selectedKejohanan = k || null;
-    this.jadualSearch = '';
-    this.loadJadual(id);
-    this.loadPool(id);
-    this.loadPengerusi(id);
+    if (k) this.selectKejohanan(k);
   }
 
   get filteredJadualList(): any[] {
@@ -1228,14 +1261,23 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
   }
 
   loadJadual(kejohananId: number): void {
+    this.jadualRequest?.unsubscribe();
     this.loadingJadual = true;
+    this.jadualError.set('');
     this.selectedJadualIds.clear();
-    this.api.get<any>('jadual-perlawanan.php', { kejohanan_id: kejohananId.toString() }).subscribe({
+    this.jadualRequest = this.api.get<any>('jadual-perlawanan.php', { kejohanan_id: kejohananId.toString() }).subscribe({
       next: (res) => {
-        this.jadualList = this.sortJadualBySchedule(res.data ?? []);
+        this.jadualList = res.error ? [] : this.sortJadualBySchedule(res.data ?? []);
+        if (res.error) this.jadualError.set(res.message || 'Gagal memuatkan jadual perlawanan.');
         this.loadingJadual = false;
+        this.cdr.markForCheck();
       },
-      error: () => this.loadingJadual = false,
+      error: (err) => {
+        this.loadingJadual = false;
+        this.jadualList = [];
+        this.jadualError.set(err?.error?.message || 'Ralat memuatkan jadual perlawanan.');
+        this.cdr.markForCheck();
+      },
     });
   }
 
@@ -1275,17 +1317,17 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
         }
         this.loadJadual(this.selectedKejohanan!.id);
       },
-      error: (err) => { this.toast.show(err?.error?.message || 'Ralat.', 'error'); this.savingJadual = false; },
+      error: (err) => { this.toast.apiError(err, 'Ralat.'); this.savingJadual = false; },
     });
   }
 
   deleteJadual(id: number, no: string): void {
     this.confirmTitle = 'Padam Perlawanan';
-    this.confirmMessage = `Padam perlawanan ${no}? Perlawanan yang mempunyai lantikan, laporan atau audit tidak boleh dipadam.`;
+    this.confirmMessage = `Padam perlawanan ${no}? Perlawanan yang masih mempunyai lantikan atau laporan tidak boleh dipadam.`;
     this.confirmFn = () => {
       this.api.delete<any>(`jadual-perlawanan.php?id=${id}`).subscribe({
         next: (res) => { this.toast.show(res.message, 'success'); this.loadJadual(this.selectedKejohanan!.id); },
-        error: (err) => this.toast.show(err?.error?.message || 'Ralat.', 'error'),
+        error: (err) => this.toast.apiError(err, 'Ralat.'),
       });
     };
     this.showConfirmModal = true;
@@ -1323,7 +1365,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
           this.selectedJadualIds.clear();
           this.loadJadual(this.selectedKejohanan!.id);
         },
-        error: (err) => this.toast.show(err?.error?.message || 'Ralat memadam.', 'error'),
+        error: (err) => this.toast.apiError(err, 'Ralat memadam.'),
       });
     };
     this.showConfirmModal = true;
@@ -1471,12 +1513,12 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
           this.toast.show(res.message, 'success');
           this.loadJadual(this.selectedKejohanan!.id);
         } else {
-          this.toast.show(res.message || 'Tiada data ditambah.', 'error');
+          this.toast.apiError(res, 'Tiada data ditambah.');
         }
       },
       error: (err) => {
         this.jadualUploading = false;
-        this.toast.show(err?.error?.message || 'Ralat muat naik.', 'error');
+        this.toast.apiError(err, 'Ralat muat naik.');
       },
     });
   }
@@ -1535,7 +1577,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.auditLoadingIds.delete(lantikanId);
-        this.toast.show(err?.error?.message || 'Ralat memuatkan log lantikan.', 'error');
+        this.toast.apiError(err, 'Ralat memuatkan log lantikan.');
       },
     });
   }
@@ -1553,7 +1595,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.auditLoadingIds.delete(lantikanId);
-        this.toast.show(err?.error?.message || 'Ralat menyediakan pautan.', 'error');
+        this.toast.apiError(err, 'Ralat menyediakan pautan.');
       },
     });
   }
@@ -1575,10 +1617,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
         this.toast.show('Pautan disalin dan direkodkan.', 'success');
         this.loadAppointmentAudit(lantikanId);
       },
-      error: (err) => this.toast.show(
-        err?.error?.message || 'Pautan disalin tetapi log salinan gagal direkodkan.',
-        'error'
-      ),
+      error: (err) => this.toast.apiError(err, 'Pautan disalin tetapi log salinan gagal direkodkan.'),
     });
   }
 
@@ -1655,7 +1694,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.auditLoadingIds.delete(lantikanId);
-        this.toast.show(err?.error?.message || 'Ralat merekodkan penghantaran manual.', 'error');
+        this.toast.apiError(err, 'Ralat merekodkan penghantaran manual.');
       },
     });
   }
@@ -1674,7 +1713,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.auditLoadingIds.delete(lantikanId);
-        this.toast.show(err?.error?.message || 'Ralat mengesahkan penerimaan lewat.', 'error');
+        this.toast.apiError(err, 'Ralat mengesahkan penerimaan lewat.');
       },
     });
   }
@@ -1742,7 +1781,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
         this.loadLantikan(this.selectedJadual.id);
         this.selectedReferee[jawatan] = '';
       },
-      error: (err) => this.toast.show(err?.error?.message || 'Ralat melantik.', 'error'),
+      error: (err) => this.toast.apiError(err, 'Ralat melantik.'),
     });
   }
 
@@ -1754,7 +1793,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
     this.confirmFn = () => {
       this.api.delete<any>(`lantikan.php?id=${id}`).subscribe({
         next: (res) => { this.toast.show(res.message, 'success'); this.loadLantikan(this.selectedJadual!.id); },
-        error: (err) => this.toast.show(err?.error?.message || 'Ralat.', 'error'),
+        error: (err) => this.toast.apiError(err, 'Ralat.'),
       });
     };
     this.showConfirmModal = true;
@@ -1779,7 +1818,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
       this.sendingNotif = true;
       this.api.post<any>('lantikan.php', { action: 'notify', jadual_id: this.selectedJadual.id }).subscribe({
         next: (res) => { this.toast.show(res.message, 'success'); this.sendingNotif = false; this.loadLantikan(this.selectedJadual!.id); },
-        error: (err) => { this.toast.show(err?.error?.message || 'Ralat.', 'error'); this.sendingNotif = false; },
+        error: (err) => { this.toast.apiError(err, 'Ralat.'); this.sendingNotif = false; },
       });
     };
     this.showConfirmModal = true;
@@ -1842,7 +1881,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
     }).subscribe({
       next: (res) => {
         for (const key of ['total_assignments', 'matches_processed', 'email_sent', 'tg_sent', 'tg_skipped',
-          'delivery_failed', 'matches_skipped_incomplete', 'matches_skipped_started', 'matches_skipped_telegram']) {
+          'delivery_failed', 'matches_skipped_incomplete', 'matches_skipped_started', 'matches_skipped_channel', 'matches_skipped_inactive']) {
           totals[key] = (totals[key] || 0) + Number(res[key] || 0);
         }
         const remaining: number[] = res.remaining_jadual_ids || [];
@@ -1858,8 +1897,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         const sent = totals['total_assignments'] || 0;
-        this.toast.show((err?.error?.message || 'Ralat menghantar notifikasi.')
-          + (sent ? ` ${sent} notifikasi telah dihantar sebelum ralat.` : ''), 'error');
+        this.toast.apiError(err, `Penghantaran notifikasi terhenti selepas ${sent} lantikan diproses.`);
         this.sendingNotif = false;
         this.loadJadualLantikan();
       },
@@ -1872,7 +1910,8 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
     if (t['tg_sent']) parts.push(`${t['tg_sent']} Telegram dihantar.`);
     if (t['matches_skipped_started']) parts.push(`${t['matches_skipped_started']} perlawanan yang telah bermula dilangkau.`);
     if (t['matches_skipped_incomplete']) parts.push(`${t['matches_skipped_incomplete']} perlawanan tanpa Pengadil, AR1 dan AR2 lengkap dilangkau.`);
-    if (t['matches_skipped_telegram']) parts.push(`${t['matches_skipped_telegram']} perlawanan dilangkau kerana pengadil belum menghubungkan Telegram.`);
+    if (t['matches_skipped_channel']) parts.push(`${t['matches_skipped_channel']} perlawanan dilangkau kerana pengadil belum menghubungkan Telegram atau aplikasi mudah alih.`);
+    if (t['matches_skipped_inactive']) parts.push(`${t['matches_skipped_inactive']} perlawanan dilangkau kerana mempunyai pegawai tidak aktif.`);
     if (t['delivery_failed']) parts.push(`${t['delivery_failed']} lantikan gagal dihantar dan tempoh jawapannya belum bermula.`);
     return parts.join(' ');
   }
@@ -1904,7 +1943,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
           this.loadJadualLantikan();
         },
         error: (err) => {
-          this.toast.show(err?.error?.message || 'Ralat.', 'error');
+          this.toast.apiError(err, 'Ralat.');
           this.sendingNotif = false;
         },
       });
@@ -1966,7 +2005,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
         this.loadJadualLantikan();
       },
       error: (err) => {
-        this.toast.show(err?.error?.message || 'Ralat mengemaskini status perlawanan.', 'error');
+        this.toast.apiError(err, 'Ralat mengemaskini status perlawanan.');
         this.updatingMatchStatus = false;
       },
     });
@@ -1984,7 +2023,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
           this.loadLantikan(this.selectedJadual!.id);
           this.activeJawatan = jawatan;
         },
-        error: (err) => this.toast.show(err?.error?.message || 'Ralat.', 'error'),
+        error: (err) => this.toast.apiError(err, 'Ralat.'),
       });
     };
     this.showConfirmModal = true;
@@ -1994,7 +2033,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
 
   get laporanKejohananOptions(): Array<{ id: number; nama: string }> {
     const options = new Map<number, string>();
-    this.laporanList.forEach(laporan => {
+    [...this.laporanList, ...this.tertunggakList].forEach(laporan => {
       const id = Number(laporan.kejohanan_id);
       if (id && laporan.nama_kejohanan) {
         options.set(id, laporan.nama_kejohanan);
@@ -2033,6 +2072,54 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
     return list;
   }
 
+  get filteredTertunggak(): any[] {
+    let list = this.tertunggakList;
+    if (this.laporanKejohananFilter) {
+      const kejohananId = Number(this.laporanKejohananFilter);
+      list = list.filter(row => Number(row.kejohanan_id) === kejohananId);
+    }
+    const search = this.laporanSearch.trim().toLowerCase();
+    if (search) {
+      list = list.filter(row => [
+        row.nama_kejohanan,
+        row.no_perlawanan,
+        row.pasukan_home,
+        row.pasukan_away,
+        row.nama_penilai,
+        row.no_telefon,
+      ].join(' ').toLowerCase().includes(search));
+    }
+    return list;
+  }
+
+  daysSinceMatch(tarikh: string): number {
+    const match = new Date(`${tarikh}T00:00:00+08:00`).getTime();
+    const today = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }) + 'T00:00:00+08:00').getTime();
+    return Math.max(0, Math.round((today - match) / 86_400_000));
+  }
+
+  loadTertunggak(): void {
+    if (this.isDistrict) return;
+    this.loadingTertunggak = true;
+    this.api.get<any>('laporan-penilaian.php', { tertunggak: '1' }).subscribe({
+      next: (res) => { this.tertunggakList = res.data || []; this.loadingTertunggak = false; },
+      error: () => this.loadingTertunggak = false,
+    });
+  }
+
+  prepareRaFormLink(lantikanId: number): void {
+    this.api.post<{ message: string }>('lantikan-audit.php', {
+      action: 'prepare_links',
+      lantikan_id: lantikanId,
+    }).subscribe({
+      next: (res) => {
+        this.toast.show(res.message, 'success');
+        this.loadTertunggak();
+      },
+      error: (err) => this.toast.apiError(err, 'Ralat menyediakan pautan.'),
+    });
+  }
+
   clearLaporanFilters(): void {
     this.laporanSearch = '';
     this.laporanKejohananFilter = '';
@@ -2060,11 +2147,11 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
           this.laporanDetail = res.laporan;
           this.catatanAdmin = '';
         } else {
-          this.toast.error(res.message || 'Gagal memuatkan laporan.');
+          this.toast.apiError(res, 'Gagal memuatkan laporan.');
           this.showLaporanModal = false;
         }
       },
-      error: (err: any) => { this.loadingLaporanDetail = false; this.showLaporanModal = false; this.toast.error(err?.error?.message || 'Gagal memuatkan laporan.'); },
+      error: (err: any) => { this.loadingLaporanDetail = false; this.showLaporanModal = false; this.toast.apiError(err, 'Gagal memuatkan laporan.'); },
     });
   }
 
@@ -2088,10 +2175,10 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
           this.showLaporanModal = false;
           this.loadLaporan();
         } else {
-          this.toast.error(res.message || 'Gagal mengesahkan laporan.');
+          this.toast.apiError(res, 'Gagal mengesahkan laporan.');
         }
       },
-      error: (err: any) => { this.submittingSahkan = false; this.toast.error(err?.error?.message || 'Ralat semasa mengesahkan.'); },
+      error: (err: any) => { this.submittingSahkan = false; this.toast.apiError(err, 'Ralat semasa mengesahkan.'); },
     });
   }
 
@@ -2112,7 +2199,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
         this.toast.success('Pautan pengesahan Pengerusi disalin dan direkodkan.');
         this.viewLaporan(this.laporanDetail.id);
       },
-      error: (err: any) => this.toast.error(err?.error?.message || 'Pautan disalin tetapi log salinan gagal direkodkan.'),
+      error: (err: any) => this.toast.apiError(err, 'Pautan disalin tetapi log salinan gagal direkodkan.'),
     });
   }
 
@@ -2131,7 +2218,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
       },
       error: (err: any) => {
         this.submittingSahkan = false;
-        this.toast.error(err?.error?.message || 'Gagal mencuba semula penghantaran.');
+        this.toast.apiError(err, 'Gagal mencuba semula penghantaran.');
       },
     });
   }

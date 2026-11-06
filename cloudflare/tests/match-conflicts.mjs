@@ -104,7 +104,21 @@ try {
     .map(row=>row.jawatan),['Pengadil','Pengadil Ke-4']);
   const five=await attempt([[a,'Pengadil'],[b,'Penolong Pengadil 1'],[c,'Penolong Pengadil 2'],[96,'Pengadil Ke-4'],[97,'Pengadil']]);
   assert.equal(five.status,400);
-  console.log('match conflicts: duplicates and clashes flagged; PP verifies only after a noted review');
+  // A match record is for a match already played: no date after today (KL).
+  const tomorrow=new Date(Date.parse(`${today}T00:00:00Z`)+86400000).toISOString().slice(0,10);
+  const future=await refereeMatchManage(new Request(url+'pengadil-match-manage.php',{method:'POST',
+    headers:{Cookie:cookies[a],'Content-Type':'application/json'},
+    body:JSON.stringify({action:'add',tarikh:tomorrow,masa:'20:00',jenis:'Liga',tempat:'Padang Masa Depan',home_team:'Esok A',
+      away_team:'Esok B',daerah_perlawanan_id:district,officials:[{user_id:a,jawatan:'Pengadil'}]})}),env);
+  assert.equal(future.status,400);
+  assert.match((await future.json()).message,/belum berlangsung/);
+  const own=db.prepare(`INSERT INTO perlawanan(user_id,submitted_by,tarikh,jenis,tempat,home_team,away_team,jawatan)
+    VALUES(?,?,?,'Liga','Padang Sunting','Sunting A','Sunting B','Pengadil')`).run(a,a,today).lastInsertRowid;
+  const moved=await refereeMatchManage(new Request(url+'pengadil-match-manage.php',{method:'POST',
+    headers:{Cookie:cookies[a],'Content-Type':'application/json'},
+    body:JSON.stringify({action:'edit',match_id:Number(own),tarikh:tomorrow})}),env);
+  assert.equal(moved.status,400);
+  console.log('match conflicts: duplicates and clashes flagged; PP verifies only after a noted review; future dates refused');
 } finally {
   close();
 }

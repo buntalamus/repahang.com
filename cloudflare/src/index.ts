@@ -1,8 +1,19 @@
+import {privateMedia} from './private-media';
+import { enforceAccountPolicy, recordAccountActivity } from './account-policy';
+import {jfaC13} from './jfa-c13';
 import { userProfile } from './self-profile';
+import { announcementRead } from './announcement-read';
 import { adminMailboxCampaigns, processMailboxCampaigns } from './mailbox-campaigns';
 import { processDistrictAppointmentMail } from './district-appointment-mail';
 import { portalDashboard } from './portal-dashboard';
-import { currentUser, json, login, logout, session } from './auth';
+import { currentUser, json, login, logout, mobileLogin, mobileLogout, session } from './auth';
+import { mobileApk, mobileBroadcast, mobileVersion, processPushQueue, pushRegister } from './push';
+import { webPushKey, webPushSubscribe } from './webpush';
+import { appointmentLetter } from './appointment-letter';
+import { appointmentGaps } from './appointment-gaps';
+import { mobileUsage } from './mobile-usage';
+import { processMatchReminders } from './match-reminders';
+import { processWeeklyDigest } from './weekly-digest';
 import { adminUsers } from './admin-users';
 import { adminUserMasterData } from './user-master-data';
 import { adminSettings, maintenanceEnabled } from './admin-settings';
@@ -66,6 +77,8 @@ import { forgotPassword, resetPassword } from './password-reset';
 import { assessorDashboard, districtAnnouncements, districtOverview } from './role-dashboards';
 import { tournaments } from './tournaments';
 import { supportChat } from './support-chat';
+import { adminDemoOutbox, demoInfo, demoStatus } from './demo-routes';
+import { DEMO_CLOSED_MESSAGE, demoOpen, isDemo } from './demo';
 import { adminMailbox, receiveMailboxEmail } from './mailbox';
 import { syncAllShinjiruMailboxes } from './mailbox-imap';
 import type { Env } from './types';
@@ -80,7 +93,9 @@ export function qaWriteAllowed(request: Request, env: Env): boolean {
   if (!env.STAGING_QA_WRITE_TOKEN || ['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return true;
   const pathname = new URL(request.url).pathname;
   // A test user must still be able to obtain a session through the normal UI.
-  if (pathname === '/api/login.php' || pathname === '/api/logout.php') return true;
+  if (['/api/login.php', '/api/logout.php', '/api/mobile-login.php', '/api/mobile-logout.php'].includes(pathname)) {
+    return true;
+  }
   return request.headers.get('X-Refpahang-QA-Write-Token') === env.STAGING_QA_WRITE_TOKEN;
 }
 
@@ -129,95 +144,13 @@ async function districts(request: Request, env: Env): Promise<Response> {
 }
 
 
-async function privateMedia(request: Request, env: Env, pathname: string): Promise<Response> {
-  const user = await currentUser(request, env);
-  if (!user) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
-  let key: string;
-  try {
-    key = decodeURIComponent(pathname.slice('/uploads/'.length));
-  } catch {
-    return json({ error: true, message: 'Laluan fail tidak sah.' }, 400);
-  }
-  if (!key || key.includes('\\') || key.split('/').some((part) => part === '..' || part === '.')) {
-    return json({ error: true, message: 'Laluan fail tidak sah.' }, 400);
-  }
-  // Authorization and the current DB reference are checked before every cache lookup.
-  const cacheableProfile = request.method === 'GET' &&
-    (key.startsWith('profiles/') || key.startsWith('profile_') || key.startsWith('applications/gambar_'));
-  const cache: Cache | null = typeof caches === 'undefined'
-    ? null : (caches as unknown as { default: Cache }).default;
-  const cacheKey = cacheableProfile
-    ? new Request(new URL(`/__private-profile-cache/${encodeURIComponent(key)}`, request.url), { method: 'GET' })
-    : null;
-  if (user.role !== 'Admin') {
-    const reference = `/uploads/${key}`;
-    let allowed = await env.DB.prepare(`
-      SELECT 1 FROM users WHERE url_gambar_profil IN (?, ?, ?)
-      UNION ALL
-      SELECT 1 FROM permohonan WHERE user_id=? AND (
-        url_resit IN (?, ?, ?) OR url_gambar_profil IN (?, ?, ?)
-        OR payment_receipt_url IN (?, ?, ?)
-      )
-      UNION ALL
-      SELECT 1 FROM permohonan_pp WHERE user_id=? AND (
-        resit_pembayaran_path IN (?, ?, ?) OR resit_path IN (?, ?, ?)
-      )
-      UNION ALL
-      SELECT 1 FROM penilai_permohonan pen
-      JOIN permohonan p ON p.id=pen.permohonan_id
-      WHERE p.user_id=? AND (
-        pen.sijil_kursus_url IN (?, ?, ?) OR pen.sijil_kesihatan_url IN (?, ?, ?)
-      ) LIMIT 1
-    `).bind(
-      reference, reference.slice(1), key,
-      user.id, reference, reference.slice(1), key,
-      reference, reference.slice(1), key,
-      reference, reference.slice(1), key,
-      user.id, reference, reference.slice(1), key,
-      reference, reference.slice(1), key,
-      user.id, reference, reference.slice(1), key,
-      reference, reference.slice(1), key,
-    ).first();
-    // Tournament/team logos are shown to officials as well as Admin. Keep
-    // receipts and other private uploads under the owner checks above.
-    if (!allowed && key.startsWith('logos/')) {
-      allowed = await env.DB.prepare(`
-        SELECT 1 FROM kejohanan WHERE logo_kiri=? OR logo_kanan=?
-        UNION ALL SELECT 1 FROM jadual_perlawanan WHERE logo_home=? OR logo_away=?
-        UNION ALL SELECT 1 FROM pasukan_logo WHERE logo_path=? LIMIT 1
-      `).bind(reference, reference, reference, reference, reference).first();
-    }
-    if (!allowed) return json({ error: true, message: 'Akses ditolak.' }, 403);
-  }
-  if (cache && cacheKey) {
-    let cached: Response | undefined;
-    try { cached = await cache.match(cacheKey); } catch { cached = undefined; }
-    if (cached) {
-      const headers = new Headers(cached.headers);
-      headers.set('Cache-Control', 'private, no-store');
-      return new Response(cached.body, { status: cached.status, headers });
-    }
-  }
-  const object = request.method === 'HEAD' ? await env.MEDIA.head(key) : await env.MEDIA.get(key);
-  if (!object) return json({ error: true, message: 'Fail tidak dijumpai.' }, 404);
-  const headers = new Headers({ 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' });
-  object.writeHttpMetadata(headers);
-  headers.set('ETag', object.httpEtag);
-  const response = new Response(request.method === 'HEAD' ? null : (object as R2ObjectBody).body, { headers });
-  if (cache && cacheKey && response.headers.get('Content-Type')?.startsWith('image/')) {
-    const cacheHeaders = new Headers(response.headers);
-    cacheHeaders.set('Cache-Control', 'public, max-age=86400');
-    try {
-      await cache.put(cacheKey, new Response(response.clone().body, {
-        status: response.status, statusText: response.statusText, headers: cacheHeaders,
-      }));
-    } catch { /* Cache is an optimization; the R2 response is still valid. */ }
-  }
-  return response;
-}
 
 async function api(request: Request, env: Env, pathname: string, ctx: ExecutionContext): Promise<Response> {
+  if(pathname==='/api/jfa-c13.php')return jfaC13(request,env);
   if (pathname === '/api/support-chat.php') return supportChat(request, env);
+  if (pathname === '/api/demo-info.php') return demoInfo(request, env);
+  if (pathname === '/api/demo-status.php') return demoStatus(request, env);
+  if (pathname === '/api/admin-demo-outbox.php') return adminDemoOutbox(request, env, await currentUser(request, env));
   if (pathname === '/api/portal-dashboard.php') return portalDashboard(request, env);
   if (pathname === '/api/__migration-health') {
     if (request.method !== 'GET') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
@@ -230,6 +163,16 @@ async function api(request: Request, env: Env, pathname: string, ctx: ExecutionC
     if (denied) return denied;
   }
   if (pathname === '/api/login.php') return login(request, env);
+  if (pathname === '/api/mobile-login.php') return mobileLogin(request, env);
+  if (pathname === '/api/mobile-logout.php') return mobileLogout(request, env);
+  if (pathname === '/api/mobile-version.php') return mobileVersion(request, env);
+  if (pathname === '/api/push-register.php') return pushRegister(request, env);
+  if (pathname === '/api/mobile-broadcast.php') return mobileBroadcast(request, env);
+  if (pathname === '/api/webpush-key.php') return webPushKey(request, env);
+  if (pathname === '/api/webpush-subscribe.php') return webPushSubscribe(request, env);
+  if (pathname === '/api/surat-lantikan.php') return appointmentLetter(request, env);
+  if (pathname === '/api/lantikan-perlu-tindakan.php') return appointmentGaps(request, env);
+  if (pathname === '/api/mobile-usage.php') return mobileUsage(request, env);
   if (pathname === '/api/admin-mail-campaigns.php') return adminMailboxCampaigns(request, env);
   if (pathname === '/api/admin-mailbox.php') return adminMailbox(request, env);
   if (pathname === '/api/register.php') return register(request, env);
@@ -253,6 +196,13 @@ async function api(request: Request, env: Env, pathname: string, ctx: ExecutionC
   if (pathname === '/api/pp-export-referees.php') return districtRefereeExport(request, env);
   if (pathname === '/api/jadual-upload.php') return scheduleUpload(request, env);
   if (pathname === '/api/pengadil-luar-upload.php') return externalRefereesUpload(request, env);
+  if (pathname === '/api/account-activity.php') {
+    if (request.method !== 'POST') return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
+    const actor = await currentUser(request, env);
+    if (!actor) return json({ error: true, message: 'Sesi tidak sah. Sila log masuk semula.' }, 401);
+    await recordAccountActivity(env, actor.id);
+    return json({ error: false });
+  }
   if (pathname === '/api/session.php') return session(request, env);
   if (pathname === '/api/logout.php') return logout(request, env);
   if (pathname === '/api/change-password.php') return changePassword(request, env);
@@ -291,6 +241,7 @@ async function api(request: Request, env: Env, pathname: string, ctx: ExecutionC
   }
   if (pathname === '/api/admin-users-master-data.php') return adminUserMasterData(request, env);
   if (pathname === '/api/admin-users.php' && request.method !== 'GET') return adminUsersWrite(request, env);
+  if (pathname === '/api/announcement-read.php') return announcementRead(request, env);
   if (pathname === '/api/announcements.php' && request.method !== 'GET') return announcementsWrite(request, env, ctx);
   if (pathname === '/api/profil-pengadil.php' && request.method !== 'GET') {
     return refereeProfileWrite(request, env);
@@ -338,6 +289,7 @@ export default {
   },
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const pathname = new URL(request.url).pathname;
+    const requestId = crypto.randomUUID();
     if (!qaWriteAllowed(request, env)) {
       return json({ error: true, message: 'Tindakan ujian memerlukan kunci QA.' }, 403);
     }
@@ -346,6 +298,10 @@ export default {
     }
     try {
       if (pathname.startsWith('/api/')) {
+        // demo.refpahang.com serves nothing until production's Admin opens it.
+        if (isDemo(env) && pathname !== '/api/demo-info.php' && !(await demoOpen(env))) {
+          return json({ error: true, code: 'DEMO_CLOSED', message: DEMO_CLOSED_MESSAGE }, 503);
+        }
         const response=await api(request, env, pathname, ctx);
         if (response.ok && request.method==='POST' && appointmentWritesEnabled(env)
           && ['/api/lantikan.php','/api/lantikan-jawab.php','/api/lantikan-jawab-token.php',
@@ -359,21 +315,42 @@ export default {
           ctx.waitUntil(processNotificationOutbox(env,15).then(()=>undefined)
             .catch(()=>console.error('Notification outbox retry pending.')));
         }
-        return response;
+        // In-app notices written by this request are pushed to the mobile app.
+        if (response.ok && (request.method!=='GET' || pathname==='/api/tugasan.php')) {
+          ctx.waitUntil(processPushQueue(env).then(()=>undefined)
+            .catch(()=>console.error('Push queue retry pending.')));
+        }
+        const outgoing = new Response(response.body, response);
+        outgoing.headers.set('X-Request-ID', requestId);
+        if (!response.ok) {
+          console.warn('RefPahang API request rejected', { request_id: requestId,
+            method: request.method, path: pathname, status: response.status });
+        }
+        return outgoing;
       }
+      if (pathname.startsWith('/app/')) return await mobileApk(request, env);
       if (pathname.startsWith('/uploads/')) {
         if (request.method !== 'GET' && request.method !== 'HEAD') {
           return json({ error: true, message: 'Kaedah tidak dibenarkan.' }, 405);
         }
-        return await privateMedia(request, env, pathname);
+        return await privateMedia(request, env, pathname, ctx);
       }
       return env.ASSETS.fetch(request);
     } catch (error) {
-      console.error('RefPahang Worker request failed', error);
-      return json({ error: true, message: 'Ralat pelayan dalaman.' }, 500);
+      console.error('RefPahang Worker request failed', { request_id: requestId,
+        method: request.method, path: pathname, error });
+      const response = json({ error: true, code: 'INTERNAL_ERROR', request_id: requestId,
+        message: 'Pelayan tidak dapat menyelesaikan permintaan ini. Punca terperinci perlu disemak oleh Admin menggunakan nombor rujukan.',
+        next_action: 'Muat semula halaman dan semak rekod sebelum mengulangi tindakan. Jika masih gagal, hubungi Admin dengan nombor rujukan ini.' }, 500);
+      response.headers.set('X-Request-ID', requestId);
+      return response;
     }
   },
   async scheduled(_event: ScheduledController, env: Env): Promise<void> {
+    // A closed demo sends nothing, not even reminders or auto-rejections.
+    if (isDemo(env) && !(await demoOpen(env))) return;
+    try { await enforceAccountPolicy(env); }
+    catch (error) { console.error('[account-policy] scheduled check failed', error); }
     // api/kup-crew-notification-retry.php ran from the system cron in PHP.
     try {
       if (appointmentWritesEnabled(env)) {
@@ -390,7 +367,16 @@ export default {
       try { await processNotificationOutbox(env); }
       finally {
         try { await processMailboxCampaigns(env); }
-        finally { await syncAllShinjiruMailboxes(env); }
+        finally {
+          try { await processPushQueue(env); }
+          finally {
+            try { await processMatchReminders(env); }
+            finally {
+              try { await processWeeklyDigest(env); }
+              finally { await syncAllShinjiruMailboxes(env); }
+            }
+          }
+        }
       }
     }
   },

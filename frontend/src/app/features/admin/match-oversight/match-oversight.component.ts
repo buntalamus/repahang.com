@@ -412,7 +412,7 @@ export class AdminMatchOversightComponent implements OnInit, OnDestroy {
         }
         this.loading = false; this.loaded = true;
       },
-      error: () => { this.loading = false; this.loaded = true; this.toast.error('Gagal memuatkan rekod perlawanan.'); },
+      error: (apiFailure) => { this.loading = false; this.loaded = true; this.toast.apiError(apiFailure, 'Gagal memuatkan rekod perlawanan.'); },
     });
   }
 
@@ -475,12 +475,12 @@ export class AdminMatchOversightComponent implements OnInit, OnDestroy {
           this.closeModal();
           this.loadMatches();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
       error: (err: any) => {
         this.processing = false;
-        this.toast.error(err?.error?.message || 'Gagal memproses override.');
+        this.toast.apiError(err, 'Gagal memproses override.');
       },
     });
   }
@@ -509,12 +509,12 @@ export class AdminMatchOversightComponent implements OnInit, OnDestroy {
           this.closeModal();
           this.loadMatches();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
       error: (err: any) => {
         this.deleting = false;
-        this.toast.error(err?.error?.message || 'Gagal memadam perlawanan.');
+        this.toast.apiError(err, 'Gagal memadam perlawanan.');
       },
     });
   }

@@ -1,4 +1,6 @@
 import {originalEmail} from './original-templates';
+import { reachStaff } from './channels';
+import { h } from './php/format';
 import { sendRefpahangEmail } from '../mail';
 import { notifyVerifierOfRecordChange } from './match-notify';
 import type { MatchSummary } from './match-notify';
@@ -51,6 +53,13 @@ function tooOld(value: string): boolean {
   return Date.parse(`${localToday()}T00:00:00Z`) - Date.parse(`${value}T00:00:00Z`) > 14 * 86400000;
 }
 
+/** A match record is for a match already played, so it cannot be dated after today. */
+function inFuture(value: string): boolean {
+  return value > localToday();
+}
+
+const FUTURE_MESSAGE = 'Tarikh perlawanan belum berlangsung. Rekod hanya boleh dihantar selepas perlawanan.';
+
 function requiredText(value: unknown, max = 255): string | null {
   if (typeof value !== 'string') return null;
   const text = value.trim();
@@ -80,6 +89,7 @@ async function addMatch(input: Record<string, unknown>, env: Env,
   actorId: number, actorName: string): Promise<Response> {
   const date = input.tarikh;
   if (!validMatchDate(date)) return json({ error: true, message: 'Tarikh perlawanan tidak sah.' }, 400);
+  if (inFuture(date)) return json({ error: true, message: FUTURE_MESSAGE }, 400);
   if (tooOld(date)) return json({ error: true,
     message: 'Rekod perlawanan tidak boleh dihantar melebihi 14 hari dari tarikh perlawanan.' }, 400);
   const kind = requiredText(input.jenis);
@@ -187,7 +197,11 @@ async function addMatch(input: Record<string, unknown>, env: Env,
   }
   const matchIds = results.slice(0, officials.length).map((result) => result.meta.last_row_id);
   let emailsSent = 0;
+  const tgText = `<b>🆕 Perlawanan Baru Untuk Pengesahan</b>\n\n${h(actorName)} merekodkan perlawanan `
+    + `<b>${h(home)} lwn ${h(away)}</b> pada ${h(formattedDate)} di ${h(venue)}.\n\nSila semak di app atau portal.`;
   for (const approver of districtApprovers.results) {
+    // The in-app notice above reaches app users; Telegram next; email only if neither.
+    if (await reachStaff(env, approver.id, tgText)) continue;
     if (!approver.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(approver.email)) continue;
     try {
       const emailOfficials=officials.map(official=>({...official,
@@ -228,6 +242,7 @@ async function editMatch(input: Record<string, unknown>, env: Env, userId: numbe
     if (!validMatchDate(input.tarikh) || tooOld(input.tarikh)) {
       return json({ error: true, message: 'Tarikh perlawanan tidak sah atau melebihi 14 hari.' }, 400);
     }
+    if (inFuture(input.tarikh)) return json({ error: true, message: FUTURE_MESSAGE }, 400);
     fields.push('tarikh=?'); values.push(input.tarikh);
   }
   for (const field of textFields) {

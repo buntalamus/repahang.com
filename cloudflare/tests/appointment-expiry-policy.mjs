@@ -45,8 +45,9 @@ try{
   assert.equal(db.prepare("SELECT COUNT(*) n FROM worker_notification_outbox WHERE kind='auto_reject_owner' AND recipient_user_id=?").get(other).n,0);
   assert.equal(await worker.autoTolakLantikanTertunggak(env),0);
   await worker.processNotificationOutbox(env,50);
-  assert.equal(emails.filter(mail=>mail.to==='expiry.owner@example.invalid').length,2);
-  assert.ok(emails.filter(mail=>mail.to==='expiry.owner@example.invalid').every(mail=>/Perlu Lantik Pengganti/.test(mail.subject)&&mail.html.includes('/pp-daerah/lantikan')));
+  // The owner has Telegram, so the email fallback is skipped.
+  assert.equal(emails.filter(mail=>mail.to==='expiry.owner@example.invalid').length,0);
+  assert.ok(telegrams.filter(row=>row.chat==='123456789').every(row=>/Lantik Pengganti/i.test(row.text)));
   assert.equal(telegrams.filter(row=>row.chat==='123456789').length,2);
   const raced=appointment(carnival,2,6);
   hooks.beforeBatch=()=>{db.prepare("UPDATE jadual_perlawanan SET tarikh='2099-01-01' WHERE id=?").run(raced.match);};

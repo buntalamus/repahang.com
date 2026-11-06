@@ -443,7 +443,7 @@ export class PpMatchVerificationComponent implements OnInit {
           this.closeModal();
           this.loadMatches();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
       error: (err: any) => {
@@ -453,7 +453,7 @@ export class PpMatchVerificationComponent implements OnInit {
           this.selectedMatch.pertindihan = err.error.pertindihan;
           this.conflictReviewed = false;
         }
-        this.toast.error(err?.error?.message || 'Gagal memproses pengesahan.');
+        this.toast.apiError(err, 'Gagal memproses pengesahan.');
       },
     });
   }
@@ -476,12 +476,12 @@ export class PpMatchVerificationComponent implements OnInit {
           this.closeModal();
           this.loadMatches();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
       error: (err: any) => {
         this.deleting = false;
-        this.toast.error(err?.error?.message || 'Gagal memadam perlawanan.');
+        this.toast.apiError(err, 'Gagal memadam perlawanan.');
       },
     });
   }

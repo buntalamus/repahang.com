@@ -2,6 +2,7 @@ import { currentUser, json } from "./auth";
 import type { Env } from "./types";
 import { missingRefereeProfile, profileLabels } from "./referee-profile";
 import { qualificationYearsSql } from "./profile-years";
+import { appChannelSql } from './channels';
 
 export async function userProfile(
   request: Request,
@@ -24,7 +25,9 @@ export async function userProfile(
            u.url_gambar_profil, u.umur, u.jenis_pengadil, NULLIF(NULLIF(trim(u.tahun_mula_aktif),''),'0000') AS tahun_mula_aktif,
            u.saiz_baju, u.telegram_chat_id, u.password_changed,
            CASE WHEN trim(COALESCE(u.telegram_chat_id,''))<>'' THEN 1 ELSE 0 END AS telegram_linked,
-           CASE WHEN trim(COALESCE(u.telegram_chat_id,''))='' THEN 1 ELSE 0 END AS telegram_link_required,
+           ${appChannelSql('u.id')} AS app_linked,
+           CASE WHEN trim(COALESCE(u.telegram_chat_id,''))='' AND NOT ${appChannelSql('u.id')}
+             THEN 1 ELSE 0 END AS contact_channel_required,
            pbd.nama_persatuan AS persatuan_bolasepak_daerah,
            u.jenis_penilai, ${qualificationYearsSql()}
     FROM users u

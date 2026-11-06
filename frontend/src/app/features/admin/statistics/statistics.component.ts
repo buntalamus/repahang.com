@@ -5,13 +5,14 @@ import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { ProfileModalService } from '../../../core/services/profile-modal.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
+import { MobileUsageComponent } from '../../../shared/components/mobile-usage/mobile-usage.component';
 
 declare const Chart: any;
 
 @Component({
   selector: 'app-admin-statistics',
   standalone: true,
-  imports: [FormsModule, LoadingComponent],
+  imports: [FormsModule, LoadingComponent, MobileUsageComponent],
   template: `
     @if (loading) {
       <app-loading message="Memuatkan statistik..." />
@@ -74,6 +75,10 @@ declare const Chart: any;
           <div class="p-5">
 
             <!-- ── TAB: PERMOHONAN ── -->
+            @if (activeTab === 'app') {
+              <app-mobile-usage />
+            }
+
             @if (activeTab === 'permohonan') {
               <div class="space-y-6">
                 <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
@@ -578,7 +583,7 @@ declare const Chart: any;
             <!-- ── TAB: KELAYAKAN ── -->
             @if (activeTab === 'kelayakan') {
               <div class="space-y-5">
-                <p class="text-sm text-slate-600">Pengadil yang layak memohon untuk sesi <strong>{{ eligibility.year }}</strong>, mengikut syarat yang sama dikuatkuasakan semasa permohonan dihantar.</p>
+                <p class="text-sm text-slate-600">Pengadil yang layak memohon untuk sesi <strong>{{ selectedEligibilityYear }}</strong>, mengikut syarat yang sama dikuatkuasakan semasa permohonan dihantar.</p>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                   @for (list of eligibilityLists; track list.key) {
                     <button type="button" (click)="selectedEligibility = list.key; eligibilitySearch = ''" [attr.aria-pressed]="selectedEligibility === list.key"
@@ -614,7 +619,7 @@ declare const Chart: any;
                         @if (selectedEligibility === 'kelas1') {
                           <th scope="col" class="text-right px-3 py-2 font-medium">Lulus Kelas III</th>
                         }
-                        <th scope="col" class="text-left px-3 py-2 font-medium">Permohonan {{ eligibility.year }}</th>
+                        <th scope="col" class="text-left px-3 py-2 font-medium">Permohonan {{ selectedEligibilityYear }}</th>
                         <th scope="col" class="text-left px-3 py-2 font-medium">Profil</th>
                       </tr>
                     </thead>
@@ -760,6 +765,7 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
     { key: 'penilaian', label: 'Penilaian & Merit', icon: 'military_tech' },
     { key: 'peperiksaan', label: 'Peperiksaan', icon: 'school' },
     { key: 'kelayakan', label: 'Kelayakan', icon: 'how_to_reg' },
+    { key: 'app', label: 'App Mobile', icon: 'smartphone' },
   ];
 
   selectedEligibility: 'berdaftar' | 'kelas3' | 'kelas1' = 'berdaftar';
@@ -775,10 +781,16 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
       { key: 'berdaftar', label: 'Layak Memohon Pengadil Berdaftar Tahunan',
         rule: `Minimum ${r.min_matches ?? '-'} perlawanan disahkan pada ${r.match_year ?? '-'} (PP Daerah dikecualikan)` },
       { key: 'kelas3', label: 'Layak Memohon Kelas III FAM',
-        rule: `Umur ${r.kelas3_min_age ?? '-'}–${r.kelas3_max_age ?? '-'} tahun pada ${this.eligibility.year ?? '-'}; belum lulus Kelas III` },
+        rule: `Umur ${r.kelas3_min_age ?? '-'}–${r.kelas3_max_age ?? '-'} tahun pada ${this.eligibility.exam_year ?? this.eligibility.year ?? '-'}; belum lulus Kelas III` },
       { key: 'kelas1', label: 'Layak Memohon Ujian Kelas I FAM',
         rule: `Umur ${r.kelas1_max_age ?? '-'} tahun ke bawah; lulus Kelas III pada ${r.kelas3_deadline ?? '-'} atau sebelumnya` },
     ];
+  }
+
+  /** Pendaftaran Tahunan is for the coming session; Kelas III / Kelas I for the current year. */
+  get selectedEligibilityYear(): number | string {
+    return this.selectedEligibility === 'berdaftar' ? this.eligibility.year ?? '-'
+      : this.eligibility.exam_year ?? this.eligibility.year ?? '-';
   }
 
   get selectedEligibilityLabel(): string {
@@ -823,9 +835,9 @@ export class AdminStatisticsComponent implements OnInit, OnDestroy {
         this.loading = false;
         setTimeout(() => this.renderActiveCharts(), 100);
       },
-      error: () => {
+      error: (apiFailure) => {
         this.loading = false;
-        this.toast.error('Gagal memuatkan statistik.');
+        this.toast.apiError(apiFailure, 'Gagal memuatkan statistik.');
       },
     });
   }

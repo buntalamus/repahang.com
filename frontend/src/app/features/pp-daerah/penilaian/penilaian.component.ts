@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { FormsModule } from '@angular/forms';
 import { ProfileModalService } from '../../../core/services/profile-modal.service';
+import { ToastService } from '../../../core/services/toast.service';
 
 @Component({
   selector: 'app-pp-penilaian',
@@ -312,7 +313,7 @@ export class PpPenilaianComponent implements OnInit {
   maxMarkah: number | null = null;
   minMarkah: number | null = null;
 
-  constructor(private http: HttpClient, public profileModal: ProfileModalService) {}
+  constructor(private http: HttpClient, public profileModal: ProfileModalService, private toast: ToastService) {}
 
   ngOnInit(): void {
     this.loadReports();
@@ -364,8 +365,8 @@ export class PpPenilaianComponent implements OnInit {
       next: (res) => {
         this.selectedReport = res.laporan;
       },
-      error: () => {
-        alert('Gagal memuatkan laporan.');
+      error: (error: unknown) => {
+        this.toast.apiError(error, 'Gagal memuatkan laporan penilaian.');
       },
     });
   }

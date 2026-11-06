@@ -1,3 +1,4 @@
+import { setAccountStatus, DEFAULT_INACTIVE_REASON } from './account-access';
 import { normalizeProfileInput } from './profile-contract';
 /**
  * Write half of api/admin-users.php (POST create, PUT update, PATCH password
@@ -8,6 +9,7 @@ import { normalizeProfileInput } from './profile-contract';
  */
 import { hash } from 'bcryptjs';
 import { currentUser, json } from './auth';
+import { SHARED_ACCOUNT_MESSAGE, isSharedDemoUserId } from './demo';
 import { boundedJson } from './request';
 import { phpInt } from './lantikan-write';
 import { h } from './php/format';
@@ -16,7 +18,8 @@ import {
   emailInfoTable, emailPara, sendEmail,
 } from './php/email';
 import type { Env } from './types';
-import { notifyAccountDeactivated, notifyAccountUpdated, notifyOldEmailAddress } from './account-notify';
+import { notifyAccountUpdated, notifyOldEmailAddress } from './account-notify';
+import { wroteRow } from './d1-changes';
 
 const VALID_ROLES = ['Pengadil', 'Penilai', 'PP Daerah', 'Admin'];
 // PHP's reset_password and resend_notification both set this fixed value.
@@ -131,6 +134,7 @@ async function updateUser(request: Request, env: Env): Promise<Response> {
   const input = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as Input;
   const userId = phpInt(input.userId ?? 0);
   if (!userId) return json({ error: true, message: 'ID pengguna diperlukan.' }, 400);
+  if (await isSharedDemoUserId(env, userId)) return json({ error: true, message: SHARED_ACCOUNT_MESSAGE }, 403);
   const namaPenuh = text(input, 'nama_penuh');
   const email = text(input, 'email');
   const role = text(input, 'user_role');
@@ -186,16 +190,39 @@ async function updateUser(request: Request, env: Env): Promise<Response> {
   return json({ error: false, message: 'Pengguna berjaya dikemaskini.', notification_sent: notified });
 }
 
-async function passwordAction(request: Request, env: Env): Promise<Response> {
+async function passwordAction(request: Request, env: Env, adminId: number): Promise<Response> {
   const parsed = await boundedJson(request);
   if (parsed instanceof Response) return parsed;
   const input = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as Input;
   const userId = phpInt(input.userId ?? 0);
   const action = String(input.action ?? '');
+  if (action === 'revoke_telegram') {
+    if (!userId) return json({ error: true, message: 'ID pengguna diperlukan.' }, 400);
+    const results = await env.DB.batch([
+      env.DB.prepare(`UPDATE users SET telegram_chat_id=NULL,tg_link_token=NULL,updated_at=datetime('now','+8 hours')
+        WHERE id=? AND trim(COALESCE(CAST(telegram_chat_id AS TEXT),''))<>''
+        AND EXISTS (SELECT 1 FROM users actor WHERE actor.id=? AND actor.role='Admin' AND actor.aktif=1)`)
+        .bind(userId, adminId),
+      env.DB.prepare(`INSERT INTO activity_log(user_id,action,table_name,record_id,description,created_at)
+        SELECT ?,'revoke_telegram_link','users',?,
+          'Pautan Telegram pengguna ID '||?||' dibatalkan oleh Admin.',datetime('now','+8 hours')
+        WHERE changes()>0`)
+        .bind(adminId, userId, userId),
+    ]);
+    if (!wroteRow(results[0])) {
+      return json({ error: true, message: 'Pautan Telegram sudah berubah atau sesi Admin tidak lagi sah. Muat semula dan cuba lagi.' }, 409);
+    }
+    return json({ error: false, message: 'Pautan Telegram berjaya dibatalkan.' });
+  }
+  if (action === 'set_account_status') {
+    if (![0, 1].includes(input.aktif as number)) return json({ error: true, message: 'Status akaun tidak sah.' }, 400);
+    return setAccountStatus(env, adminId, Number(input.userId), Number(input.aktif), input.reason);
+  }
   if (!userId || !action) return json({ error: true, message: 'ID pengguna dan aksi diperlukan.' }, 400);
   if (action !== 'reset_password' && action !== 'resend_notification') {
     return json({ error: true, message: 'Aksi tidak sah.' }, 400);
   }
+  if (await isSharedDemoUserId(env, userId)) return json({ error: true, message: SHARED_ACCOUNT_MESSAGE }, 403);
   const user = await env.DB.prepare('SELECT nama_penuh, email, role, jenis_pengadil FROM users WHERE id=?')
     .bind(userId).first<{ nama_penuh: string; email: string; role: string; jenis_pengadil: string | null }>();
   if (!user) return json({ error: true, message: 'Pengguna tidak dijumpai.' }, 404);
@@ -219,24 +246,7 @@ async function deactivateUser(request: Request, env: Env, adminId: number): Prom
   const input = (parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}) as Input;
   const userId = phpInt(input.userId ?? new URL(request.url).searchParams.get('id') ?? 0);
   if (!userId) return json({ error: true, message: 'ID pengguna diperlukan.' }, 400);
-  const user = await env.DB.prepare('SELECT id, nama_penuh, email, telegram_chat_id, aktif FROM users WHERE id=?')
-    .bind(userId).first<{ id: number; nama_penuh: string; email: string | null;
-      telegram_chat_id: string | number | null; aktif: number }>();
-  if (!user) return json({ error: true, message: 'Pengguna tidak dijumpai.' }, 404);
-  if (userId === adminId) {
-    return json({ error: true, message: 'Anda tidak boleh memadam akaun sendiri.' }, 400);
-  }
-  // Sessions of an inactive account are already refused by currentUser().
-  await env.DB.batch([
-    env.DB.prepare('UPDATE users SET aktif=0 WHERE id=?').bind(userId),
-    env.DB.prepare(`INSERT INTO activity_log(user_id,action,table_name,record_id,description,created_at)
-      VALUES(?,'deactivate_user','users',?,?,datetime('now','+8 hours'))`)
-      .bind(adminId, userId, `Akaun ${user.nama_penuh} dinyahaktifkan oleh Admin; sejarah dikekalkan.`),
-  ]);
-  const notified = Number(user.aktif) === 1 && await notifyAccountDeactivated(env,
-    { name: user.nama_penuh, email: user.email, telegramChatId: user.telegram_chat_id });
-  return json({ error: false, message: 'Akaun pengguna dinyahaktifkan. Semua sejarah dikekalkan.',
-    deletedUser: user.nama_penuh, notification_sent: notified });
+  return setAccountStatus(env, adminId, userId, 0, input.reason ?? DEFAULT_INACTIVE_REASON);
 }
 
 export async function adminUsersWrite(request: Request, env: Env): Promise<Response> {
@@ -252,7 +262,7 @@ export async function adminUsersWrite(request: Request, env: Env): Promise<Respo
   if (request.method === 'POST' && override === 'DELETE') return deactivateUser(request, env, admin.id);
   if (request.method === 'POST') return createUser(request, env);
   if (request.method === 'PUT') return updateUser(request, env);
-  if (request.method === 'PATCH') return passwordAction(request, env);
+  if (request.method === 'PATCH') return passwordAction(request, env, admin.id);
   if (request.method === 'DELETE') return deactivateUser(request, env, admin.id);
   return json({ error: true, message: 'Method not allowed' }, 405);
 }
