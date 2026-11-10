@@ -94,6 +94,19 @@ try {
   assert.match(elsewhere.message,/Pegawai bertembung/);
   assert.equal((await flagged(first.match_group_id))[0].jenis,'bertembung');
 
+  // The PP Daerah can list only the doubtful matches, and sees their count under any status.
+  const ppList=async(status)=>(await (await districtMatchVerification(new Request(
+    url+`pp-verify-match.php?status=${status}&per_page=100`,{headers:{Cookie:ppCookie}}),env)).json());
+  const doubtfulList=await ppList('doubtful');
+  const doubtfulGroups=doubtfulList.matches.map(m=>m.match_group_id);
+  assert.ok(doubtfulGroups.includes(first.match_group_id)&&doubtfulGroups.includes(elsewhere.match_group_id));
+  assert.ok(doubtfulList.matches.every(m=>m.pertindihan.length>0&&['Belum Disahkan',null,''].includes(m.status_pp)));
+  const pendingList=await ppList('pending');
+  assert.ok(pendingList.matches.some(m=>m.pertindihan.length===0),'clean waiting matches are left out');
+  for (const status of ['','pending','verified','doubtful']) {
+    assert.equal((await ppList(status)).statistics.doubtful,doubtfulList.pagination.total_items);
+  }
+
   // Verification is blocked until the review is confirmed with a note.
   let response=await decide(elsewhere.match_group_id,{action:'verify'});
   assert.equal(response.status,409);

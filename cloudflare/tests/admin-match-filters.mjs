@@ -43,6 +43,9 @@ try {
   legacy(990104,'QA-CLEAN','2032-03-01','17:30','Raub FC','Lipis FC','Padang Milo','Belum Disahkan',officials[2].id);
   legacy(990105,'QA-OLD-REJECT','2032-03-02','09:00','Maran FC','Jerantut FC','Padang A','Tidak Disahkan',officials[0].id);
   legacy(990106,'QA-AFTER-REJECT','2032-03-02','10:00','Jerantut FC','Maran FC','Padang B','Belum Disahkan',officials[2].id);
+  // Legacy records without team names are never compared as the same match.
+  legacy(990107,'QA-NAMELESS-A','2032-03-03',null,'','','KV Tengku Ampuan Afzan','Belum Disahkan',officials[0].id);
+  legacy(990108,'QA-NAMELESS-B','2032-03-03',null,null,null,'KV Tengku Ampuan Afzan','Belum Disahkan',officials[1].id);
   r=await call('year=2032');
   assert.equal(r.body.statistics.doubtful,2,'duplicate and clash are counted; rejected records do not count');
   r=await call('year=2032&status=doubtful');

@@ -111,6 +111,7 @@ async function recordedMatchNotice(env: Env, date: string, home: string, away: s
     WHERE substr(p.tarikh,1,10)=? AND COALESCE(p.status_pp,'')<>'Tidak Disahkan'
     ORDER BY p.id`).bind(date).all<RecordedRow>()).results;
   const wanted = teamPair(home, away);
+  if (wanted.startsWith('|')) return null; // a name without letters or digits cannot be compared
   const same = rows.filter((row) => teamPair(row.home_team, row.away_team) === wanted);
   if (!same.length) return null;
   const crewKey = (row: RecordedRow) => row.match_group_id ? `g:${row.match_group_id}`

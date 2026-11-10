@@ -28,7 +28,9 @@ async function list(request: Request, env: Env, persatuanId: number, districtId:
   const page = Math.max(1, Math.min(100_000, Number(query.get('page')) || 1));
   const perPage = Math.max(1, Math.min(100, Number(query.get('per_page')) || 20));
   const status = query.get('status') ?? '';
-  const condition = status === 'pending' ? " AND (p.status_pp IS NULL OR p.status_pp='' OR p.status_pp='Belum Disahkan')"
+  // Doubtful (Meragukan) lists the waiting matches that duplicate or clash with another record.
+  const waitingOnly = status === 'pending' || status === 'doubtful';
+  const condition = waitingOnly ? " AND (p.status_pp IS NULL OR p.status_pp='' OR p.status_pp='Belum Disahkan')"
     : status === 'verified' ? " AND p.status_pp='Disahkan'"
       : status === 'rejected' ? " AND p.status_pp='Tidak Disahkan'" : '';
   const access = scope(persatuanId, districtId);
@@ -75,7 +77,7 @@ async function list(request: Request, env: Env, persatuanId: number, districtId:
     COUNT(DISTINCT CASE WHEN p.status_pp='Disahkan' THEN COALESCE(p.match_group_id,'single_' || p.id) END) AS verified,
     COUNT(DISTINCT CASE WHEN p.status_pp='Tidak Disahkan' THEN COALESCE(p.match_group_id,'single_' || p.id) END) AS rejected
     FROM perlawanan p JOIN users u ON u.id=p.user_id WHERE ${access.sql}`)
-    .bind(...access.params).first();
+    .bind(...access.params).first<Record<string, unknown>>();
   // Doubtful records are flagged while they wait for verification.
   const waiting: MatchRecord[] = rows.results.filter((row) => pending(row.status_pp)).map((row) => ({
     id: Number(row.id), user_id: Number(row.pengadil_id), tarikh: String(row.tarikh),
@@ -84,9 +86,19 @@ async function list(request: Request, env: Env, persatuanId: number, districtId:
     match_group_id: row.match_group_id as string | null }));
   const conflicts = await findMatchConflicts(env, waiting);
   for (const [key, group] of grouped) group.pertindihan = conflicts.get(key) ?? [];
-  const all = [...grouped.values()];
+  let doubtful = conflicts.size;
+  if (!waitingOnly) {
+    // The list holds other statuses too, so count the doubtful waiting matches separately.
+    const pendingRows = await env.DB.prepare(`SELECT p.id,p.user_id,p.tarikh,p.masa,p.tempat,p.home_team,
+        p.away_team,p.match_group_id FROM perlawanan p JOIN users u ON u.id=p.user_id
+      WHERE ${access.sql} AND (p.status_pp IS NULL OR p.status_pp='' OR p.status_pp='Belum Disahkan')`)
+      .bind(...access.params).all<MatchRecord>();
+    doubtful = (await findMatchConflicts(env, pendingRows.results)).size;
+  }
+  const all = [...grouped.values()].filter((group) =>
+    status !== 'doubtful' || (group.pertindihan as unknown[]).length > 0);
   return json({ error: false, matches: all.slice((page - 1) * perPage, page * perPage),
-    statistics: stats,pagination: { page,per_page: perPage,
+    statistics: { ...stats, doubtful },pagination: { page,per_page: perPage,
       total_pages: Math.ceil(all.length / perPage),total_items: all.length } });
 }
 

@@ -66,7 +66,9 @@ export async function findMatchConflicts(env: Env, records: MatchRecord[]): Prom
       const first = rows[0];
       if (otherKey(other) === key || rows.some((item) => item.id === other.id)) continue;
       if (day(first.tarikh) !== day(other.tarikh)) continue;
-      const duplicate = teamPair(first.home_team, first.away_team) === teamPair(other.home_team, other.away_team);
+      // Legacy records without team names cannot be compared as the same match.
+      const teams = teamPair(first.home_team, first.away_team);
+      const duplicate = !teams.startsWith('|') && teams === teamPair(other.home_team, other.away_team);
       const official = rows.find((item) => item.user_id === other.user_id);
       const clash = !!official && time(official.masa) !== '' && time(official.masa) === time(other.masa);
       if (!duplicate && !clash) continue;

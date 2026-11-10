@@ -133,5 +133,15 @@
       "Admin: penapis baharu Meragukan dalam Rekod Perlawanan untuk rekod berganda atau pegawai bertembung, beserta butiran rekod yang bertindih.",
       "Admin: butang Tolak sebagai rekod berganda menolak rekod dengan justifikasi yang diisi secara automatik."
     ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 10,
+    "date": "2026-11-10",
+    "changes": [
+      "PP Daerah: penapis baharu Meragukan dalam Semakan Perlawanan, dengan bilangan rekod berganda atau pegawai bertembung yang menunggu semakan.",
+      "PP Daerah: lencana Berganda atau Bertembung pada setiap rekod, dan butang Tolak sebagai rekod berganda yang mengisi catatan secara automatik.",
+      "Rekod lama tanpa nama pasukan tidak lagi ditanda sebagai rekod berganda."
+    ]
   }
 ]

@@ -15,7 +15,7 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
       <app-loading message="Memuatkan senarai perlawanan..." />
     } @else {
       <!-- Stats -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
         <div class="bg-white rounded-xl p-4 border border-slate-200">
           <p class="text-2xl font-bold text-slate-900">{{ stats.total || 0 }}</p>
           <p class="text-xs text-slate-500">Jumlah</p>
@@ -35,7 +35,15 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
           <p class="text-2xl font-bold text-red-600">{{ stats.rejected || 0 }}</p>
           <p class="text-xs text-red-600">Ditolak</p>
         </button>
+        <button (click)="setFilter('doubtful')" class="bg-white rounded-xl p-4 border text-left transition"
+          [class]="filterStatus === 'doubtful' ? 'border-orange-400 ring-1 ring-orange-200' : 'border-slate-200 hover:border-orange-300'">
+          <p class="text-2xl font-bold text-orange-700">{{ stats.doubtful || 0 }}</p>
+          <p class="text-xs text-orange-700">Meragukan</p>
+        </button>
       </div>
+      @if (filterStatus === 'doubtful') {
+        <p class="text-xs text-slate-600 mb-4">Rekod menunggu yang <b>berganda</b> (tarikh dan kedua-dua pasukan sama dengan rekod lain) atau <b>bertembung</b> (pegawai sama pada masa yang sama di perlawanan lain). Buka rekod untuk melihat rekod yang bertindih dan ambil tindakan.</p>
+      }
 
       <!-- Filter Bar -->
       <div class="flex flex-col sm:flex-row gap-3 mb-4">
@@ -103,6 +111,7 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
                     @if (filterStatus === 'pending') { Tiada perlawanan menunggu pengesahan. }
                     @else if (filterStatus === 'verified') { Tiada perlawanan yang disahkan. }
                     @else if (filterStatus === 'rejected') { Tiada perlawanan yang ditolak. }
+                    @else if (filterStatus === 'doubtful') { Tiada perlawanan meragukan. }
                     @else { Tiada rekod perlawanan ditemui. }
                   </td>
                 </tr>
@@ -230,9 +239,11 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
               <div class="rounded-lg border border-orange-300 bg-orange-50 p-3 space-y-2" role="alert">
                 <p class="text-xs font-bold text-orange-900 flex items-center gap-1">
                   <span class="material-icons text-sm" aria-hidden="true">warning</span>
-                  {{ hasDuplicate(selectedMatch) ? 'Kemungkinan rekod berganda' : 'Pegawai bertembung' }}
+                  {{ hasDuplicate(selectedMatch) ? 'Rekod berganda' : 'Pegawai bertembung' }}
                 </p>
-                <p class="text-xs text-orange-900">Rekod berikut mempunyai tarikh dan masa yang sama dengan pegawai yang sama. Semak sebelum mengesahkan.</p>
+                <p class="text-xs text-orange-900">{{ hasDuplicate(selectedMatch)
+                  ? 'Perlawanan yang sama (tarikh dan kedua-dua pasukan) telah direkodkan dalam rekod berikut. Semak sebelum mengambil tindakan.'
+                  : 'Pegawai yang sama mempunyai rekod lain pada tarikh dan masa yang sama. Semak sebelum mengesahkan.' }}</p>
                 @for (c of selectedMatch.pertindihan; track $index) {
                   <div class="rounded border border-orange-200 bg-white px-2.5 py-2 text-xs text-slate-700">
                     <p class="font-semibold text-slate-900">{{ c.home_team }} vs {{ c.away_team }}
@@ -241,6 +252,12 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
                     <p>{{ c.sumber }} · {{ c.status_pp }}</p>
                     <p>Pegawai: {{ c.pegawai.join(', ') }}</p>
                   </div>
+                }
+                @if (hasDuplicate(selectedMatch)) {
+                  <button (click)="rejectDuplicate()" [disabled]="processing"
+                    class="w-full px-3 py-1.5 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg disabled:opacity-50">
+                    {{ processing ? 'Memproses...' : 'Tolak sebagai rekod berganda' }}
+                  </button>
                 }
                 <label class="flex items-start gap-2 text-xs text-orange-900 font-medium">
                   <input type="checkbox" [(ngModel)]="conflictReviewed" class="mt-0.5" />
@@ -325,7 +342,7 @@ export class PpMatchVerificationComponent implements OnInit {
 
   ngOnInit(): void {
     const status = this.route.snapshot.queryParamMap.get('status');
-    if (status && ['pending','verified','rejected'].includes(status)) this.filterStatus = status;
+    if (status && ['pending','verified','rejected','doubtful'].includes(status)) this.filterStatus = status;
     this.loadMatches();
   }
 
@@ -422,6 +439,16 @@ export class PpMatchVerificationComponent implements OnInit {
   getStatusLabel(status: string): string {
     if (!status || status === 'Belum Disahkan') return 'Menunggu';
     return status;
+  }
+
+  /** Rejects with a standard note naming the record this one duplicates. */
+  rejectDuplicate(): void {
+    const other = (this.selectedMatch?.pertindihan || []).find((c: any) => c.jenis === 'berganda');
+    if (!other) return;
+    const day = String(other.tarikh).split('-').reverse().join('/');
+    const note = `Rekod berganda: perlawanan ${other.home_team} vs ${other.away_team} pada ${day} telah direkodkan (${other.sumber}; pegawai: ${other.pegawai.join(', ') || '-'}).`;
+    this.actionNotes = this.actionNotes.trim() ? `${note} ${this.actionNotes.trim()}` : note;
+    this.submitAction('reject');
   }
 
   submitAction(action: 'verify' | 'reject' | 'revert'): void {

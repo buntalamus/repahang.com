@@ -82,6 +82,7 @@ class _PengesahanViewState extends State<PengesahanView> {
           FilterChips<String>(
             options: [
               ('pending', 'Menunggu (${stats['pending'] ?? 0})'),
+              ('doubtful', 'Meragukan (${stats['doubtful'] ?? 0})'),
               ('verified', 'Disahkan (${stats['verified'] ?? 0})'),
               ('rejected', 'Ditolak (${stats['rejected'] ?? 0})'),
             ],
@@ -94,7 +95,9 @@ class _PengesahanViewState extends State<PengesahanView> {
           const SizedBox(height: 8),
           if (matches.isEmpty)
             EmptyState(icon: Icons.fact_check_outlined,
-                title: _filter == 'pending' ? 'Tiada rekod menunggu pengesahan' : 'Tiada rekod'),
+                title: _filter == 'pending'
+                    ? 'Tiada rekod menunggu pengesahan'
+                    : _filter == 'doubtful' ? 'Tiada rekod meragukan' : 'Tiada rekod'),
           for (final m in matches) _card(m),
         ]);
       },
@@ -122,9 +125,10 @@ class _PengesahanViewState extends State<PengesahanView> {
                 style: const TextStyle(fontSize: 13, color: AppColors.muted)),
             Text('${officials.length} pegawai', style: const TextStyle(fontSize: 13, color: AppColors.muted)),
             if (conflicts)
-              const Padding(
-                padding: EdgeInsets.only(top: 6),
-                child: Pill('Pertindihan perlu disemak', (Tw.orange50, Tw.orange700), icon: Icons.warning_amber_rounded),
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Pill((m['pertindihan'] as List).any((c) => c is Map && c['jenis'] == 'berganda') ? 'Berganda' : 'Bertembung',
+                    (Tw.orange50, Tw.orange700), icon: Icons.warning_amber_rounded),
               ),
           ]),
         ),
@@ -156,6 +160,17 @@ class _VerifyFormState extends State<_VerifyForm> {
   void dispose() {
     _notes.dispose();
     super.dispose();
+  }
+
+  /// Rejects with a standard note naming the record this one duplicates.
+  void _rejectDuplicate() {
+    final other = _conflicts.firstWhere((c) => c['jenis'] == 'berganda');
+    final day = text(other['tarikh']).split('-').reversed.join('/');
+    final note = 'Rekod berganda: perlawanan ${text(other['home_team'])} vs ${text(other['away_team'])} pada $day '
+        'telah direkodkan (${text(other['sumber'])}; pegawai: ${(other['pegawai'] as List? ?? []).join(', ')}).';
+    final extra = _notes.text.trim();
+    _notes.text = extra.isEmpty ? note : '$note $extra';
+    _submit('reject');
   }
 
   Future<void> _submit(String action) async {
@@ -226,7 +241,7 @@ class _VerifyFormState extends State<_VerifyForm> {
             Row(children: [
               const Icon(Icons.warning_amber_rounded, color: Tw.orange700),
               const SizedBox(width: 8),
-              Text(duplicate ? 'Kemungkinan rekod berganda' : 'Pegawai bertembung',
+              Text(duplicate ? 'Rekod berganda' : 'Pegawai bertembung',
                   style: const TextStyle(fontWeight: FontWeight.w700, color: Tw.orange700)),
             ]),
             for (final c in _conflicts)
@@ -239,6 +254,17 @@ class _VerifyFormState extends State<_VerifyForm> {
                   style: const TextStyle(fontSize: 13, color: Tw.slate700, height: 1.4),
                 ),
               ),
+            if (duplicate && _pending) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: Tw.orange600, foregroundColor: Colors.white),
+                  onPressed: _busy ? null : _rejectDuplicate,
+                  child: const Text('Tolak sebagai rekod berganda'),
+                ),
+              ),
+            ],
             const SizedBox(height: 4),
             Row(children: [
               Checkbox(value: _reviewed, onChanged: (v) => setState(() => _reviewed = v ?? false)),
