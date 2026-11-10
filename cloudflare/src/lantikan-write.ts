@@ -805,13 +805,22 @@ async function notifyAll(env: Env, input: Record<string, unknown>, user: User, m
   let inactiveMatchCount = 0;
   let changedMatchCount = 0;
   const ppNotified = new Set<string>();
-  // Each official costs about a dozen D1 queries plus an SMTP session, and a
-  // Worker request allows 1,000 D1 queries: send in batches and return the rest.
+  // Each official costs about a dozen D1 queries plus an SMTP session and a
+  // Telegram call (~3 s in production), and a Worker request allows 1,000 D1
+  // queries. Send in batches and return the rest so each response arrives well
+  // within the portal's request timeout: no new match starts once the batch has
+  // used its query share or its time budget. A started match always finishes.
   const OFFICIALS_PER_REQUEST = 40;
+  const BATCH_TIME_BUDGET_MS = 12_000;
+  const batchStartedAt = Date.now();
   let officialsDispatched = 0;
   let remaining: number[] = [];
   for (const [index, jadualId] of jadualIds.entries()) {
-    if (officialsDispatched >= OFFICIALS_PER_REQUEST) { remaining = jadualIds.slice(index); break; }
+    if (officialsDispatched >= OFFICIALS_PER_REQUEST
+      || (officialsDispatched > 0 && Date.now() - batchStartedAt >= BATCH_TIME_BUDGET_MS)) {
+      remaining = jadualIds.slice(index);
+      break;
+    }
     if (!(await getAppointmentSlotValidation(env, jadualId)).valid) { incompleteMatchCount++; continue; }
     const renotify = await env.DB.prepare(`SELECT COUNT(*) AS n FROM lantikan_pengadil
       WHERE jadual_id=? AND notif_hantar=1 AND status='Belum Jawab'`).bind(jadualId).first<{ n: number }>();

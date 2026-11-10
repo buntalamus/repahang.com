@@ -173,6 +173,31 @@ try {
   assert.ok(one('SELECT published_at FROM lantikan_pengadil WHERE jadual_id=?',jid2).published_at);
   assert.equal(one('SELECT published_at FROM lantikan_pengadil WHERE jadual_id=?',incomplete).published_at,null);
 
+  // Slow delivery ends the batch after the time budget; the rest is returned
+  // and a follow-up request with those ids sends them.
+  const slowA=match(),slowB=match();
+  for(const jid of [slowA,slowB]) for(let i=0;i<3;i++) await assign(jid,i);
+  const realNow=Date.now;
+  let skew=0;
+  Date.now=()=>realNow()+skew;
+  worker.setEmailSenderForTests(async(...args)=>{messages.push(['email',...args]);skew+=5000;return delivered;});
+  try {
+    const first=await call({action:'notify_all',kejohanan_id:tournament,jadual_ids:[slowA,slowB]});
+    assert.equal(first.status,200,first.body.message);
+    assert.equal(first.body.matches_processed,1,'second match waits for the next batch');
+    assert.equal(first.body.total_assignments,3);
+    assert.deepEqual(first.body.remaining_jadual_ids,[slowB]);
+    assert.equal(one('SELECT COUNT(*) AS n FROM lantikan_pengadil WHERE jadual_id=? AND published_at IS NOT NULL',slowB).n,0);
+    const rest=await call({action:'notify_all',kejohanan_id:tournament,jadual_ids:first.body.remaining_jadual_ids});
+    assert.equal(rest.status,200,rest.body.message);
+    assert.equal(rest.body.matches_processed,1);
+    assert.deepEqual(rest.body.remaining_jadual_ids,[]);
+    assert.equal(one('SELECT COUNT(*) AS n FROM lantikan_pengadil WHERE jadual_id=? AND published_at IS NOT NULL',slowB).n,3);
+  } finally {
+    Date.now=realNow;
+    worker.setEmailSenderForTests(async(...args)=>{messages.push(['email',...args]);return delivered;});
+  }
+
   // A changed candidate during publication rolls back the entire publication.
   const race=match();
   for(let i=0;i<3;i++) await assign(race,i);

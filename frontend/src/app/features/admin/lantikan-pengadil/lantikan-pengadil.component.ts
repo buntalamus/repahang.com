@@ -14,6 +14,12 @@ import { matchesJadualSearch } from './jadual-search';
 import { teamRegionCaution, type RefereeOrigin, type MatchTeamOrigins } from './team-region-caution';
 import * as XLSX from 'xlsx';
 
+/**
+ * Notification sends email and Telegram to each official in turn (~3 s each),
+ * so a large match or a bulk batch outlasts the default request timeout.
+ */
+const NOTIFY_TIMEOUT_MS = 90_000;
+
 type DirectLinkType = 'accept_url' | 'reject_url' | 'ra_form_url' | 'telegram_link_url';
 type ManualDeliveryType = 'appointment' | 'ra_form' | 'telegram_link';
 
@@ -1816,7 +1822,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
     this.confirmBtnText = 'Hantar';
     this.confirmFn = () => {
       this.sendingNotif = true;
-      this.api.post<any>('lantikan.php', { action: 'notify', jadual_id: this.selectedJadual.id }).subscribe({
+      this.api.post<any>('lantikan.php', { action: 'notify', jadual_id: this.selectedJadual.id }, NOTIFY_TIMEOUT_MS).subscribe({
         next: (res) => { this.toast.show(res.message, 'success'); this.sendingNotif = false; this.loadLantikan(this.selectedJadual!.id); },
         error: (err) => { this.toast.apiError(err, 'Ralat.'); this.sendingNotif = false; },
       });
@@ -1878,7 +1884,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
       action: 'notify_all',
       kejohanan_id: this.selectedKejohananId,
       jadual_ids: ids,
-    }).subscribe({
+    }, NOTIFY_TIMEOUT_MS).subscribe({
       next: (res) => {
         for (const key of ['total_assignments', 'matches_processed', 'email_sent', 'tg_sent', 'tg_skipped',
           'delivery_failed', 'matches_skipped_incomplete', 'matches_skipped_started', 'matches_skipped_channel', 'matches_skipped_inactive']) {
@@ -1936,7 +1942,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
     this.confirmBtnText = 'Hantar';
     this.confirmFn = () => {
       this.sendingNotif = true;
-      this.api.post<any>('lantikan.php', { action: 'notify', jadual_id: jadualId }).subscribe({
+      this.api.post<any>('lantikan.php', { action: 'notify', jadual_id: jadualId }, NOTIFY_TIMEOUT_MS).subscribe({
         next: (res) => {
           this.toast.show(res.message, 'success');
           this.sendingNotif = false;
