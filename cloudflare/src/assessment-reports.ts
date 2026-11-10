@@ -1,5 +1,7 @@
+import { publishedAppointmentSql } from './appointment-publication';
 import { currentUser, json } from './auth';
 import criteria from './kriteria-penilaian.json';
+import { baseUrl } from './php/email';
 import type { Env } from './types';
 
 type Row = Record<string, unknown>;
@@ -148,7 +150,9 @@ export async function assessmentReports(request: Request, env: Env): Promise<Res
   if (params.has('penilai')) {
     const result = await env.DB.prepare(`
       SELECT lp.id,lp.jadual_id,lp.lantikan_id,lp.tahap_kesukaran,lp.ulasan_keseluruhan,
-        lp.status,lp.tarikh_hantar,lp.catatan_admin,lp.created_at,
+        lp.status,lp.tarikh_hantar,lp.catatan_admin,lp.created_at,lp.cuaca,
+        lp.skor_ht_home,lp.skor_ht_away,lp.skor_ft_home,lp.skor_ft_away,
+        lp.skor_et_home,lp.skor_et_away,lp.skor_ps_home,lp.skor_ps_away,
         jp.no_perlawanan,jp.tarikh,jp.masa,jp.pasukan_home,jp.pasukan_away,jp.tempat,
         k.nama AS nama_kejohanan
       FROM laporan_penilaian lp JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id
@@ -192,6 +196,10 @@ export async function assessmentReports(request: Request, env: Env): Promise<Res
     `).bind(jadualId,admin ? 1 : 0,user.id).all<Row>();
     return json({error:false,data:await attachDetails(env,result.results,admin)});
   }
+  if (params.has('tertunggak')) {
+    if (!admin) return json({error:true,message:'Akses ditolak.'},403);
+    return outstandingReports(env);
+  }
   if (!admin) return json({error:true,message:'Parameter tidak sah.'},400);
   const status = params.get('status')?.trim() ?? '';
   const result = await env.DB.prepare(`
@@ -207,4 +215,39 @@ export async function assessmentReports(request: Request, env: Env): Promise<Res
     WHERE (?='' OR lp.status=?) ORDER BY jp.tarikh DESC
   `).bind(status,status).all<Row>();
   return json({error:false,data:await attachDetails(env,result.results,true)});
+}
+
+/**
+ * Accepted RA appointments for matches that have kicked off but whose report is
+ * still missing or a draft, so Admin can chase the assessor.
+ */
+async function outstandingReports(env: Env): Promise<Response> {
+  const result = await env.DB.prepare(`
+    SELECT ra.id AS lantikan_id,ra.jadual_id,ra.penilaian_token,
+      jp.no_perlawanan,jp.tarikh,jp.masa,jp.pasukan_home,jp.pasukan_away,jp.tempat,
+      k.id AS kejohanan_id,k.nama AS nama_kejohanan,
+      COALESCE(NULLIF(trim(u.nama_penuh),''),NULLIF(trim(pl.nama),''),'Nama tidak direkodkan') AS nama_penilai,
+      COALESCE(NULLIF(trim(u.no_telefon),''),NULLIF(trim(pl.no_tel),''),'') AS no_telefon,
+      CASE WHEN ra.pengadil_luar_id IS NOT NULL THEN 1 ELSE 0 END AS pegawai_luar,
+      lap.id AS laporan_id,lap.updated_at AS laporan_dikemaskini
+    FROM lantikan_pengadil ra
+    JOIN jadual_perlawanan jp ON jp.id=ra.jadual_id
+    JOIN kejohanan k ON k.id=jp.kejohanan_id
+    LEFT JOIN users u ON u.id=ra.pengadil_id
+    LEFT JOIN pengadil_luar pl ON pl.id=ra.pengadil_luar_id
+    LEFT JOIN laporan_penilaian lap ON lap.id=(SELECT l.id FROM laporan_penilaian l
+      WHERE l.jadual_id=ra.jadual_id ORDER BY l.id DESC LIMIT 1)
+    WHERE ra.jawatan='Penilai Pengadil' AND ra.status='Diterima'
+      AND ${publishedAppointmentSql('ra')}
+      AND jp.tarikh || ' ' || substr(COALESCE(NULLIF(jp.masa,''),'00:00'),1,5)
+        <= datetime('now','+8 hours')
+      AND (lap.id IS NULL OR lap.status='Draf')
+    ORDER BY jp.tarikh DESC,jp.masa DESC,ra.id DESC
+  `).all<Row>();
+  const base = baseUrl(env).replace(/\/+$/,'');
+  return json({error:false,data:result.results.map(({penilaian_token:token,...row}) => {
+    const raToken = String(token ?? '').trim();
+    return {...row,status:row.laporan_id ? 'Draf' : 'Belum diisi',
+      ra_form_url:raToken ? `${base}/penilaian-borang.html?token=${encodeURIComponent(raToken)}` : null};
+  })});
 }

@@ -4,6 +4,7 @@
  * only POST records the answer.
  */
 import { appointmentWritesEnabled } from './lantikan-write';
+import { DRAFT_APPOINTMENT_MESSAGE, publishedAppointmentSql } from './appointment-publication';
 import { EMAIL_LOGO_URL } from '../mail';
 import { appointmentDeadline } from './php/email';
 import { responseDeadline } from '../../shared/appointment-deadline';
@@ -16,6 +17,7 @@ import { applyAppointmentResponse, ucfirst } from './php/lantikan-response';
 import type { Env } from './types';
 
 type Row = { id: number; status: string; komen: string | null; tarikh_notif: string | null;
+  is_published: number;
   jawatan: string; jadual_id: number; tarikh: string; masa: string | null; tempat: string | null;
   pasukan_home: string; pasukan_away: string; kejohanan: string; jenis_kejohanan: string;
   pengadil_id: number | null; nama_penuh: string; persatuan_id: number | null };
@@ -114,6 +116,7 @@ export async function appointmentEmailLink(request: Request, env: Env): Promise<
     const baseUrl = env.BASE_URL || 'https://refpahang.com';
     const row = await env.DB.prepare(`
       SELECT lp.id,lp.status,lp.komen,lp.tarikh_notif,lp.jawatan,lp.jadual_id,
+        ${publishedAppointmentSql('lp')} AS is_published,
         jp.tarikh,jp.masa,jp.tempat,jp.pasukan_home,jp.pasukan_away,
         COALESCE(kj.nama,'') AS kejohanan,
         COALESCE(kj.jenis_kejohanan,'Persahabatan') AS jenis_kejohanan,
@@ -131,6 +134,10 @@ export async function appointmentEmailLink(request: Request, env: Env): Promise<
         `Pautan ini tidak dapat dikenal pasti. Kemungkinan tugasan telah dijawab melalui
              saluran lain atau lantikan telah dikemaskini oleh pentadbir.
              Sila hubungi pentadbir untuk mendapatkan pautan aktif.`, '');
+    }
+    if (!row.is_published) {
+      return renderPage('Lantikan Belum Dihantar', '⏳', '#F59E0B', 'Lantikan Belum Dihantar',
+        DRAFT_APPOINTMENT_MESSAGE, '', 409);
     }
     const dashUrl = row.pengadil_id ? `${baseUrl}/pengadil-dashboard.html` : '';
 

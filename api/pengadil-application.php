@@ -98,6 +98,11 @@ try {
         // Get form data
         $data = $_POST;
         $jenisBorang = $data['jenis_borang'] ?? 'pengadil_berdaftar';
+        // Kelas III / Kelas I FAM are examinations of the year applied (2026 -> 2026);
+        // annual registration keeps the application_year session (2026 -> 2027).
+        if (in_array($jenisBorang, ['kelas3_fam', 'ujian_kelas1_fam'], true)) {
+            $applicationYear = (int)(new DateTimeImmutable('now', new DateTimeZone('Asia/Kuala_Lumpur')))->format('Y');
+        }
         $userRole    = $_SESSION['user_role'];
 
         // Validate role-to-form-type
@@ -370,11 +375,13 @@ try {
                 :nama_waris, :hubungan_waris, :telefon_waris,
                 :url_resit, :url_gambar_profil, :saiz_baju,
                 :payment_amount, :mohon_r1, :mohon_ujian_kecergasan,
-                'Pending', 'Menunggu PP Daerah', NOW()
+                'Pending', :status_workflow, NOW()
             )
         ");
 
         $insertStmt->execute([
+            // Ujian Kelas I FAM is reviewed by Admin only, never by PP Daerah.
+            'status_workflow'        => $jenisBorang === 'ujian_kelas1_fam' ? 'Menunggu Admin' : 'Menunggu PP Daerah',
             'user_id'                => $userId,
             'district_id'            => $districtId,
             'persatuan_id'           => $persatuanId,
@@ -527,20 +534,30 @@ try {
 function sendApplicationSuccessEmail($to, $nama, $applicationId, $jenisPengadil, array $attachments = [], int $applicationYear = 0, string $jenisBorang = '', float $paymentAmount = 0, string $userRole = '') {
     $subject = match ($jenisBorang) {
         'kelas3_fam' => 'Permohonan Kelas III FAM Berjaya Dihantar - PBNP',
+        'ujian_kelas1_fam' => 'Permohonan Ujian Kelas I FAM Berjaya Dihantar - PBNP',
         'penilai_berdaftar' => 'Permohonan Pendaftaran Tahunan Penilai Pengadil Berjaya Dihantar - PBNP',
         default => 'Permohonan Pendaftaran Pengadil Berjaya Dihantar - PBNP',
     };
     $refNo   = 'REF-' . str_pad((string)$applicationId, 6, '0', STR_PAD_LEFT);
 
     $body  = emailGreeting($nama);
-    $purpose = $jenisBorang === 'kelas3_fam' ? 'permohonan Kelas III FAM' : 'permohonan pendaftaran tahunan anda';
+    $purpose = match ($jenisBorang) {
+        'kelas3_fam' => 'permohonan Kelas III FAM',
+        'ujian_kelas1_fam' => 'permohonan Ujian Kelas I FAM',
+        default => 'permohonan pendaftaran tahunan anda',
+    };
     $body .= emailPara("Terima kasih! {$purpose} sebagai <strong>" . htmlspecialchars($jenisPengadil) . "</strong> telah berjaya dihantar kepada <strong>Sistem Pengurusan Pengadil PBNP</strong>.");
-    $body .= emailInfoTable([
+    $rows = [
         ['No. Rujukan',     "<strong style=\"color:#2563EB;\">{$refNo}</strong>"],
         ['Tarikh Dihantar', date('d M Y, H:i')],
         ['Jenis Pengadil',  htmlspecialchars($jenisPengadil)],
-        ['Yuran Permohonan', '<strong>RM ' . number_format($paymentAmount, 2) . '</strong>'],
-    ]);
+    ];
+    if ($applicationYear > 0) {
+        // Annual registration is for the coming session; Kelas III / Kelas I FAM for the year applied.
+        $rows[] = [in_array($jenisBorang, ['kelas3_fam', 'ujian_kelas1_fam'], true) ? 'Tahun Peperiksaan' : 'Sesi / Lesen', (string)$applicationYear];
+    }
+    $rows[] = ['Yuran Permohonan', '<strong>RM ' . number_format($paymentAmount, 2) . '</strong>'];
+    $body .= emailInfoTable($rows);
     $body .= emailStatusBadge('Menunggu Kelulusan Admin', '#DBEAFE', '#1E40AF');
     $body .= emailAlert('#2563EB', '#EFF6FF', 'Maklumat Pemprosesan', 'Permohonan anda sedang disemak oleh pentadbir. Proses kelulusan biasanya mengambil masa <strong>1–3 hari bekerja</strong>. Anda akan menerima notifikasi apabila ada kemaskini.');
     if ($attachments && $jenisBorang === 'pengadil_berdaftar') {
@@ -549,6 +566,8 @@ function sendApplicationSuccessEmail($to, $nama, $applicationId, $jenisPengadil,
         $body .= emailPara('Salinan borang R1 Pendaftaran Tahunan Penilai Pengadil dilampirkan untuk simpanan dan tandatangan anda.');
     } elseif ($attachments && $jenisBorang === 'kelas3_fam') {
         $body .= emailPara('Borang R4 perakuan kesihatan dilampirkan. Sila cetak dan tandatangan sebelum ujian kecergasan.');
+    } elseif ($attachments && $jenisBorang === 'ujian_kelas1_fam') {
+        $body .= emailPara('Salinan borang R11 Ujian Kelas I FAM dilampirkan untuk simpanan dan tandatangan anda.');
     }
     $body .= emailPara('<strong>Langkah Seterusnya:</strong>');
     $body .= emailOrderedList([

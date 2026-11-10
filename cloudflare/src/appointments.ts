@@ -1,4 +1,6 @@
 import { currentUser, json } from './auth';
+import { c13Links } from './c13-links';
+import { publishedAppointmentSql } from './appointment-publication';
 import { appointmentWritesEnabled } from './lantikan-write';
 import { auditMetaFrom } from './php/lantikan-audit';
 import { autoTolakLantikanTertunggak } from './php/lantikan-helper';
@@ -51,9 +53,9 @@ export async function appointments(request: Request, env: Env): Promise<Response
       JOIN jadual_perlawanan jp ON jp.id=lp.jadual_id
       JOIN kejohanan k ON k.id=jp.kejohanan_id
       LEFT JOIN lantikan_pengadil pu
-        ON pu.jadual_id=jp.id AND pu.jawatan='Pengadil'
+        ON pu.jadual_id=jp.id AND pu.jawatan='Pengadil' AND ${publishedAppointmentSql('pu')}
       LEFT JOIN users u_pu ON u_pu.id=pu.pengadil_id
-      WHERE lp.pengadil_id=?
+      WHERE lp.pengadil_id=? AND ${publishedAppointmentSql('lp')}
       ORDER BY jp.tarikh ASC, jp.masa ASC, lp.id ASC
     `).bind(user.id).all<Appointment>(),
     env.DB.prepare(`
@@ -77,7 +79,9 @@ export async function appointments(request: Request, env: Env): Promise<Response
       WHERE EXISTS (
         SELECT 1 FROM lantikan_pengadil mine
         WHERE mine.jadual_id=lp.jadual_id AND mine.pengadil_id=?
+          AND ${publishedAppointmentSql('mine')}
       )
+        AND ${publishedAppointmentSql('lp')}
         AND lp.status IN ('Belum Jawab','Diterima')
         AND lp.jawatan IN ('Pengadil','Penolong Pengadil 1',
                            'Penolong Pengadil 2','Pegawai ke4')
@@ -91,6 +95,8 @@ export async function appointments(request: Request, env: Env): Promise<Response
     `).bind(user.id).all<CrewMember>(),
   ]);
 
+  const reports=assigned.results.some(a=>a.status==='Diterima'&&String(a.jawatan).trim().toLowerCase()==='pengadil')
+    ?await c13Links(env,user.id):new Map();
   const crewBySchedule = new Map<number, CrewMember[]>();
   for (const member of crew.results) {
     const list = crewBySchedule.get(member.jadual_id) ?? [];
@@ -99,6 +105,8 @@ export async function appointments(request: Request, env: Env): Promise<Response
   }
   const data = assigned.results.map((appointment) => ({
     ...appointment,
+    c13_match_id:appointment.status==='Diterima'&&String(appointment.jawatan).trim().toLowerCase()==='pengadil'
+      ?reports.get(appointment.id)?.match_id??null:null,
     rakan_tugasan: (crewBySchedule.get(appointment.jadual_id) ?? [])
       .filter((member) => member.id !== appointment.id),
   }));

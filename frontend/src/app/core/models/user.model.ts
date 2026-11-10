@@ -172,6 +172,8 @@ export interface PersatuanDaerah {
 }
 
 export interface LoginResponse {
+  code?: string;
+  reason?: string;
   error: boolean;
   message: string;
   data?: User & { redirect_url: string };

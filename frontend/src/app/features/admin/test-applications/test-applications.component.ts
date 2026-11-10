@@ -103,7 +103,7 @@ export class TestApplicationsComponent implements OnInit {
     this.api.post<any>('admin-test-applications.php', { id, type: this.activeTab, action: 'approve' }).subscribe({
       next: (res) => {
         if (!res.error) { this.toast.success('Diluluskan.'); this.loadData(); }
-        else this.toast.error(res.message);
+        else this.toast.apiError(res);
       },
     });
   }
@@ -114,7 +114,7 @@ export class TestApplicationsComponent implements OnInit {
     this.api.post<any>('admin-test-applications.php', { id, type: this.activeTab, action: 'reject', notes: reason }).subscribe({
       next: (res) => {
         if (!res.error) { this.toast.success('Ditolak.'); this.loadData(); }
-        else this.toast.error(res.message);
+        else this.toast.apiError(res);
       },
     });
   }
@@ -123,9 +123,9 @@ export class TestApplicationsComponent implements OnInit {
     this.api.post<any>('admin-test-applications.php', { id, type: this.activeTab, action: 'absent' }).subscribe({
       next: (res) => {
         if (!res.error) { this.toast.success('Tidak Hadir direkodkan.'); this.loadData(); }
-        else this.toast.error(res.message);
+        else this.toast.apiError(res);
       },
-      error: (err) => this.toast.error(err?.error?.message || 'Gagal merekod kehadiran.'),
+      error: (err) => this.toast.apiError(err, 'Gagal merekod kehadiran.'),
     });
   }
 }

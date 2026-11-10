@@ -1,4 +1,6 @@
 import {originalEmail} from './original-templates';
+import { reachStaff } from './channels';
+import { h } from './php/format';
 import { sendRefpahangEmail } from '../mail';
 import { notifyVerifierOfRecordChange } from './match-notify';
 import type { MatchSummary } from './match-notify';
@@ -6,7 +8,7 @@ import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
 import { wroteRow } from './d1-changes';
-import { conflictSummary, findMatchConflicts } from './match-conflicts';
+import { conflictSummary, findMatchConflicts, teamPair } from './match-conflicts';
 
 const scoreFields = [
   'skor_ht_home', 'skor_ht_away', 'skor_ft_home', 'skor_ft_away',
@@ -20,6 +22,8 @@ type Official = { user_id: number; jawatan: string };
 // match officials are recorded; the RA (Penilai Pengadil) records none.
 const POSITIONS = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pengadil Ke-4'];
 const POSITIONS_MESSAGE = 'Jawatan mesti Pengadil, Penolong Pengadil 1, Penolong Pengadil 2 atau Pengadil Ke-4.';
+// A match is recordable only with its full crew; the 4th official is optional.
+const REQUIRED_POSITIONS = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2'];
 function matchPosition(value: unknown): string | null {
   const text = typeof value === 'string' ? value.trim().toLowerCase().replace(/\s+/g, ' ') : '';
   if (text === 'pegawai ke4' || text === 'pegawai keempat') return 'Pengadil Ke-4';
@@ -51,6 +55,13 @@ function tooOld(value: string): boolean {
   return Date.parse(`${localToday()}T00:00:00Z`) - Date.parse(`${value}T00:00:00Z`) > 14 * 86400000;
 }
 
+/** A match record is for a match already played, so it cannot be dated after today. */
+function inFuture(value: string): boolean {
+  return value > localToday();
+}
+
+const FUTURE_MESSAGE = 'Tarikh perlawanan belum berlangsung. Rekod hanya boleh dihantar selepas perlawanan.';
+
 function requiredText(value: unknown, max = 255): string | null {
   if (typeof value !== 'string') return null;
   const text = value.trim();
@@ -76,10 +87,63 @@ function matchFingerprint(date: string, time: string | null, home: string, away:
     venue.trim().toLowerCase(), kind.trim().toLowerCase(), districtId]);
 }
 
+const slashDate = (value: string) => value.slice(0, 10).split('-').reverse().join('/');
+
+type RecordedRow = { id: number; match_group_id: string | null; lantikan_id: number | null;
+  jadual_id: number | null; user_id: number; submitted_by: number | null; masa: string | null;
+  tempat: string | null; home_team: string | null; away_team: string | null; jawatan: string | null;
+  created_at: string | null; pegawai: string; perekod: string | null };
+
+/**
+ * The same match (same date and both teams) already recorded, officially or by
+ * any referee, makes a new record a duplicate whatever its time, venue or crew:
+ * duplicates are refused outright instead of queued for PP Daerah review.
+ * Rejected records do not count, so a corrected record can be sent again.
+ */
+async function recordedMatchNotice(env: Env, date: string, home: string, away: string,
+  actorId: number): Promise<{ message: string; duplicate: Record<string, unknown> } | null> {
+  const rows = (await env.DB.prepare(`SELECT p.id,p.match_group_id,p.lantikan_id,lp.jadual_id,p.user_id,
+      p.submitted_by,p.masa,p.tempat,p.home_team,p.away_team,p.jawatan,p.created_at,
+      u.nama_penuh AS pegawai,sub.nama_penuh AS perekod
+    FROM perlawanan p JOIN users u ON u.id=p.user_id
+    LEFT JOIN users sub ON sub.id=p.submitted_by
+    LEFT JOIN lantikan_pengadil lp ON lp.id=p.lantikan_id
+    WHERE substr(p.tarikh,1,10)=? AND COALESCE(p.status_pp,'')<>'Tidak Disahkan'
+    ORDER BY p.id`).bind(date).all<RecordedRow>()).results;
+  const wanted = teamPair(home, away);
+  const same = rows.filter((row) => teamPair(row.home_team, row.away_team) === wanted);
+  if (!same.length) return null;
+  const crewKey = (row: RecordedRow) => row.match_group_id ? `g:${row.match_group_id}`
+    : row.jadual_id ? `j:${row.jadual_id}` : `s:${row.id}`;
+  const first = same[0];
+  const crew = same.filter((row) => crewKey(row) === crewKey(first));
+  const official = crew.some((row) => row.lantikan_id);
+  const recorder = official ? null : first.perekod;
+  const time = (first.masa ?? '').trim().slice(0, 5);
+  const officials = crew.map((row) => `${row.pegawai} (${row.jawatan ?? '-'})`);
+  const where = `${first.home_team} lwn ${first.away_team}, ${slashDate(date)}${time ? ` jam ${time}` : ''}`
+    + `${first.tempat ? ` di ${first.tempat}` : ''}`;
+  const source = official ? 'melalui lantikan rasmi'
+    : `oleh ${recorder ?? 'pegawai lain'}${first.created_at ? ` (dihantar ${slashDate(first.created_at)})` : ''}`;
+  const included = crew.some((row) => row.user_id === actorId);
+  const advice = included
+    ? 'Anda sudah tersenarai dalam rekod tersebut, jadi tiada tindakan lanjut diperlukan.'
+    : `Jika butiran atau senarai pegawai rekod tersebut tidak betul, hubungi ${recorder ? `${recorder} atau ` : ''}PP Daerah untuk pembetulan.`;
+  return {
+    message: `Rekod tidak diterima kerana perlawanan ini sudah direkodkan ${source}. `
+      + `Rekod sedia ada: ${where}. Pegawai: ${officials.join(', ')}. `
+      + `Rekod berganda tidak diterima. ${advice}`,
+    duplicate: { sumber: official ? 'Lantikan rasmi' : 'Rekod pengadil', perekod: recorder,
+      tarikh: date, masa: time, tempat: first.tempat ?? '', home_team: first.home_team ?? '',
+      away_team: first.away_team ?? '', pegawai: officials },
+  };
+}
+
 async function addMatch(input: Record<string, unknown>, env: Env,
   actorId: number, actorName: string): Promise<Response> {
   const date = input.tarikh;
   if (!validMatchDate(date)) return json({ error: true, message: 'Tarikh perlawanan tidak sah.' }, 400);
+  if (inFuture(date)) return json({ error: true, message: FUTURE_MESSAGE }, 400);
   if (tooOld(date)) return json({ error: true,
     message: 'Rekod perlawanan tidak boleh dihantar melebihi 14 hari dari tarikh perlawanan.' }, 400);
   const kind = requiredText(input.jenis);
@@ -92,8 +156,8 @@ async function addMatch(input: Record<string, unknown>, env: Env,
   const districtId = positiveId(input.daerah_perlawanan_id);
   if (!districtId) return json({ error: true, message: 'Sila pilih daerah perlawanan.' }, 400);
   const rawOfficials = input.officials;
-  if (!Array.isArray(rawOfficials) || rawOfficials.length < 1 || rawOfficials.length > POSITIONS.length) {
-    return json({ error: true, message: `Bilangan pegawai mestilah antara 1 hingga ${POSITIONS.length}.` }, 400);
+  if (!Array.isArray(rawOfficials) || rawOfficials.length > POSITIONS.length) {
+    return json({ error: true, message: `Bilangan pegawai mestilah antara ${REQUIRED_POSITIONS.length} hingga ${POSITIONS.length}.` }, 400);
   }
   const officials: Official[] = [];
   for (const entry of rawOfficials) {
@@ -111,6 +175,12 @@ async function addMatch(input: Record<string, unknown>, env: Env,
       new Set(officials.map((item) => item.jawatan)).size !== officials.length) {
     return json({ error: true, message: 'Pengadil dan jawatan tidak boleh berulang.' }, 400);
   }
+  const missing = REQUIRED_POSITIONS.filter((position) => !officials.some((item) => item.jawatan === position));
+  if (missing.length) {
+    return json({ error: true, missing_positions: missing,
+      message: `Perlawanan ini tidak layak direkodkan. Rekod perlawanan memerlukan sekurang-kurangnya 3 pegawai: `
+        + `${REQUIRED_POSITIONS.join(', ')}. Belum diisi: ${missing.join(', ')}.` }, 400);
+  }
   const time = optionalText(input.masa, 20);
   const tournament = optionalText(input.nama_kejohanan);
   const weather = optionalText(input.cuaca, 100);
@@ -118,6 +188,8 @@ async function addMatch(input: Record<string, unknown>, env: Env,
   if (time === false || tournament === false || weather === false || scores.includes(false)) {
     return json({ error: true, message: 'Butiran perlawanan tidak sah.' }, 400);
   }
+  const recorded = await recordedMatchNotice(env, date, home, away, actorId);
+  if (recorded) return json({ error: true, duplicate: recorded.duplicate, message: recorded.message }, 409);
   const fingerprint = matchFingerprint(date, time, home, away, tournament, venue, kind, districtId);
   const duplicate = await env.DB.prepare('SELECT 1 FROM perlawanan WHERE match_dedup_key=? LIMIT 1')
     .bind(fingerprint).first();
@@ -148,7 +220,8 @@ async function addMatch(input: Record<string, unknown>, env: Env,
     return json({ error: true, message: 'Semua pegawai perlawanan mesti mempunyai akaun pengadil yang aktif.' }, 422);
   }
   const groupId = crypto.randomUUID();
-  // Doubtful records are still saved; the PP Daerah must review them before verifying.
+  // Duplicates were refused above. An official clash with another match at the
+  // same time is still saved; the PP Daerah must review it before verifying.
   const conflicts = (await findMatchConflicts(env, officials.map((item, index) => ({
     id: -1 - index, user_id: item.user_id, tarikh: date, masa: time, tempat: venue,
     home_team: home, away_team: away, match_group_id: groupId,
@@ -187,7 +260,11 @@ async function addMatch(input: Record<string, unknown>, env: Env,
   }
   const matchIds = results.slice(0, officials.length).map((result) => result.meta.last_row_id);
   let emailsSent = 0;
+  const tgText = `<b>🆕 Perlawanan Baru Untuk Pengesahan</b>\n\n${h(actorName)} merekodkan perlawanan `
+    + `<b>${h(home)} lwn ${h(away)}</b> pada ${h(formattedDate)} di ${h(venue)}.\n\nSila semak di app atau portal.`;
   for (const approver of districtApprovers.results) {
+    // The in-app notice above reaches app users; Telegram next; email only if neither.
+    if (await reachStaff(env, approver.id, tgText)) continue;
     if (!approver.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(approver.email)) continue;
     try {
       const emailOfficials=officials.map(official=>({...official,
@@ -228,6 +305,7 @@ async function editMatch(input: Record<string, unknown>, env: Env, userId: numbe
     if (!validMatchDate(input.tarikh) || tooOld(input.tarikh)) {
       return json({ error: true, message: 'Tarikh perlawanan tidak sah atau melebihi 14 hari.' }, 400);
     }
+    if (inFuture(input.tarikh)) return json({ error: true, message: FUTURE_MESSAGE }, 400);
     fields.push('tarikh=?'); values.push(input.tarikh);
   }
   for (const field of textFields) {

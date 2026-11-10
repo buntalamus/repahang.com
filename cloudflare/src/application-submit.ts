@@ -1,4 +1,6 @@
 import {originalEmail} from './original-templates';
+import { reachStaff } from './channels';
+import { h } from './php/format';
 import {plainTextFromHtml} from './php/format';
 import { sendRefpahangEmail } from '../mail';
 import type { MailAttachment } from '../mail';
@@ -10,8 +12,9 @@ import { dimensions } from './profile-write';
 import { applicationSettingDefaults } from './applications';
 import { applicationWindow, windowClosedMessage, type WindowName } from './application-window';
 import { CLASS_THREE_YEAR_SQL, ageInYear, classThreeDeadline, klYear, qualifyingMatchYear } from './application-eligibility';
+import { examYear, isExamForm } from './application-year';
 
-type FormType = 'pengadil_berdaftar' | 'penilai_berdaftar' | 'kelas3_fam' | 'ujian_kelas1_fam';
+export type FormType = 'pengadil_berdaftar' | 'penilai_berdaftar' | 'kelas3_fam' | 'ujian_kelas1_fam';
 type Profile = Record<string, string | number | null>;
 const annual = new Set<FormType>(['pengadil_berdaftar', 'penilai_berdaftar']);
 const allowed: Record<string, FormType[]> = {
@@ -146,7 +149,9 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
   if (formStatus.state !== 'open') {
     return json({error: true, message: windowClosedMessage(formWindow[type], formStatus, closedMessage[type])}, 400);
   }
-  const year = Number(settings.application_year || klYear());
+  // Annual registration is for the coming session (application_year, e.g. 2026 -> 2027);
+  // Kelas III / Kelas I FAM are examinations of the year they are applied in.
+  const year = isExamForm(type) ? examYear() : Number(settings.application_year || klYear());
   if (!Number.isSafeInteger(year) || year < 2020 || year > 2100) {
     return json({error: true, message: 'Tahun permohonan tidak sah.'}, 500);
   }
@@ -230,12 +235,15 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
   if (isResponse(pictureInfo)) return pictureInfo;
 
   // A PP Daerah cannot verify their own application, so it goes straight to Admin.
+  // Ujian Kelas I FAM is Admin's responsibility alone: it never goes through PP Daerah.
   // The first reviewer is told: the applicant's PP Daerah, or Admin when there is none.
-  const districtReviewers = user.role === 'PP Daerah' ? [] : (await env.DB.prepare(`
+  const districtReviewers = user.role === 'PP Daerah' || type === 'ujian_kelas1_fam' ? [] : (await env.DB.prepare(`
     SELECT id,nama_penuh,email FROM users WHERE role='PP Daerah' AND aktif=1
       AND COALESCE(NULLIF(persatuan_id,0),district_id)=?`)
     .bind(Number(profile.persatuan_id ?? 0)).all<{id: number; nama_penuh: string; email: string | null}>()).results;
-  const initialWorkflow = user.role === 'PP Daerah' ? 'Menunggu Admin' : 'Menunggu PP Daerah';
+  // With no active PP Daerah in the district the application goes straight to Admin,
+  // who is the reviewer notified; otherwise it would wait for a PP who does not exist.
+  const initialWorkflow = user.role === 'PP Daerah' || !districtReviewers.length ? 'Menunggu Admin' : 'Menunggu PP Daerah';
   const reviewers = districtReviewers.length ? districtReviewers : (await env.DB.prepare(`
     SELECT id,nama_penuh,email FROM users WHERE role='Admin' AND aktif=1`)
     .all<{id: number; nama_penuh: string; email: string | null}>()).results;
@@ -306,7 +314,10 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
     if (!saved) throw new Error('Application insert was not visible after transaction');
     const applicationId = Number(saved.id);
 
+    const reviewTelegram = `<b>📝 Permohonan Baharu Menunggu Semakan</b>\n\n${h(reviewMessage)}\n\nSila semak di app atau portal.`;
     await Promise.allSettled(reviewers.filter((reviewer) => reviewer.email).map(async (reviewer) => {
+      // In-app notice already written; Telegram next; email only if neither reaches the reviewer.
+      if (await reachStaff(env, reviewer.id, reviewTelegram)) return;
       const rendered=await originalEmail(env,'reviewer',
         [Number(profile.persatuan_id || 0),{nama_penuh:fromProfile('nama_penuh'),
           no_kp:fromProfile('no_ic'),emel:fromProfile('email'),jenis_pengadil:fromProfile('jenis_pengadil')},''],[reviewer],{REVIEWER_ROLE:districtReviewers.length?'PP Daerah':'Admin'});
@@ -321,34 +332,10 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
         console.error('Reviewer email for a new application could not be sent');
       }
     }));
-    let emailSent = false;
-    try {
-      const attachments: MailAttachment[] = [];
-      if (annual.has(type) || type === 'kelas3_fam') {
-        const pdfUrl = new URL('/api/download-borang-pendaftaran.php', request.url);
-        pdfUrl.searchParams.set('type', type);
-        pdfUrl.searchParams.set('application_id', String(applicationId));
-        const pdf = await registrationPdf(new Request(pdfUrl, {
-          headers: {Cookie: request.headers.get('Cookie') || ''},
-        }), env);
-        if (!pdf.ok || !pdf.headers.get('Content-Type')?.includes('application/pdf')) {
-          throw new Error('Registration PDF unavailable');
-        }
-        attachments.push({filename: type === 'penilai_berdaftar'
-          ? `Borang_Pendaftaran_RA_R1_${applicationId}.pdf`
-          : type === 'kelas3_fam' ? `Borang_Perakuan_Kesihatan_R4_${applicationId}.pdf`
-            : `Borang_Pendaftaran_R1_R2_R4_${applicationId}.pdf`,
-        type: 'application/pdf', content: await pdf.arrayBuffer(), disposition: 'attachment'});
-      }
-      const {html,text,subject}=await originalEmail(env,'receipt',
-        [fromProfile('email'),fromProfile('nama_penuh'),applicationId,fromProfile('jenis_pengadil') || '-',
-          attachments.length?[true]:[],year,type,fee,user.role],[],
-        {APPLICATION_STATUS:initialWorkflow==='Menunggu Admin'?'Menunggu Kelulusan Admin':'Menunggu Semakan PP Daerah'});
-      await sendRefpahangEmail(env,'daftar',fromProfile('email'),fromProfile('nama_penuh'),subject,html,text,attachments);
-      emailSent = true;
-    } catch {
-      console.error('Application copy email or PDF attachment could not be sent');
-    }
+    const emailSent = await sendApplicationReceipt(env, request, {
+      email: fromProfile('email'), nama: fromProfile('nama_penuh'), applicationId,
+      jenisPengadil: fromProfile('jenis_pengadil') || '-', year, type, fee, role: user.role, workflow: initialWorkflow,
+    });
     return json({error: false, message: 'Permohonan berjaya dihantar!',
       application_id: applicationId, linked_matches: linkedMatches, email_sent: emailSent,
       email_message: emailSent ? 'Salinan dihantar melalui emel.'
@@ -361,5 +348,48 @@ export async function submitRefereeApplication(request: Request, env: Env): Prom
     if (duplicate) return json({error: true, message:
       `Anda sudah mempunyai permohonan untuk tahun ${year}. Sila semak sejarah permohonan anda.`}, 400);
     throw error;
+  }
+}
+
+export interface ReceiptInput {
+  email: string; nama: string; applicationId: number; jenisPengadil: string;
+  year: number; type: FormType; fee: number; role: string; workflow: string;
+}
+
+/**
+ * The applicant's "Permohonan Berjaya Dihantar" email with their form attached.
+ * The PDF is opened with the caller's session: the applicant on submission, or
+ * Admin when resending. Without the PDF the receipt is still sent.
+ */
+export async function sendApplicationReceipt(env: Env, request: Request, input: ReceiptInput): Promise<boolean> {
+  const {applicationId, type} = input;
+  try {
+    const attachments: MailAttachment[] = [];
+    if (annual.has(type) || type === 'kelas3_fam' || type === 'ujian_kelas1_fam') {
+      const pdfUrl = new URL('/api/download-borang-pendaftaran.php', request.url);
+      pdfUrl.searchParams.set('type', type === 'ujian_kelas1_fam' ? 'ujian_kelas1' : type);
+      pdfUrl.searchParams.set('application_id', String(applicationId));
+      // Same session as the request: the website's cookie or the app's Bearer token.
+      const pdf = await registrationPdf(new Request(pdfUrl, {
+        headers: {Cookie: request.headers.get('Cookie') || '',
+          Authorization: request.headers.get('Authorization') || ''},
+      }), env).catch(() => null);
+      if (pdf?.ok && pdf.headers.get('Content-Type')?.includes('application/pdf')) attachments.push({filename: type === 'penilai_berdaftar'
+        ? `Borang_Pendaftaran_RA_R1_${applicationId}.pdf`
+        : type === 'kelas3_fam' ? `Borang_Perakuan_Kesihatan_R4_${applicationId}.pdf`
+          : type === 'ujian_kelas1_fam' ? `Borang_R11_KelasI_${applicationId}.pdf`
+            : `Borang_Pendaftaran_R1_R2_R4_${applicationId}.pdf`,
+      type: 'application/pdf', content: await pdf.arrayBuffer(), disposition: 'attachment'});
+      else console.error('Registration PDF unavailable for the application copy email');
+    }
+    const {html,text,subject}=await originalEmail(env,'receipt',
+      [input.email,input.nama,applicationId,input.jenisPengadil,
+        attachments.length?[true]:[],input.year,type,input.fee,input.role],[],
+      {APPLICATION_STATUS:input.workflow==='Menunggu Admin'?'Menunggu Kelulusan Admin':'Menunggu Semakan PP Daerah'});
+    await sendRefpahangEmail(env,'daftar',input.email,input.nama,subject,html,text,attachments);
+    return true;
+  } catch {
+    console.error('Application copy email or PDF attachment could not be sent');
+    return false;
   }
 }

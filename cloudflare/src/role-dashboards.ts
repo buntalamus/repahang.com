@@ -1,6 +1,7 @@
 import { currentUser, json } from './auth';
 import type { Env } from './types';
 import { APPLICATION_CATEGORY_SQL, countApplicationRows } from './application-category';
+import { ACTIVE_SESSION_SQL, loadSessionYears } from './application-year';
 
 export async function assessorDashboard(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
@@ -86,6 +87,7 @@ export async function districtOverview(request: Request, env: Env): Promise<Resp
   }).format(now);
   const month = dateParts.slice(0, 7);
   const year = Number(dateParts.slice(0, 4));
+  const sessions = await loadSessionYears(env.DB, now);
 
   const [referees, applications, matches, topReferees, currentAssignments] = await Promise.all([
     env.DB.prepare(`
@@ -104,8 +106,8 @@ export async function districtOverview(request: Request, env: Env): Promise<Resp
       SELECT ${APPLICATION_CATEGORY_SQL} AS application_category,
         p.status,p.status_workflow,p.workflow_status
       FROM permohonan p JOIN users u ON u.id=p.user_id
-      WHERE u.persatuan_id=? AND p.tahun_permohonan=?
-    `).bind(persatuanId,year).all<Record<string, unknown>>(),
+      WHERE u.persatuan_id=? AND ${ACTIVE_SESSION_SQL(APPLICATION_CATEGORY_SQL)}
+    `).bind(persatuanId,sessions.exam,sessions.annual).all<Record<string, unknown>>(),
     env.DB.prepare(`
       SELECT
         COUNT(DISTINCT COALESCE(p.match_group_id,CAST(p.id AS TEXT))) AS total,

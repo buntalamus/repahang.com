@@ -1,5 +1,5 @@
 // Self-recorded match and application notices: PP Daerah / Admin decisions and
-// deletions reach every official by email; referee edits reach the PP Daerah;
+// deletions reach every official (Telegram first, email fallback); referee edits reach the PP Daerah;
 // seminar attendance, Kelas III results and deleted applications reach the applicant.
 import assert from 'node:assert/strict';
 import {bundle,openDatabase,sessionCookie} from './_harness.mjs';
@@ -27,9 +27,14 @@ const one=(sql,...values)=>db.prepare(sql).get(...values);
 const url='https://refpahang.com/api/';
 const pp=107, district=5, [a,b,c]=[96,97,98];
 const emailOf=(id)=>one('SELECT email FROM users WHERE id=?',id).email;
-const officials=[a,b,c].map(emailOf).sort();
-const ppEmails=db.prepare(`SELECT email FROM users WHERE role='PP Daerah' AND aktif=1
-  AND COALESCE(NULLIF(persatuan_id,0),district_id)=? AND trim(COALESCE(email,''))<>''`).all(district).map((r)=>r.email).sort();
+// Telegram (or the app) comes first; email only for those who have neither.
+const hasTelegram=(u)=>String(u.telegram_chat_id ?? '').trim()!=='';
+const officialRows=[a,b,c].map((id)=>one('SELECT email,telegram_chat_id FROM users WHERE id=?',id));
+const officials=officialRows.filter((u)=>!hasTelegram(u)).map((u)=>u.email).sort();
+const ppRows=db.prepare(`SELECT email,telegram_chat_id FROM users WHERE role='PP Daerah' AND aktif=1
+  AND COALESCE(NULLIF(persatuan_id,0),district_id)=? AND trim(COALESCE(email,''))<>''`).all(district);
+const ppEmails=ppRows.filter((u)=>!hasTelegram(u)).map((u)=>u.email).sort();
+const heard=(rows,text)=>rows.filter(hasTelegram).every((u)=>telegrams.some((t)=>t.chatId===String(u.telegram_chat_id) && t.text.includes(text)));
 const admin=one("SELECT id FROM users WHERE role='Admin' AND aktif=1 LIMIT 1");
 const cookie={pp:await sessionCookie(db,pp),admin:await sessionCookie(db,admin.id),a:await sessionCookie(db,a)};
 const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kuala_Lumpur',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -56,14 +61,14 @@ try {
   assert.equal(r.officials_notified,3);
   assert.deepEqual(sent.map(to).sort(),officials);
   assert.ok(sent.every((m)=>/^Perlawanan Disahkan: Notis 1 FC lwn Lawan FC/.test(m.subject)));
-  assert.ok(sent[0].html.includes('Pegawai Pembangunan Daerah'));
+  assert.ok(heard(officialRows,'Notis 1 FC'));
   assert.equal(one(`SELECT count(*) n FROM notifications WHERE user_id=? AND subject='Perlawanan Disahkan'`,a).n,inAppBefore+1,
     'the in-app notice is not duplicated');
   reset();
   r=await send(worker.districtMatchVerification,'pp-verify-match.php','POST','pp',
     {match_group_id:group,action:'revert',notes:'Semak skor'});
   assert.ok(sent.every((m)=>/^Perlawanan Dikembalikan: /.test(m.subject)));
-  assert.ok(sent[0].html.includes('Semak skor'));
+  assert.ok(heard(officialRows,'Semak skor'));
 
   // --- Admin override and deletion -----------------------------------------
   reset();
@@ -72,12 +77,13 @@ try {
   assert.equal(r.error,false,r.message);
   assert.equal(r.officials_notified,3);
   assert.ok(sent.every((m)=>/^Perlawanan Tidak Disahkan: /.test(m.subject)));
-  assert.ok(sent[0].html.includes('Rekod berganda') && sent[0].html.includes('Admin'));
+  assert.ok(heard(officialRows,'Rekod berganda'));
   reset();
   r=await send(worker.adminMatches,'admin-matches.php','DELETE','admin',{match_group_id:group,justification:'Salah kemasukan'});
   assert.equal(r.error,false,r.message);
   assert.deepEqual(sent.map(to).sort(),officials);
   assert.ok(sent.every((m)=>/^Rekod Perlawanan Dipadam: /.test(m.subject)));
+  assert.ok(heard(officialRows,'Salah kemasukan'));
   assert.equal(one(`SELECT count(*) n FROM notifications WHERE user_id=? AND subject='Rekod Perlawanan Dipadam'
     AND message LIKE '%Salah kemasukan%'`,b).n,1);
 
@@ -96,13 +102,14 @@ try {
   r=await send(worker.refereeMatchManage,'pengadil-match-manage.php','POST','a',{action:'edit',match_id:single,tempat:'Padang Baharu'});
   assert.equal(r.error,false,r.message);
   assert.deepEqual(sent.map(to).sort(),ppEmails);
-  assert.match(sent[0].subject,/^Rekod Perlawanan Dikemaskini: Satu FC lwn Dua FC/);
-  assert.ok(sent[0].html.includes('Padang Baharu'));
+  assert.ok(sent.every((m)=>/^Rekod Perlawanan Dikemaskini: Satu FC lwn Dua FC/.test(m.subject)));
+  assert.ok(heard(ppRows,'Padang Baharu'));
   reset();
   r=await send(worker.refereeMatchManage,'pengadil-match-manage.php','POST','a',{action:'delete',match_id:single});
   assert.equal(r.error,false,r.message);
   assert.deepEqual(sent.map(to).sort(),ppEmails);
-  assert.match(sent[0].subject,/^Rekod Perlawanan Dipadam: /);
+  assert.ok(sent.every((m)=>/^Rekod Perlawanan Dipadam: /.test(m.subject)));
+  assert.ok(heard(ppRows,'Satu FC'));
 
   // --- Seminar attendance: only a real change to Hadir / Tidak Hadir ---------
   const annual=one(`SELECT p.id,COALESCE(u.email,p.emel) AS email FROM permohonan p JOIN users u ON u.id=p.user_id
@@ -115,12 +122,18 @@ try {
   reset();
   r=await seminar('Hadir');
   assert.equal(r.notification_sent,true);
-  assert.deepEqual(sent.map(to),[annual.email]);
-  assert.match(sent[0].subject,/^Kehadiran Seminar sesi \d{4}: Hadir/);
+  const applicant=one('SELECT u.telegram_chat_id FROM permohonan p JOIN users u ON u.id=p.user_id WHERE p.id=?',annual.id);
+  if (hasTelegram(applicant)) {
+    assert.deepEqual(sent,[]);
+    assert.ok(telegrams.some((t)=>t.chatId===String(applicant.telegram_chat_id) && t.text.includes('Hadir')));
+  } else {
+    assert.deepEqual(sent.map(to),[annual.email]);
+    assert.match(sent[0].subject,/^Kehadiran Seminar sesi \d{4}: Hadir/);
+  }
   reset();
   assert.equal((await seminar('Hadir')).notification_sent,false);
   assert.equal((await seminar(null)).notification_sent,false);
-  assert.equal(sent.length,0);
+  assert.equal(sent.length+telegrams.length,0);
 
   // --- Kelas III result (non-gated path) ------------------------------------
   const kelas3=one(`SELECT p.id,COALESCE(u.email,p.emel) AS email FROM permohonan p LEFT JOIN users u ON u.id=p.user_id

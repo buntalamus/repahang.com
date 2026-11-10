@@ -105,6 +105,7 @@ export async function notifyScheduleChange(env: Env, jadualId: number, before: M
     const deadline = pending
       ? appointmentDeadline(official.jenis_kejohanan, after.tarikh, after.masa ?? '', notifMs ?? nowMs) : null;
     const notice: Notice = {
+      email: 'always',
       subject: `Perubahan Perlawanan: ${official.kejohanan} — ${matchLabel} — ${tarikhFmt(after.tarikh)}`,
       title: 'Perubahan Maklumat Perlawanan',
       accent: '#D97706',
@@ -154,6 +155,7 @@ export async function notifyScheduleChange(env: Env, jadualId: number, before: M
 export function autoRejectNotice(snapshot: LantikanSnapshot): Notice {
   const matchLabel = `${snapshot.pasukan_home} lwn ${snapshot.pasukan_away}`;
   return {
+    email: 'always',
     subject: `Lantikan Ditolak Automatik: ${snapshot.kejohanan} — ${matchLabel} — ${tarikhFmt(snapshot.tarikh)}`,
     title: 'Lantikan Ditolak Secara Automatik',
     accent: '#DC2626',
@@ -369,6 +371,7 @@ export async function notifyAcceptanceOverride(env: Env, snapshot: LantikanSnaps
   Promise<void> {
   const matchLabel = `${snapshot.pasukan_home} lwn ${snapshot.pasukan_away}`;
   const result = await notifyUser(env, { ...autoRejectRecipient(snapshot), userId: null }, {
+    email: 'always',
     subject: `Lantikan Diterima (Pengesahan Admin): ${snapshot.kejohanan} — ${matchLabel} — ${tarikhFmt(snapshot.tarikh)}`,
     title: 'Penerimaan Lantikan Disahkan',
     accent: '#16A34A',

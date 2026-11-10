@@ -3,8 +3,8 @@ import {bundle,openDatabase,sessionCookie} from './_harness.mjs';
 
 // Kelas III FAM and Ujian Kelas I FAM follow the Admin Settings page: the
 // Kelas III switch (bertulis_open), its age range and each form's own fee.
-const {submitRefereeApplication,applicationSettings}=await bundle(
-  "export {submitRefereeApplication} from '../src/application-submit'; export {applicationSettings} from '../src/applications';"
+const {submitRefereeApplication,applicationSettings,deleteApplication}=await bundle(
+  "export {submitRefereeApplication} from '../src/application-submit'; export {applicationSettings,deleteApplication} from '../src/applications';"
 );
 const {db,DB,close}=openDatabase(['0001_worker_sessions','0011_application_uniqueness']);
 const objects=new Map();
@@ -40,8 +40,10 @@ function form(type) {
 }
 const post=(type)=>submitRefereeApplication(new Request('https://staging.refpahang.example/api/pengadil-application.php',{
   method:'POST',headers:{Cookie:cookie},body:form(type)}),env);
+// Kelas III / Kelas I FAM are recorded for the year applied, whatever application_year says.
+const examYear=Number(new Intl.DateTimeFormat('en-CA',{year:'numeric',timeZone:'Asia/Kuala_Lumpur'}).format(new Date()));
 const saved=(type)=>db.prepare(`SELECT payment_amount FROM permohonan
-  WHERE user_id=? AND jenis_borang=? AND tahun_permohonan=2027`).get(userId,type);
+  WHERE user_id=? AND jenis_borang=? AND tahun_permohonan=?`).get(userId,type,examYear);
 
 try {
   // These tests are about other rules; the snapshot's past open/close dates would close the forms.
@@ -64,11 +66,12 @@ try {
   assert.equal(settings.bertulis_fee,'180');
   assert.equal(settings.bertulis_max_age,'30');
 
-  // Born 1996: 31 in 2027, above the Settings maximum of 30 (the old code allowed up to 40).
-  db.prepare("UPDATE users SET no_ic='960101061234' WHERE id=?").run(userId);
+  // 31 in the exam year, above the Settings maximum of 30 (the old code allowed up to 40).
+  // The age is taken in the exam year, not in application_year (2027).
+  db.prepare("UPDATE users SET no_ic=? WHERE id=?").run(`${String(examYear-31).slice(2)}0101061234`,userId);
   response=await post('kelas3_fam');
   assert.equal(response.status,400);
-  assert.match((await response.json()).message,/antara 15 hingga 30 tahun pada tahun 2027/);
+  assert.match((await response.json()).message,new RegExp(`antara 15 hingga 30 tahun pada tahun ${examYear}`));
 
   setting('bertulis_fee','');
   db.prepare("UPDATE users SET no_ic='070101061234' WHERE id=?").run(userId);
@@ -77,18 +80,31 @@ try {
   assert.match((await response.json()).message,/Tetapan yuran/);
   setting('bertulis_fee','180');
 
-  // Born 2007: 20 in 2027. The Kelas III fee, not the annual RM80, is recorded and emailed.
+  // Born 2007: within 15-30 in the exam year. The Kelas III fee, not the annual RM80, is recorded and emailed.
   response=await post('kelas3_fam');
   assert.equal(response.status,200,JSON.stringify(await response.clone().json()));
   assert.equal(saved('kelas3_fam').payment_amount,'180.00');
-  assert.match(emails.at(-1).text,/Yuran permohonan: RM 180\.00/);
+  assert.match(emails.at(-1).text,/Yuran Permohonan\s+RM 180\.00/);
 
   setting('kelas1_open','1');
   db.prepare("UPDATE users SET tahun_lulus_kelas3='2020' WHERE id=?").run(userId);
   response=await post('ujian_kelas1_fam');
   assert.equal(response.status,200,JSON.stringify(await response.clone().json()));
   assert.equal(saved('ujian_kelas1_fam').payment_amount,'300.00');
-  assert.match(emails.at(-1).text,/Yuran permohonan: RM 300\.00/);
+  assert.match(emails.at(-1).text,/Yuran Permohonan\s+RM 300\.00/);
+
+  // Ujian Kelas I FAM goes straight to Admin, who can resend the submission email with its R11.
+  const classOne=db.prepare(`SELECT id,status_workflow FROM permohonan
+    WHERE user_id=? AND jenis_borang='ujian_kelas1_fam' AND tahun_permohonan=?`).get(userId,examYear);
+  assert.equal(classOne.status_workflow,'Menunggu Admin');
+  const admin=db.prepare("SELECT id FROM users WHERE role='Admin' AND aktif=1 LIMIT 1").get();
+  const before=emails.length;
+  response=await deleteApplication(new Request('https://staging.refpahang.example/api/admin-applications.php',{method:'POST',
+    headers:{Cookie:await sessionCookie(db,admin.id)},body:JSON.stringify({action:'resend_receipt',id:classOne.id})}),env);
+  assert.equal(response.status,200,JSON.stringify(await response.clone().json()));
+  assert.equal(emails.length,before+1);
+  assert.match(emails.at(-1).subject,/Ujian Kelas I FAM/);
+  assert.ok(emails.at(-1).attachments?.some(file=>/Borang_R11_KelasI_/.test(file.filename)),'R11 attached');
   console.log('kelas3 settings: open switch, age range and per-form fee follow Admin Settings');
 } finally {
   close();

@@ -125,8 +125,8 @@ try {
   const reviewerMails = emails.filter((message) => /^Pendaftaran Pengadil Baharu: /.test(message.subject));
   assert.ok(reviewerMails.length >= 1);
   assert.equal(emails.length, 1 + reviewerMails.length);
-  assert.ok(emails[0].text.replace(/\s+/g,' ').includes('Wajib: Hubungkan Telegram sebelum anda boleh menerima lantikan'));
-  assert.ok(emails[0].html.includes('Hubungkan Telegram (Wajib)'));
+  assert.ok(emails[0].text.replace(/\s+/g,' ').includes('Untuk menerima lantikan, hubungkan Telegram atau log masuk ke aplikasi mudah alih dan aktifkan notifikasi'));
+  assert.ok(!emails[0].html.includes('Hubungkan Telegram (Wajib)'));
   assert.equal((await post(form())).status, 409);
   assert.equal(objects.size, 1);
   await checkLogin('pengadil.ujian@example.invalid', 'Pengadil');

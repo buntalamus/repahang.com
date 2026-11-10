@@ -23,6 +23,9 @@ export class PengadilMatchesComponent implements OnInit {
   filtered: any[] = [];
   search = '';
   stats = { total: 0, disahkan: 0, belum_disahkan: 0, ditolak: 0, year: new Date().getFullYear() };
+  /** Records are for matches already played, at most 14 days ago (Malaysia time). */
+  readonly maxDate = klDate(0);
+  readonly minDate = klDate(-14);
   filterStatus = '';
   showForm = false;
   submitting = false;
@@ -34,6 +37,8 @@ export class PengadilMatchesComponent implements OnInit {
 
   // Only the four match officials are recorded (no RA, no fifth official).
   readonly jawatanOptions = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pengadil Ke-4'];
+  /** A match is recordable only with these three officials; the 4th official is optional. */
+  readonly requiredPositions = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2'];
   readonly jenisOptions = ['Liga', 'Piala', 'Persahabatan', 'Lain-lain'];
   readonly cuacaOptions = ['Cerah', 'Mendung', 'Hujan Renyai', 'Hujan Lebat', 'Panas Terik', 'Berangin'];
 
@@ -160,10 +165,15 @@ export class PengadilMatchesComponent implements OnInit {
       this.toast.warning('Sila isi maklumat perlawanan yang diperlukan.');
       return;
     }
+    if (this.form.tarikh > this.maxDate) {
+      this.toast.warning('Tarikh perlawanan belum berlangsung. Rekod hanya boleh dihantar selepas perlawanan.');
+      return;
+    }
 
     const filledOfficials = this.officials.filter((o) => o.referee && o.jawatan);
-    if (filledOfficials.length === 0) {
-      this.toast.warning('Sila pilih sekurang-kurangnya seorang pegawai.');
+    const missing = this.requiredPositions.filter((j) => !filledOfficials.some((o) => o.jawatan === j));
+    if (missing.length) {
+      this.toast.warning(`Perlawanan ini tidak layak direkodkan tanpa Pengadil, Penolong Pengadil 1 dan Penolong Pengadil 2. Belum diisi: ${missing.join(', ')}.`);
       return;
     }
     if (!this.form.daerah_perlawanan_id) {
@@ -208,12 +218,12 @@ export class PengadilMatchesComponent implements OnInit {
           this.officials = [];
           this.loadMatches();
         } else {
-          this.toast.error(res.message || 'Gagal menambah perlawanan.');
+          this.toast.apiError(res, 'Gagal menambah perlawanan.');
         }
       },
       error: (err: any) => {
         this.submitting = false;
-        this.toast.error(err?.error?.message || 'Ralat pelayan.');
+        this.toast.apiError(err, 'Ralat pelayan.');
       },
     });
   }
@@ -226,7 +236,7 @@ export class PengadilMatchesComponent implements OnInit {
           this.toast.success('Perlawanan dipadam.');
           this.loadMatches();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
     });
@@ -242,4 +252,11 @@ export class PengadilMatchesComponent implements OnInit {
         return 'bg-yellow-100 text-yellow-700';
     }
   }
+}
+
+/** YYYY-MM-DD in Asia/Kuala_Lumpur, offset by whole days. */
+function klDate(offsetDays: number): string {
+  const day = new Date(Date.now() + offsetDays * 86_400_000);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .format(day);
 }

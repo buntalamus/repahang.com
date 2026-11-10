@@ -22,13 +22,28 @@
   @else if (error()) { <div role="alert" class="portal-error"><h3>Maklumat belum tersedia</h3><p>{{ error() }}</p><button (click)="load()" type="button">Cuba semula</button></div> }
   @else if (data(); as d) {
     @if (!statistical) {
+      @if (d.c13?.length) {
+        <section aria-labelledby="c13-title">
+          <div class="section-heading"><div><h3 id="c13-title">C13 · Laporan pengadil</h3><p>Pilih perlawanan untuk mengisi dan menandatangani laporan anda.</p></div></div>
+          <div class="action-grid">
+            @for (report of d.c13; track report.match_id) {
+              <a class="action-card" [class.has-work]="!report.submitted"
+                [href]="'/api/jfa-c13.php?view=page&match=' + report.match_id" target="_blank" rel="noopener">
+                <div><p>{{ report.submitted ? 'Lihat C13' : 'Isi C13' }}</p><small>{{ report.label }}</small><small>{{ report.submitted ? 'Laporan telah diterima' : 'Belum dihantar' }}</small></div>
+                <span class="material-icons" aria-hidden="true">edit_document</span>
+              </a>
+            }
+          </div>
+        </section>
+      }
       <section aria-labelledby="action-title"><div class="section-heading"><h3 id="action-title">Perlu tindakan</h3><span>Utamakan perkara yang belum selesai</span></div>
         <div class="action-grid">@for (action of actions(); track action.title) {
           <a class="action-card" [class.has-work]="action.count > 0" [routerLink]="action.route" [queryParams]="action.params">
             <div><p>{{ action.title }}</p><strong>{{ action.count }}</strong><small>{{ action.detail }}</small></div>
             <span class="material-icons" aria-hidden="true">arrow_forward</span>
           </a>
-        }</div>
+        }
+        </div>
       </section>
     }
     <section aria-label="Ringkasan tahun dipilih" class="metric-grid">@for (card of metricCards(); track card.label) {
@@ -50,6 +65,9 @@
       }
       @if (view === 'pp') {
         <section class="portal-panel"><h3>Unit rekod daerah</h3><dl class="detail-grid"><div><dt>Perlawanan dikenal pasti</dt><dd>{{ d.totals['identified_matches'] }}</dd></div><div><dt>Rekod lama belum dipadankan</dt><dd>{{ d.totals['legacy_records'] }}</dd></div><div><dt>Rekod pegawai menunggu</dt><dd>{{ d.totals['pending'] }}</dd></div><div><dt>Rekod tidak disahkan</dt><dd>{{ d.totals['rejected'] }}</dd></div></dl><p class="panel-note">Satu perlawanan boleh mempunyai beberapa rekod pegawai. Rekod lama tidak digabungkan berdasarkan nama pasukan semata-mata.</p></section>
+      }
+      @if (isPp) {
+        <section class="portal-panel"><app-mobile-usage /></section>
       }
       @if (view === 'pengadil') {
         <section class="portal-panel"><h3>Lantikan mengikut jawatan</h3><div class="detail-grid">@for (position of d.positions; track position.label) { <div><p>{{ position.label }}</p><strong>{{ position.total }}</strong></div> } @empty { <p>Tiada lantikan dalam tahun dipilih.</p> }</div></section>

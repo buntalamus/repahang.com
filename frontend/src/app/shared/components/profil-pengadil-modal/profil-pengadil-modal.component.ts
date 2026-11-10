@@ -542,7 +542,7 @@ export class ProfilPengadilModalComponent {
         this.load(p.id);
       },
       error: (err) => {
-        this.toast.show(err?.error?.message || 'Ralat mengemaskini profil.', 'error');
+        this.toast.apiError(err, 'Ralat mengemaskini profil.');
         this.savingEdit.set(false);
       },
     });
@@ -559,7 +559,7 @@ export class ProfilPengadilModalComponent {
         this.savingTaraf.set(false);
       },
       error: (err) => {
-        this.toast.show(err?.error?.message || 'Ralat mengemaskini taraf.', 'error');
+        this.toast.apiError(err, 'Ralat mengemaskini taraf.');
         this.savingTaraf.set(false);
       },
     });

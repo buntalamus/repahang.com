@@ -1,4 +1,6 @@
 /** Port of config/lantikan-helper.php used by the appointment endpoints. */
+import { hasAppChannel } from '../channels';
+import { publishedAppointmentSql } from '../appointment-publication';
 import type { Env } from '../types';
 import type { KupOfficial } from './email';
 import { buildEmailTemplate, emailButton, emailGreeting, emailInfoTable, emailPara,
@@ -19,10 +21,18 @@ export const LANTIKAN_AUTO_TOLAK_KOMEN = 'Ditolak automatik - tiada jawapan dala
 export const KUP_POSITIONS = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pegawai ke4'];
 const KUP_SQL = "'Pengadil','Penolong Pengadil 1','Penolong Pengadil 2','Pegawai ke4'";
 const KUP_ORDER = `CASE lp.jawatan WHEN 'Pengadil' THEN 1 WHEN 'Penolong Pengadil 1' THEN 2
-  WHEN 'Penolong Pengadil 2' THEN 3 WHEN 'Pegawai ke4' THEN 4 ELSE 0 END`;
+  WHEN 'Penolong Pengadil 2' THEN 3 WHEN 'Pegawai ke4' THEN 4 WHEN 'Penilai Pengadil' THEN 5 ELSE 0 END`;
+// The roster shown to officials and the "Krew KUP Lengkap" recipients include the RA,
+// but only the KUP decides when the crew is complete.
+const CREW_SQL = `${KUP_SQL},'Penilai Pengadil'`;
 
 export function isKupPosition(jawatan: string): boolean {
   return KUP_POSITIONS.includes(jawatan);
+}
+
+/** KUP answers can complete the crew; an RA answer can add the RA to a complete crew. */
+export function affectsCrewNotice(jawatan: string): boolean {
+  return isKupPosition(jawatan) || jawatan === 'Penilai Pengadil';
 }
 
 export function randomHex(bytes: number): string {
@@ -66,8 +76,9 @@ export async function getMatchKupOfficials(env: Env, jadualId: number):
     LEFT JOIN kejohanan kj ON kj.id=jp.kejohanan_id
     LEFT JOIN users u ON u.id=lp.pengadil_id
     LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
-    WHERE lp.jadual_id=? AND lp.jawatan IN (${KUP_SQL})
+    WHERE lp.jadual_id=? AND lp.jawatan IN (${CREW_SQL})
       AND lp.status IN ('Belum Jawab','Diterima')
+      AND ${publishedAppointmentSql('lp')}
     ORDER BY ${KUP_ORDER}`).bind(jadualId)
     .all<KupOfficial & { lantikan_id: number; peringkat_kejohanan: string }>();
   const peringkat = rows.results[0]?.peringkat_kejohanan ?? 'Daerah';
@@ -211,6 +222,7 @@ export async function notifyPPDaerahLantikan(env: Env, persatuanId: number,
   for (const pp of users.results) {
     await createPortalNotification(env, pp.id, 'Lantikan Pegawai Pembangunan Daerah', `Lantikan Pengadil Daerah: ${pasukan}`,
       `${officials.length} pengadil daerah anda dilantik untuk ${pasukan} (${kejohanan}) pada ${tarikhText}: ${names}.`);
+    let telegramDelivered = false;
     if (pp.telegram_chat_id) {
       const message = '<b>📋 Makluman Lantikan Pengadil</b>\n\n'
         + 'Pengadil daerah anda telah dilantik:\n'
@@ -220,9 +232,10 @@ export async function notifyPPDaerahLantikan(env: Env, persatuanId: number,
         + `<b>Tarikh:</b> ${tarikhText}\n`
         + `<b>Masa:</b> ${masaText}\n`
         + `<b>Tempat:</b> ${h(tempat)}\n`;
-      await tgSend(env, pp.telegram_chat_id, message);
+      telegramDelivered = await tgSend(env, pp.telegram_chat_id, message);
     }
-    if (pp.email) {
+    // Portal (app push) and Telegram above; email only if neither reaches the PP.
+    if (pp.email && !telegramDelivered && !await hasAppChannel(env, pp.id)) {
       const body = emailGreeting(pp.nama_penuh)
         + emailPara('Pengadil dari daerah anda telah dilantik untuk bertugas:')
         + emailInfoTable([
@@ -335,7 +348,29 @@ export async function generatePenilaianToken(env: Env, lantikanId: number,
   const audit = (channel: string, status: string, details: Record<string, unknown>) =>
     recordLantikanAudit(env, lantikanId, 'ra_form_notification', channel, status, details,
       borangUrl, 'system', null, snapshot, meta);
-  if (row.emel_penilai) {
+  if (row.tg_chat_id) {
+    try {
+      const message = '📋 <b>Borang Penilaian Pengadil</b>\n\n'
+        + 'Anda telah menerima tugasan sebagai <b>Penilai Pengadil</b>.\n\n'
+        + `⚽ ${h(`${row.pasukan_home} lwn ${row.pasukan_away}`)}\n`
+        + `📅 ${tarikhFmt(row.tarikh)}\n`
+        + `📍 ${h(row.tempat ?? '')}\n\n`
+        + 'Sila isi borang penilaian selepas perlawanan:';
+      telegramDelivered = await tgSend(env, Number(row.tg_chat_id), message,
+        { inline_keyboard: [[{ text: '📋 Isi Borang Penilaian', url: borangUrl }]] });
+      if (!telegramDelivered) telegramError = 'Penghantar Telegram memulangkan status gagal.';
+    } catch (error) {
+      telegramDelivered = false;
+      telegramError = error instanceof Error ? error.message : String(error);
+    }
+    const details: Record<string, unknown> = { telegram_linked: true, ra_form_url: borangUrl };
+    if (telegramError !== null) details.error = telegramError;
+    await audit('telegram', telegramDelivered ? 'success' : 'failed', details);
+  } else {
+    await audit('telegram', 'skipped', { reason: 'telegram_not_linked', ra_form_url: borangUrl });
+  }
+  // Email is the fallback if the actual Telegram send fails.
+  if (row.emel_penilai && !telegramDelivered) {
     try {
       const pasukan = h(`${row.pasukan_home} lwn ${row.pasukan_away}`);
       const body = emailGreeting(row.nama_penilai)
@@ -359,28 +394,7 @@ export async function generatePenilaianToken(env: Env, lantikanId: number,
     if (emailError !== null) details.error = emailError;
     await audit('email', emailDelivered ? 'success' : 'failed', details);
   } else {
-    await audit('email', 'skipped', { reason: 'email_missing', ra_form_url: borangUrl });
-  }
-  if (row.tg_chat_id) {
-    try {
-      const message = '📋 <b>Borang Penilaian Pengadil</b>\n\n'
-        + 'Anda telah menerima tugasan sebagai <b>Penilai Pengadil</b>.\n\n'
-        + `⚽ ${h(`${row.pasukan_home} lwn ${row.pasukan_away}`)}\n`
-        + `📅 ${tarikhFmt(row.tarikh)}\n`
-        + `📍 ${h(row.tempat ?? '')}\n\n`
-        + 'Sila isi borang penilaian selepas perlawanan:';
-      telegramDelivered = await tgSend(env, Number(row.tg_chat_id), message,
-        { inline_keyboard: [[{ text: '📋 Isi Borang Penilaian', url: borangUrl }]] });
-      if (!telegramDelivered) telegramError = 'Penghantar Telegram memulangkan status gagal.';
-    } catch (error) {
-      telegramDelivered = false;
-      telegramError = error instanceof Error ? error.message : String(error);
-    }
-    const details: Record<string, unknown> = { telegram_linked: true, ra_form_url: borangUrl };
-    if (telegramError !== null) details.error = telegramError;
-    await audit('telegram', telegramDelivered ? 'success' : 'failed', details);
-  } else {
-    await audit('telegram', 'skipped', { reason: 'telegram_not_linked', ra_form_url: borangUrl });
+    await audit('email', 'skipped', { reason: row.emel_penilai ? 'telegram_delivered' : 'email_missing', ra_form_url: borangUrl });
   }
   await recordLantikanAudit(env, lantikanId, 'ra_form_dispatched', 'combined',
     emailDelivered || telegramDelivered ? 'success' : 'failed', {
@@ -414,7 +428,8 @@ interface CrewRecipient {
 async function getCompleteKupCrewContext(env: Env, jadualId: number) {
   if (!(await isAcceptedKupCrewComplete(env, jadualId))) return null;
   const roster = await getMatchKupOfficials(env, jadualId);
-  if (roster.officials.length < 3 || roster.officials.length > 4) return null;
+  const kupCount = roster.officials.filter((official) => isKupPosition(String(official.jawatan))).length;
+  if (kupCount < 3 || kupCount > 4) return null;
   const recipients = (await env.DB.prepare(`
     SELECT lp.id AS lantikan_id,lp.jawatan,
       COALESCE(NULLIF(trim(u.nama_penuh),''),NULLIF(trim(pl.nama),''),'Pengadil') AS nama,
@@ -427,11 +442,14 @@ async function getCompleteKupCrewContext(env: Env, jadualId: number) {
     LEFT JOIN kejohanan kj ON kj.id=jp.kejohanan_id
     LEFT JOIN users u ON u.id=lp.pengadil_id
     LEFT JOIN pengadil_luar pl ON pl.id=lp.pengadil_luar_id
-    WHERE lp.jadual_id=? AND lp.status='Diterima' AND lp.jawatan IN (${KUP_SQL})
+    WHERE lp.jadual_id=? AND lp.status='Diterima' AND lp.jawatan IN (${CREW_SQL})
     ORDER BY ${KUP_ORDER}`).bind(jadualId).all<CrewRecipient>()).results;
-  if (recipients.length !== roster.officials.length) return null;
+  const kupRecipients = recipients.filter((recipient) => isKupPosition(recipient.jawatan));
+  if (kupRecipients.length !== kupCount) return null;
+  // The RA stays out of the fingerprint: an RA who accepts later joins the same crew
+  // signature and is notified alone, without re-notifying the KUP.
   const fingerprint = await sha256Hex([String(jadualId),
-    ...recipients.map((recipient) => `${recipient.jawatan}:${recipient.lantikan_id}`)].join('|'));
+    ...kupRecipients.map((recipient) => `${recipient.jawatan}:${recipient.lantikan_id}`)].join('|'));
   return { fingerprint, roster, recipients };
 }
 
@@ -456,7 +474,9 @@ async function queueKupCrewNotifications(env: Env, jadualId: number, fingerprint
         telegram_applicable=excluded.telegram_applicable,
         email_applicable=excluded.email_applicable,superseded_at=NULL`).bind(
       jadualId, recipient.lantikan_id, fingerprint, signature,
-      recipient.telegram_chat_id ? 1 : 0, String(recipient.email ?? '').trim() !== '' ? 1 : 0)),
+      // Email only for officials without Telegram.
+      recipient.telegram_chat_id ? 1 : 0,
+      !recipient.telegram_chat_id && String(recipient.email ?? '').trim() !== '' ? 1 : 0)),
     env.DB.prepare(`UPDATE kup_crew_notifications SET completed_at=CASE
         WHEN (telegram_applicable=0 OR telegram_sent_at IS NOT NULL)
          AND (email_applicable=0 OR email_sent_at IS NOT NULL)
@@ -532,6 +552,10 @@ export async function notifyCompleteKupCrew(env: Env, jadualId: number): Promise
         }
         await finishChannel(env, delivery.id, 'telegram', success, attempt, errorMessage);
         if (success) result.telegram_sent++;
+        else if (String(recipient.email ?? '').trim()) {
+          await env.DB.prepare('UPDATE kup_crew_notifications SET email_applicable=1 WHERE id=? AND superseded_at IS NULL').bind(delivery.id).run();
+          delivery.email_applicable = 1;
+        }
       }
     }
     if (delivery.email_applicable && !delivery.email_sent_at) {

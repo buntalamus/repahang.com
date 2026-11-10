@@ -115,15 +115,23 @@ export class AdminReportsComponent implements OnInit {
   }
 
   approve(id: number): void {
+    if (!this.applications.some(app => Number(app.id) === Number(id) && this.canDecideApplication(app))) return;
     this.api.post<any>('admin-approve.php', { permohonan_id: id, action: 'approve' }).subscribe({
       next: (res) => {
         if (!res.error) { this.toast.success('Permohonan diluluskan.'); this.loadApplications(); }
-        else this.toast.error(res.message);
+        else this.toast.apiError(res);
       },
+      error: (err: { error?: { message?: string } }) =>
+        this.toast.apiError(err, 'Gagal meluluskan permohonan.'),
     });
   }
 
+  canDecideApplication(app: { status?: string }): boolean {
+    return app.status === 'Menunggu Admin';
+  }
+
   openReject(app: any): void {
+    if (!this.canDecideApplication(app)) return;
     this.rejectTargetId = app.permohonan_id || app.id;
     this.rejectTargetName = app.nama_penuh || '';
     this.rejectReason = '';
@@ -138,8 +146,10 @@ export class AdminReportsComponent implements OnInit {
     this.api.post<any>('admin-approve.php', { permohonan_id: this.rejectTargetId, action: 'reject', notes: this.rejectReason }).subscribe({
       next: (res) => {
         if (!res.error) { this.toast.success('Permohonan ditolak.'); this.showRejectModal = false; this.loadApplications(); }
-        else this.toast.error(res.message);
+        else this.toast.apiError(res);
       },
+      error: (err: { error?: { message?: string } }) =>
+        this.toast.apiError(err, 'Gagal menolak permohonan.'),
     });
   }
 

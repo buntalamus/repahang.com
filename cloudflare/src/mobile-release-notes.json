@@ -1,0 +1,137 @@
+[
+  {
+    "release_version": "1.3.0+7",
+    "patch": 3,
+    "date": "2026-10-21",
+    "changes": [
+      "Pengadil dengan akaun dinyahaktifkan atau status tahunan Pengadil Tidak Aktif tidak boleh dilantik.",
+      "Kelayakan saluran lantikan menerima Telegram atau akses aplikasi yang aktif."
+    ]
+  },
+  {
+    "release_version": "1.3.0+7",
+    "patch": 4,
+    "date": "2026-10-21",
+    "changes": [
+      "Tiga pengumuman terkini kini dipaparkan pada halaman Utama untuk semua peranan.",
+      "Tekan Lihat semua untuk senarai pengumuman dan baca kandungan penuh dalam aplikasi.",
+      "Penanda Baharu hilang selepas pengumuman dibaca.",
+      "Notifikasi pengumuman membuka terus kandungan yang berkaitan."
+    ]
+  },
+  {
+    "release_version": "1.3.0+7",
+    "patch": 5,
+    "date": "2026-10-21",
+    "changes": [
+      "Popup kemas kini kini menyediakan catatan perubahan supaya anda tahu apa yang dikemas kini.",
+      "Catatan dipaparkan mengikut versi dan patch yang dimuat turun, termasuk perubahan yang terlepas jika anda melangkau kemas kini."
+    ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 0,
+    "date": "2026-10-30",
+    "changes": [
+      "Rupa baharu: halaman Utama berwarna kuning dengan kad ringkasan, Tindakan Pantas dan Tugasan Seterusnya beserta masa berbaki.",
+      "Butang tengah di bar bawah membuka tugas utama peranan anda; tekan gambar profil untuk Profil dan tetapan.",
+      "Kemaskini profil, daftar akaun baharu dan lupa kata laluan kini dibuat terus dalam aplikasi.",
+      "Mohon Pendaftaran Tahunan, Kelas III FAM dan Ujian Kelas I FAM dalam aplikasi, termasuk muat naik resit dan muat turun borang PDF.",
+      "Statistik tahunan dengan carta bulanan untuk Pengadil, Penilai dan PP Daerah.",
+      "PP Daerah: senarai pengadil dan penilai daerah, permohonan daerah dengan eksport CSV, dan laporan penilaian.",
+      "Admin: semakan rekod perlawanan, pengumuman, permohonan ujian, pengadil berdaftar dan chat pengguna.",
+      "Butang Hubungi Admin untuk bertanya terus kepada Admin."
+    ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 1,
+    "date": "2026-10-30",
+    "changes": [
+      "Susun atur lebih kemas pada telefon berskrin kecil: Tindakan Pantas tidak lagi bersesak dan label tidak terpotong.",
+      "Admin: Statistik, Laporan Permohonan, Tetapan, Pengguna, PP Daerah dan Permohonan Penilai kini dibuka terus dalam aplikasi."
+    ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 2,
+    "date": "2026-10-31",
+    "changes": [
+      "Tarikh rekod perlawanan hanya boleh dipilih dari 14 hari lalu hingga hari ini; perlawanan yang belum berlangsung tidak boleh direkod.",
+      "Admin: butang Muat turun borang (PDF) pada butiran permohonan."
+    ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 3,
+    "date": "2026-11-01",
+    "changes": [
+      "Penilai: kekuatan, kelemahan dan nasihat untuk Penolong Pengadil 1, Penolong Pengadil 2 dan Pegawai Keempat kini disimpan dan dipaparkan dalam laporan PDF.",
+      "Penilai: ruangan baharu Skor perlawanan (separuh masa, tamat, masa tambahan dan sepakan penalti) dalam borang laporan."
+    ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 4,
+    "date": "2026-11-01",
+    "critical": true,
+    "changes": [
+      "Penilai: Skor perlawanan kini diisi mengikut gol Separuh Masa Pertama dan Separuh Masa Kedua, dengan Keputusan Akhir dikira sendiri, sama seperti laporan PDF.",
+      "Penilai: Panduan Skala Pemarkahan dikemas kini mengikut skala dalam laporan PDF, dan Pegawai Keempat dilabel P4.",
+      "Kemas kini penting kini wajib dipasang: app akan meminta anda mula semula sebelum boleh digunakan."
+    ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 5,
+    "date": "2026-11-01",
+    "changes": [
+      "Pengadil utama: butang Isi C13 kini terus dipaparkan di halaman Utama bagi perlawanan JFA yang telah diterima.",
+      "Butang Isi C13 turut tersedia pada senarai dan butiran tugasan; borang dibuka di pelayar telefon tanpa perlu log masuk sekali lagi.",
+      "Tindakan bertukar kepada Lihat C13 selepas laporan diterima."
+    ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 6,
+    "date": "2026-11-01",
+    "changes": [
+      "Admin: menu Permohonan Ujian digantikan dengan Permohonan Pengadil (Pengadil Berdaftar, Kelas III FAM dan Ujian Kelas I FAM), sama seperti laman web.",
+      "Admin: nama tab permohonan kini sama dengan laman web."
+    ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 7,
+    "date": "2026-11-02",
+    "changes": [
+      "Admin: menu baharu Laporan RA untuk melihat laporan penilaian, status pengesahan Pengerusi, Override & Sahkan laporan, serta senarai RA yang belum menghantar laporan.",
+      "Kad Laporan RA di halaman Utama Admin kini membuka senarai laporan tersebut.",
+      "Penilai: butang Lihat laporan bagi laporan yang telah dihantar, dan butang PDF selepas laporan disahkan.",
+      "Laporan RA (PDF) kini dibuka terus di pelayar telefon tanpa perlu log masuk semula, untuk Pengadil, Penilai, PP Daerah dan Admin.",
+      "PP Daerah: keputusan perlawanan dalam laporan penilaian kini memaparkan keputusan akhir, sama seperti laporan PDF.",
+      "Resit bayaran lama yang disimpan di luar sistem kini dibuka di pelayar."
+    ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 8,
+    "date": "2026-11-02",
+    "changes": [
+      "Permohonan Kelas III FAM dan Ujian Kelas I FAM kini dipaparkan untuk tahun semasa (contoh: Sesi 2026); Pendaftaran Tahunan kekal untuk sesi akan datang.",
+      "Admin: tab Kelas III FAM dan Ujian Kelas I FAM dalam Permohonan Pengadil kini dibuka pada sesi masing-masing.",
+      "Admin: senarai Kelulusan kini memaparkan semua permohonan yang menunggu Admin, termasuk Ujian Kelas I FAM."
+    ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 9,
+    "date": "2026-11-10",
+    "changes": [
+      "Tambah perlawanan: Pengadil, Penolong Pengadil 1 dan Penolong Pengadil 2 kini ditanda wajib (*). Rekod tanpa ketiga-tiga pegawai ini tidak boleh dihantar; Pengadil Ke-4 kekal pilihan.",
+      "Perlawanan yang sama (tarikh dan kedua-dua pasukan) hanya boleh direkodkan sekali. Rekod kedua ditolak dengan notis yang menyatakan siapa telah merekodnya dan senarai pegawainya.",
+      "Admin: penapis baharu Meragukan dalam Rekod Perlawanan untuk rekod berganda atau pegawai bertembung, beserta butiran rekod yang bertindih.",
+      "Admin: butang Tolak sebagai rekod berganda menolak rekod dengan justifikasi yang diisi secara automatik."
+    ]
+  }
+]

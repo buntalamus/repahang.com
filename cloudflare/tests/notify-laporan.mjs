@@ -29,9 +29,15 @@ const call=(fn,path,method,who,body)=>fn(new Request(`https://refpahang.com/api/
   headers:{'Content-Type':'application/json',Cookie:cookie[who]},body:body===undefined?undefined:JSON.stringify(body)}),env)
   .then(async(r)=>({status:r.status,...(await r.json())}));
 
+const hasTelegram=(u)=>String(u.telegram_chat_id ?? '').trim()!=='';
+const emailOnly=(users)=>users.filter((u)=>!hasTelegram(u)).map((u)=>u.email).sort();
+const reached=(u,text)=>hasTelegram(u)
+  ? telegrams.some((t)=>t.chatId===String(u.telegram_chat_id) && t.text.includes(text))
+  : emails.some((m)=>m.to===u.email);
+
 try {
   // --- Chair assignment: new chair told; replaced chair told; same chair silent ---
-  const assessors=all(`SELECT id,email FROM users WHERE aktif=1 AND (role='Penilai' OR jenis_pengadil='Penilai Pengadil')
+  const assessors=all(`SELECT id,email,telegram_chat_id FROM users WHERE aktif=1 AND (role='Penilai' OR jenis_pengadil='Penilai Pengadil')
     AND trim(COALESCE(email,''))<>'' ORDER BY id LIMIT 2`);
   assert.equal(assessors.length,2);
   const tournamentId=Number(db.prepare(`INSERT INTO kejohanan(nama,jenis_kejohanan,peringkat_kejohanan,tarikh_mula,
@@ -43,31 +49,33 @@ try {
   let r=await assign(assessors[0].id);
   assert.equal(r.error,false,r.message);
   assert.equal(r.chair_notified,true);
-  assert.deepEqual(emails.map((m)=>m.to),[assessors[0].email]);
-  assert.match(emails[0].subject,/^Lantikan Pengerusi Pengadil: Kejohanan Notis$/);
+  // Telegram first; email only when the officer has no Telegram.
+  assert.deepEqual(emails.map((m)=>m.to),emailOnly([assessors[0]]));
+  assert.ok(reached(assessors[0],'Pengerusi Pengadil'));
   reset();
   r=await assign(assessors[0].id);
   assert.equal(r.chair_notified,false);
-  assert.equal(emails.length,0,'saving the same chair again sends nothing');
+  assert.equal(emails.length+telegrams.length,0,'saving the same chair again sends nothing');
   reset();
   r=await assign(assessors[1].id);
-  assert.deepEqual(emails.map((m)=>m.to).sort(),[assessors[0].email,assessors[1].email].sort());
-  assert.match(emails.find((m)=>m.to===assessors[0].email).subject,/^Tugas Pengerusi Pengadil Tamat: /);
+  assert.deepEqual(emails.map((m)=>m.to).sort(),emailOnly(assessors));
+  assert.ok(reached(assessors[0],'Tamat'));
+  assert.ok(reached(assessors[1],'Pengerusi Pengadil'));
 
   // --- Tournament created by PP Daerah: every Admin hears ------------------------
-  const adminEmails=all(`SELECT email FROM users WHERE role='Admin' AND aktif=1 AND trim(COALESCE(email,''))<>''`)
-    .map((row)=>row.email).sort();
+  const admins=all(`SELECT email,telegram_chat_id FROM users WHERE role='Admin' AND aktif=1 AND trim(COALESCE(email,''))<>''`);
   reset();
   r=await call(worker.tournaments,'kejohanan.php','POST','pp',{nama:'Liga Daerah Notis',jenis_kejohanan:'Liga',
     peringkat_kejohanan:'Daerah',tarikh_mula:'2099-08-01',tarikh_akhir:'2099-08-30',tempat:'Padang Daerah',status:'Aktif'});
   assert.equal(r.error,false,r.message);
-  assert.deepEqual(emails.map((m)=>m.to).sort(),adminEmails);
-  assert.match(emails[0].subject,/^Kejohanan Daerah Baharu: Liga Daerah Notis$/);
+  assert.deepEqual(emails.map((m)=>m.to).sort(),emailOnly(admins));
+  assert.ok(emails.every((m)=>/^Kejohanan Daerah Baharu: Liga Daerah Notis$/.test(m.subject)));
+  for (const a of admins.filter(hasTelegram)) assert.ok(reached(a,'Liga Daerah Notis'));
   // Admin-created tournaments notify nobody.
   reset();
   r=await call(worker.tournaments,'kejohanan.php','POST','admin',{nama:'Kejohanan Admin',jenis_kejohanan:'Karnival',
     peringkat_kejohanan:'Negeri',tarikh_mula:'2099-09-01',tarikh_akhir:'2099-09-02',tempat:'Kuantan',status:'Aktif'});
-  assert.equal(emails.length,0);
+  assert.equal(emails.length+telegrams.length,0);
 
   // --- Pool add/remove: queued, delivered by the outbox --------------------------
   const officials=all(`SELECT id,email,telegram_chat_id,jenis_pengadil FROM users WHERE role='Pengadil' AND aktif=1
@@ -79,9 +87,10 @@ try {
   assert.equal(r.added,3);
   assert.equal(emails.length,0);
   await worker.processNotificationOutbox(env,50);
-  assert.deepEqual(emails.map((m)=>m.to).sort(),officials.map((o)=>o.email).sort());
-  assert.ok(emails.every((m)=>/^Dimasukkan ke Pool Pengadil: Kejohanan Notis$/.test(m.subject)));
+  // All three are on Telegram: no email.
+  assert.deepEqual(emails,[]);
   assert.equal(telegrams.length,3);
+  assert.ok(officials.every((o)=>reached(o,'Kejohanan Notis')));
   // Adding the same officials again sends nothing new.
   reset();
   r=await call(worker.refereePool,'pool-pengadil.php','POST','admin',
@@ -94,8 +103,8 @@ try {
   r=await call(worker.refereePool,`pool-pengadil.php?id=${poolRow.id}`,'DELETE','admin');
   assert.equal(r.error,false,r.message);
   await worker.processNotificationOutbox(env,50);
-  assert.deepEqual(emails.map((m)=>m.to),[officials[2].email]);
-  assert.match(emails[0].subject,/^Dikeluarkan daripada Pool Pengadil: /);
+  assert.deepEqual(emails,[]);
+  assert.deepEqual(telegrams.map((t)=>t.chatId),[String(officials[2].telegram_chat_id)]);
 
   // --- Tournament edit: officials with a notified upcoming appointment hear -----
   const match=Number(db.prepare(`INSERT INTO jadual_perlawanan(kejohanan_id,no_perlawanan,tarikh,masa,pasukan_home,
@@ -122,9 +131,10 @@ try {
   r=await edit({tempat:'Temerloh'});
   assert.equal(r.officials_notified,3);
   await worker.processNotificationOutbox(env,50);
-  const changeMails=emails.filter((m)=>/^Perubahan Kejohanan: Kejohanan Notis$/.test(m.subject));
-  assert.equal(changeMails.length,3);
-  assert.ok(changeMails[0].html.includes('Temerloh (sebelum ini: Kuantan)'));
+  assert.equal(emails.filter((m)=>/^Perubahan Kejohanan: /.test(m.subject)).length,0);
+  const changeTelegrams=telegrams.filter((t)=>t.text.includes('Temerloh'));
+  assert.equal(changeTelegrams.length,3);
+  assert.ok(changeTelegrams[0].text.includes('Kuantan'));
   console.log('notify-laporan: ok');
 } finally {
   worker.setEmailSenderForTests(null);

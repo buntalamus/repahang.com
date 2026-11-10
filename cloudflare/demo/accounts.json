@@ -1,0 +1,8 @@
+[
+  { "peranan": "Admin", "emel": "admin@demo.refpahang.com", "kata_laluan": "DemoAdmin2026", "keterangan": "Urus pengguna, permohonan, kejohanan, jadual dan lantikan." },
+  { "peranan": "PP Daerah", "emel": "pp@demo.refpahang.com", "kata_laluan": "DemoPP2026", "keterangan": "PP Daerah Kuantan: sahkan permohonan dan rekod perlawanan daerah." },
+  { "peranan": "PP Daerah + Penilai", "emel": "pp-ra@demo.refpahang.com", "kata_laluan": "DemoPPRA2026", "keterangan": "PP Daerah Temerloh yang juga Penilai Pengadil (RA)." },
+  { "peranan": "PP Daerah + Pengadil", "emel": "pp-pengadil@demo.refpahang.com", "kata_laluan": "DemoPPRef2026", "keterangan": "PP Daerah Bentong yang juga Pengadil Negeri." },
+  { "peranan": "Pengadil", "emel": "pengadil@demo.refpahang.com", "kata_laluan": "DemoPengadil2026", "keterangan": "Pengadil Negeri Kuantan: terima/tolak lantikan dan rekod perlawanan." },
+  { "peranan": "Penilai", "emel": "penilai@demo.refpahang.com", "kata_laluan": "DemoPenilai2026", "keterangan": "Penilai Pengadil (RA): tulis dan hantar laporan penilaian." }
+]

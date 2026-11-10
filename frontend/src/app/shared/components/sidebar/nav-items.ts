@@ -71,7 +71,7 @@ export const PENGADIL_NAV: NavItem[] = [
   { label: 'Dashboard', icon: 'dashboard', route: '/pengadil' },
   { label: 'Statistik Saya', icon: 'insights', route: '/pengadil/statistik' },
   { label: 'Profil Saya', icon: 'person', route: '/pengadil/profil' },
-  { label: 'Notifikasi Lantikan', icon: 'notifications_active', route: '/pengadil/notifikasi-lantikan' },
+  { label: 'Notifikasi Lantikan', icon: 'notifications_active', route: '/pengadil/tugasan' },
   { label: 'Rekod Perlawanan', icon: 'sports', route: '/pengadil/perlawanan' },
   { label: 'Penilaian Saya', icon: 'rate_review', route: '/pengadil/penilaian' },
   {
