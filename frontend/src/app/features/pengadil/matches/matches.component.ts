@@ -37,6 +37,8 @@ export class PengadilMatchesComponent implements OnInit {
 
   // Only the four match officials are recorded (no RA, no fifth official).
   readonly jawatanOptions = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pengadil Ke-4'];
+  /** A match is recordable only with these three officials; the 4th official is optional. */
+  readonly requiredPositions = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2'];
   readonly jenisOptions = ['Liga', 'Piala', 'Persahabatan', 'Lain-lain'];
   readonly cuacaOptions = ['Cerah', 'Mendung', 'Hujan Renyai', 'Hujan Lebat', 'Panas Terik', 'Berangin'];
 
@@ -169,8 +171,9 @@ export class PengadilMatchesComponent implements OnInit {
     }
 
     const filledOfficials = this.officials.filter((o) => o.referee && o.jawatan);
-    if (filledOfficials.length === 0) {
-      this.toast.warning('Sila pilih sekurang-kurangnya seorang pegawai.');
+    const missing = this.requiredPositions.filter((j) => !filledOfficials.some((o) => o.jawatan === j));
+    if (missing.length) {
+      this.toast.warning(`Perlawanan ini tidak layak direkodkan tanpa Pengadil, Penolong Pengadil 1 dan Penolong Pengadil 2. Belum diisi: ${missing.join(', ')}.`);
       return;
     }
     if (!this.form.daerah_perlawanan_id) {
