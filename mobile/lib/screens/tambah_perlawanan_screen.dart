@@ -5,6 +5,8 @@ import '../theme.dart';
 import '../widgets/common.dart';
 
 const _jawatanOptions = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2', 'Pengadil Ke-4'];
+// A match is recordable only with these three officials; the 4th official is optional.
+const _requiredJawatan = ['Pengadil', 'Penolong Pengadil 1', 'Penolong Pengadil 2'];
 const _jenisOptions = ['Liga', 'Piala', 'Persahabatan', 'Lain-lain'];
 const _cuacaOptions = ['Cerah', 'Mendung', 'Hujan Renyai', 'Hujan Lebat', 'Panas Terik', 'Berangin'];
 
@@ -70,8 +72,11 @@ class _TambahPerlawananScreenState extends State<TambahPerlawananScreen> {
       return;
     }
     final filled = _officials.where((o) => o.referee != null).toList();
-    if (filled.isEmpty) {
-      showToast(context, 'Sila pilih sekurang-kurangnya seorang pegawai.', ToastType.warning);
+    final missing = _requiredJawatan.where((j) => !filled.any((o) => o.jawatan == j)).toList();
+    if (missing.isNotEmpty) {
+      showToast(context,
+          'Perlawanan ini tidak layak direkodkan tanpa Pengadil, Penolong Pengadil 1 dan Penolong Pengadil 2. Belum diisi: ${missing.join(', ')}.',
+          ToastType.warning);
       return;
     }
     if (_daerahId == null) {
@@ -217,12 +222,21 @@ class _TambahPerlawananScreenState extends State<TambahPerlawananScreen> {
           padding: const EdgeInsets.all(20),
           child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const Text('Pegawai perlawanan', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 6),
+            const Text(
+                'Wajib: Pengadil, Penolong Pengadil 1 dan Penolong Pengadil 2 (Pengadil Ke-4 pilihan). '
+                'Perlawanan yang sama (tarikh dan pasukan) hanya boleh direkodkan sekali.',
+                style: TextStyle(fontSize: 12, color: Tw.slate600)),
             const SizedBox(height: 8),
             for (final o in _officials)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Row(children: [
-                  SizedBox(width: 120, child: Text(o.jawatan, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Tw.slate700))),
+                  SizedBox(width: 120, child: Text.rich(TextSpan(children: [
+                    TextSpan(text: o.jawatan),
+                    if (_requiredJawatan.contains(o.jawatan))
+                      const TextSpan(text: ' *', style: TextStyle(color: Tw.rose500)),
+                  ]), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Tw.slate700))),
                   Expanded(
                     child: InkWell(
                       onTap: () => _pickReferee(o),

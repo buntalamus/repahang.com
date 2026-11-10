@@ -8,7 +8,7 @@ import { currentUser, json } from './auth';
 import { boundedJson } from './request';
 import type { Env } from './types';
 import { wroteRow } from './d1-changes';
-import { conflictSummary, findMatchConflicts } from './match-conflicts';
+import { conflictSummary, findMatchConflicts, teamPair } from './match-conflicts';
 
 const scoreFields = [
   'skor_ht_home', 'skor_ht_away', 'skor_ft_home', 'skor_ft_away',
@@ -85,12 +85,6 @@ function matchFingerprint(date: string, time: string | null, home: string, away:
   const normalizedTime = (time ?? '').trim().slice(0, 5);
   return JSON.stringify([date, normalizedTime, teams[0], teams[1], (tournament ?? '').trim().toLowerCase(),
     venue.trim().toLowerCase(), kind.trim().toLowerCase(), districtId]);
-}
-
-/** Team names compared by letters and digits only ("F.C." = "FC"), in either order. */
-function teamPair(home: string | null, away: string | null): string {
-  const name = (value: string | null) => (value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-  return [name(home), name(away)].sort().join('|');
 }
 
 const slashDate = (value: string) => value.slice(0, 10).split('-').reverse().join('/');

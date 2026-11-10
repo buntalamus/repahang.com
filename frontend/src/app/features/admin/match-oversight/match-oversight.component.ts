@@ -16,7 +16,7 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
       <app-loading message="Memuatkan rekod perlawanan..." />
     } @else {
       <!-- Stats -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
         <div class="bg-white rounded-xl p-4 border border-slate-200">
           <p class="text-2xl font-bold text-slate-900">{{ stats.total || 0 }}</p>
           <p class="text-xs text-slate-500">Jumlah</p>
@@ -36,7 +36,15 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
           <p class="text-2xl font-bold text-red-600">{{ stats.rejected || 0 }}</p>
           <p class="text-xs text-red-600">Ditolak</p>
         </button>
+        <button (click)="setFilter('doubtful')" class="bg-white rounded-xl p-4 border text-left transition"
+          [class]="filterStatus === 'doubtful' ? 'border-orange-400 ring-1 ring-orange-200' : 'border-slate-200 hover:border-orange-300'">
+          <p class="text-2xl font-bold text-orange-700">{{ stats.doubtful || 0 }}</p>
+          <p class="text-xs text-orange-700">Meragukan</p>
+        </button>
       </div>
+      @if (filterStatus === 'doubtful') {
+        <p class="text-xs text-slate-600 mb-4">Rekod menunggu yang <b>berganda</b> (tarikh dan kedua-dua pasukan sama dengan rekod lain) atau <b>bertembung</b> (pegawai sama pada masa yang sama di perlawanan lain). Buka rekod untuk melihat rekod yang bertindih dan ambil tindakan.</p>
+      }
 
       <form (ngSubmit)="applySearch()" class="bg-white rounded-xl border border-slate-200 p-4 mb-4 space-y-3">
         <div class="flex items-center justify-between gap-3">
@@ -56,7 +64,7 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
           </label>
           <label class="text-xs text-slate-600">Status
             <select name="status" [(ngModel)]="filterStatus" (ngModelChange)="applySearch()" class="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
-              <option value="">Semua Status</option><option value="pending">Menunggu</option><option value="verified">Disahkan</option><option value="rejected">Ditolak</option>
+              <option value="">Semua Status</option><option value="pending">Menunggu</option><option value="verified">Disahkan</option><option value="rejected">Ditolak</option><option value="doubtful">Meragukan</option>
             </select>
           </label>
           <label class="text-xs text-slate-600">Tahun
@@ -134,6 +142,11 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" [class]="getStatusClass(match.status_pp)">
                       {{ getStatusLabel(match.status_pp) }}
                     </span>
+                    @if (match.pertindihan?.length) {
+                      <span class="ml-1 inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">
+                        <span class="material-icons text-[12px]" aria-hidden="true">warning</span>{{ isDuplicate(match) ? 'Berganda' : 'Bertembung' }}
+                      </span>
+                    }
                   </td>
                 </tr>
               } @empty {
@@ -265,6 +278,30 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
                 </tbody>
               </table>
             </div>
+
+            <!-- Doubtful: the records this one duplicates or clashes with -->
+            @if (selectedMatch.pertindihan?.length) {
+              <div class="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 space-y-2">
+                <p class="text-xs font-semibold text-orange-800 flex items-center gap-1">
+                  <span class="material-icons text-sm" aria-hidden="true">warning</span>
+                  {{ isDuplicate(selectedMatch) ? 'Rekod berganda: perlawanan yang sama telah direkodkan.' : 'Pegawai bertembung dengan perlawanan lain pada masa yang sama.' }}
+                </p>
+                @for (c of selectedMatch.pertindihan; track $index) {
+                  <div class="text-xs text-slate-700 border-t border-orange-200 pt-1.5">
+                    <p><span class="font-semibold">{{ c.jenis === 'berganda' ? 'Berganda' : 'Bertembung' }}</span> · {{ c.sumber }} · {{ getStatusLabel(c.status_pp) }}</p>
+                    <p>{{ c.home_team }} vs {{ c.away_team }} · {{ c.tarikh | date:'d MMM yyyy' }}@if (c.masa) { · {{ c.masa }}} · {{ c.tempat || '-' }}</p>
+                    <p class="text-slate-500">Pegawai: {{ c.pegawai.join(', ') || '-' }}</p>
+                    @if (c.pegawai_sama.length) {<p class="text-slate-500">Pegawai sama: {{ c.pegawai_sama.join(', ') }}</p>}
+                  </div>
+                }
+                @if (isDuplicate(selectedMatch)) {
+                  <button (click)="rejectDuplicate()" [disabled]="processing"
+                    class="w-full px-3 py-1.5 text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 rounded-lg disabled:opacity-50">
+                    {{ processing ? 'Memproses...' : 'Tolak sebagai rekod berganda' }}
+                  </button>
+                }
+              </div>
+            }
 
             <!-- Existing notes -->
             @if (selectedMatch.catatan_pp) {
@@ -449,6 +486,20 @@ export class AdminMatchOversightComponent implements OnInit, OnDestroy {
   getStatusLabel(status: string): string {
     if (!status || status === 'Belum Disahkan') return 'Menunggu';
     return status;
+  }
+
+  isDuplicate(match: any): boolean {
+    return (match?.pertindihan || []).some((c: any) => c.jenis === 'berganda');
+  }
+
+  /** Rejects with a standard justification naming the record this one duplicates. */
+  rejectDuplicate(): void {
+    const other = (this.selectedMatch?.pertindihan || []).find((c: any) => c.jenis === 'berganda');
+    if (!other) return;
+    const day = String(other.tarikh).split('-').reverse().join('/');
+    const note = `Rekod berganda: perlawanan ${other.home_team} vs ${other.away_team} pada ${day} telah direkodkan (${other.sumber}; pegawai: ${other.pegawai.join(', ') || '-'}).`;
+    this.justification = this.justification.trim() ? `${note} ${this.justification.trim()}` : note;
+    this.submitOverride('reject');
   }
 
   submitOverride(action: 'verify' | 'reject' | 'revert'): void {

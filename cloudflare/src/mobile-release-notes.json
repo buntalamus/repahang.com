@@ -122,5 +122,16 @@
       "Admin: tab Kelas III FAM dan Ujian Kelas I FAM dalam Permohonan Pengadil kini dibuka pada sesi masing-masing.",
       "Admin: senarai Kelulusan kini memaparkan semua permohonan yang menunggu Admin, termasuk Ujian Kelas I FAM."
     ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 9,
+    "date": "2026-11-10",
+    "changes": [
+      "Tambah perlawanan: Pengadil, Penolong Pengadil 1 dan Penolong Pengadil 2 kini ditanda wajib (*). Rekod tanpa ketiga-tiga pegawai ini tidak boleh dihantar; Pengadil Ke-4 kekal pilihan.",
+      "Perlawanan yang sama (tarikh dan kedua-dua pasukan) hanya boleh direkodkan sekali. Rekod kedua ditolak dengan notis yang menyatakan siapa telah merekodnya dan senarai pegawainya.",
+      "Admin: penapis baharu Meragukan dalam Rekod Perlawanan untuk rekod berganda atau pegawai bertembung, beserta butiran rekod yang bertindih.",
+      "Admin: butang Tolak sebagai rekod berganda menolak rekod dengan justifikasi yang diisi secara automatik."
+    ]
   }
 ]

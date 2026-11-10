@@ -9,6 +9,11 @@ List<Map<String, dynamic>> _rows(Object? list) =>
 
 int _int(Object? value) => int.tryParse('${value ?? ''}') ?? 0;
 
+/// Records this one duplicates (same date and teams) or clashes with (shared official, same time).
+List<Map<String, dynamic>> _overlaps(Map<String, dynamic> m) => _rows(m['pertindihan']);
+bool _isDuplicate(Map<String, dynamic> m) => _overlaps(m).any((c) => c['jenis'] == 'berganda');
+const Tone _doubtTone = (Tw.orange50, Tw.orange700);
+
 /// Admin: every match record with verify / reject / revert / delete
 /// (/api/admin-matches.php), like /admin/perlawanan.
 class AdminPerlawananScreen extends StatefulWidget {
@@ -66,7 +71,16 @@ class _AdminPerlawananScreenState extends State<AdminPerlawananScreen> {
               stat('verified', 'Disahkan', Tw.emerald500),
               const SizedBox(width: 8),
               stat('rejected', 'Ditolak', Tw.rose300),
+              const SizedBox(width: 8),
+              stat('doubtful', 'Meragukan', Tw.orange600),
             ]),
+            if (_status == 'doubtful') ...[
+              const SizedBox(height: 10),
+              const Text(
+                  'Rekod menunggu yang berganda (tarikh dan pasukan sama dengan rekod lain) atau bertembung '
+                  '(pegawai sama pada masa yang sama). Buka rekod untuk melihat rekod yang bertindih.',
+                  style: TextStyle(fontSize: 12.5, color: AppColors.muted)),
+            ],
             const SizedBox(height: 12),
             TextField(
               decoration: const InputDecoration(hintText: 'Cari pasukan, tempat, pengadil...', prefixIcon: Icon(Icons.search_rounded)),
@@ -94,7 +108,11 @@ class _AdminPerlawananScreenState extends State<AdminPerlawananScreen> {
                       Text('${_rows(m['officials']).length} pegawai · oleh ${text(m['submitter_name'])}',
                           style: const TextStyle(fontSize: 12.5, color: AppColors.muted)),
                       const SizedBox(height: 6),
-                      Pill(text(m['status_pp'], 'Belum Disahkan'), matchTone(text(m['status_pp'], ''))),
+                      Wrap(spacing: 6, runSpacing: 4, children: [
+                        Pill(text(m['status_pp'], 'Belum Disahkan'), matchTone(text(m['status_pp'], ''))),
+                        if (_overlaps(m).isNotEmpty)
+                          Pill(_isDuplicate(m) ? 'Berganda' : 'Bertembung', _doubtTone, icon: Icons.warning_amber_rounded),
+                      ]),
                     ]),
                   ),
                 ]),
@@ -149,6 +167,17 @@ class _MatchActionsState extends State<_MatchActions> {
           'match_id': widget.match['id'],
       };
 
+  /// Rejects with a standard justification naming the record this one duplicates.
+  void _rejectDuplicate() {
+    final other = _overlaps(widget.match).firstWhere((c) => c['jenis'] == 'berganda');
+    final day = text(other['tarikh']).split('-').reversed.join('/');
+    final note = 'Rekod berganda: perlawanan ${text(other['home_team'])} vs ${text(other['away_team'])} pada $day '
+        'telah direkodkan (${text(other['sumber'])}; pegawai: ${(other['pegawai'] as List? ?? []).join(', ')}).';
+    final extra = _reason.text.trim();
+    _reason.text = extra.isEmpty ? note : '$note $extra';
+    _run('reject');
+  }
+
   /// [action] is verify / reject / revert, or null to delete.
   Future<void> _run(String? action) async {
     final reason = _reason.text.trim();
@@ -196,6 +225,39 @@ class _MatchActionsState extends State<_MatchActions> {
       if (scores.isNotEmpty) DetailRow(Icons.scoreboard_outlined, 'Keputusan', scores),
       DetailRow(Icons.person_outline, 'Dihantar oleh', text(m['submitter_name'])),
       if (text(m['catatan_pp'], '').isNotEmpty) DetailRow(Icons.comment_outlined, 'Catatan', text(m['catatan_pp'])),
+      if (_overlaps(m).isNotEmpty) ...[
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+              color: Tw.orange50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Tw.orange200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(
+                _isDuplicate(m)
+                    ? 'Rekod berganda: perlawanan yang sama telah direkodkan.'
+                    : 'Pegawai bertembung dengan perlawanan lain pada masa yang sama.',
+                style: const TextStyle(fontWeight: FontWeight.w700, color: Tw.orange700)),
+            for (final c in _overlaps(m))
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                    '${c['jenis'] == 'berganda' ? 'Berganda' : 'Bertembung'} · ${text(c['sumber'])} · ${text(c['status_pp'])}\n'
+                    '${text(c['home_team'])} vs ${text(c['away_team'])} · ${formatDayDate(c['tarikh'])}'
+                    '${text(c['masa'], '').isEmpty ? '' : ' · ${text(c['masa'])}'} · ${text(c['tempat'])}\n'
+                    'Pegawai: ${(c['pegawai'] as List? ?? []).join(', ')}',
+                    style: const TextStyle(fontSize: 13)),
+              ),
+            if (_isDuplicate(m)) ...[
+              const SizedBox(height: 10),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: Tw.orange600, foregroundColor: Colors.white),
+                onPressed: _busy ? null : _rejectDuplicate,
+                child: const Text('Tolak sebagai rekod berganda'),
+              ),
+            ],
+          ]),
+        ),
+      ],
       const SizedBox(height: 8),
       const Text('Pegawai', style: TextStyle(fontWeight: FontWeight.w700)),
       for (final o in _rows(m['officials']))

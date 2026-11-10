@@ -3,6 +3,7 @@ import { notifyMatchDecision } from './match-notify';
 import type { MatchDecision, MatchSummary } from './match-notify';
 import { boundedJson } from './request';
 import type { Env } from './types';
+import { findMatchConflicts, type MatchRecord } from './match-conflicts';
 
 type MatchRow = Record<string, unknown> & { id: number; match_group_id: string | null; pengadil_id: number };
 
@@ -61,7 +62,19 @@ async function listMatches(request: Request, env: Env): Promise<Response> {
     params.push(...Array<string>(9).fill(search));
   }
   const basePredicate = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  if (status === 'pending') where.push("(p.status_pp IS NULL OR p.status_pp='' OR p.status_pp='Belum Disahkan')");
+  const baseParams = [...params];
+  const waiting = "(p.status_pp IS NULL OR p.status_pp='' OR p.status_pp='Belum Disahkan')";
+  // Doubtful (Meragukan): waiting records that duplicate or clash with another
+  // record, within the current filters, as the PP Daerah sees them.
+  const waitingRows = await env.DB.prepare(`SELECT p.id,p.user_id,p.tarikh,p.masa,p.tempat,p.home_team,
+      p.away_team,p.match_group_id FROM perlawanan p
+    ${basePredicate ? `${basePredicate} AND` : 'WHERE'} ${waiting}`).bind(...baseParams).all<MatchRecord>();
+  const conflicts = await findMatchConflicts(env, waitingRows.results);
+  if (status === 'doubtful') {
+    where.push(waiting, `${key('p')} IN (SELECT value FROM json_each(?))`);
+    params.push(JSON.stringify([...conflicts.keys()]));
+  }
+  if (status === 'pending') where.push(waiting);
   else if (status === 'verified') where.push("p.status_pp='Disahkan'");
   else if (status === 'rejected') where.push("p.status_pp='Tidak Disahkan'");
   const predicate = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -106,6 +119,7 @@ async function listMatches(request: Request, env: Env): Promise<Response> {
         skor_et_home: row.skor_et_home,skor_et_away: row.skor_et_away,
         skor_ps_home: row.skor_ps_home,skor_ps_away: row.skor_ps_away,
         cuaca: row.cuaca,is_grouped: row.match_group_id !== null,officials: [],
+        pertindihan: conflicts.get(key) ?? [],
       };
       groups.set(key, group);
     }
@@ -121,13 +135,13 @@ async function listMatches(request: Request, env: Env): Promise<Response> {
         THEN ${key('p')} END) AS pending,
       COUNT(DISTINCT CASE WHEN p.status_pp='Disahkan' THEN ${key('p')} END) AS verified,
       COUNT(DISTINCT CASE WHEN p.status_pp='Tidak Disahkan' THEN ${key('p')} END) AS rejected
-      FROM perlawanan p ${basePredicate}`).bind(...params).first(),
+      FROM perlawanan p ${basePredicate}`).bind(...baseParams).first<Record<string, unknown>>(),
     env.DB.prepare('SELECT id,nama FROM districts ORDER BY nama').all(),
     env.DB.prepare(`SELECT DISTINCT substr(tarikh,1,4) AS year,jenis,nama_kejohanan
       FROM perlawanan ORDER BY year DESC`).all<{year:string;jenis:string;nama_kejohanan:string}>(),
   ]);
   return json({ error: false,
-    matches: [...groups.values()], statistics: stats, districts: districts.results,
+    matches: [...groups.values()], statistics: { ...stats, doubtful: conflicts.size }, districts: districts.results,
     filters: {
       years:[...new Set(options.results.map(r=>r.year).filter(v=>/^\d{4}$/.test(v)))],
       kinds:[...new Set(options.results.map(r=>r.jenis).filter(Boolean))].sort(),
