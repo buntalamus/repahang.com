@@ -22,7 +22,7 @@ const env={DB,STAGING_AUTH_ENABLED:'1',STAGING_WRITES_ENABLED:'0',APPOINTMENT_LE
  forwarded=request;assert.equal(request.headers.get('Cookie'),null);assert.equal(request.headers.get('Authorization'),null);
  if(!available)throw Error('Unavailable');
  const url=new URL(request.url),uid=Number(request.headers.get('X-RefPahang-User-Id'));
- if(url.pathname==='/c13/links')return Response.json({data:uid===owner?[{match_id:match,appointment_id:r,label:'03 · ALFA lwn BRAVO',submitted}]:[]});
+ if(url.pathname==='/c13/links')return Response.json({data:uid===owner?[{match_id:match,appointment_id:r,label:'03 · ALFA lwn BRAVO',submitted,c12:{id:'21234567-1234-1234-1234-0123456789ab',revision:1,amendment_number:0}}]:[]});
  if(uid!==owner||url.searchParams.get('match')!==match)return Response.json({error:{message:'Wrong appointment'}},{status:403});
  return url.pathname==='/c13/page'?new Response('<h1>Borang C13</h1>'):Response.json({data:{received:true}});
 }}};
@@ -33,8 +33,8 @@ try {
  const mobile={Authorization:'Bearer '+cookie.split('=')[1]};
  const post=(query,h=mobile)=>new Request(base+query,{method:'POST',headers:{...h,'Content-Type':'application/json'},body:JSON.stringify({action:'SAVE'})});
  const tasks=await(await appointments(new Request('https://refpahang.test/api/tugasan.php',{headers}),env)).json();
- assert.equal(tasks.data.find(a=>a.id===r).c13_match_id,match);
- assert.equal(tasks.data.find(a=>a.id===p4).c13_match_id,null);assert.equal(tasks.data.find(a=>a.id===pending).c13_match_id,null);
+ assert.equal(tasks.data.find(a=>a.id===r).c13_match_id,match);assert.equal(tasks.data.find(a=>a.id===r).c12_document_id,'21234567-1234-1234-1234-0123456789ab');
+ assert.equal(tasks.data.find(a=>a.id===p4).c13_match_id,null);assert.equal(tasks.data.find(a=>a.id===p4).c12_document_id,null);assert.equal(tasks.data.find(a=>a.id===pending).c13_match_id,null);
  const dashboard=async(h=headers)=>{const res=await portalDashboard(new Request('https://refpahang.test/api/portal-dashboard.php?view=pengadil&year=2020',{headers:h}),env);assert.equal(res.status,200);return(await res.json()).data;};
  assert.equal((await dashboard()).c13[0].match_id,match,'Actions are independent of the statistics year');
  assert.equal((await dashboard(mobile)).c13[0].submitted,false,'Mobile and web get the same pending C13');
@@ -53,6 +53,8 @@ try {
  assert.equal(await currentUser(get('',scopedHeaders),env),null,'C13 cookie cannot access the rest of the portal');
  assert.equal((await jfaC13(get('?view=page&match='+match,scopedHeaders),env)).status,200);
  assert.equal(forwarded.headers.get('X-C13-Match-Id'),match);
+ assert.equal((await jfaC13(get('?match='+match+'&form=C12&document=21234567-1234-1234-1234-0123456789ab',scopedHeaders),env)).status,200);
+ assert.equal(new URL(forwarded.url).searchParams.get('form'),'C12');assert.equal(forwarded.headers.get('X-C13-Match-Id'),match);
  assert.equal((await jfaC13(get('?match='+otherMatch,scopedHeaders),env)).status,403);
  assert.equal((await jfaC13(get('?view=links',scopedHeaders),env)).status,403);
  assert.equal((await jfaC13(post('?match='+match,{...scopedHeaders,Origin:'https://refpahang.test'}),env)).status,200);

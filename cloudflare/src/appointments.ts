@@ -107,6 +107,8 @@ export async function appointments(request: Request, env: Env): Promise<Response
     ...appointment,
     c13_match_id:appointment.status==='Diterima'&&String(appointment.jawatan).trim().toLowerCase()==='pengadil'
       ?reports.get(appointment.id)?.match_id??null:null,
+    c12_document_id:appointment.status==='Diterima'&&String(appointment.jawatan).trim().toLowerCase()==='pengadil'
+      ?reports.get(appointment.id)?.c12?.id??null:null,
     rakan_tugasan: (crewBySchedule.get(appointment.jadual_id) ?? [])
       .filter((member) => member.id !== appointment.id),
   }));

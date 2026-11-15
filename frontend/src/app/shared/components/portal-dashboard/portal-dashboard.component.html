@@ -24,7 +24,7 @@
     @if (!statistical) {
       @if (d.c13?.length) {
         <section aria-labelledby="c13-title">
-          <div class="section-heading"><div><h3 id="c13-title">C13 · Laporan pengadil</h3><p>Pilih perlawanan untuk mengisi dan menandatangani laporan anda.</p></div></div>
+          <div class="section-heading"><div><h3 id="c13-title">Laporan perlawanan · C12 & C13</h3><p>Pilih perlawanan untuk mengisi dan menandatangani laporan anda.</p></div></div>
           <div class="action-grid">
             @for (report of d.c13; track report.match_id) {
               <a class="action-card" [class.has-work]="!report.submitted"
@@ -32,6 +32,7 @@
                 <div><p>{{ report.submitted ? 'Lihat C13' : 'Isi C13' }}</p><small>{{ report.label }}</small><small>{{ report.submitted ? 'Laporan telah diterima' : 'Belum dihantar' }}</small></div>
                 <span class="material-icons" aria-hidden="true">edit_document</span>
               </a>
+              @if(report.c12){<a class="action-card" [href]="'/api/jfa-c13.php?form=C12&match=' + report.match_id + '&document=' + report.c12.id" target="_blank" rel="noopener"><div><p>Muat turun C12 rasmi</p><small>{{report.label}}</small><small>Revision {{report.c12.revision}}@if(report.c12.amendment_number){ · Pembetulan {{report.c12.amendment_number}}}</small></div><span class="material-icons" aria-hidden="true">download</span></a>}
             }
           </div>
         </section>

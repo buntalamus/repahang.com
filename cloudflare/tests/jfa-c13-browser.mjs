@@ -8,15 +8,15 @@ import os from 'node:os';
 const root=new URL('../../frontend/dist/frontend/browser/',import.meta.url).pathname;
 const out=new URL('../../output/c13-access/',import.meta.url).pathname;await mkdir(out,{recursive:true});
 const match='01234567-1234-1234-1234-0123456789ab';let eligible=true,role='Pengadil';
-const dashboard=()=>({c13:eligible?[{match_id:match,appointment_id:1,label:'03 · ALFA lwn BRAVO',submitted:false}]:[],
+const dashboard=()=>({c13:eligible?[{match_id:match,appointment_id:1,label:'03 · ALFA lwn BRAVO',submitted:false,c12:{id:'21234567-1234-1234-1234-0123456789ab',revision:1,amendment_number:0}}]:[],
  view:'pengadil',year:2026,name:'PENGADIL UJIAN',totals:{},monthly:[],upcoming:[],responses:[],recent:[],registrations:[],announcements:[],ranking:[],applications:{},positions:[],minimum_matches:20,can_referee:true,can_ra:false});
 const server=createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://localhost');let body,type='application/json';
  if(url.pathname==='/api/session.php')body=JSON.stringify({authenticated:true,user_id:1,user_email:'test@example.invalid',user_role:role,nama_penuh:'PENGADIL UJIAN',can_referee:1,can_ra:0,password_changed:1});
- else if(url.pathname==='/api/jfa-c13.php'&&url.searchParams.get('view')==='admin')body=JSON.stringify({data:{records:[{id:'record',match_id:match,match_number:'03',recorded_at:1793509200,scheduled_start:1793509200,referee_name:'PENGADIL UJIAN',tournament_name:'LIGA JFA',home_name:'ALFA',away_name:'BRAVO'}]}});
+ else if(url.pathname==='/api/jfa-c13.php'&&url.searchParams.get('view')==='admin')body=JSON.stringify({data:{records:[{id:'record',match_id:match,match_number:'03',recorded_at:1793509200,scheduled_start:1793509200,referee_name:'PENGADIL UJIAN',tournament_name:'LIGA JFA',home_name:'ALFA',away_name:'BRAVO'}],c12Records:[{id:'21234567-1234-1234-1234-0123456789ab',match_id:match,form_type:'MATCH_SUMMARY_C12',match_number:'03',recorded_at:1793509201,scheduled_start:1793509200,tournament_name:'LIGA JFA',home_name:'ALFA',away_name:'BRAVO',revision:1,amendment_number:0}]}});
  else if(url.pathname==='/api/portal-dashboard.php')body=JSON.stringify({error:false,data:dashboard()});
  else if(url.pathname==='/api/tugasan.php')body=JSON.stringify({error:false,data:[
-  {id:1,jawatan:'Pengadil',status:'Diterima',no_perlawanan:'03',nama_kejohanan:'JFA',jenis_kejohanan:'Liga',tarikh:'2026-11-01',masa:'17:00',pasukan_home:'ALFA',pasukan_away:'BRAVO',c13_match_id:eligible?match:null},
+  {id:1,jawatan:'Pengadil',status:'Diterima',no_perlawanan:'03',nama_kejohanan:'JFA',jenis_kejohanan:'Liga',tarikh:'2026-11-01',masa:'17:00',pasukan_home:'ALFA',pasukan_away:'BRAVO',c13_match_id:eligible?match:null,c12_document_id:eligible?'21234567-1234-1234-1234-0123456789ab':null},
   {id:2,jawatan:'Pegawai ke4',status:'Diterima',no_perlawanan:'04',nama_kejohanan:'JFA',tarikh:'2026-11-01',masa:'21:00',pasukan_home:'CHARLIE',pasukan_away:'DELTA',c13_match_id:null}],stats:{total:2,diterima:2}});
  else if(url.pathname.startsWith('/api/'))body=JSON.stringify({error:false,data:[],notifications:[],unread_count:0});
  else {let file=path.resolve(root,'.'+url.pathname);if(!file.startsWith(root))throw Error('Path');try{body=await readFile(file);}catch{file=path.join(root,'index.html');body=await readFile(file);}type=({'.js':'application/javascript','.css':'text/css','.html':'text/html','.png':'image/png','.woff2':'font/woff2','.svg':'image/svg+xml'}[path.extname(file)]??'application/octet-stream');}
@@ -40,10 +40,10 @@ try {
    await send('Page.navigate',{url:base+route});
    await wait("[...document.querySelectorAll('a')].some(a=>a.textContent.includes('Isi C13')&&a.getBoundingClientRect().width>0)");
    const links=await ev("[...document.querySelectorAll('a[href*=\"jfa-c13.php\"]')].filter(a=>a.getBoundingClientRect().width>0).map(a=>({href:a.getAttribute('href'),text:a.textContent}))");
-   assert.equal(links.length,1);assert(links[0].href.includes('match='+match));
+   assert.equal(links.length,2);assert(links.some(l=>l.text.includes('C12')&&l.href.includes('form=C12')&&l.href.includes('document=21234567-1234-1234-1234-0123456789ab')));assert(links[0].href.includes('match='+match));
    assert.equal(await ev('document.documentElement.scrollWidth>innerWidth+1'),false,'No horizontal overflow '+route+' '+width);
    await ev('document.fonts.ready.then(()=>true)');
-   if(process.env.C13_AXE_PATH){const violations=await ev("axe.run(document.querySelector('app-c13-reports')??document.querySelector('.portal-page')??document.querySelector('app-pengadil-tugasan'),{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']}}).then(r=>r.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)})))");assert.deepEqual(violations,[],JSON.stringify(violations));}
+  if(process.env.C13_AXE_PATH){const violations=await ev("axe.run(document.querySelector('app-c13-reports')??document.querySelector('.portal-page')??document.querySelector('app-pengadil-tugasan'),{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']}}).then(r=>r.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>n.target)})))");assert.deepEqual(violations,[],JSON.stringify(violations));}
    const shot=await send('Page.captureScreenshot',{format:'png'});await writeFile(path.join(out,(route.endsWith('tugasan')?'tasks':'dashboard')+'-'+width+'.png'),Buffer.from(shot.data,'base64'));
   }
  }
@@ -58,9 +58,11 @@ try {
   await ev("[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Laporan Perlawanan')).click()");
   await wait("!!document.querySelector('app-c13-reports a[href*=record]')");
   assert((await ev("document.querySelector('app-c13-reports').textContent")).includes('Selesai · Rasmi'));
-  assert((await ev("document.querySelector('app-c13-reports a').getAttribute('href')")).includes('view=admin&match='+match+'&record=record'));
+  assert((await ev("document.querySelector('app-c13-reports a[href*=record]').getAttribute('href')")).includes('view=admin&match='+match+'&record=record'));
+  assert((await ev("document.querySelector('app-c13-reports a[href*=document]').getAttribute('href')")).includes('form=C12&match='+match));
   if(process.env.C13_AXE_PATH){const violations=await ev("axe.run(document.querySelector('app-c13-reports'),{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']}}).then(r=>r.violations.map(v=>v.id))");assert.deepEqual(violations,[]);}
   const shot=await send('Page.captureScreenshot',{format:'png'});await writeFile(path.join(out,'admin-reports-'+width+'.png'),Buffer.from(shot.data,'base64'));
+  await ev("(()=>{const input=document.querySelector('app-c13-reports input');input.value='C12';input.dispatchEvent(new Event('input',{bubbles:true}));})()");await wait("document.querySelectorAll('app-c13-reports article').length===1");assert((await ev("document.querySelector('app-c13-reports article').textContent")).includes('Ringkasan perlawanan'));
  }
- console.log('C13 Angular browser: dashboard and task actions at desktop/phone widths, exact match links, role eligibility, overflow and accessibility passed.');
+ console.log('C12/C13 Angular browser: dashboard and task actions at desktop/phone widths, exact match links, role eligibility, overflow and accessibility passed.');
 } finally {ws?.close();chrome.kill();await new Promise(r=>setTimeout(r,200));await rm(profile,{recursive:true,force:true,maxRetries:5,retryDelay:200});await new Promise(r=>server.close(r));}
