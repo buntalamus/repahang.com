@@ -143,5 +143,15 @@
       "PP Daerah: lencana Berganda atau Bertembung pada setiap rekod, dan butang Tolak sebagai rekod berganda yang mengisi catatan secara automatik.",
       "Rekod lama tanpa nama pasukan tidak lagi ditanda sebagai rekod berganda."
     ]
+  },
+  {
+    "release_version": "1.4.0+8",
+    "patch": 11,
+    "date": "2026-11-15",
+    "changes": [
+      "Admin: pilih Lantikan Admin, Lantikan PP Daerah atau Semua Lantikan; setiap kejohanan memaparkan pemilik lantikannya.",
+      "Admin dan PP Daerah: tapis jadual lantikan mengikut hari/tarikh, bergerak ke hari sebelum atau seterusnya, dan cari nombor perlawanan, pasukan atau tempat.",
+      "Penapis kekal di atas senarai dan pilihan hari serta carian dikekalkan selepas kembali daripada membuat lantikan."
+    ]
   }
 ]
