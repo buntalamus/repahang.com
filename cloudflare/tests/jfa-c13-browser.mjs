@@ -13,7 +13,7 @@ const dashboard=()=>({c13:eligible?[{match_id:match,appointment_id:1,label:'03 Â
 const server=createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://localhost');let body,type='application/json';
  if(url.pathname==='/api/session.php')body=JSON.stringify({authenticated:true,user_id:1,user_email:'test@example.invalid',user_role:role,nama_penuh:'PENGADIL UJIAN',can_referee:1,can_ra:0,password_changed:1});
- else if(url.pathname==='/api/jfa-c13.php'&&url.searchParams.get('view')==='admin')body=JSON.stringify({data:{records:[{id:'record',match_id:match,match_number:'03',recorded_at:1793509200,scheduled_start:1793509200,referee_name:'PENGADIL UJIAN',tournament_name:'LIGA JFA',home_name:'ALFA',away_name:'BRAVO'}],c12Records:[{id:'21234567-1234-1234-1234-0123456789ab',match_id:match,form_type:'MATCH_SUMMARY_C12',match_number:'03',recorded_at:1793509201,scheduled_start:1793509200,tournament_name:'LIGA JFA',home_name:'ALFA',away_name:'BRAVO',revision:1,amendment_number:0}]}});
+ else if(url.pathname==='/api/jfa-c13.php'&&url.searchParams.get('view')==='admin')body=JSON.stringify({data:{records:[{id:'record',match_id:match,match_number:'03',recorded_at:1793509200,scheduled_start:1793509200,referee_name:'PENGADIL UJIAN',venue_name:'Padang Ujian',tournament_name:'LIGA JFA',home_name:'ALFA',away_name:'BRAVO'}],c12Records:[{id:'21234567-1234-1234-1234-0123456789ab',match_id:match,form_type:'MATCH_SUMMARY_C12',match_number:'03',recorded_at:1793509201,scheduled_start:1793509200,venue_name:'Padang Ujian',tournament_name:'LIGA JFA',home_name:'ALFA',away_name:'BRAVO',revision:1,amendment_number:0}]}});
  else if(url.pathname==='/api/portal-dashboard.php')body=JSON.stringify({error:false,data:dashboard()});
  else if(url.pathname==='/api/tugasan.php')body=JSON.stringify({error:false,data:[
   {id:1,jawatan:'Pengadil',status:'Diterima',no_perlawanan:'03',nama_kejohanan:'JFA',jenis_kejohanan:'Liga',tarikh:'2026-11-01',masa:'17:00',pasukan_home:'ALFA',pasukan_away:'BRAVO',c13_match_id:eligible?match:null,c12_document_id:eligible?'21234567-1234-1234-1234-0123456789ab':null},
@@ -57,12 +57,19 @@ try {
   const tabs=await ev("[...document.querySelectorAll('button')].filter(b=>b.textContent.includes('Laporan Perlawanan')).map(b=>b.textContent)");assert.equal(tabs.length,1);
   await ev("[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Laporan Perlawanan')).click()");
   await wait("!!document.querySelector('app-c13-reports a[href*=record]')");
-  assert((await ev("document.querySelector('app-c13-reports').textContent")).includes('Selesai Â· Rasmi'));
-  assert((await ev("document.querySelector('app-c13-reports a[href*=record]').getAttribute('href')")).includes('view=admin&match='+match+'&record=record'));
-  assert((await ev("document.querySelector('app-c13-reports a[href*=document]').getAttribute('href')")).includes('form=C12&match='+match));
+  assert((await ev("document.querySelector('app-c13-reports').textContent")).includes('Rasmi'));
+  assert((await ev("document.querySelector('app-c13-reports a[href*=record]').getAttribute('href')")).includes('view=admin&match='+match));
+  assert((await ev("document.querySelector('app-c13-reports a[href*=document]').getAttribute('href')")).includes('form=C12&document='));
+  assert.deepEqual(await ev("[...document.querySelectorAll('app-c13-reports thead th')].map(t=>t.textContent.trim())"),['Bil','Nama perlawanan','Padang','Masa','C12','C13']);
+  assert.equal(await ev("document.querySelectorAll('app-c13-reports tbody tr').length"),1,'Both forms share the match row');
+  const actions=await ev("[...document.querySelectorAll('app-c13-reports a')].map(a=>({href:a.getAttribute('href'),target:a.getAttribute('target')}))");
+  assert.equal(actions.filter(a=>a.href.includes('mode=preview')&&a.target==='_blank').length,2);
+  assert.equal(actions.filter(a=>a.href.includes('mode=download')).length,2);
+  assert.equal(await ev('document.documentElement.scrollWidth>innerWidth+1'),false,'Table scrolls within its container');
+  assert((await ev("document.querySelector('app-c13-reports tbody').textContent")).includes('Padang Ujian'));
   if(process.env.C13_AXE_PATH){const violations=await ev("axe.run(document.querySelector('app-c13-reports'),{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']}}).then(r=>r.violations.map(v=>v.id))");assert.deepEqual(violations,[]);}
   const shot=await send('Page.captureScreenshot',{format:'png'});await writeFile(path.join(out,'admin-reports-'+width+'.png'),Buffer.from(shot.data,'base64'));
-  await ev("(()=>{const input=document.querySelector('app-c13-reports input');input.value='C12';input.dispatchEvent(new Event('input',{bubbles:true}));})()");await wait("document.querySelectorAll('app-c13-reports article').length===1");assert((await ev("document.querySelector('app-c13-reports article').textContent")).includes('Ringkasan perlawanan'));
+  await ev("(()=>{const input=document.querySelector('app-c13-reports input');input.value='C12';input.dispatchEvent(new Event('input',{bubbles:true}));})()");await wait("document.querySelectorAll('app-c13-reports tbody tr').length===1");assert((await ev("document.querySelector('app-c13-reports tbody').textContent")).includes('ALFA lwn BRAVO'));
  }
  console.log('C12/C13 Angular browser: dashboard and task actions at desktop/phone widths, exact match links, role eligibility, overflow and accessibility passed.');
 } finally {ws?.close();chrome.kill();await new Promise(r=>setTimeout(r,200));await rm(profile,{recursive:true,force:true,maxRetries:5,retryDelay:200});await new Promise(r=>server.close(r));}

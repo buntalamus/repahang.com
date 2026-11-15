@@ -2,6 +2,21 @@ import {currentUser,json} from './auth';
 import type {Env} from './types';
 import {c13BrowserAccess,c13BrowserRequest,c13BrowserRedirect,c13LaunchUrl} from './c13-browser';
 
+interface AdminReport {fixture_id?:unknown;tournament_id?:unknown;venue_name?:string|null}
+async function adminReportVenues(response:Response,env:Env):Promise<Response>{
+  const payload=await response.json() as {data?:{records?:AdminReport[];c12Records?:AdminReport[]}};
+  const reports=[...(payload.data?.records??[]),...(payload.data?.c12Records??[])];
+  const ids=[...new Set(reports.map(r=>Number(r.fixture_id)).filter(id=>Number.isSafeInteger(id)&&id>0))];
+  if(ids.length){
+    const rows=await env.DB.prepare('SELECT id,kejohanan_id,tempat FROM jadual_perlawanan WHERE id IN (SELECT value FROM json_each(?))')
+      .bind(JSON.stringify(ids)).all<{id:number;kejohanan_id:number;tempat:string|null}>();
+    const venues=new Map(rows.results.map(row=>[`${row.kejohanan_id}:${row.id}`,row.tempat]));
+    for(const report of reports)report.venue_name=venues.get(`${Number(report.tournament_id)}:${Number(report.fixture_id)}`)??null;
+  }
+  const headers=new Headers(response.headers);headers.delete('Content-Length');
+  return new Response(JSON.stringify(payload),{status:response.status,headers});
+}
+
 /** Identity is taken from this portal's session, never a browser-supplied id.
  * The private JFA service independently verifies the current R appointment. */
 export async function jfaC13(request:Request,env:Env):Promise<Response>{
@@ -42,7 +57,17 @@ export async function jfaC13(request:Request,env:Env):Promise<Response>{
       await response.body?.cancel();
       return json({error:false,url:await c13LaunchUrl(env,authRequest,incoming.searchParams.get('match')??'')});
     }
-    const result=new Response(response.body,response);result.headers.set('Referrer-Policy','no-referrer');return result;
+    const isAdminList=view==='admin'&&response.headers.get('Content-Type')?.includes('application/json')
+      &&!incoming.searchParams.has('record')&&!incoming.searchParams.has('document');
+    const result=isAdminList?await adminReportVenues(response,env):new Response(response.body,response);
+    if(view==='admin'&&result.headers.get('Content-Type')?.includes('application/pdf')){
+      const mode=incoming.searchParams.get('mode');
+      if(mode==='preview'||mode==='download'){
+        const disposition=(result.headers.get('Content-Disposition')??'').replace(/^(?:inline|attachment)\s*;?\s*/i,'');
+        result.headers.set('Content-Disposition',`${mode==='preview'?'inline':'attachment'}; ${disposition||'filename="laporan-perlawanan.pdf"'}`);
+      }
+    }
+    result.headers.set('Referrer-Policy','no-referrer');return result;
   }
   catch{return json({error:true,message:'Sambungan C13 JFA tidak dapat dicapai. Cuba semula.'},502);}
 }

@@ -29,5 +29,20 @@ assert.equal(new URL(forwarded.url).pathname,'/c13/admin');
 assert.equal((await jfaC13(new Request('https://refpahang.test/api/jfa-c13.php?view=admin',{method:'POST',body:'{}'}),env)).status,405);
 assert.equal((await jfaC13(get('?view=admin&match=abc&record=report'),env)).status,200);
 assert.equal(new URL(forwarded.url).searchParams.get('record'),'report');
+const reportEnv={...env,DB:{prepare(sql){assert.match(sql,/json_each/);return {bind(ids){assert.deepEqual(JSON.parse(ids),[40]);return {async all(){return {results:[{id:40,kejohanan_id:26,tempat:'Padang Ujian'}]};}};}};}},
+ JFA_C13_SERVICE:{async fetch(){return Response.json({data:{records:[{fixture_id:40,tournament_id:26},{fixture_id:40,tournament_id:27}],c12Records:[{fixture_id:40,tournament_id:26}]}});}}};
+const listing=await(await jfaC13(get('?view=admin'),reportEnv)).json();
+assert.equal(listing.data.records[0].venue_name,'Padang Ujian');
+assert.equal(listing.data.c12Records[0].venue_name,'Padang Ujian');
+assert.equal(listing.data.records[1].venue_name,null,'Venue must match both fixture and tournament');
+for(const form of ['C12','C13'])for(const mode of ['preview','download']){
+ const bytes=new TextEncoder().encode('%PDF-original-'+form);
+ const pdfEnv={...env,JFA_C13_SERVICE:{async fetch(){return new Response(bytes,{headers:{'Content-Type':'application/pdf','Content-Disposition':`${form==='C12'?'attachment':'inline'}; filename="${form}-original.pdf"`,'Cache-Control':'private, no-store'}});}}};
+ const query=form==='C12'?'form=C12&document=doc':'record=report';
+ const response=await jfaC13(get(`?view=admin&match=abc&${query}&mode=${mode}`),pdfEnv);
+ assert.equal(response.headers.get('Content-Disposition'),`${mode==='preview'?'inline':'attachment'}; filename="${form}-original.pdf"`);
+ assert.equal(response.headers.get('Cache-Control'),'private, no-store');
+ assert.deepEqual(new Uint8Array(await response.arrayBuffer()),bytes,'Preview and download preserve the original PDF');
+}
 delete globalThis.c13TestUser;
 console.log('JFA C13 proxy: session identity, no cookie/token forwarding, same-origin writes, write gate, body bound, private service routing and unavailable service passed.');
