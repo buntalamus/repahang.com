@@ -11,6 +11,7 @@ import { LoadingComponent } from '../../../shared/components/loading/loading.com
 import { C13ReportsComponent } from '../../../shared/components/c13-reports/c13-reports.component';
 import { ConfirmModalComponent } from '../../../shared/components/confirm-modal/confirm-modal.component';
 import { matchesJadualSearch } from './jadual-search';
+import { JadualDayFilterComponent, type JadualDayOption } from './jadual-day-filter.component';
 import { teamRegionCaution, type RefereeOrigin, type MatchTeamOrigins } from './team-region-caution';
 import * as XLSX from 'xlsx';
 
@@ -132,7 +133,7 @@ interface PengerusiCandidate {
 
 @Component({
   selector: 'app-lantikan-pengadil',
-  imports: [FormsModule, DatePipe, SlicePipe, LoadingComponent, ConfirmModalComponent, C13ReportsComponent],
+  imports: [FormsModule, DatePipe, SlicePipe, LoadingComponent, ConfirmModalComponent, C13ReportsComponent, JadualDayFilterComponent],
   templateUrl: './lantikan-pengadil.component.html',
   styles: [`
     .region-caution { background-color: #fee2e2; }
@@ -218,6 +219,33 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
   loadingJadual = false;
   jadualList: any[] = [];
   jadualSearch = '';
+  readonly jadualDateFilter = signal('');
+
+  get jadualDayOptions(): JadualDayOption[] {
+    const matches: { tarikh?: string | null }[] = this.activeTab === 'jadual-lantikan'
+      ? this.jadualLantikanData?.jadual ?? [] : this.jadualList;
+    const counts = new Map<string, number>();
+    for (const match of matches) {
+      const date = match.tarikh?.slice(0, 10);
+      if (date) counts.set(date, (counts.get(date) ?? 0) + 1);
+    }
+    const formatter = new Intl.DateTimeFormat('ms-MY', {
+      weekday: 'long', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kuala_Lumpur',
+    });
+    return [...counts].sort(([a], [b]) => a.localeCompare(b)).map(([date, count]) => ({
+      date, count, label: formatter.format(new Date(`${date}T00:00:00+08:00`)),
+    }));
+  }
+
+  changeJadualDate(date: string): void {
+    this.jadualDateFilter.set(date);
+    this.clearScheduleSelections();
+  }
+
+  clearScheduleSelections(): void {
+    this.selectedJadualIds.clear();
+    this.selectedMatchIds.clear();
+  }
   selectedJadualIds = new Set<number>();
   showJadualModal = false;
   editingJadual: any = null;
@@ -449,7 +477,8 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
   /** Group the (backend-sorted) report jadual by kategori for sectioned display. */
   get jadualLantikanGrouped(): { kategori: string; matches: any[] }[] {
     const jadual = (this.jadualLantikanData?.jadual ?? []).filter((j: any) =>
-      matchesJadualSearch(j, this.jadualLantikanSearch, true)
+      (!this.jadualDateFilter() || j.tarikh?.slice(0, 10) === this.jadualDateFilter())
+      && matchesJadualSearch(j, this.jadualLantikanSearch, true)
     );
     const groups: { kategori: string; matches: any[] }[] = [];
     for (const j of jadual) {
@@ -734,6 +763,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
     this.poolList = [];
     this.jadualLantikanData = null;
     this.jadualSearch = '';
+    this.changeJadualDate('');
     this.resetPengerusiState();
     const ownerSource=k.lantikan_persatuan_id==null ? 'admin' : 'pp';
     if (this.appointmentSource()!=='all' && this.appointmentSource()!==ownerSource) this.appointmentSource.set(ownerSource);
@@ -1253,6 +1283,7 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
       this.jadualList = [];
       this.jadualLantikanData = null;
       this.jadualSearch = '';
+      this.changeJadualDate('');
       this.poolList = [];
       this.resetPengerusiState();
       return;
@@ -1262,8 +1293,10 @@ export class LantikanPengadilComponent implements OnInit, OnDestroy {
   }
 
   get filteredJadualList(): any[] {
-    if (!this.jadualSearch.trim()) return this.jadualList;
-    return this.jadualList.filter((j: any) => matchesJadualSearch(j, this.jadualSearch));
+    return this.jadualList.filter((j: any) =>
+      (!this.jadualDateFilter() || j.tarikh?.slice(0, 10) === this.jadualDateFilter())
+      && matchesJadualSearch(j, this.jadualSearch, true)
+    );
   }
 
   loadJadual(kejohananId: number): void {

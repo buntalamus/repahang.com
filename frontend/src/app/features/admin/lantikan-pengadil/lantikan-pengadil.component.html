@@ -426,17 +426,21 @@
     </div>
 
     @if (selectedKejohanan) {
+      <div class="mb-3">
+        <app-jadual-day-filter [days]="jadualDayOptions" [selectedDate]="jadualDateFilter()"
+          (dateChange)="changeJadualDate($event)" />
+      </div>
       <div class="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
         <div class="relative flex-1 max-w-xl">
           <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35m1.35-5.15a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z"/>
           </svg>
-          <input type="search" [(ngModel)]="jadualSearch"
+          <input type="search" [(ngModel)]="jadualSearch" (ngModelChange)="clearScheduleSelections()"
             aria-label="Cari jadual perlawanan"
             placeholder="Cari no. tepat (cth. 5) atau kata kunci..."
             class="w-full pl-9 pr-9 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-pahang-yellow/30 focus:border-pahang-yellow outline-none" />
           @if (jadualSearch) {
-            <button type="button" (click)="jadualSearch = ''"
+            <button type="button" (click)="jadualSearch = ''; clearScheduleSelections()"
               class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 rounded transition" title="Kosongkan carian">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 18 6M6 6l12 12"/>
@@ -444,7 +448,7 @@
             </button>
           }
         </div>
-        <span class="text-xs text-slate-500">
+        <span class="text-xs text-slate-600" role="status">
           {{ filteredJadualList.length }} daripada {{ jadualList.length }} perlawanan
         </span>
       </div>
@@ -601,7 +605,7 @@
                   <td colspan="11" class="px-4 py-16 text-center">
                     <span class="material-symbols-outlined text-4xl text-slate-300">calendar_month</span>
                     <p class="text-slate-400 text-sm mt-2">
-                      {{ jadualSearch ? 'Tiada perlawanan sepadan dengan carian.' : 'Tiada perlawanan. Tambah jadual perlawanan.' }}
+                      {{ jadualSearch || jadualDateFilter() ? 'Tiada perlawanan sepadan dengan hari atau carian yang dipilih.' : 'Tiada perlawanan. Tambah jadual perlawanan.' }}
                     </p>
                   </td>
                 </tr>
@@ -626,6 +630,16 @@
       </div>
 
       @if (selectedKejohanan && jadualList.length > 0) {
+        <div class="mb-4 space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+          <app-jadual-day-filter [days]="jadualDayOptions" [selectedDate]="jadualDateFilter()"
+            (dateChange)="changeJadualDate($event)" />
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input type="search" [(ngModel)]="jadualSearch" (ngModelChange)="clearScheduleSelections()"
+              aria-label="Cari perlawanan untuk lantikan" placeholder="Cari no. perlawanan, pasukan atau tempat..."
+              class="w-full max-w-xl rounded-lg border border-slate-300 px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900" />
+            <span class="text-xs text-slate-600" role="status">{{ filteredJadualList.length }} daripada {{ jadualList.length }} perlawanan</span>
+          </div>
+        </div>
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
@@ -641,7 +655,7 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
-                @for (j of jadualList; track j.id) {
+                @for (j of filteredJadualList; track j.id) {
                   <tr class="hover:bg-slate-50 transition-colors">
                     <td class="px-4 py-3 text-xs font-semibold text-slate-700">{{ j.no_perlawanan }}</td>
                     <td class="px-4 py-3">
@@ -672,6 +686,8 @@
                       </button>
                     </td>
                   </tr>
+                } @empty {
+                  <tr><td colspan="7" class="px-4 py-10 text-center text-sm text-slate-600">Tiada perlawanan sepadan dengan hari atau carian yang dipilih.</td></tr>
                 }
               </tbody>
             </table>
@@ -1243,17 +1259,21 @@
       </div>
 
       <!-- Carian jadual lantikan -->
+      <div class="border-x border-slate-200 bg-white px-4 pb-3">
+        <app-jadual-day-filter [days]="jadualDayOptions" [selectedDate]="jadualDateFilter()"
+          (dateChange)="changeJadualDate($event)" />
+      </div>
       <div class="flex flex-col sm:flex-row sm:items-center gap-2 bg-white border-x border-slate-200 px-4 pb-3">
         <div class="relative flex-1 max-w-xl">
           <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35m1.35-5.15a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z"/>
           </svg>
-          <input type="search" [(ngModel)]="jadualLantikanSearch"
+          <input type="search" [(ngModel)]="jadualLantikanSearch" (ngModelChange)="clearScheduleSelections()"
             aria-label="Cari jadual lantikan"
             placeholder="Cari no. tepat (cth. 5) atau kata kunci..."
             class="w-full pl-9 pr-9 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-pahang-yellow/30 focus:border-pahang-yellow outline-none" />
           @if (jadualLantikanSearch) {
-            <button type="button" (click)="jadualLantikanSearch = ''"
+            <button type="button" (click)="jadualLantikanSearch = ''; clearScheduleSelections()"
               class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 rounded transition" title="Kosongkan carian">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18 18 6M6 6l12 12"/>
@@ -1261,7 +1281,7 @@
             </button>
           }
         </div>
-        <span class="text-xs text-slate-500">
+        <span class="text-xs text-slate-600" role="status">
           {{ filteredJadualLantikanCount }}
           daripada {{ jadual.length }} perlawanan
         </span>
@@ -1383,7 +1403,7 @@
       <p class="my-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">⚠ Baris merah pada pegawai: daerah sama untuk kejohanan Negeri/Daerah, atau negeri sama untuk Kebangsaan. Medan asal pasukan yang kosong belum boleh disemak. Status penerimaan kekal berasingan.</p>
       @if (jadual.length === 0 || jadualLantikanGrouped.length === 0) {
         <div class="bg-slate-50 border border-slate-200 rounded-b-xl p-8 text-center text-sm text-slate-500">
-          {{ jadual.length === 0 ? 'Tiada perlawanan dalam jadual bagi kejohanan ini.' : 'Tiada perlawanan sepadan dengan carian.' }}
+          {{ jadual.length === 0 ? 'Tiada perlawanan dalam jadual bagi kejohanan ini.' : 'Tiada perlawanan sepadan dengan hari atau carian yang dipilih.' }}
         </div>
       } @else {
 
