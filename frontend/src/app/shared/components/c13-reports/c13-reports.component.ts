@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { DomSanitizer, type SafeResourceUrl } from '@angular/platform-browser';
 import { ApiService } from '../../../core/services/api.service';
 import { groupMatchReports, type Report } from './match-reports';
 
@@ -11,6 +12,10 @@ import { groupMatchReports, type Report } from './match-reports';
 })
 export class C13ReportsComponent {
   private readonly api = inject(ApiService);
+  private readonly sanitizer = inject(DomSanitizer);
+  private readonly injector = inject(Injector);
+  private readonly previewDialog = viewChild.required<ElementRef<HTMLDialogElement>>('previewDialog');
+  readonly preview = signal<{ report: Report; title: string; url: SafeResourceUrl } | null>(null);
   readonly loading = signal(true);
   readonly error = signal('');
   readonly query = signal('');
@@ -18,6 +23,24 @@ export class C13ReportsComponent {
   readonly filtered = computed(() => groupMatchReports(this.reports(), this.query()));
 
   constructor() { this.load(); }
+
+  openPreview(report: Report): void {
+    const form = report.form_type === 'MATCH_SUMMARY_C12' ? 'C12' : 'C13';
+    this.preview.set({
+      report,
+      title: `Preview ${form} · ${report.home_name} lwn ${report.away_name}`,
+      // Only this component's same-origin, authenticated PDF route is trusted.
+      url: this.sanitizer.bypassSecurityTrustResourceUrl(this.pdf(report, 'preview')),
+    });
+    afterNextRender(() => {
+      if (this.preview()) this.previewDialog().nativeElement.showModal();
+    }, { injector: this.injector });
+  }
+
+  closePreview(): void {
+    this.previewDialog().nativeElement.close();
+    this.preview.set(null);
+  }
 
   load(): void {
     this.loading.set(true);

@@ -10,10 +10,16 @@ const out=new URL('../../output/c13-access/',import.meta.url).pathname;await mkd
 const match='01234567-1234-1234-1234-0123456789ab';let eligible=true,role='Pengadil';
 const dashboard=()=>({c13:eligible?[{match_id:match,appointment_id:1,label:'03 · ALFA lwn BRAVO',submitted:false,c12:{id:'21234567-1234-1234-1234-0123456789ab',revision:1,amendment_number:0}}]:[],
  view:'pengadil',year:2026,name:'PENGADIL UJIAN',totals:{},monthly:[],upcoming:[],responses:[],recent:[],registrations:[],announcements:[],ranking:[],applications:{},positions:[],minimum_matches:20,can_referee:true,can_ra:false});
+// A real one-page PDF for the embedded preview fixture.
+const pdfObjects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Contents 4 0 R >>','<< /Length 0 >>\nstream\n\nendstream'];
+let previewPdf='%PDF-1.4\n';const pdfOffsets=[0];
+for(const [i,object] of pdfObjects.entries()){pdfOffsets.push(Buffer.byteLength(previewPdf));previewPdf+=`${i+1} 0 obj\n${object}\nendobj\n`;}
+const xrefOffset=Buffer.byteLength(previewPdf);previewPdf+='xref\n0 5\n0000000000 65535 f \n'+pdfOffsets.slice(1).map(offset=>String(offset).padStart(10,'0')+' 00000 n \n').join('')+`trailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
 const server=createServer(async(req,res)=>{try{
  const url=new URL(req.url,'http://localhost');let body,type='application/json';
  if(url.pathname==='/api/session.php')body=JSON.stringify({authenticated:true,user_id:1,user_email:'test@example.invalid',user_role:role,nama_penuh:'PENGADIL UJIAN',can_referee:1,can_ra:0,password_changed:1});
- else if(url.pathname==='/api/jfa-c13.php'&&url.searchParams.get('view')==='admin')body=JSON.stringify({data:{records:[{id:'record',match_id:match,match_number:'03',recorded_at:1793509200,scheduled_start:1793509200,referee_name:'PENGADIL UJIAN',venue_name:'Padang Ujian',tournament_name:'LIGA JFA',home_name:'ALFA',away_name:'BRAVO'}],c12Records:[{id:'21234567-1234-1234-1234-0123456789ab',match_id:match,form_type:'MATCH_SUMMARY_C12',match_number:'03',recorded_at:1793509201,scheduled_start:1793509200,venue_name:'Padang Ujian',tournament_name:'LIGA JFA',home_name:'ALFA',away_name:'BRAVO',revision:1,amendment_number:0}]}});
+ else if(url.pathname==='/api/jfa-c13.php'&&url.searchParams.has('mode')){type='application/pdf';body=previewPdf;}
+ else if(url.pathname==='/api/jfa-c13.php'&&url.searchParams.get('view')==='admin')body=JSON.stringify({data:{records:[{id:'record-old',match_id:match,match_number:'03',recorded_at:1793509100,scheduled_start:1793509200,referee_name:'PENGADIL UJIAN',venue_name:'Padang Ujian',tournament_name:'LIGA JFA',home_name:'ALFA',away_name:'BRAVO'},{id:'record',match_id:match,match_number:'03',recorded_at:1793509200,scheduled_start:1793509200,referee_name:'PENGADIL UJIAN',venue_name:'Padang Ujian',tournament_name:'LIGA JFA',home_name:'ALFA',away_name:'BRAVO'}],c12Records:[{id:'21234567-1234-1234-1234-0123456789ab',match_id:match,form_type:'MATCH_SUMMARY_C12',match_number:'03',recorded_at:1793509201,scheduled_start:1793509200,venue_name:'Padang Ujian',tournament_name:'LIGA JFA',home_name:'ALFA',away_name:'BRAVO',revision:1,amendment_number:0}]}});
  else if(url.pathname==='/api/portal-dashboard.php')body=JSON.stringify({error:false,data:dashboard()});
  else if(url.pathname==='/api/tugasan.php')body=JSON.stringify({error:false,data:[
   {id:1,jawatan:'Pengadil',status:'Diterima',no_perlawanan:'03',nama_kejohanan:'JFA',jenis_kejohanan:'Liga',tarikh:'2026-11-01',masa:'17:00',pasukan_home:'ALFA',pasukan_away:'BRAVO',c13_match_id:eligible?match:null,c12_document_id:eligible?'21234567-1234-1234-1234-0123456789ab':null},
@@ -62,9 +68,29 @@ try {
   assert((await ev("document.querySelector('app-c13-reports a[href*=document]').getAttribute('href')")).includes('form=C12&document='));
   assert.deepEqual(await ev("[...document.querySelectorAll('app-c13-reports thead th')].map(t=>t.textContent.trim())"),['Bil','Nama perlawanan','Padang','Masa','C12','C13']);
   assert.equal(await ev("document.querySelectorAll('app-c13-reports tbody tr').length"),1,'Both forms share the match row');
-  const actions=await ev("[...document.querySelectorAll('app-c13-reports a')].map(a=>({href:a.getAttribute('href'),target:a.getAttribute('target')}))");
-  assert.equal(actions.filter(a=>a.href.includes('mode=preview')&&a.target==='_blank').length,2);
-  assert.equal(actions.filter(a=>a.href.includes('mode=download')).length,2);
+  const actions=await ev("[...document.querySelectorAll('app-c13-reports a')].filter(a=>a.getClientRects().length&&!a.closest('details:not([open])')).map(a=>a.getAttribute('href'))");
+  assert.equal(actions.filter(href=>href.includes('mode=download')).length,2,'Only current forms shown initially');
+  assert.equal(actions.filter(href=>href.includes('record=record-old')).length,0,'Older C13 stays in history');
+  assert((await ev("document.querySelector('app-c13-reports summary').textContent")).includes('Salinan terdahulu (1)'));
+  for(const form of ['C12','C13']){
+   await ev(`(()=>{const button=document.querySelector('app-c13-reports button[aria-label="Preview ${form} perlawanan 03"]');button.focus();button.click();})()`);
+   await wait("!!document.querySelector('app-c13-reports dialog[open] iframe')");
+   const frame=await ev("document.querySelector('app-c13-reports dialog iframe').getAttribute('src')");
+   assert(frame.includes('mode=preview'));
+   assert(frame.includes(form==='C12'?'document=21234567':'record=record'));
+   assert.equal(await ev("document.activeElement.textContent.trim()"),'Tutup','Modal focuses its close button');
+   if(process.env.C13_AXE_PATH){assert.deepEqual(await ev("axe.run(document.querySelector('app-c13-reports dialog'),{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']}}).then(r=>r.violations.map(v=>v.id))"),[]);}
+   if(form==='C13'){const shot=await send('Page.captureScreenshot',{format:'png'});await writeFile(path.join(out,'admin-preview-modal-'+width+'.png'),Buffer.from(shot.data,'base64'));}
+   await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+   await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+   await wait("!document.querySelector('app-c13-reports dialog[open]')");
+   assert.equal(await ev("document.activeElement.getAttribute('aria-label')"),`Preview ${form} perlawanan 03`,'Focus returns to Preview');
+   await wait("document.querySelectorAll('app-c13-reports dialog iframe').length===0");
+  }
+  await ev("document.querySelector('app-c13-reports summary').click()");
+  await wait("!!document.querySelector('app-c13-reports details[open]')");
+  assert.equal(await ev("[...document.querySelectorAll('app-c13-reports details a')].filter(a=>a.getClientRects().length&&a.href.includes('record=record-old')).length"),1);
+  await ev("document.querySelector('app-c13-reports summary').click()");
   assert.equal(await ev('document.documentElement.scrollWidth>innerWidth+1'),false,'Table scrolls within its container');
   assert((await ev("document.querySelector('app-c13-reports tbody').textContent")).includes('Padang Ujian'));
   if(process.env.C13_AXE_PATH){const violations=await ev("axe.run(document.querySelector('app-c13-reports'),{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21a','wcag21aa']}}).then(r=>r.violations.map(v=>v.id))");assert.deepEqual(violations,[]);}
