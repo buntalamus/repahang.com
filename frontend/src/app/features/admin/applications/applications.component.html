@@ -104,6 +104,10 @@
     </div>
   </div>
 
+  @if (activeTab === 'kelas1') {
+    <app-fam-class-one-export [candidates]="filtered" [year]="yearFilter" />
+  }
+
   <!-- Desktop Table (hidden on mobile) -->
   <div class="hidden lg:block bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden mb-6">
     <div class="overflow-x-auto">

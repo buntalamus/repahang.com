@@ -48,6 +48,10 @@ function generateR11Pdf($pdf, $data, string $kelas = 'III') {
     $pdf->setPrintHeader(false);
     $pdf->setPrintFooter(false);
 
+    // Match the 15 mm outer margins. TCPDF's default 25 mm bottom margin
+    // otherwise pushes the final No. Pendaftaran row onto a second page.
+    $pdf->setAutoPageBreak(true, 15);
+
       // Borang R11 label in top right corner
     $pdf->setFont('helvetica', 'I', 7);
     $pdf->Cell(0, 5, 'Borang R11', 0, 1, 'R');

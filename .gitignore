@@ -70,6 +70,7 @@ desktop.ini
 !assets/**
 !uploads/**
 !frontend/public/documents/*.pdf
+!frontend/public/templates/fam-calon-kelas1.xlsx
 !docs/manual-peranan/screenshots/*.png
 
 # SQLite DB

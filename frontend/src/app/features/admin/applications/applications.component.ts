@@ -7,11 +7,12 @@ import { ToastService } from '../../../core/services/toast.service';
 import { LoadingComponent } from '../../../shared/components/loading/loading.component';
 import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { environment } from '../../../../environments/environment';
+import { FamClassOneExportComponent } from './fam-class-one-export.component';
 
 @Component({
   selector: 'app-admin-applications',
   standalone: true,
-  imports: [CommonModule, FormsModule, LoadingComponent, PaginationComponent],
+  imports: [CommonModule, FormsModule, LoadingComponent, PaginationComponent, FamClassOneExportComponent],
   templateUrl: './applications.component.html',
 })
 export class AdminApplicationsComponent implements OnInit {
