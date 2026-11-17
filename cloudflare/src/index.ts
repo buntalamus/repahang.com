@@ -1,4 +1,5 @@
 import {privateMedia} from './private-media';
+import { originRecords } from './origin-records';
 import { enforceAccountPolicy, recordAccountActivity } from './account-policy';
 import {jfaC13} from './jfa-c13';
 import { userProfile } from './self-profile';
@@ -181,6 +182,7 @@ async function api(request: Request, env: Env, pathname: string, ctx: ExecutionC
   if (pathname === '/api/pp-verify.php') return ppVerify(request, env);
   if (pathname === '/api/admin-test-applications.php') return adminTestApplications(request, env);
   if (pathname === '/api/pengadil-match-manage.php') return refereeMatchManage(request, env);
+  if (pathname === '/api/rekod-negeri-asal.php') return originRecords(request, env);
   if (pathname === '/api/lantikan-jawab.php') return appointmentReply(request, env);
   if (pathname === '/api/lantikan.php') return adminAppointments(request, env);
   if (pathname === '/api/lantikan-jawab-token.php') return appointmentEmailLink(request, env);

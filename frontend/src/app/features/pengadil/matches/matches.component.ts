@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
 import { ToastService } from '../../../core/services/toast.service';
@@ -14,7 +14,7 @@ interface OfficialSlot {
 @Component({
   selector: 'app-pengadil-matches',
   standalone: true,
-  imports: [LoadingComponent, FormsModule, RefereeSearchComponent],
+  imports: [LoadingComponent, FormsModule, RefereeSearchComponent, RouterLink],
   templateUrl: './matches.component.html',
 })
 export class PengadilMatchesComponent implements OnInit {
@@ -22,7 +22,7 @@ export class PengadilMatchesComponent implements OnInit {
   matches: any[] = [];
   filtered: any[] = [];
   search = '';
-  stats = { total: 0, disahkan: 0, belum_disahkan: 0, ditolak: 0, year: new Date().getFullYear() };
+  stats = { total: 0, disahkan: 0, belum_disahkan: 0, ditolak: 0, negeri_asal: 0, pahang: 0, year: new Date().getFullYear() };
   /** Records are for matches already played, at most 14 days ago (Malaysia time). */
   readonly maxDate = klDate(0);
   readonly minDate = klDate(-14);
@@ -72,6 +72,8 @@ export class PengadilMatchesComponent implements OnInit {
             ?? yearMatches.filter((m: any) => m.status_pp === 'Disahkan').length;
           this.stats.belum_disahkan = Number(res.statistics?.pending_year ?? 0);
           this.stats.ditolak = Number(res.statistics?.rejected_year ?? 0);
+          this.stats.negeri_asal = Number(res.statistics?.origin_verified_year ?? 0);
+          this.stats.pahang = Number(res.statistics?.pahang_verified_year ?? this.stats.disahkan);
         }
         this.loading = false;
       },

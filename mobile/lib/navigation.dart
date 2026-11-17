@@ -13,6 +13,7 @@ import 'screens/notifikasi_screen.dart';
 import 'screens/pengumuman_screen.dart';
 import 'screens/statistik_screen.dart';
 import 'screens/perlu_tindakan_screen.dart';
+import 'screens/rekod_negeri_asal_screen.dart';
 
 /// Something the full menu can open: a shell page (by id), an in-app screen,
 /// or a website page that is not in the app yet.
@@ -75,6 +76,7 @@ List<MenuSection> menuFor(SessionUser user) {
           perluTindakan,
           screen('Laporan RA', Icons.rate_review_outlined, () => const AdminLaporanScreen()),
           screen('Rekod Perlawanan', Icons.sports_soccer_outlined, () => const AdminPerlawananScreen()),
+          screen('Rekod Negeri Asal', Icons.move_to_inbox_outlined, () => const RekodNegeriAsalScreen(admin: true)),
           web('Pengadil Luar', Icons.person_add_alt, '/admin/pengadil-luar'),
         ]),
         MenuSection('Pengadil & Pegawai', [
@@ -108,6 +110,7 @@ List<MenuSection> menuFor(SessionUser user) {
           screen('Statistik Daerah', Icons.insights_outlined, () => const StatistikScreen()),
         ]),
         MenuSection('Tugasan Saya', [
+          if (user.canReferee) screen('Rekod Negeri Asal Saya', Icons.move_to_inbox_outlined, () => const RekodNegeriAsalScreen()),
           page('Tugasan', Icons.assignment_outlined, 'tugasan'),
           if (user.canRa) page('Laporan RA', Icons.rate_review_outlined, 'laporan'),
           page('Permohonan Saya', Icons.description_outlined, 'permohonan'),
@@ -129,6 +132,7 @@ List<MenuSection> menuFor(SessionUser user) {
         MenuSection('Tugasan & Rekod', [
           page('Tugasan', Icons.assignment_outlined, 'tugasan'),
           page('Rekod Perlawanan', Icons.sports_outlined, 'rekod'),
+          screen('Rekod Negeri Asal', Icons.move_to_inbox_outlined, () => const RekodNegeriAsalScreen()),
           screen('Statistik Saya', Icons.insights_outlined, () => const StatistikScreen()),
         ]),
         MenuSection('Permohonan', [page('Permohonan Saya', Icons.description_outlined, 'permohonan')]),

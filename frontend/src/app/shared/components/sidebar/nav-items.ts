@@ -21,6 +21,7 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'Lantikan & Perlawanan', icon: 'sports_soccer', children: [
     { label: 'Lantikan Pengadil', icon: 'assignment_ind', route: '/admin/lantikan' },
     { label: 'Rekod Perlawanan', icon: 'sports_soccer', route: '/admin/perlawanan' },
+    { label: 'Rekod Negeri Asal', icon: 'move_to_inbox', route: '/admin/rekod-negeri-asal' },
     { label: 'Pengadil Luar', icon: 'person_add', route: '/admin/pengadil-luar' },
   ] },
   { label: 'Komunikasi', icon: 'forum', children: [
@@ -73,6 +74,7 @@ export const PENGADIL_NAV: NavItem[] = [
   { label: 'Profil Saya', icon: 'person', route: '/pengadil/profil' },
   { label: 'Notifikasi Lantikan', icon: 'notifications_active', route: '/pengadil/tugasan' },
   { label: 'Rekod Perlawanan', icon: 'sports', route: '/pengadil/perlawanan' },
+  { label: 'Rekod Negeri Asal', icon: 'move_to_inbox', route: '/pengadil/rekod-negeri-asal' },
   { label: 'Penilaian Saya', icon: 'rate_review', route: '/pengadil/penilaian' },
   {
     label: 'Permohonan',

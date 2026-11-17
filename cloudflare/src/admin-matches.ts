@@ -24,7 +24,7 @@ async function listMatches(request: Request, env: Env): Promise<Response> {
   const districtId = query.get('daerah_id') === '0' ? null : idOf(query.get('daerah_id'));
   const page = Math.max(1, Math.min(100_000, Math.trunc(Number(query.get('page')) || 1)));
   const perPage = Math.max(1, Math.min(100, Math.trunc(Number(query.get('per_page')) || 25)));
-  const where: string[] = [];
+  const where: string[] = ['p.origin_record_id IS NULL'];
   const params: (string | number)[] = [];
   const key = (alias: string) => `CASE WHEN ${alias}.match_group_id IS NOT NULL
     THEN 'g:' || ${alias}.match_group_id ELSE 's:' || ${alias}.id END`;
@@ -138,7 +138,7 @@ async function listMatches(request: Request, env: Env): Promise<Response> {
       FROM perlawanan p ${basePredicate}`).bind(...baseParams).first<Record<string, unknown>>(),
     env.DB.prepare('SELECT id,nama FROM districts ORDER BY nama').all(),
     env.DB.prepare(`SELECT DISTINCT substr(tarikh,1,4) AS year,jenis,nama_kejohanan
-      FROM perlawanan ORDER BY year DESC`).all<{year:string;jenis:string;nama_kejohanan:string}>(),
+      FROM perlawanan WHERE origin_record_id IS NULL ORDER BY year DESC`).all<{year:string;jenis:string;nama_kejohanan:string}>(),
   ]);
   return json({ error: false,
     matches: [...groups.values()], statistics: { ...stats, doubtful: conflicts.size }, districts: districts.results,
@@ -184,12 +184,14 @@ async function changeMatch(request: Request, env: Env, adminId: number, adminNam
   if (request.method === 'POST' && action !== 'revert' && !justification) {
     return json({ error: true, message: 'Justifikasi wajib diisi untuk override admin.' }, 422);
   }
-  const rows = await env.DB.prepare(`SELECT p.id,p.home_team,p.away_team,p.tarikh,p.tempat,p.jenis,p.user_id
+  const rows = await env.DB.prepare(`SELECT p.id,p.home_team,p.away_team,p.tarikh,p.tempat,p.jenis,p.user_id,p.origin_record_id
     FROM perlawanan p WHERE p.${matchTarget.where}`).bind(matchTarget.value).all<{
       id: number; home_team: string | null; away_team: string | null; tarikh: string; tempat: string | null;
-      jenis: string | null; user_id: number | null;
+      jenis: string | null; user_id: number | null; origin_record_id: number | null;
     }>();
   if (!rows.results.length) return json({ error: true, message: 'Perlawanan tidak dijumpai.' }, 404);
+  if (rows.results.some(row => row.origin_record_id !== null)) return json({ error: true,
+    message: 'Rekod negeri asal yang diterima telah dikunci. Semak menu Rekod Negeri Asal.' },409);
   const first = rows.results[0];
   const description = `${first.home_team ?? ''} vs ${first.away_team ?? ''} (${rows.results.length} rekod) - Justifikasi: ${justification}`;
   if (request.method === 'DELETE') {

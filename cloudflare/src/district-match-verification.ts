@@ -17,8 +17,8 @@ const pending = (status: unknown) => !status || status === 'Belum Disahkan';
 
 function scope(persatuanId: number, districtId: number): { sql: string; params: number[] } {
   return {
-    sql: `((p.match_group_id IS NOT NULL AND p.daerah_perlawanan_id=?)
-      OR (p.match_group_id IS NULL AND u.persatuan_id=? AND u.role='Pengadil'))`,
+    sql: `(p.origin_record_id IS NULL AND ((p.match_group_id IS NOT NULL AND p.daerah_perlawanan_id=?)
+      OR (p.match_group_id IS NULL AND u.persatuan_id=? AND u.role='Pengadil')))`,
     params: [districtId, persatuanId],
   };
 }
@@ -131,24 +131,24 @@ async function change(request: Request, env: Env, userId: number,
   if (grouped) {
     const groupId = input.match_group_id as string;
     const found = await env.DB.prepare(`SELECT id,user_id,tarikh,masa,tempat,jenis,home_team,away_team,
-      daerah_perlawanan_id,match_group_id FROM perlawanan WHERE match_group_id=?`).bind(groupId).all<ScopedMatch>();
+      daerah_perlawanan_id,match_group_id FROM perlawanan WHERE match_group_id=? AND origin_record_id IS NULL`).bind(groupId).all<ScopedMatch>();
     rows = found.results;
     // A group must be wholly within the PP's district. This prevents an
     // accidental partial decision or a guessed group ID crossing a boundary.
     if (!rows.length || !districtId || rows.some((row) => row.daerah_perlawanan_id !== districtId)) {
       return json({ error: true, message: 'Perlawanan tidak dijumpai atau bukan dalam daerah anda.' }, 404);
     }
-    where = 'match_group_id=? AND daerah_perlawanan_id=?';
+    where = 'match_group_id=? AND daerah_perlawanan_id=? AND origin_record_id IS NULL';
     params = [groupId, districtId];
   } else {
     const found = await env.DB.prepare(`SELECT p.id,p.user_id,p.tarikh,p.masa,p.tempat,p.jenis,p.home_team,p.away_team,
       p.daerah_perlawanan_id,p.match_group_id
       FROM perlawanan p JOIN users u ON u.id=p.user_id
-      WHERE p.id=? AND p.match_group_id IS NULL AND u.persatuan_id=? AND u.role='Pengadil'`)
+      WHERE p.id=? AND p.origin_record_id IS NULL AND p.match_group_id IS NULL AND u.persatuan_id=? AND u.role='Pengadil'`)
       .bind(matchId, persatuanId).all<ScopedMatch>();
     rows = found.results;
     if (!rows.length) return json({ error: true, message: 'Perlawanan tidak dijumpai atau bukan dalam daerah anda.' }, 404);
-    where = `id=? AND match_group_id IS NULL AND EXISTS(
+    where = `id=? AND origin_record_id IS NULL AND match_group_id IS NULL AND EXISTS(
       SELECT 1 FROM users u WHERE u.id=perlawanan.user_id AND u.persatuan_id=? AND u.role='Pengadil')`;
     params = [matchId!, persatuanId];
   }

@@ -63,7 +63,7 @@ export async function districtAnnouncements(request: Request, env: Env): Promise
   return json({ error: false, announcements: rows.results });
 }
 
-const DISTRICT_MATCH_SCOPE = `(
+const DISTRICT_MATCH_SCOPE = `(p.origin_record_id IS NULL) AND (
   (p.match_group_id IS NOT NULL AND p.daerah_perlawanan_id=?)
   OR (p.match_group_id IS NULL AND u.persatuan_id=? AND u.role IN ('Pengadil','PP Daerah'))
 )`;
@@ -131,7 +131,7 @@ export async function districtOverview(request: Request, env: Env): Promise<Resp
           THEN COALESCE(p.match_group_id,CAST(p.id AS TEXT)) END)
           AS verified_matches
       FROM users u JOIN perlawanan p ON p.user_id=u.id
-      WHERE substr(p.tarikh,1,4)=? AND u.role IN ('Pengadil','PP Daerah') AND (
+      WHERE p.origin_record_id IS NULL AND substr(p.tarikh,1,4)=? AND u.role IN ('Pengadil','PP Daerah') AND (
         (p.match_group_id IS NOT NULL AND p.daerah_perlawanan_id=?)
         OR (p.match_group_id IS NULL AND u.persatuan_id=?))
       GROUP BY u.id,u.nama_penuh,u.jenis_pengadil

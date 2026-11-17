@@ -1,4 +1,5 @@
 <div class="space-y-6">
+  <a routerLink="/pengadil/rekod-negeri-asal" class="block rounded-lg border border-slate-300 bg-white p-4 text-blue-800 underline">Berpindah dari negeri lain? Mohon akses membawa masuk rekod negeri asal.</a>
   @if (loading) {
     <app-loading message="Memuatkan perlawanan..." />
   } @else {
@@ -33,6 +34,7 @@
       </div>
       <div class="bg-white rounded-xl shadow-sm p-5"><p class="text-2xl font-bold text-rose-800">{{ stats.ditolak }}</p><p class="text-xs text-gray-600">Tidak Disahkan Tahun {{ stats.year }}</p></div>
     </div>
+    <p class="text-sm text-slate-700">Disahkan {{ stats.year }}: {{ stats.pahang }} rekod Pahang + {{ stats.negeri_asal }} rekod negeri asal yang diterima Admin.</p>
     @if (filterStatus) { <p class="text-sm text-slate-700">Senarai ditapis: {{ filterStatus }}. <button type="button" (click)="clearStatusFilter()" class="underline">Buang penapis status</button></p> }
 
     <!-- Search + Add Button -->
@@ -224,7 +226,7 @@
               <th class="px-4 py-3 font-semibold text-gray-600">Tarikh</th>
               <th class="px-4 py-3 font-semibold text-gray-600">Tempat</th>
               <th class="px-4 py-3 font-semibold text-gray-600">Jawatan</th>
-              <th class="px-4 py-3 font-semibold text-gray-600">Status Pegawai Pembangunan</th>
+              <th class="px-4 py-3 font-semibold text-gray-600">Status Pengesahan</th>
               <th class="px-4 py-3 font-semibold text-gray-600">Tindakan</th>
             </tr>
           </thead>
@@ -234,6 +236,9 @@
                 <td class="px-4 py-3 text-gray-500">{{ i + 1 }}</td>
                 <td class="px-4 py-3 font-medium">
                   {{ m.home_team }} vs {{ m.away_team }}
+                  @if (m.origin_record_id) {
+                    <span class="block text-xs text-slate-700">Rekod negeri asal: {{ m.origin_state }} · Diterima Admin Pahang</span>
+                  }
                   @if (m.lantikan_id) {
                     <span class="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-50 text-blue-600 border border-blue-200">Lantikan Rasmi</span>
                   }

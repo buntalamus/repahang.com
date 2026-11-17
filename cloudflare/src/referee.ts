@@ -66,7 +66,9 @@ export async function refereeMatches(request: Request, env: Env): Promise<Respon
       FROM perlawanan p WHERE user_id=?${listFilter}`)
       .bind(user.id,...filterValues).first<{ total: number; verified_total: number | null }>(),
     env.DB.prepare(`
-      SELECT p.id, p.match_group_id, p.tarikh, p.masa, p.jenis,
+      SELECT p.id, p.match_group_id, p.tarikh, p.masa, p.jenis,p.origin_record_id,
+             origin_req.origin_state,origin_req.verifier_name AS origin_verifier_name,
+             origin_req.id AS origin_request_id,origin_admin.nama_penuh AS origin_admin_name,
              p.nama_kejohanan, p.tempat, p.jawatan, p.status_pp,
              p.catatan_pp, p.verified_at, p.created_at, p.home_team,
              p.away_team, p.lantikan_id, p.submitted_by,
@@ -88,15 +90,19 @@ export async function refereeMatches(request: Request, env: Env): Promise<Respon
       LEFT JOIN users u3 ON p.assistant_referee_2_id=u3.id
       LEFT JOIN users u4 ON p.fourth_official_id=u4.id
       LEFT JOIN districts d ON p.daerah_perlawanan_id=d.id
+      LEFT JOIN referee_origin_records origin_rec ON origin_rec.id=p.origin_record_id
+      LEFT JOIN referee_origin_requests origin_req ON origin_req.id=origin_rec.request_id
+      LEFT JOIN users origin_admin ON origin_admin.id=origin_req.reviewed_by
       WHERE p.user_id=?${listFilter} ORDER BY p.tarikh DESC, p.id DESC LIMIT ? OFFSET ?
     `).bind(user.id,...filterValues, perPage, offset).all(),
     env.DB.prepare(`
       SELECT COUNT(*) AS current_year,
              SUM(CASE WHEN status_pp='Disahkan' THEN 1 ELSE 0 END) AS verified_year,
              SUM(CASE WHEN status_pp IS NULL OR status_pp='' OR status_pp='Belum Disahkan' THEN 1 ELSE 0 END) AS pending_year,
-             SUM(CASE WHEN status_pp='Tidak Disahkan' THEN 1 ELSE 0 END) AS rejected_year
+             SUM(CASE WHEN status_pp='Tidak Disahkan' THEN 1 ELSE 0 END) AS rejected_year,
+             SUM(CASE WHEN origin_record_id IS NOT NULL AND status_pp='Disahkan' THEN 1 ELSE 0 END) AS origin_verified_year
       FROM perlawanan WHERE user_id=? AND substr(tarikh,1,4)=?
-    `).bind(user.id, String(statsYear)).first<{ current_year: number; verified_year: number | null; pending_year: number | null; rejected_year: number | null }>(),
+    `).bind(user.id, String(statsYear)).first<{ current_year: number; verified_year: number | null; pending_year: number | null; rejected_year: number | null; origin_verified_year: number | null }>(),
     env.DB.prepare(`SELECT COUNT(*) AS total,SUM(CASE WHEN status_pp='Disahkan' THEN 1 ELSE 0 END) AS verified_total
       FROM perlawanan WHERE user_id=?`).bind(user.id).first<{total:number;verified_total:number|null}>(),
   ]);
@@ -112,6 +118,8 @@ export async function refereeMatches(request: Request, env: Env): Promise<Respon
       all_time_verified_total: Number(allTime?.verified_total ?? 0),
       current_year: Number(yearStats?.current_year ?? 0),
       verified_year: verified,
+      origin_verified_year: Number(yearStats?.origin_verified_year ?? 0),
+      pahang_verified_year: verified - Number(yearStats?.origin_verified_year ?? 0),
       pending_year: Number(yearStats?.pending_year ?? 0),
       rejected_year: Number(yearStats?.rejected_year ?? 0),
       year: String(statsYear),

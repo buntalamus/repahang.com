@@ -44,9 +44,12 @@ export async function districtApplications(request: Request, env: Env): Promise<
 
   // Fetch match history in one district-scoped query instead of one query per application.
   const matches = rows.results.length === 0 ? [] : (await env.DB.prepare(`
-    SELECT pl.permohonan_id, pl.tarikh, pl.jenis, pl.tempat, pl.jawatan
+    SELECT pl.permohonan_id, pl.tarikh, pl.jenis, pl.tempat, pl.jawatan,pl.origin_record_id,
+      origin_req.origin_state,origin_req.reviewed_at AS origin_accepted_at
     FROM perlawanan pl
     JOIN permohonan p ON p.id=pl.permohonan_id
+    LEFT JOIN referee_origin_records origin_rec ON origin_rec.id=pl.origin_record_id
+    LEFT JOIN referee_origin_requests origin_req ON origin_req.id=origin_rec.request_id
     WHERE p.persatuan_id=? AND ${filter}
     ORDER BY pl.tarikh DESC
   `).bind(...bindings).all<Row>()).results;

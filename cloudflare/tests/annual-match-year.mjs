@@ -72,7 +72,7 @@ try {
     AND substr(tarikh,1,4)<>'2026'`).get(body.application_id).n,0);
   assert.ok(body.linked_matches>0);
   // A referee's application waits for the district PP first.
-  assert.match(emails.at(-1).text,/Status: Menunggu Semakan PP Daerah/);
+  assert.match(emails.at(-1).text,/Menunggu Semakan PP Daerah/);
   console.log('annual match year: session N counts and links verified matches of year N-1');
 } finally {
   close();

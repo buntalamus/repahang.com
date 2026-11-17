@@ -91,7 +91,7 @@ export async function adminDashboardStats(request: Request, env: Env): Promise<R
     applicationCounts(env, years),
     env.DB.prepare("SELECT COUNT(*) AS total FROM laporan_penilaian WHERE status='Dihantar'")
       .first<{ total: number }>(),
-    env.DB.prepare('SELECT COUNT(*) AS total FROM perlawanan WHERE substr(tarikh,1,7)=?')
+    env.DB.prepare('SELECT COUNT(*) AS total FROM perlawanan WHERE origin_record_id IS NULL AND substr(tarikh,1,7)=?')
       .bind(month).first<{ total: number }>(),
   ]);
   return json({

@@ -1,5 +1,16 @@
 [
   {
+    "release_version": "1.4.0+8",
+    "patch": 12,
+    "date": "2026-11-17",
+    "changes": [
+      "Pengadil yang berpindah ke Pahang kini boleh memohon akses khas dan membawa masuk rekod perlawanan negeri asal bersama dokumen pengesahan.",
+      "Admin sahaja boleh membuka akses serta menerima atau menolak rekod negeri asal. PP Daerah tidak boleh meluluskan rekod ini.",
+      "Rekod yang diterima dikira untuk kelayakan permohonan tahunan mengikut tahun perlawanan. Paparan Rekod Saya membezakan rekod Pahang dan negeri asal.",
+      "Rekod negeri asal yang diterima dikunci, manakala had 14 hari untuk kemasukan rekod perlawanan biasa dikekalkan."
+    ]
+  },
+  {
     "release_version": "1.3.0+7",
     "patch": 3,
     "date": "2026-10-21",

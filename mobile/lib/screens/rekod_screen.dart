@@ -4,6 +4,7 @@ import '../api.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import 'tambah_perlawanan_screen.dart';
+import 'rekod_negeri_asal_screen.dart';
 
 /// Referee's records: match history (/api/pengadil-matches.php) and
 /// assessment reports (/api/pengadil-penilaian.php).
@@ -131,6 +132,12 @@ class _MatchListState extends State<_MatchList> {
           Expanded(child: StatTile(label: 'Ditolak', value: s['rejected_year'], icon: Icons.cancel_outlined, color: Tw.rose600)),
         ]),
         const SizedBox(height: 8),
+        OutlinedButton.icon(icon: const Icon(Icons.move_to_inbox_outlined), label: const Text('Rekod negeri asal / mohon akses khas'),
+          onPressed: () async {
+            await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => const RekodNegeriAsalScreen()));
+            await refresh();
+          }),
+        Text('Disahkan: ${text(s['pahang_verified_year'], '0')} rekod Pahang + ${text(s['origin_verified_year'], '0')} rekod negeri asal'),
         const SectionTitle('Sejarah perlawanan'),
         if (_items.isEmpty) const EmptyState(icon: Icons.sports_soccer, title: 'Tiada rekod perlawanan'),
         for (final m in _items) _card(m),
@@ -156,8 +163,11 @@ class _MatchListState extends State<_MatchList> {
             const SizedBox(height: 2),
             Text('${text(m['jenis'])} · ${text(m['tempat'])}', maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 13, color: AppColors.muted)),
+            if (m['origin_record_id'] != null)
+              Text('Rekod negeri asal: ${text(m['origin_state'])} · Diterima Admin Pahang', style: const TextStyle(fontSize: 12, color: Tw.emerald700)),
             if (text(m['catatan_pp'], '').isNotEmpty)
-              Text('PP: ${m['catatan_pp']}', style: const TextStyle(fontSize: 12, color: Tw.rose700)),
+              Text('${m['origin_record_id'] != null ? 'Pengesahan' : 'PP'}: ${m['catatan_pp']}', style: TextStyle(fontSize: 12,
+                color: m['origin_record_id'] != null ? AppColors.muted : Tw.rose700)),
           ]),
         ),
         const SizedBox(width: 8),

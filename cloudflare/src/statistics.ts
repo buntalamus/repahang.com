@@ -97,7 +97,7 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
     env.DB.prepare(`SELECT p.id,p.match_group_id,p.user_id,p.jawatan,p.tarikh,p.masa,
         p.tempat,p.jenis,p.nama_kejohanan,p.home_team,p.away_team,u.nama_penuh
       FROM perlawanan p JOIN users u ON u.id=p.user_id
-      WHERE substr(p.tarikh,1,4)=? ORDER BY p.id`).bind(yearText).all<Row>(),
+      WHERE p.origin_record_id IS NULL AND substr(p.tarikh,1,4)=? ORDER BY p.id`).bind(yearText).all<Row>(),
     env.DB.prepare(`SELECT p.jenis_borang,p.jenis_permohonan,p.status_ujian,p.workflow_status,
       p.tarikh_hantar,p.daerah,pb.nama_persatuan
       FROM permohonan p LEFT JOIN persatuan_bolasepak_daerah pb ON pb.id=p.persatuan_id
@@ -154,7 +154,7 @@ export async function statistics(request: Request, env: Env): Promise<Response> 
       SUM(CASE WHEN pr.status_pp='Disahkan' THEN 1 ELSE 0 END) AS disahkan
       FROM perlawanan pr JOIN users u ON u.id=pr.user_id
       LEFT JOIN persatuan_bolasepak_daerah pb ON pb.id=u.persatuan_id
-      WHERE substr(pr.tarikh,1,4)=?
+      WHERE pr.origin_record_id IS NULL AND substr(pr.tarikh,1,4)=?
       GROUP BY pb.daerah,u.id,u.nama_penuh ORDER BY daerah,total DESC`)
       .bind(yearText).all<Row>(),
     env.DB.prepare(`SELECT k.nama,k.status,k.anjuran,COUNT(jp.id) AS jum_perlawanan,

@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:origin-records": "node --no-warnings tests/origin-records.mjs",
+    "test:origin-records-browser": "node --no-warnings tests/origin-records-browser.mjs",
     "test:r11-layout": "node --no-warnings tests/r11-layout.mjs",
     "test:fam-class-one-export": "node --no-warnings tests/fam-class-one-export.mjs",
     "test:frontend-errors": "node --no-warnings tests/frontend-errors.mjs",

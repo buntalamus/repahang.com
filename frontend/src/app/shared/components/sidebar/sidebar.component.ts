@@ -188,6 +188,7 @@ export class SidebarComponent implements OnChanges, OnDestroy {
         if (this.auth.currentUser.can_referee === 1) {
           this.navItems.push(
             { label: 'Rekod Perlawanan Saya', icon: 'sports', route: '/pengadil/perlawanan' },
+            { label: 'Rekod Negeri Asal Saya', icon: 'move_to_inbox', route: '/pp-daerah/rekod-negeri-asal' },
             { label: 'Pendaftaran Pengadil Saya', icon: 'badge', route: '/pengadil/permohonan/berdaftar' },
           );
         }

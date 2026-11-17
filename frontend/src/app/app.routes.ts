@@ -138,6 +138,11 @@ export const routes: Routes = [
           import('./features/admin/profile/profile.component').then((m) => m.AdminProfileComponent),
       },
       {
+        path: 'rekod-negeri-asal',
+        loadComponent: () => import('./shared/components/origin-records/origin-records.component').then(m => m.OriginRecordsComponent),
+        data: { originAdmin: true },
+      },
+      {
         path: 'perlawanan',
         loadComponent: () =>
           import('./features/admin/match-oversight/match-oversight.component').then((m) => m.AdminMatchOversightComponent),
@@ -228,6 +233,10 @@ export const routes: Routes = [
         data: { section: 'statistik' },
       },
       {
+        path: 'rekod-negeri-asal',
+        loadComponent: () => import('./shared/components/origin-records/origin-records.component').then(m => m.OriginRecordsComponent),
+      },
+      {
         path: 'pengesahan-perlawanan',
         loadComponent: () =>
           import('./features/pp-daerah/match-verification/match-verification.component').then((m) => m.PpMatchVerificationComponent),
@@ -308,6 +317,10 @@ export const routes: Routes = [
         path: 'perlawanan',
         loadComponent: () =>
           import('./features/pengadil/matches/matches.component').then((m) => m.PengadilMatchesComponent),
+      },
+      {
+        path: 'rekod-negeri-asal',
+        loadComponent: () => import('./shared/components/origin-records/origin-records.component').then(m => m.OriginRecordsComponent),
       },
       {
         path: 'penilaian',

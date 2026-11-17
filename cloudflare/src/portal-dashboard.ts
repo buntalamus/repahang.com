@@ -47,7 +47,7 @@ async function districtData(env: Env, user: SessionUser, year: number) {
     env.DB.prepare(`SELECT p.id,p.match_group_id,p.lantikan_id,a.jadual_id,p.tarikh,p.status_pp,
       u.id AS user_id,u.nama_penuh,u.role AS user_role FROM perlawanan p JOIN users u ON u.id=p.user_id
       LEFT JOIN lantikan_pengadil a ON a.id=p.lantikan_id
-      WHERE substr(p.tarikh,1,4)=? AND ((p.match_group_id IS NOT NULL AND p.daerah_perlawanan_id=?)
+      WHERE p.origin_record_id IS NULL AND substr(p.tarikh,1,4)=? AND ((p.match_group_id IS NOT NULL AND p.daerah_perlawanan_id=?)
         OR (p.match_group_id IS NULL AND u.persatuan_id=? AND u.role IN ('Pengadil','PP Daerah')))`)
       .bind(String(year), district?.id ?? 0, pid).all<Row>(),
     env.DB.prepare(`SELECT ${APPLICATION_CATEGORY_SQL} AS application_category,p.status,p.status_workflow,p.workflow_status
