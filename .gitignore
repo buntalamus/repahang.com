@@ -69,12 +69,15 @@ desktop.ini
 *.gif
 !assets/**
 !uploads/**
+!frontend/public/documents/*.pdf
+!frontend/public/templates/fam-calon-kelas1.xlsx
+!docs/manual-peranan/screenshots/*.png
 
 # SQLite DB
 database.sqlite
 /cloudflare/.dev.vars*
-/output/cloudflare/
-/output/recovery/
+# Local work output (DB snapshots, audits, user data); never commit — the repo is public.
+/output/
 
 # Large SQL dumps (root level only)
 /if0_*.sql

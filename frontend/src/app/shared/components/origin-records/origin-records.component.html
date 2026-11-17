@@ -1,0 +1,85 @@
+<section class="origin-page" aria-labelledby="origin-title" [attr.aria-busy]="busy()">
+  <header><div><h1 id="origin-title">Rekod Negeri Asal</h1>
+    <p>Rekod sebelum berpindah ke Pahang. Hanya rekod yang diterima Admin dikira untuk kelayakan tahunan mengikut tahun perlawanan.</p></div>
+    @if (!admin && !creating() && !detail()) { <button type="button" [disabled]="busy()" (click)="start()">Mohon akses khas</button> }
+  </header>
+  @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+  @if (creating()) {
+    <article><h2>Permohonan akses khas</h2><p>Dokumen mesti menunjukkan rekod yang disahkan PP negeri asal. Gabungkan halaman buku log dalam satu PDF jika perlu.</p>
+      <form [formGroup]="requestForm" (ngSubmit)="create()">
+        <fieldset [disabled]="busy()"><div class="fields">
+          <label>Negeri asal *<select formControlName="origin_state"><option value="">Pilih negeri</option>@for (state of states(); track state) { <option [value]="state">{{ state }}</option> }</select></label>
+          <label>Tarikh mula berdaftar di Pahang *<input type="date" formControlName="transfer_date" [max]="today()" required></label>
+          <label>Tarikh rekod bermula *<input type="date" formControlName="date_from" required></label>
+          <label>Tarikh rekod berakhir *<input type="date" formControlName="date_to" [max]="requestForm.controls.transfer_date.value" required></label>
+          <label>Nama PP pengesah negeri asal *<input formControlName="verifier_name" maxlength="255" required></label>
+          <label>Buku log / pengesahan PP * (PDF/JPG/PNG, maksimum 5 MB)<input type="file" accept=".pdf,.jpg,.jpeg,.png" (change)="pick($event)" required></label>
+        </div><label>Catatan<textarea formControlName="notes" maxlength="1000" rows="3"></textarea></label>
+        <div class="actions"><button type="submit">Hantar kepada Admin</button><button class="secondary" type="button" (click)="back()">Batal</button></div></fieldset>
+      </form>
+    </article>
+  } @else if (detail(); as row) {
+    <button class="secondary" type="button" [disabled]="busy()" (click)="back()">← Senarai permohonan</button>
+    <article><header><div><h2>{{ row.referee_name }} · {{ row.origin_state }}</h2><p>Permohonan #{{ row.id }}</p></div><strong class="status">{{ status(row) }}</strong></header>
+      <dl><div><dt>Berdaftar di Pahang</dt><dd>{{ date(row.transfer_date) }}</dd></div>
+        <div><dt>Julat rekod</dt><dd>{{ date(row.date_from) }} – {{ date(row.date_to) }}</dd></div>
+        <div><dt>Akses sehingga</dt><dd>{{ date(row.expires_on) }} (waktu Malaysia)</dd></div>
+        <div><dt>PP pengesah negeri asal</dt><dd>{{ row.verifier_name }}</dd></div>
+        @if (row.granted_by_name) { <div><dt>Akses dibuka oleh</dt><dd>{{ row.granted_by_name }}</dd></div> }
+        @if (row.reviewed_by_name) { <div><dt>Semakan Admin</dt><dd>{{ row.reviewed_by_name }} · {{ date(row.reviewed_at) }}</dd></div> }
+      </dl>
+      @if (row.notes) { <p>Catatan pengadil: {{ row.notes }}</p> }
+      @if (row.review_notes) { <p class="notice">Catatan Admin: {{ row.review_notes }}</p> }
+      <a class="file-link" [href]="proofUrl(row)" target="_blank" rel="noopener">Muat turun bukti: {{ row.proof_name }}</a>
+      @if (!admin && (row.status === 'requested' || row.access_active)) {
+        <div class="proof-update"><label>Ganti dokumen sokongan (PDF/JPG/PNG, maksimum 5 MB)<input type="file" accept=".pdf,.jpg,.jpeg,.png" [disabled]="busy()" (change)="pick($event)"></label>
+          <button class="secondary" type="button" [disabled]="busy() || !proof()" (click)="replaceProof()">Simpan dokumen</button></div>
+      }
+      @if (row.status === 'accepted') { <p class="notice">Disahkan PP negeri asal · Diterima Admin Pahang. Rekod dikunci dan dikira mengikut tahun sebenar perlawanan.</p> }
+      @if (row.status === 'open' && !row.access_active) { <p class="notice">Akses telah tamat. Hubungi Admin untuk membuka semula tempoh mengisi.</p> }
+    </article>
+    @if (admin && row.status !== 'accepted') {
+      <article><h2>Kawalan Admin</h2><form [formGroup]="reviewForm" (ngSubmit)="$event.preventDefault()"><fieldset [disabled]="busy()">
+        @if (row.status !== 'submitted') { <div class="fields">
+          <label>Tarikh rekod bermula<input type="date" formControlName="date_from"></label><label>Tarikh rekod berakhir<input type="date" formControlName="date_to" [max]="row.transfer_date"></label>
+          <label>Tarikh tamat akses (maksimum 90 hari)<input type="date" formControlName="expires_on" [min]="today()"></label>
+        </div> }
+        <label>Catatan semakan / sebab keputusan<textarea formControlName="notes" maxlength="1000" rows="3"></textarea></label>
+        <div class="actions">
+          @if (row.status !== 'submitted') { <button type="button" (click)="act('grant')">{{ row.status === 'open' ? 'Kemas kini akses' : 'Buka akses khas' }}</button> }
+          @if (row.status === 'submitted') { <button type="button" [disabled]="!reviewForm.controls.notes.value.trim()" (click)="act('accept')">Terima semua {{ records().length }} rekod selepas semakan bukti</button> }
+          @if (row.status === 'requested' || row.status === 'submitted') { <button class="danger" type="button" [disabled]="!reviewForm.controls.notes.value.trim()" (click)="act('reject')">Tolak dengan sebab</button> }
+          @if (row.status === 'open') { <button class="danger" type="button" [disabled]="!reviewForm.controls.notes.value.trim()" (click)="act('revoke')">Tutup akses</button> }
+        </div></fieldset></form></article>
+    }
+    <article><h2>Senarai perlawanan ({{ records().length }})</h2>
+      @if (!records().length) { <p>Belum ada rekod dimasukkan.</p> }
+      @else { <div class="table-scroll" tabindex="0" role="region" aria-label="Senarai perlawanan negeri asal"><table><caption class="sr-only">Rekod pengadil sebelum perpindahan ke Pahang</caption><thead><tr><th scope="col">Tarikh</th><th scope="col">Perlawanan</th><th scope="col">Kejohanan / tempat</th><th scope="col">Jawatan</th>@if (!admin && row.access_active) { <th scope="col">Tindakan</th> }</tr></thead><tbody>
+        @for (record of records(); track record.id) { <tr><td>{{ date(record.tarikh) }}<small>{{ record.masa }}</small></td><td>{{ record.home_team }} lwn {{ record.away_team }}</td><td>{{ record.nama_kejohanan }}<small>{{ record.jenis }} · {{ record.tempat }}</small></td><td>{{ record.jawatan }}</td>
+          @if (!admin && row.access_active) { <td><button class="secondary" type="button" [disabled]="busy()" [attr.aria-label]="'Padam draf ' + record.home_team + ' lwn ' + record.away_team" (click)="act('delete_record', { record_id: record.id })">Padam draf</button></td> }</tr> }
+      </tbody></table></div> }
+    </article>
+    @if (!admin && row.access_active) {
+      <article><h2>Tambah rekod perlawanan</h2><p>Isi penglibatan diri sendiri seperti dalam dokumen pengesahan. Maksimum 500 rekod bagi satu permohonan.</p>
+        <form [formGroup]="recordForm" (ngSubmit)="act('add_record')"><fieldset [disabled]="busy()"><div class="fields">
+          <label>Tarikh *<input type="date" formControlName="tarikh" [min]="row.date_from" [max]="row.date_to" required></label>
+          <label>Masa (jika ada)<input type="time" formControlName="masa"></label>
+          <label>Jenis perlawanan *<input formControlName="jenis" maxlength="60" placeholder="Contoh: Liga" required></label>
+          <label>Nama kejohanan *<input formControlName="nama_kejohanan" maxlength="255" required></label>
+          <label>Pasukan tuan rumah *<input formControlName="home_team" maxlength="255" required></label>
+          <label>Pasukan pelawat *<input formControlName="away_team" maxlength="255" required></label>
+          <label>Tempat *<input formControlName="tempat" maxlength="255" required></label>
+          <label>Jawatan sendiri *<select formControlName="jawatan" required><option value="">Pilih jawatan</option>@for (position of positions(); track position) { <option [value]="position">{{ position }}</option> }</select></label>
+        </div><button type="submit">Simpan rekod draf</button></fieldset></form>
+      </article>
+      <article><h2>Hantar untuk semakan</h2><p>Pastikan semua rekod sepadan dengan dokumen sokongan. Senarai dikunci selepas dihantar kepada Admin.</p>
+        <button type="button" [disabled]="busy() || !records().length" (click)="act('submit')">Hantar {{ records().length }} rekod kepada Admin</button></article>
+    }
+  } @else {
+    <div class="toolbar"><label>Tapis status<select [formControl]="filter" (change)="load(1)"><option value="">Semua status</option>@for (entry of statusLabels; track entry[0]) { <option [value]="entry[0]">{{ entry[1] }}</option> }</select></label><button class="secondary" type="button" [disabled]="loading()" (click)="load()">Muat semula</button></div>
+    @if (loading()) { <p role="status">Memuatkan permohonan…</p> }
+    @else if (!items().length) { <article><p>Tiada permohonan akses rekod negeri asal.</p>@if (!admin) { <p>Mohon akses khas dengan dokumen pengesahan PP negeri asal untuk membawa masuk rekod anda.</p> }</article> }
+    @else { @for (row of items(); track row.id) { <article class="request-row"><div><h2>{{ admin ? row.referee_name + ' · ' : '' }}{{ row.origin_state }}</h2><p>{{ date(row.date_from) }} – {{ date(row.date_to) }} · {{ row.record_count }} rekod</p><strong>{{ status(row) }}</strong></div><button class="secondary" type="button" [disabled]="busy()" [attr.aria-label]="'Buka permohonan ' + row.referee_name + ' dari ' + row.origin_state" (click)="open(row.id)">Buka</button></article> }
+      <nav aria-label="Halaman permohonan" class="actions"><button class="secondary" type="button" [disabled]="page() <= 1 || loading()" (click)="load(page()-1)">Sebelum</button><span>Halaman {{ page() }} / {{ pages() }}</span><button class="secondary" type="button" [disabled]="page() >= pages() || loading()" (click)="load(page()+1)">Seterusnya</button></nav> }
+  }
+</section>

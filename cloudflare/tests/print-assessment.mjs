@@ -6,8 +6,9 @@ import {DatabaseSync} from 'node:sqlite';
 import ts from 'typescript';
 
 const source=readFileSync(new URL('../src/print-assessment.ts',import.meta.url),'utf8')
-  .replace("import {currentUser} from './auth';",`const currentUser=async()=>globalThis.actor;`);
-const {printAssessment}=await bundle(source.replace("from './original-templates'","from '../src/original-templates'"));
+  .replace("import {currentUser,json} from './auth';",`import {json} from '../src/auth';\nconst currentUser=async()=>globalThis.actor;`)
+  .replace(/from '\.\/(appointment-letter|original-templates|request)'/g,"from '../src/$1'");
+const {printAssessment}=await bundle(source);
 const db=new DatabaseSync(process.env.REFPAHANG_TEST_SNAPSHOT ??
   new URL('../../output/cloudflare/refpahang_2026-10-13_hanafi51_v2.sqlite',
     import.meta.url).pathname,{readOnly:true});
@@ -16,7 +17,7 @@ const env={STAGING_AUTH_ENABLED:'0',DB:{
     first:async()=>db.prepare(sql).get(...params)??null,
     all:async()=>({results:db.prepare(sql).all(...params)}),
   })}),
-},MEDIA:{get:async()=>null}};
+},MEDIA:{get:async()=>null},APPOINTMENT_LETTER_SECRET:'x'.repeat(40)};
 const report=db.prepare(`SELECT r.id,r.penilai_id,r.jadual_id,la.penilaian_token
   FROM laporan_penilaian r JOIN lantikan_pengadil la ON la.id=r.lantikan_id
   WHERE r.status='Disahkan' AND la.status='Diterima'
@@ -83,5 +84,31 @@ const signature=createHmac('sha256',report.penilaian_token)
   .update(`laporan-penilaian:view:${report.id}`).digest('hex');
 assert.equal((await printAssessment(url(`&view_token=${signature}`),env)).status,200);
 assert.equal((await printAssessment(url(`&view_token=${'0'.repeat(64)}`),env)).status,404);
+
+// The app's signed link: issued to a session that may read the report, then
+// opened without one; a tampered or foreign signature never opens it.
+const linkFor=(id)=>printAssessment(new Request('https://staging.example.test/api/download-laporan-penilaian.php',
+  {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}),env);
+globalThis.actor=null;
+assert.equal((await linkFor(report.id)).status,401);
+globalThis.actor={id:999999,role:'Penilai'};
+assert.equal((await linkFor(report.id)).status,403);
+const owner=db.prepare('SELECT id,role FROM users WHERE id=? AND aktif=1').get(report.penilai_id);
+assert.ok(owner,'the report owner is an active user in the snapshot');
+globalThis.actor={id:owner.id,role:owner.role};
+const issued=await (await linkFor(report.id)).json();
+assert.equal(issued.error,false);
+const link=new URL(issued.url);
+assert.equal(link.searchParams.get('u'),String(owner.id));
+globalThis.actor=null;
+const opened=await printAssessment(new Request(issued.url),env);
+assert.equal(opened.status,200);
+assert.match(await opened.text(),/LAPORAN PENILAI PENGADIL/);
+link.searchParams.set('u','1');
+assert.equal((await printAssessment(new Request(link),env)).status,403);
+link.searchParams.set('u',String(owner.id));
+link.searchParams.set('id',String(report.id+1));
+assert.equal((await printAssessment(new Request(link),env)).status,403);
+assert.equal((await printAssessment(new Request(`${issued.url}&view_token=${signature}`),env)).status,400);
 db.close();
-console.log('RA print: imported D1 access modes, token scope, owner roles and escaped HTML passed');
+console.log('RA print: imported D1 access modes, token scope, owner roles, signed app links and escaped HTML passed');

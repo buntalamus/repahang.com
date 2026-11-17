@@ -4,6 +4,7 @@ import { notifyPasswordChanged } from './account-notify';
 
 import { sendRefpahangEmail } from '../mail';
 import { json } from './auth';
+import { isSharedDemoAccount } from './demo';
 import { boundedJson } from './request';
 import type { Env } from './types';
 import { wroteRow } from './d1-changes';
@@ -39,7 +40,7 @@ export async function forgotPassword(request: Request, env: Env): Promise<Respon
   const user = await env.DB.prepare(
     'SELECT id,nama_penuh,email FROM users WHERE lower(email)=? AND aktif=1 LIMIT 1',
   ).bind(email).first<{ id: number; nama_penuh: string; email: string }>();
-  if (!user) return json({ error: false, message: genericMessage });
+  if (!user || isSharedDemoAccount(env, user.email)) return json({ error: false, message: genericMessage });
 
   const token = tokenHex();
   const storedToken = await sha256(token);

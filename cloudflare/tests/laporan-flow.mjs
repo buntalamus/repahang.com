@@ -115,12 +115,17 @@ try {
   assert.equal(count(`SELECT count(*) FROM laporan_pengesahan_audit WHERE laporan_id=?
     AND event_type='kup_report_notification'`,reportId),kupOf(first.jadual_id).length*2);
   // The RA who wrote the report hears it was confirmed; Admins get an in-app note.
-  const raEmail=one('SELECT email FROM users WHERE id=?',first.pengadil_id).email;
-  const raMail=emails.find((mail)=>mail.subject.startsWith('Laporan RA Disahkan: '));
-  assert.equal(raMail.to,raEmail);
-  assert.ok(raMail.html.includes('Pengerusi Pengadil'));
+  const ra=one('SELECT email,telegram_chat_id FROM users WHERE id=?',first.pengadil_id);
+  const raEmail=ra.email;
+  assert.ok(String(ra.telegram_chat_id ?? '').trim(),'RA is linked to Telegram');
+  // Telegram reaches the RA, so no email fallback.
+  assert.ok(!emails.some((mail)=>mail.subject.startsWith('Laporan RA Disahkan: ')));
+  const raTelegram=telegrams.find((t)=>t.chatId===String(ra.telegram_chat_id) && t.text.includes('Laporan Penilaian Disahkan'));
+  assert.ok(raTelegram && raTelegram.text.includes('Pengerusi Pengadil'));
   assert.equal(count(`SELECT count(*) FROM laporan_pengesahan_audit WHERE laporan_id=?
-    AND event_type='ra_author_notification' AND channel='email'`,reportId),1);
+    AND event_type='ra_author_notification' AND channel='telegram'`,reportId),1);
+  assert.equal(count(`SELECT count(*) FROM laporan_pengesahan_audit WHERE laporan_id=?
+    AND event_type='ra_author_notification' AND channel='email'`,reportId),0);
   assert.equal(count(`SELECT count(*) FROM notifications WHERE type='Laporan RA' AND subject LIKE 'Laporan RA Disahkan:%'
     AND user_id IN (SELECT id FROM users WHERE role='Admin' AND aktif=1)`),admins);
   assert.ok(!emails.some((mail)=>mail.subject.startsWith('Laporan RA Disahkan:') && mail.to!==raEmail),
@@ -150,7 +155,7 @@ try {
   assert.ok(one('SELECT tarikh_hantar FROM laporan_penilaian WHERE id=?',secondReport).tarikh_hantar);
   assert.equal((await put(adminCookie,{action:'sahkan',id:secondReport,override_reason:''})).body.message,
     'Sebab override Admin diperlukan.');
-  emails.length=0;
+  emails.length=0;telegrams.length=0;
   const overridden=await put(adminCookie,{action:'sahkan',id:secondReport,override_reason:'Pengerusi bercuti',
     catatan_admin:'Disemak Admin'});
   assert.deepEqual(overridden,{status:200,body:{error:false,message:'Override Admin direkodkan dan laporan disahkan.'}});
@@ -159,13 +164,14 @@ try {
   assert.equal(JSON.parse(overrideAudit.details_json).reason,'Pengerusi bercuti');
   assert.ok(emails.some((mail)=>mail.html.includes('Catatan Override Admin')));
   // On an override the RA hears the outcome and a chair who got the link is told it no longer applies.
-  const secondRaEmail=one('SELECT email FROM users WHERE id=?',second.pengadil_id).email;
-  assert.ok(emails.some((mail)=>mail.to===secondRaEmail && mail.subject.startsWith('Laporan RA Disahkan: ')));
+  // Both are linked to Telegram, so they hear there instead of by email.
+  const secondRa=one('SELECT email,telegram_chat_id FROM users WHERE id=?',second.pengadil_id);
+  assert.ok(!emails.some((mail)=>mail.subject.startsWith('Laporan RA Disahkan: ')));
+  assert.ok(telegrams.some((t)=>t.chatId===String(secondRa.telegram_chat_id) && t.text.includes('Admin (override)')));
   const secondState=one('SELECT * FROM laporan_pengesahan_pengerusi WHERE laporan_id=?',secondReport);
-  if (secondState.email_sent_at) {
-    const voided=emails.find((mail)=>mail.subject.startsWith('Laporan RA Telah Disahkan Admin: '));
-    assert.equal(voided.to,secondState.email_recipient);
-    assert.ok(voided.html.includes('tidak lagi sah'));
+  if (secondState.email_sent_at || secondState.telegram_sent_at) {
+    assert.ok(!emails.some((mail)=>mail.subject.startsWith('Laporan RA Telah Disahkan Admin: ')));
+    assert.ok(telegrams.some((t)=>t.text.includes('tidak lagi sah')));
   }
   assert.equal((await put(adminCookie,{action:'sahkan',id:secondReport,override_reason:'x'})).status,409);
   console.log('RA report flow: submit, chair dispatch, confirm page, KUP notices, token submit and override follow PHP');

@@ -45,3 +45,30 @@ export async function boundedJson(request: Request, maxBytes = 4096): Promise<un
     return {};
   }
 }
+
+/** Multipart documents are capped while streaming, before parsing files. */
+export async function boundedFormData(request: Request, maxBytes: number): Promise<FormData | Response> {
+  if (!/^multipart\/form-data\b/i.test(request.headers.get('Content-Type') ?? '')) {
+    return badJson('Data borang tidak sah.', 400);
+  }
+  if (Number(request.headers.get('Content-Length') ?? 0) > maxBytes) return badJson('Permintaan terlalu besar.', 413);
+  const reader = request.body?.getReader();
+  if (!reader) return badJson('Data borang tidak sah.', 400);
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    length += value.byteLength;
+    if (length > maxBytes) { await reader.cancel(); return badJson('Permintaan terlalu besar.', 413); }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  try {
+    return await new Request(request.url, { method: 'POST', headers: {
+      'Content-Type': request.headers.get('Content-Type')!,
+    }, body: bytes }).formData();
+  } catch { return badJson('Data borang tidak sah.', 400); }
+}

@@ -129,10 +129,10 @@ export class PengadilBerdaftarComponent implements OnInit {
         this.applyFilter();
         this.loading = false;
       },
-      error: () => {
+      error: (apiFailure) => {
         this.cdr.markForCheck();
         this.loading = false;
-        this.toast.error('Gagal memuatkan senarai pengadil.');
+        this.toast.apiError(apiFailure, 'Gagal memuatkan senarai pengadil.');
       },
     });
   }
@@ -237,7 +237,7 @@ export class PengadilBerdaftarComponent implements OnInit {
       },
       error: (err) => {
         this.cdr.markForCheck();
-        this.toast.show(err?.error?.message || 'Ralat mengemaskini taraf.', 'error');
+        this.toast.apiError(err, 'Ralat mengemaskini taraf.');
         this.batchSaving = false;
       },
     });
@@ -328,8 +328,8 @@ export class PengadilBerdaftarComponent implements OnInit {
         };
         this.showEditModal = true;
       },
-      error: () => {
-        this.toast.error('Gagal membaca profil penuh. Sila cuba semula.');
+      error: (apiFailure) => {
+        this.toast.apiError(apiFailure, 'Gagal membaca profil penuh. Sila cuba semula.');
       },
     });
   }
@@ -354,13 +354,13 @@ export class PengadilBerdaftarComponent implements OnInit {
           this.showEditModal = false;
           this.loadReferees();
         } else {
-          this.toast.error(res.message || 'Gagal mengemaskini profil pengadil.');
+          this.toast.apiError(res, 'Gagal mengemaskini profil pengadil.');
         }
       },
-      error: () => {
+      error: (apiFailure) => {
         this.cdr.markForCheck();
         this.savingEdit = false;
-        this.toast.error('Gagal mengemaskini profil pengadil.');
+        this.toast.apiError(apiFailure, 'Gagal mengemaskini profil pengadil.');
       },
     });
   }
@@ -388,7 +388,7 @@ export class PengadilBerdaftarComponent implements OnInit {
           this.referees = this.referees.filter((r) => r.user_id !== id);
           this.applyFilter();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
     });

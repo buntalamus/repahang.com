@@ -56,7 +56,8 @@ try {
   reset();
   r=await call(worker.adminUsersWrite,'admin-users.php','PUT',adminCookie,body({no_telefon:'0199'}));
   assert.equal(r.status,200);
-  assert.equal(r.notification_sent,false);
+  assert.equal(r.error,false);
+  assert.equal(Boolean(r.notification_sent),false);
   assert.equal(sent.length+telegrams.length,0);
 
   // --- Admin sets a password: reset email with the new password ------------
@@ -90,7 +91,8 @@ try {
   // A second deactivation of an inactive account sends nothing.
   reset();
   r=await call(worker.adminUsersWrite,'admin-users.php','DELETE',adminCookie,{userId:created.id});
-  assert.equal(r.notification_sent,false);
+  assert.equal(r.error,false);
+  assert.equal(Boolean(r.notification_sent),false);
   assert.equal(sent.length,0);
 
   // --- Deactivation (admin-delete-referee.php) -----------------------------
@@ -154,6 +156,7 @@ try {
   const targets=db.prepare(`SELECT id FROM users WHERE role='Pengadil' AND aktif=1 AND trim(COALESCE(email,''))<>''
     AND COALESCE(pengadil_negeri,0)=0 ORDER BY id LIMIT 3`).all().map((row)=>row.id);
   db.prepare('UPDATE users SET pengadil_negeri=1 WHERE id=?').run(targets[0]);
+  for (const id of targets) db.prepare('UPDATE users SET telegram_chat_id=? WHERE id=?').run(900000000+id,id);
   reset();
   r=await call(worker.refereeGrades,'pengadil-taraf.php','POST',adminCookie,{user_ids:targets,taraf:'negeri',value:1});
   assert.equal(r.error,false,r.message);
@@ -163,7 +166,8 @@ try {
   assert.equal(one(`SELECT count(*) n FROM notifications WHERE type='Taraf Pengadil' AND user_id=?`,targets[1]).n,1);
   assert.equal(one(`SELECT count(*) n FROM notifications WHERE type='Taraf Pengadil' AND user_id=?`,targets[0]).n,0);
   await worker.processNotificationOutbox(env,50);
-  assert.equal(sent.filter((m)=>/^Taraf Pengadil Negeri Ditetapkan/.test(m.subject)).length,2);
+  assert.equal(sent.filter((m)=>/^Taraf Pengadil Negeri Ditetapkan/.test(m.subject)).length,0,'routine grade notice uses Telegram first');
+  assert.equal(one("SELECT count(*) n FROM worker_notification_outbox WHERE kind='taraf_notification' AND channel='telegram' AND status='sent'").n,2);
   console.log('notify-akaun: ok');
 } finally {
   worker.setTelegramSenderForTests(null);

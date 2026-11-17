@@ -15,6 +15,20 @@ export const APPLICATION_CATEGORY_SQL = `CASE
   WHEN p.jenis_borang='pp_berdaftar' THEN 'pp_berdaftar'
   ELSE 'lain_lain' END`;
 
+/**
+ * The workflow an application is shown with. Every form, Kelas I FAM included,
+ * moves through status_workflow (Menunggu PP Daerah -> Menunggu Admin -> Lengkap/
+ * Ditolak). Kelas I also keeps its exam decision in workflow_status, which wins
+ * once decided; a pending or missing workflow_status never hides status_workflow.
+ */
+export const APPLICATION_WORKFLOW_SQL = `CASE
+  WHEN p.jenis_borang='ujian_kelas1_fam' AND p.workflow_status IN ('Approved','Rejected','Absent')
+    THEN CASE p.workflow_status WHEN 'Approved' THEN 'Lengkap' WHEN 'Rejected' THEN 'Ditolak'
+      ELSE p.workflow_status END
+  WHEN p.jenis_borang='ujian_kelas1_fam' AND p.status_workflow IS NULL AND p.workflow_status='Pending'
+    THEN 'Menunggu Admin'
+  ELSE p.status_workflow END`;
+
 export const MAIN_APPLICATION_CATEGORIES = [
   'pengadil_berdaftar', 'penilai_berdaftar', 'kelas3_fam', 'ujian_kelas1_fam',
 ] as const;

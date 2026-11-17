@@ -138,6 +138,11 @@ export const routes: Routes = [
           import('./features/admin/profile/profile.component').then((m) => m.AdminProfileComponent),
       },
       {
+        path: 'rekod-negeri-asal',
+        loadComponent: () => import('./shared/components/origin-records/origin-records.component').then(m => m.OriginRecordsComponent),
+        data: { originAdmin: true },
+      },
+      {
         path: 'perlawanan',
         loadComponent: () =>
           import('./features/admin/match-oversight/match-oversight.component').then((m) => m.AdminMatchOversightComponent),
@@ -151,6 +156,11 @@ export const routes: Routes = [
         path: 'ujian',
         loadComponent: () =>
           import('./features/admin/test-applications/test-applications.component').then((m) => m.TestApplicationsComponent),
+      },
+      {
+        path: 'peti-keluar-demo',
+        loadComponent: () =>
+          import('./features/admin/demo-outbox/demo-outbox.component').then((m) => m.DemoOutboxComponent),
       },
     ],
   },
@@ -221,6 +231,10 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/pp-daerah/dashboard/dashboard.component').then((m) => m.PpDashboardComponent),
         data: { section: 'statistik' },
+      },
+      {
+        path: 'rekod-negeri-asal',
+        loadComponent: () => import('./shared/components/origin-records/origin-records.component').then(m => m.OriginRecordsComponent),
       },
       {
         path: 'pengesahan-perlawanan',
@@ -303,6 +317,10 @@ export const routes: Routes = [
         path: 'perlawanan',
         loadComponent: () =>
           import('./features/pengadil/matches/matches.component').then((m) => m.PengadilMatchesComponent),
+      },
+      {
+        path: 'rekod-negeri-asal',
+        loadComponent: () => import('./shared/components/origin-records/origin-records.component').then(m => m.OriginRecordsComponent),
       },
       {
         path: 'penilaian',

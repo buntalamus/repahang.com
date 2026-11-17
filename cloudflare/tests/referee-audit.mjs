@@ -49,6 +49,9 @@ try {
     assert.equal(item.total,item.pending+item.approved+item.rejected);
     assert.equal(item.total,Object.values(item.monthlyTrend).reduce((sum,count)=>sum+count,0));
   }
+  // Dashboards count annual registration in the application_year session and Kelas III / I
+  // in the current year; pin the session to 2026 so the snapshot counts below stay comparable.
+  db.prepare("UPDATE application_settings SET setting_value='2026' WHERE setting_key='application_year'").run();
   const adminDashboard=(await (await adminDashboardStats(request('admin-dashboard-stats.php'),env)).json()).stats;
   assert.equal(adminDashboard.applications_by_type.penilai_berdaftar.total,17);
   assert.equal(adminDashboard.applications_by_type.pengadil_berdaftar.total,219);

@@ -1,4 +1,5 @@
 /** Port of config/telegram.php: same payloads, same false-on-failure contract. */
+import { isDemo, isFakeChat, recordDemoOutbox } from '../demo';
 import type { Env } from '../types';
 import type { KupOfficial } from './email';
 import { appointmentDeadline } from './email';
@@ -14,6 +15,15 @@ export function setTelegramSenderForTests(sender: TelegramSender | null): void {
 
 export async function tgSend(env: Env, chatId: number | string, text: string,
   replyMarkup: Record<string, unknown> | null = null): Promise<boolean> {
+  if (isDemo(env)) {
+    const subject = text.replace(/<[^>]+>/g, '').split('\n').map((line) => line.trim()).find(Boolean) ?? '';
+    text = `🧪 <b>DEMO — sistem latihan</b>\n\n${text}`;
+    if (isFakeChat(chatId)) {
+      const buttons = replyMarkup ? `\n\n[Butang: ${JSON.stringify(replyMarkup)}]` : '';
+      await recordDemoOutbox(env, 'telegram', String(chatId), subject, text + buttons);
+      return true;
+    }
+  }
   if (telegramSenderOverride) return telegramSenderOverride(chatId, text, replyMarkup);
   const token = env.TELEGRAM_BOT_TOKEN ?? '';
   if (token === '' || token === 'your_bot_token_here') {

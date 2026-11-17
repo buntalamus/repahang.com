@@ -129,19 +129,22 @@
                     app.status === 'Ditolak' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-700'">
                   {{ app.status }}
                 </span>
+                @if (app.status === 'Menunggu PP Daerah') {
+                  <p class="text-xs mt-2 text-amber-800">Perlu pengesahan PP Daerah dahulu.</p>
+                }
               </td>
               <td class="align-top px-6 py-5">
                 <div class="flex flex-col space-y-2">
                   <button (click)="approve(app.permohonan_id || app.id)"
                     class="px-4 py-2 bg-emerald-500 text-white rounded-lg text-xs font-semibold hover:bg-emerald-600 transition"
-                    [class.opacity-60]="app.status === 'Lengkap' || app.status === 'Admin Diluluskan'"
-                    [class.pointer-events-none]="app.status === 'Lengkap' || app.status === 'Admin Diluluskan'">
+                    [disabled]="!canDecideApplication(app)"
+                    [class.opacity-60]="!canDecideApplication(app)">
                     ✓ Luluskan
                   </button>
                   <button (click)="openReject(app)"
                     class="px-4 py-2 bg-rose-500 text-white rounded-lg text-xs font-semibold hover:bg-rose-600 transition"
-                    [class.opacity-60]="app.status === 'Ditolak'"
-                    [class.pointer-events-none]="app.status === 'Ditolak'">
+                    [disabled]="!canDecideApplication(app)"
+                    [class.opacity-60]="!canDecideApplication(app)">
                     ✗ Tolak
                   </button>
                   <button (click)="downloadForm(app.permohonan_id || app.id)"

@@ -233,6 +233,28 @@
                     </div>
                   </div>
 
+                  <!-- Match Score -->
+                  <div class="bg-gray-50 rounded-xl p-4 text-sm">
+                    <p class="text-xs text-gray-500 mb-2">Skor Perlawanan</p>
+                    <div class="grid grid-cols-[1fr_auto_auto] gap-x-3 gap-y-2 items-center max-w-md">
+                      <span></span>
+                      <span class="w-16 text-center text-xs font-medium text-gray-600 truncate">{{ activeAssignment.pasukan_home }}</span>
+                      <span class="w-16 text-center text-xs font-medium text-gray-600 truncate">{{ activeAssignment.pasukan_away }}</span>
+                      @for (period of skorPeriods; track period.key) {
+                        <span class="text-gray-700">{{ period.label }}</span>
+                        <input type="number" min="0" max="99" step="1" [(ngModel)]="skor['skor_' + period.key + '_home']"
+                          [attr.aria-label]="period.label + ' ' + activeAssignment.pasukan_home"
+                          class="w-16 border rounded-lg px-2 py-1 text-sm text-center focus:ring-2 focus:ring-pahang-yellow" placeholder="-" />
+                        <input type="number" min="0" max="99" step="1" [(ngModel)]="skor['skor_' + period.key + '_away']"
+                          [attr.aria-label]="period.label + ' ' + activeAssignment.pasukan_away"
+                          class="w-16 border rounded-lg px-2 py-1 text-sm text-center focus:ring-2 focus:ring-pahang-yellow" placeholder="-" />
+                      }
+                      <span class="font-semibold text-gray-800 border-t pt-2">Keputusan Akhir</span>
+                      <span class="w-16 text-center font-bold text-base border-t pt-2">{{ finalScore(skor, 'home') }}</span>
+                      <span class="w-16 text-center font-bold text-base border-t pt-2">{{ finalScore(skor, 'away') }}</span>
+                    </div>
+                  </div>
+
                   <!-- Pegawai Tabs -->
                   @if (pegawaiList.length > 0) {
                     <div class="flex flex-wrap gap-2 border-b pb-3">
@@ -489,6 +511,12 @@
                     <p class="text-xs text-gray-500 mb-1">Tarikh</p>
                     <p class="font-medium">{{ viewingReport.tarikh | date:'d MMM yyyy' }}</p>
                   </div>
+                  @if (viewingReport.skor_ht_home != null && viewingReport.skor_ft_home != null) {
+                    <div class="text-center">
+                      <p class="text-xs text-gray-500 mb-1">Keputusan Akhir</p>
+                      <p class="font-medium">{{ finalScore(viewingReport, 'home') }} – {{ finalScore(viewingReport, 'away') }}</p>
+                    </div>
+                  }
                   <div class="text-center">
                     <p class="text-xs text-gray-500 mb-1">Status</p>
                     <span class="px-2 py-0.5 text-xs font-semibold rounded-full" [class]="getLaporanStatusClass(viewingReport.status)">

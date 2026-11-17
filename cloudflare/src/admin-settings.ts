@@ -26,7 +26,7 @@ function defaultSettings(): Record<string, string> {
     fam_account_no: '1213 1010 0061 21', bertulis_fee: '50.00',
     bertulis_min_age: '15', bertulis_max_age: '40',
     kelas1_fee: '300.00', kelas1_max_age: '32', kelas1_min_fitness_rounds: '7',
-    maintenance_mode: '0',
+    maintenance_mode: '0', demo_enabled: '0',
   };
 }
 
@@ -88,7 +88,7 @@ export async function adminSettings(request: Request, env: Env): Promise<Respons
       return json({ error: true, message: 'Nilai tetapan tidak sah.' }, 422);
     }
     const value = String(raw ?? '').trim();
-    if (value.length > 2048 || (key === 'maintenance_mode' && !['0', '1'].includes(value))) {
+    if (value.length > 2048 || (['maintenance_mode', 'demo_enabled'].includes(key) && !['0', '1'].includes(value))) {
       return json({ error: true, message: 'Nilai tetapan tidak sah.' }, 422);
     }
     changes.push([key, value]);

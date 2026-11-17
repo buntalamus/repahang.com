@@ -107,15 +107,24 @@ try {
   const ar2=rowOf('Penolong Pengadil 2');
   await link('POST',{token:ar2.email_token,action:'accept'});
   assert.equal(count("SELECT count(*) FROM kup_crew_notifications WHERE jadual_id=? AND completed_at IS NOT NULL",match),3);
-  assert.equal(emails.filter((mail)=>mail.subject.startsWith('Krew KUP Lengkap:')).length,3);
+  // KUP crew notices go by Telegram; email only for officials without Telegram.
+  assert.equal(emails.filter((mail)=>mail.subject.startsWith('Krew KUP Lengkap:')).length,0);
 
   // RA acceptance sends the assessment form from the admin identity.
+  // The assessor has no Telegram here, so the form link goes by email (the fallback).
   emails.length=0;
   const raRow=rowOf('Penilai Pengadil');
+  db.prepare('UPDATE users SET telegram_chat_id=NULL WHERE id=?').run(raRow.pengadil_id);
   await link('POST',{token:raRow.email_token,action:'accept'});
   assert.match(rowOf('Penilai Pengadil').penilaian_token,/^[a-f0-9]{64}$/);
   const raMail=emails.find((mail)=>mail.subject.startsWith('Borang Penilaian Pengadil'));
   assert.equal(raMail.type,'admin');
+  // The RA joins the complete crew's notice; without Telegram it goes by email and lists the RA.
+  const raCrewMail=emails.filter((mail)=>mail.subject.startsWith('Krew KUP Lengkap:'));
+  assert.equal(raCrewMail.length,1);
+  assert.equal(raCrewMail[0].to,ra.email);
+  assert.match(raCrewMail[0].html,/Penilai Pengadil/);
+  assert.equal(count("SELECT count(*) FROM kup_crew_notifications WHERE jadual_id=? AND completed_at IS NOT NULL",match),4);
 
   // An expired window: GET explains, POST auto-rejects like PHP.
   const late=Number(db.prepare(`INSERT INTO jadual_perlawanan (kejohanan_id,no_perlawanan,tarikh,masa,

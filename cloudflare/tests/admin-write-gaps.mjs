@@ -77,7 +77,7 @@ try {
   assert.equal(db.prepare('SELECT aktif FROM users WHERE id=?').get(local.id).aktif,0);
   assert.equal(db.prepare('SELECT count(*) AS n FROM perlawanan WHERE user_id=?').get(local.id).n,matches);
   r=await read(await users('DELETE',undefined,`?id=${admin.id}`));
-  assert.deepEqual([r.status,r.message],[400,'Anda tidak boleh memadam akaun sendiri.']);
+  assert.deepEqual([r.status,r.message],[400,'Anda tidak boleh menandakan akaun sendiri sebagai Tidak Aktif.']);
   assert.equal((await users('DELETE',undefined,'?id=99999999')).status,404);
   db.prepare('UPDATE users SET aktif=1 WHERE id=?').run(local.id);
 
@@ -100,11 +100,15 @@ try {
   r=await read(await profile({id:remote.id,no_telefon:'0111'},ppCookie));
   assert.deepEqual([r.status,r.message],[403,'Anda hanya boleh kemaskini pengadil di bawah pentadbiran daerah anda.']);
   r=await read(await profile({id:local.id,no_telefon:' 0222 ',saiz_baju:'',persatuan_id:999,aktif:0},ppCookie));
+  assert.equal(r.status,403,JSON.stringify(r));
+  r=await read(await profile({id:local.id,no_telefon:' 0222 ',saiz_baju:'',aktif:0},ppCookie));
   assert.equal(r.status,200,JSON.stringify(r));
   const row={...db.prepare('SELECT no_telefon,saiz_baju,persatuan_id,aktif FROM users WHERE id=?').get(local.id)};
-  assert.deepEqual(row,{no_telefon:'0222',saiz_baju:null,persatuan_id:pp.persatuan_id,aktif:1});
+  assert.deepEqual(row,{no_telefon:'0222',saiz_baju:'',persatuan_id:pp.persatuan_id,aktif:1});
   r=await read(await profile({id:local.id,aktif:'0',tahun_mula_aktif:'2019abc'}));
-  assert.equal(r.status,200);
+  assert.equal(r.status,400,'Invalid year must not partly change account status');
+  r=await read(await profile({id:local.id,aktif:'0',tahun_mula_aktif:'2019'}));
+  assert.equal(r.status,200,JSON.stringify(r));
   assert.deepEqual({...db.prepare('SELECT aktif,tahun_mula_aktif FROM users WHERE id=?').get(local.id)},{aktif:0,tahun_mula_aktif:'2019'});
   r=await read(await profile({id:local.id,tidak_dibenarkan:'x'}));
   assert.deepEqual([r.status,r.message],[400,'Tiada perubahan untuk disimpan.']);

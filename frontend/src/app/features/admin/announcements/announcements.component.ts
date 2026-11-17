@@ -332,12 +332,12 @@ export class AdminAnnouncementsComponent implements OnInit {
           this.showModal = false;
           this.load();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
-      error: () => {
+      error: (apiFailure) => {
         this.saving = false;
-        this.toast.error('Gagal menyimpan pengumuman.');
+        this.toast.apiError(apiFailure, 'Gagal menyimpan pengumuman.');
       },
     });
   }
@@ -357,12 +357,12 @@ export class AdminAnnouncementsComponent implements OnInit {
           this.toast.success('Pengumuman berjaya dipadam.');
           this.load();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
-      error: () => {
+      error: (apiFailure) => {
         this.showDeleteModal = false;
-        this.toast.error('Gagal memadam pengumuman.');
+        this.toast.apiError(apiFailure, 'Gagal memadam pengumuman.');
       },
     });
   }

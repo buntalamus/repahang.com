@@ -1,5 +1,6 @@
 import { normalizeProfileInput } from './profile-contract';
 import { currentUser, json } from './auth';
+import { SHARED_ACCOUNT_MESSAGE, isSharedDemoAccount } from './demo';
 import { boundedJson } from './request';
 import type { Env } from './types';
 import { wroteRow } from './d1-changes';
@@ -75,6 +76,9 @@ export async function updateProfile(request: Request, env: Env): Promise<Respons
   const email = typeof input.email === 'string' ? input.email.trim().toLowerCase() : '';
   if (!name || name.length > 255 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
     return json({ error: true, message: 'Nama penuh dan emel yang sah diperlukan.' }, 400);
+  }
+  if (isSharedDemoAccount(env, user.email) && email !== user.email.trim().toLowerCase()) {
+    return json({ error: true, message: SHARED_ACCOUNT_MESSAGE }, 403);
   }
   if (user.role !== 'Admin') {
     for (const field of requiredForMembers) {

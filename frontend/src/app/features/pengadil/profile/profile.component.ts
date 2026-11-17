@@ -1,5 +1,6 @@
 import { ProfileFieldsComponent } from '../../../shared/components/profile-fields/profile-fields.component';
 import { TelegramProfileComponent } from '../../../shared/components/telegram-profile/telegram-profile.component';
+import { WebPushCardComponent } from '../../../shared/components/web-push/web-push-card.component';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, ViewChild, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../../core/services/api.service';
@@ -12,7 +13,7 @@ import { ImageCropComponent } from '../../../shared/components/image-crop/image-
 @Component({
   selector: 'app-pengadil-profile',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ProfileFieldsComponent, TelegramProfileComponent, FormsModule, LoadingComponent, ChangePasswordComponent, ImageCropComponent],
+  imports: [ProfileFieldsComponent, TelegramProfileComponent, WebPushCardComponent, FormsModule, LoadingComponent, ChangePasswordComponent, ImageCropComponent],
   templateUrl: './profile.component.html',
 })
 export class PengadilProfileComponent implements OnInit {
@@ -85,13 +86,13 @@ export class PengadilProfileComponent implements OnInit {
           this.editing = false;
           this.loadProfile();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
       error: (err: any) => {
         this.cdr.markForCheck();
         this.saving = false;
-        this.toast.error(err?.error?.message || 'Gagal mengemaskini profil.');
+        this.toast.apiError(err, 'Gagal mengemaskini profil.');
       },
     });
   }
@@ -115,7 +116,7 @@ export class PengadilProfileComponent implements OnInit {
           this.profile.url_gambar_profil = this.profileImageUrl;
           this.loadProfile();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
     });

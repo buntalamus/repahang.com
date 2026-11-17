@@ -143,7 +143,7 @@ export class PengadilLuarComponent implements OnInit {
           this.load();
         },
         error: (err) => {
-          this.toast.show(err?.error?.message || 'Ralat.', 'error');
+          this.toast.apiError(err, 'Ralat.');
           this.deletingBulk = false;
         },
       });
@@ -186,7 +186,7 @@ export class PengadilLuarComponent implements OnInit {
         this.saving = false;
         this.load();
       },
-      error: (err) => { this.toast.show(err?.error?.message || 'Ralat.', 'error'); this.saving = false; },
+      error: (err) => { this.toast.apiError(err, 'Ralat.'); this.saving = false; },
     });
   }
 
@@ -196,7 +196,7 @@ export class PengadilLuarComponent implements OnInit {
     this.confirmFn = () => {
       this.api.delete<any>(`pengadil-luar.php?id=${id}`).subscribe({
         next: (res) => { this.toast.show(res.message, 'success'); this.load(); },
-        error: (err) => this.toast.show(err?.error?.message || 'Ralat.', 'error'),
+        error: (err) => this.toast.apiError(err, 'Ralat.'),
       });
     };
     this.showConfirmModal = true;
@@ -318,7 +318,7 @@ export class PengadilLuarComponent implements OnInit {
       },
       error: (err) => {
         this.uploading = false;
-        this.toast.show(err?.error?.message || 'Ralat muat naik.', 'error');
+        this.toast.apiError(err, 'Ralat muat naik.');
       },
     });
   }

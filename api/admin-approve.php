@@ -374,23 +374,33 @@ try {
 function sendApprovalEmail($application, $notes) {
 
     $isPenilai = ($application['jenis_borang'] ?? '') === 'penilai_berdaftar';
-    $title = $isPenilai ? 'Pendaftaran Tahunan Penilai Pengadil Diluluskan' : 'Pendaftaran Pengadil Diluluskan';
+    // Kelas III / Kelas I FAM are examination applications, not annual registration.
+    $examLabel = match ($application['jenis_borang'] ?? '') {
+        'kelas3_fam' => 'Kelas III FAM',
+        'ujian_kelas1_fam' => 'Ujian Kelas I FAM',
+        default => '',
+    };
+    $title = $examLabel !== '' ? "Permohonan {$examLabel} Diluluskan"
+        : ($isPenilai ? 'Pendaftaran Tahunan Penilai Pengadil Diluluskan' : 'Pendaftaran Pengadil Diluluskan');
     $body  = emailGreeting($application['nama_penuh']);
-    $body .= emailPara($isPenilai
-        ? 'Tahniah! Permohonan pendaftaran tahunan Penilai Pengadil anda telah <strong>DILULUSKAN</strong>.'
-        : 'Tahniah! Kami dengan sukacitanya memaklumkan bahawa permohonan pendaftaran pengadil anda telah <strong>DILULUSKAN</strong>.');
+    $body .= emailPara($examLabel !== ''
+        ? "Tahniah! Permohonan {$examLabel} anda telah <strong>DILULUSKAN</strong>."
+        : ($isPenilai
+            ? 'Tahniah! Permohonan pendaftaran tahunan Penilai Pengadil anda telah <strong>DILULUSKAN</strong>.'
+            : 'Tahniah! Kami dengan sukacitanya memaklumkan bahawa permohonan pendaftaran pengadil anda telah <strong>DILULUSKAN</strong>.'));
     $body .= emailInfoTable([
         ['Nama',               htmlspecialchars($application['nama_penuh'])],
         ['No. Kad Pengenalan', htmlspecialchars($application['no_kp'])],
-        ['Jenis Pengadil',     htmlspecialchars($application['jenis_pengadil'])],
-        ['Tahun Pendaftaran',  htmlspecialchars($application['tahun_permohonan'])],
+        ['Jenis Pengadil',     htmlspecialchars($application['jenis_pengadil'] ?? '')],
+        [$examLabel !== '' ? 'Tahun Peperiksaan' : 'Tahun Pendaftaran', htmlspecialchars((string)$application['tahun_permohonan'])],
     ]);
     if (!empty($notes)) {
         $body .= emailAlert('#16A34A', '#F0FDF4', 'Nota daripada Admin', htmlspecialchars($notes));
     }
     $body .= emailPara('<strong>Langkah Seterusnya:</strong>');
     $body .= emailOrderedList([
-        $isPenilai ? 'Salinan borang R1 anda boleh dimuat turun dari dashboard.' : 'Sijil pendaftaran anda tersedia untuk dimuat turun dari dashboard.',
+        $examLabel !== '' ? 'Salinan borang permohonan anda boleh dimuat turun dari dashboard. Keputusan ujian akan direkodkan selepas peperiksaan.'
+            : ($isPenilai ? 'Salinan borang R1 anda boleh dimuat turun dari dashboard.' : 'Sijil pendaftaran anda tersedia untuk dimuat turun dari dashboard.'),
         'Semak dashboard untuk maklumat dan tugasan terkini.',
         'Hubungi pejabat PBNP jika ada sebarang pertanyaan.',
     ]);
@@ -423,20 +433,28 @@ function sendApprovalEmail($application, $notes) {
 function sendRejectionEmail($application, $reason) {
 
     $isPenilai = ($application['jenis_borang'] ?? '') === 'penilai_berdaftar';
+    $examLabel = match ($application['jenis_borang'] ?? '') {
+        'kelas3_fam' => 'Kelas III FAM',
+        'ujian_kelas1_fam' => 'Ujian Kelas I FAM',
+        default => '',
+    };
     $body  = emailGreeting($application['nama_penuh']);
-    $body .= emailPara($isPenilai
-        ? 'Permohonan pendaftaran tahunan Penilai Pengadil anda telah <strong>DITOLAK</strong> selepas semakan dilakukan.'
-        : 'Kami ingin memaklumkan bahawa permohonan pendaftaran pengadil anda telah <strong>DITOLAK</strong> selepas semakan dilakukan.');
+    $body .= emailPara($examLabel !== ''
+        ? "Kami ingin memaklumkan bahawa permohonan {$examLabel} anda telah <strong>DITOLAK</strong> selepas semakan dilakukan."
+        : ($isPenilai
+            ? 'Permohonan pendaftaran tahunan Penilai Pengadil anda telah <strong>DITOLAK</strong> selepas semakan dilakukan.'
+            : 'Kami ingin memaklumkan bahawa permohonan pendaftaran pengadil anda telah <strong>DITOLAK</strong> selepas semakan dilakukan.'));
     $body .= emailInfoTable([
         ['Nama',              htmlspecialchars($application['nama_penuh'])],
         ['No. Kad Pengenalan', htmlspecialchars($application['no_kp'])],
-        ['Jenis Pengadil',    htmlspecialchars($application['jenis_pengadil'])],
+        ['Jenis Pengadil',    htmlspecialchars($application['jenis_pengadil'] ?? '')],
     ]);
     $body .= emailAlert('#DC2626', '#FEF2F2', 'Sebab Penolakan', htmlspecialchars($reason));
     $body .= emailPara('Jika anda ingin membuat <strong>rayuan</strong> atau mempunyai sebarang pertanyaan, sila hubungi pejabat PBNP atau emel kepada <a href="mailto:support@refpahang.com" style="color:#2563EB;">support@refpahang.com</a>.');
     $body .= emailButton(env('BASE_URL') . '/login', 'Hubungi Kami');
 
-    $title = $isPenilai ? 'Pendaftaran Penilai Pengadil Ditolak' : 'Status Permohonan Ditolak';
+    $title = $examLabel !== '' ? "Permohonan {$examLabel} Ditolak"
+        : ($isPenilai ? 'Pendaftaran Penilai Pengadil Ditolak' : 'Status Permohonan Ditolak');
     $html = buildEmailTemplate($title, '#DC2626', '', $body);
 
     return sendEmail(

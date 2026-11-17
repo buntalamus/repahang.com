@@ -1,4 +1,5 @@
 /** Shared sender mapping and outbound transport for every Worker email flow. */
+import { demoTitle, isDemo, isFakeEmail, recordDemoOutbox } from './src/demo';
 import { sendSmtpEmail } from './smtp';
 
 export type MailType = 'admin' | 'daftar' | 'lantikan' | 'support' | 'pengesahan';
@@ -42,6 +43,9 @@ export interface EmailEnv {
   MAIL_PENGESAHAN_NAME: string;
   /** Staging only: every outgoing message goes here instead of its real recipient. */
   STAGING_EMAIL_REDIRECT?: string;
+  /** demo.refpahang.com: fictional recipients go to demo_outbox (src/demo.ts). */
+  DEMO_MODE?: string;
+  DB?: D1Database;
 }
 
 function escapeHtml(value: string): string {
@@ -198,6 +202,13 @@ export async function sendRefpahangEmail(
   const name = env[nameKey];
   if (typeof address !== 'string' || !address || typeof name !== 'string' || !name) {
     throw new Error(`Missing sender settings for ${type}`);
+  }
+  if (isDemo(env)) {
+    subject = demoTitle(env, subject);
+    if (isFakeEmail(to)) {
+      await recordDemoOutbox(env, 'email', toName ? `${toName} <${to}>` : to, subject, html);
+      return 'demo-outbox';
+    }
   }
   // Staging D1 holds copies of real users; never let a test reach them.
   const redirect = env.STAGING_EMAIL_REDIRECT?.trim();

@@ -1,0 +1,111 @@
+<section class="min-w-0 bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-4" aria-labelledby="c13-report-title">
+  <div class="flex items-center justify-between gap-4 flex-wrap">
+    <div>
+      <h2 id="c13-report-title" class="text-lg font-bold text-slate-900">Laporan perlawanan · C12 & C13</h2>
+      <p class="text-sm text-slate-600 mt-1">C12 dan C13 rasmi disusun mengikut perlawanan. Preview untuk semak PDF sebelum muat turun.</p>
+    </div>
+    <button type="button" (click)="load()" [disabled]="loading()" class="border border-slate-300 rounded-lg px-4 py-3 text-sm font-semibold text-slate-800 disabled:opacity-50">Muat semula</button>
+  </div>
+  <label class="block text-sm font-semibold text-slate-700">Cari perlawanan, kejohanan, padang, pengadil atau C12/C13
+    <input class="mt-1 block w-full border border-slate-300 rounded-lg px-3 py-3" [value]="query()" (input)="query.set($any($event.target).value)" type="search" />
+  </label>
+  @if (loading()) {
+    <p role="status" class="text-slate-600">Memuatkan laporan perlawanan…</p>
+  } @else if (error()) {
+    <p role="alert" class="text-red-800">{{ error() }}</p>
+  } @else {
+    <p role="status" class="text-xs text-slate-600">{{ filtered().length }} perlawanan dipaparkan</p>
+    <div class="overflow-x-auto rounded-lg border border-slate-200" role="region" aria-label="Jadual laporan perlawanan" tabindex="0">
+      <table class="w-full min-w-[800px] text-sm text-left">
+        <caption class="sr-only">Senarai perlawanan dengan preview dan muat turun borang C12 serta C13 rasmi</caption>
+        <thead class="bg-slate-50 border-b border-slate-200 text-xs text-slate-700 uppercase">
+          <tr>
+            <th scope="col" class="px-4 py-3 w-12">Bil</th>
+            <th scope="col" class="px-4 py-3">Nama perlawanan</th>
+            <th scope="col" class="px-4 py-3">Padang</th>
+            <th scope="col" class="px-4 py-3">Masa</th>
+            <th scope="col" class="px-4 py-3">C12</th>
+            <th scope="col" class="px-4 py-3">C13</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-200">
+          @for (row of filtered(); track row.match.match_id; let i = $index) {
+            <tr class="align-top hover:bg-slate-50">
+              <td class="px-4 py-4 text-slate-600">{{ i + 1 }}</td>
+              <th scope="row" class="px-4 py-4 font-normal">
+                <p class="font-semibold text-slate-900">{{ row.match.home_name }} lwn {{ row.match.away_name }}</p>
+                <p class="mt-1 text-xs text-slate-600">{{ row.match.tournament_name }} · No. {{ row.match.match_number }}</p>
+              </th>
+              <td class="px-4 py-4 text-slate-700">{{ row.match.venue_name || '—' }}</td>
+              <td class="px-4 py-4 whitespace-nowrap">
+                <p class="font-semibold text-slate-900">{{ row.match.scheduled_start * 1000 | date:'HH:mm':'+0800' }}</p>
+                <p class="mt-1 text-xs text-slate-600">{{ row.match.scheduled_start * 1000 | date:'d MMM y':'+0800' }}</p>
+              </td>
+              @for (form of ['C12', 'C13']; track form) {
+                <td class="px-4 py-4">
+                  @let documents = form === 'C12' ? row.c12 : row.c13;
+                  @for (report of documents.slice(0, 1); track report.id) {
+                    <div class="space-y-2 mb-3 last:mb-0">
+                      <p class="text-xs font-medium text-slate-600">Rasmi
+                        @if (form === 'C12') { · Rev. {{ report.revision }}@if (report.amendment_number) { · Pembetulan {{ report.amendment_number }} } }
+                        @else { · Terkini @if (report.referee_name) { · {{ report.referee_name }} } }
+                      </p>
+                      <p class="text-xs text-slate-600">{{ report.recorded_at * 1000 | date:'d MMM y, HH:mm':'+0800' }}</p>
+                      <div class="flex flex-wrap gap-2">
+                        <button type="button" (click)="openPreview(report)"
+                          [attr.aria-label]="'Preview ' + form + ' perlawanan ' + row.match.match_number"
+                          class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-100">Preview</button>
+                        <a [href]="pdf(report, 'download')"
+                          [attr.aria-label]="'Muat turun ' + form + ' perlawanan ' + row.match.match_number"
+                          class="inline-flex items-center rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700">Muat turun</a>
+                      </div>
+                    </div>
+                  } @empty {
+                    <span class="text-xs text-slate-600">Belum tersedia</span>
+                  }
+                  @if (documents.length > 1) {
+                    <details class="mt-3 text-xs text-slate-700">
+                      <summary class="cursor-pointer font-semibold">Salinan terdahulu ({{ documents.length - 1 }})</summary>
+                      @for (report of documents.slice(1); track report.id) {
+                        <div class="mt-3 space-y-2 border-t border-slate-200 pt-2">
+                          <p>{{ report.recorded_at * 1000 | date:'d MMM y, HH:mm':'+0800' }}</p>
+                          <div class="flex flex-wrap gap-2">
+                            <button type="button" (click)="openPreview(report)"
+                              [attr.aria-label]="'Preview salinan terdahulu ' + form + ' perlawanan ' + row.match.match_number"
+                              class="rounded-lg border border-slate-300 bg-white px-3 py-2 font-semibold text-slate-800 hover:bg-slate-100">Preview</button>
+                            <a [href]="pdf(report, 'download')"
+                              [attr.aria-label]="'Muat turun salinan terdahulu ' + form + ' perlawanan ' + row.match.match_number"
+                              class="rounded-lg border border-slate-300 px-3 py-2 font-semibold text-slate-800 hover:bg-slate-100">Muat turun</a>
+                          </div>
+                        </div>
+                      }
+                    </details>
+                  }
+                </td>
+              }
+            </tr>
+          } @empty {
+            <tr><td colspan="6" class="px-4 py-8 text-center text-slate-600">{{ reports().length ? 'Tiada perlawanan sepadan dengan carian.' : 'Belum ada C12 atau C13 rasmi tersedia.' }}</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>
+
+<dialog #previewDialog (cancel)="closePreview()" (close)="preview.set(null)"
+  aria-labelledby="report-preview-title"
+  class="m-auto h-[90dvh] max-h-[90dvh] w-[96vw] max-w-6xl overflow-hidden rounded-xl border-0 bg-white p-0 shadow-2xl backdrop:bg-black/60">
+  @if (preview(); as document) {
+    <div class="flex h-full min-h-0 flex-col">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-4">
+        <h2 id="report-preview-title" class="text-sm font-bold text-slate-900">{{ document.title }}</h2>
+        <div class="flex items-center gap-2">
+          <a [href]="pdf(document.report, 'download')" class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700">Muat turun PDF</a>
+          <button type="button" autofocus (click)="closePreview()" class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-100">Tutup</button>
+        </div>
+      </div>
+      <iframe [src]="document.url" [title]="document.title" class="min-h-0 w-full flex-1 border-0 bg-slate-100"></iframe>
+    </div>
+  }
+</dialog>

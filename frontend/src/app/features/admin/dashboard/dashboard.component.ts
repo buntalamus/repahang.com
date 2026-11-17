@@ -22,15 +22,17 @@ export class AdminDashboardComponent implements OnInit {
   announcements: any[] = [];
   stats = { users: 0, matches: 0, verifyRate: 0 };
   applicationYear = new Date().getFullYear();
-  applicationCards: { key: string; label: string; route: string; type?: string;
+  // Annual registration is counted for the coming session (application_year);
+  // Kelas III / Kelas I FAM for the current year. The server sends each card's year.
+  applicationCards: { key: string; label: string; route: string; type?: string; year: number;
     total: number; pending: number; approved: number }[] = [
-    { key: 'pengadil_berdaftar', label: 'Pengadil Berdaftar', route: '/admin/permohonan', type: 'berdaftar', total: 0, pending: 0, approved: 0 },
-    { key: 'penilai_berdaftar', label: 'Penilai Pengadil Berdaftar', route: '/admin/permohonan-ra', total: 0, pending: 0, approved: 0 },
-    { key: 'kelas3_fam', label: 'Kelas III FAM', route: '/admin/permohonan', type: 'kelas3', total: 0, pending: 0, approved: 0 },
-    { key: 'ujian_kelas1_fam', label: 'Kelas I FAM', route: '/admin/permohonan', type: 'kelas1', total: 0, pending: 0, approved: 0 },
+    { key: 'pengadil_berdaftar', label: 'Pengadil Berdaftar', route: '/admin/permohonan', type: 'berdaftar', year: new Date().getFullYear(), total: 0, pending: 0, approved: 0 },
+    { key: 'penilai_berdaftar', label: 'Penilai Pengadil Berdaftar', route: '/admin/permohonan-ra', year: new Date().getFullYear(), total: 0, pending: 0, approved: 0 },
+    { key: 'kelas3_fam', label: 'Kelas III FAM', route: '/admin/permohonan', type: 'kelas3', year: new Date().getFullYear(), total: 0, pending: 0, approved: 0 },
+    { key: 'ujian_kelas1_fam', label: 'Kelas I FAM', route: '/admin/permohonan', type: 'kelas1', year: new Date().getFullYear(), total: 0, pending: 0, approved: 0 },
   ];
   recentApplications: any[] = [];
-  applicationGroups: { key: string; label: string; route: string; type?: string; items: any[] }[] = [];
+  applicationGroups: { key: string; label: string; route: string; type?: string; year: number; items: any[] }[] = [];
   showRejectModal = false;
   rejectTargetId = 0;
   rejectTargetName = '';
@@ -65,7 +67,8 @@ export class AdminDashboardComponent implements OnInit {
         timeout(T),
         catchError(() => of({ error: true, data: [] })),
       ),
-      recentApplications: this.api.get<any>('admin-applications.php', { status: 'Menunggu Admin', year: String(this.applicationYear) }).pipe(
+      // Every application awaiting Admin, whatever its session year.
+      recentApplications: this.api.get<any>('admin-applications.php', { status: 'Menunggu Admin' }).pipe(
         timeout(T),
         catchError(() => of({ error: true, data: [] })),
       ),
@@ -83,7 +86,9 @@ export class AdminDashboardComponent implements OnInit {
             this.stats.verifyRate = apiStats.stats.pending_reports || 0;
             this.applicationYear = apiStats.stats.year || this.applicationYear;
             const byType = apiStats.stats.applications_by_type || {};
+            const years = apiStats.stats.application_years || {};
             this.applicationCards = this.applicationCards.map(card => ({ ...card,
+              year: years[card.key] || this.applicationYear,
               total: byType[card.key]?.total || 0,
               pending: byType[card.key]?.pending || 0,
               approved: byType[card.key]?.approved || 0,
@@ -103,8 +108,8 @@ export class AdminDashboardComponent implements OnInit {
   }
 
   private groupRecentApplications(): void {
-    this.applicationGroups = this.applicationCards.map(({ key, label, route, type }) => ({
-      key, label, route, type,
+    this.applicationGroups = this.applicationCards.map(({ key, label, route, type, year }) => ({
+      key, label, route, type, year,
       items: this.recentApplications.filter(app => app.application_category === key).slice(0, 3),
     }));
   }
@@ -117,7 +122,7 @@ export class AdminDashboardComponent implements OnInit {
           this.recentApplications = this.recentApplications.filter((a) => a.id !== id);
           this.groupRecentApplications();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
     });
@@ -143,7 +148,7 @@ export class AdminDashboardComponent implements OnInit {
           this.recentApplications = this.recentApplications.filter((a) => a.id !== this.rejectTargetId);
           this.groupRecentApplications();
         } else {
-          this.toast.error(res.message);
+          this.toast.apiError(res);
         }
       },
     });

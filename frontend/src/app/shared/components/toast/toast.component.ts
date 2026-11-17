@@ -4,19 +4,18 @@ import { ToastService, Toast } from '../../../core/services/toast.service';
 
 @Component({
   selector: 'app-toast',
-  standalone: true,
   imports: [AsyncPipe],
   template: `
-    <div class="fixed top-4 right-4 z-9999 flex flex-col gap-3 pointer-events-none">
+    <div class="fixed top-4 right-4 z-9999 flex flex-col gap-3 pointer-events-none w-[calc(100%-2rem)] max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto">
       @for (toast of (toastService.toasts$ | async); track toast.id) {
         <div
-          class="pointer-events-auto flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium min-w-75 max-w-105 animate-slide-in"
           [class]="getClass(toast)"
-          (click)="toastService.dismiss(toast.id)"
+          [attr.role]="toast.type === 'error' ? 'alert' : 'status'"
+          aria-atomic="true"
         >
           <span [innerHTML]="getIcon(toast.type)"></span>
-          <span class="flex-1">{{ toast.message }}</span>
-          <button class="ml-2 opacity-60 hover:opacity-100 text-lg leading-none">&times;</button>
+          <span class="flex-1 min-w-0 whitespace-pre-line wrap-break-word">{{ toast.message }}</span>
+          <button type="button" (click)="toastService.dismiss(toast.id)" aria-label="Tutup notifikasi" class="shrink-0 rounded p-1 hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white text-lg leading-none">&times;</button>
         </div>
       }
     </div>
@@ -33,10 +32,10 @@ export class ToastComponent {
   constructor(public toastService: ToastService) {}
 
   getClass(toast: Toast): string {
-    const base = 'pointer-events-auto flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium min-w-75 max-w-105 animate-slide-in';
+    const base = 'pointer-events-auto flex items-start gap-3 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium w-full animate-slide-in';
     const colors: Record<string, string> = {
       success: 'bg-linear-to-r from-emerald-600 to-emerald-500',
-      error: 'bg-linear-to-r from-rose-600 to-rose-500',
+      error: 'bg-rose-800',
       warning: 'bg-linear-to-r from-amber-600 to-amber-500',
       info: 'bg-linear-to-r from-sky-600 to-sky-500',
     };

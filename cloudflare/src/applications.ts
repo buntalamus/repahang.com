@@ -7,8 +7,10 @@ import { boundedJson } from './request';
 import type { Env } from './types';
 import { blastKelas3Welcome } from './kelas3-welcome';
 import { wroteRow } from './d1-changes';
-import { APPLICATION_CATEGORY_SQL } from './application-category';
+import { APPLICATION_CATEGORY_SQL, APPLICATION_WORKFLOW_SQL } from './application-category';
+import { sessionYears, windowYears } from './application-year';
 import { applicationWindow, klToday } from './application-window';
+import { sendApplicationReceipt, type FormType } from './application-submit';
 
 const APPLICATION_TYPES: Record<string, string> = {
   berdaftar: 'pengadil_berdaftar',
@@ -44,7 +46,10 @@ export async function applicationSettings(request: Request, env: Env): Promise<R
   const today = klToday();
   const windows = Object.fromEntries((['berdaftar', 'penilai', 'bertulis', 'kelas1'] as const)
     .map((name) => [name, applicationWindow(settings, name, today)]));
-  return json({ error: false, settings, windows });
+  // The session each form is recorded under: annual registration from application_year,
+  // Kelas III / Kelas I FAM the current year.
+  const years = windowYears(sessionYears(settings));
+  return json({ error: false, settings, windows, years });
 }
 
 /**
@@ -142,11 +147,7 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
              WHEN 'ujian_kecergasan' THEN 'Ujian Kecergasan (Rekod Lama)'
              WHEN 'pegawai_pembangunan' THEN 'Pegawai Pembangunan'
              ELSE p.jenis_borang END AS jenis_permohonan,
-           CASE WHEN p.jenis_borang='ujian_kelas1_fam' THEN
-             CASE p.workflow_status WHEN 'Pending' THEN 'Menunggu Admin'
-               WHEN 'Approved' THEN 'Lengkap' WHEN 'Rejected' THEN 'Ditolak'
-               ELSE p.workflow_status END
-             ELSE p.status_workflow END AS status,
+           ${APPLICATION_WORKFLOW_SQL} AS status,
            CASE WHEN p.jenis_borang='pengadil_berdaftar' AND p.tahun_permohonan<2027
              THEN COALESCE(p.status_ujian,(SELECT f.status_ujian FROM permohonan f
                WHERE f.user_id=p.user_id AND f.tahun_permohonan=p.tahun_permohonan
@@ -170,12 +171,7 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
     LEFT JOIN users u ON u.id=p.user_id
     LEFT JOIN persatuan_bolasepak_daerah pb ON pb.id=p.persatuan_id
     LEFT JOIN penilai_permohonan penilai_det ON penilai_det.permohonan_id=p.id
-    WHERE (?='all' OR
-      CASE WHEN p.jenis_borang='ujian_kelas1_fam' THEN
-        CASE p.workflow_status WHEN 'Pending' THEN 'Menunggu Admin'
-          WHEN 'Approved' THEN 'Lengkap' WHEN 'Rejected' THEN 'Ditolak'
-          ELSE p.workflow_status END
-      ELSE p.status_workflow END=?)
+    WHERE (?='all' OR ${APPLICATION_WORKFLOW_SQL}=?)
       AND (? IS NULL OR ${APPLICATION_CATEGORY_SQL}=?)
       AND (? IS NULL OR p.tahun_permohonan=?)
     ORDER BY p.tarikh_hantar DESC
@@ -186,18 +182,11 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
   }).format(new Date());
   const stats = await env.DB.prepare(`
     SELECT
-      SUM(CASE WHEN p.status_workflow='Menunggu Admin'
-        OR (p.jenis_borang='ujian_kelas1_fam' AND p.workflow_status='Pending')
-        THEN 1 ELSE 0 END) AS pending,
-      SUM(CASE WHEN (p.status_workflow='Lengkap'
-        OR (p.jenis_borang='ujian_kelas1_fam' AND p.workflow_status='Approved'))
+      SUM(CASE WHEN ${APPLICATION_WORKFLOW_SQL}='Menunggu Admin' THEN 1 ELSE 0 END) AS pending,
+      SUM(CASE WHEN ${APPLICATION_WORKFLOW_SQL}='Lengkap'
         AND substr(p.tarikh_hantar,6,2)=? THEN 1 ELSE 0 END) AS approved_this_month,
-      SUM(CASE WHEN p.status_workflow='Lengkap'
-        OR (p.jenis_borang='ujian_kelas1_fam' AND p.workflow_status='Approved')
-        THEN 1 ELSE 0 END) AS total_approved,
-      SUM(CASE WHEN p.status_workflow='Ditolak'
-        OR (p.jenis_borang='ujian_kelas1_fam' AND p.workflow_status='Rejected')
-        THEN 1 ELSE 0 END) AS total_rejected
+      SUM(CASE WHEN ${APPLICATION_WORKFLOW_SQL}='Lengkap' THEN 1 ELSE 0 END) AS total_approved,
+      SUM(CASE WHEN ${APPLICATION_WORKFLOW_SQL}='Ditolak' THEN 1 ELSE 0 END) AS total_rejected
     FROM permohonan p
     WHERE (? IS NULL OR ${APPLICATION_CATEGORY_SQL}=?)
       AND (? IS NULL OR p.tahun_permohonan=?)
@@ -229,6 +218,7 @@ export async function deleteApplication(request: Request, env: Env): Promise<Res
   if (body.action === 'blast_kelas3_welcome') return blastKelas3Welcome(env, user.id);
   if (body.action === 'update_status_ujian') return updateFitnessResult(body, env, user.id);
   if (body.action === 'update_status_seminar') return updateSeminarAttendance(body, env);
+  if (body.action === 'resend_receipt') return resendReceipt(body, env, request);
   if (body.action !== 'delete_application') {
     return json({ error: true, message: 'Tindakan belum tersedia di staging.' }, 503);
   }
@@ -250,7 +240,7 @@ export async function deleteApplication(request: Request, env: Env): Promise<Res
   }
   const label = formLabel(exists.jenis_borang, exists.tahun_permohonan);
   const notified = await notifyApplicant(env, exists, {
-    subject: `Permohonan Dipadam: ${label} - PBNP`,
+    subject: `Permohonan Dipadam: ${label} - PBNP`, email: 'always',
     title: 'Permohonan Dipadam',
     accent: '#6B7280',
     mailType: 'daftar',
@@ -308,6 +298,40 @@ async function updateSeminarAttendance(body: Record<string, unknown>, env: Env):
     status_seminar: status });
 }
 
+/** Sends the applicant's submission email again, form attached, while it awaits review. */
+async function resendReceipt(body: Record<string, unknown>, env: Env, request: Request): Promise<Response> {
+  const id = positiveId(String(body.id ?? ''));
+  if (!id) return json({ error: true, message: 'Parameter tidak sah.' }, 400);
+  const application = await env.DB.prepare(`SELECT p.id,p.nama_penuh,p.emel,p.jenis_borang,p.jenis_pengadil,
+    p.tahun_permohonan,p.payment_amount,p.status_workflow,u.email AS user_email,u.role AS user_role
+    FROM permohonan p LEFT JOIN users u ON u.id=p.user_id WHERE p.id=? LIMIT 1`).bind(id).first<{
+      id: number; nama_penuh: string; emel: string | null; jenis_borang: string; jenis_pengadil: string | null;
+      tahun_permohonan: number | null; payment_amount: string | null; status_workflow: string | null;
+      user_email: string | null; user_role: string | null;
+    }>();
+  if (!application) return json({ error: true, message: 'Permohonan tidak dijumpai.' }, 404);
+  if (!['pengadil_berdaftar', 'penilai_berdaftar', 'kelas3_fam', 'ujian_kelas1_fam'].includes(application.jenis_borang)) {
+    return json({ error: true, message: 'Emel permohonan tidak tersedia untuk jenis borang ini.' }, 400);
+  }
+  // The email reads "awaiting review", so it is only resent before a decision.
+  if (!['Menunggu Admin', 'Menunggu PP Daerah'].includes(application.status_workflow ?? '')) {
+    return json({ error: true, message: 'Emel permohonan hanya boleh dihantar semula sebelum keputusan dibuat.' }, 409);
+  }
+  const email = application.user_email || application.emel || '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json({ error: true, message: 'Pemohon tiada alamat emel yang sah.' }, 400);
+  }
+  const sent = await sendApplicationReceipt(env, request, {
+    email, nama: application.nama_penuh, applicationId: application.id,
+    jenisPengadil: application.jenis_pengadil || '-', year: Number(application.tahun_permohonan),
+    type: application.jenis_borang as FormType, fee: Number(application.payment_amount ?? 0),
+    role: application.user_role ?? '', workflow: application.status_workflow ?? '',
+  });
+  return sent
+    ? json({ error: false, message: `Emel permohonan dihantar semula kepada ${email}.`, email_sent: true })
+    : json({ error: true, message: 'Emel permohonan tidak berjaya dihantar. Sila cuba lagi.', email_sent: false }, 502);
+}
+
 async function updateFitnessResult(body: Record<string, unknown>, env: Env, adminId: number): Promise<Response> {
   const id = positiveId(String(body.id ?? ''));
   const decision = body.status_ujian;
@@ -337,6 +361,11 @@ async function updateFitnessResult(body: Record<string, unknown>, env: Env, admi
   if (gated && !['Admin Diluluskan', 'Lengkap'].includes(application.status_workflow ?? '')) {
     return json({ error: true,
       message: 'Sahkan dokumen permohonan dahulu sebelum merekod keputusan ujian.' }, 409);
+  }
+  // Like annual registration: Ujian Kelas I FAM is approved first, then its exam result is recorded.
+  if (application.jenis_borang === 'ujian_kelas1_fam' && application.status_workflow !== 'Lengkap') {
+    return json({ error: true,
+      message: 'Luluskan permohonan Ujian Kelas I FAM dahulu sebelum merekod keputusan ujian.' }, 409);
   }
   if (application.status_ujian === decision) {
     return json({ error: false, message: 'Keputusan ujian tidak berubah.', email_sent: true });
@@ -461,7 +490,9 @@ interface ApplicantRow {
 
 const FORM_LABELS: Record<string, string> = {
   pengadil_berdaftar: 'Pendaftaran Tahunan Pengadil',
+  penilai_berdaftar: 'Pendaftaran Tahunan Penilai Pengadil',
   kelas3_fam: 'Kelas III FAM',
+  ujian_kelas1_fam: 'Ujian Kelas I FAM',
   ujian_bertulis: 'Ujian Bertulis',
   ujian_kecergasan: 'Ujian Kecergasan',
 };
@@ -473,7 +504,7 @@ function formLabel(jenisBorang: string | null, tahun: number | null): string {
 
 function resultNotice(label: string, decision: string, id: number): Notice {
   return {
-    subject: `Keputusan ${label}: ${decision} - PBNP`,
+    subject: `Keputusan ${label}: ${decision} - PBNP`, email: 'always',
     title: `Keputusan ${label}`,
     accent: decision === 'Lulus' ? '#16A34A' : '#DC2626',
     mailType: 'daftar',
@@ -495,7 +526,7 @@ async function notifyApplicant(env: Env, application: ApplicantRow, notice: Noti
       email: application.user_email || application.emel || contact?.email,
       telegramChatId: contact?.telegram_chat_id ?? null,
     }, notice);
-    return result.email === 'sent';
+    return result.email === 'sent' || result.telegram === 'sent';
   } catch (error) {
     console.error('[admin-applications] applicant notice failed', error instanceof Error ? error.message : error);
     return false;
