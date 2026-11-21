@@ -75,6 +75,18 @@ try {
   assert.equal(component.canDecideApplication(component.applications[0]),false);
   assert.equal(component.canDecideApplication(component.applications[1]),true);
 
+  // PP registrations have their own annual tab even when the profile now says RA.
+  assert.ok(component.allTabs.some(tab=>tab.key==='pp'&&tab.group==='pengadil'));
+  component.activeTab='pp';component.sessionYears={berdaftar:2027};component.yearChosen=false;
+  component.applyDefaultYear();assert.equal(component.yearFilter,'2027');
+  const pp={id:604,jenis_borang:'pengadil_berdaftar',jenis_pengadil:'Pegawai Pembangunan',
+    tahun_permohonan:2027,status:'Menunggu Admin'};
+  assert.equal(component.isAnnualRefereeApp(pp),false);
+  assert.equal(component.canDecideApplication(pp),true);
+  component.openStatusChange(pp);assert.equal(component.showStatusChangeModal,true);
+  component.selectStatusLulus();assert.equal(component.approveTargetId,604);
+  component.closeStatusChange();component.cancelApprove();
+
   // Field errors and missing items must not disappear behind a generic sentence.
   await reject(approveRequest(),failure(422,{message:'Maklumat tidak lengkap.',errors:{email:'Alamat emel tidak sah.'},
     missing:[{field:'url_resit',message:'Muat naik resit bayaran.'}]}));

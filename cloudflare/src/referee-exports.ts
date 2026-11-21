@@ -72,6 +72,19 @@ export async function adminRefereeExport(request: Request, env: Env): Promise<Re
       || year < currentYear - 3 || year > currentYear + 3) {
     return json({ error: true, message: 'Tahun tidak sah.' }, 422);
   }
+  if (params.get('type') === 'pp') {
+    const result = await env.DB.prepare(`SELECT p.id,p.nama_penuh,p.no_kp,p.jenis_pengadil,
+      p.tahun_permohonan,p.status_workflow,p.tarikh_hantar,p.emel,p.no_telefon,
+      pb.nama_persatuan AS persatuan
+      FROM permohonan p LEFT JOIN persatuan_bolasepak_daerah pb ON pb.id=p.persatuan_id
+      WHERE p.tahun_permohonan=? AND ${APPLICATION_CATEGORY_SQL} IN ('pegawai_pembangunan','pp_berdaftar')
+      ORDER BY p.tarikh_hantar DESC,p.id DESC`).bind(year).all<ExportRow>();
+    return csv(['Bil','No. Permohonan','Nama Penuh','No. K/P','Jenis Pengadil','Sesi',
+      'Status Permohonan','Persatuan Bola Sepak Daerah','Tarikh Hantar','Emel','No. Telefon'],
+    result.results.map((r, i) => [i + 1,r.id,r.nama_penuh,r.no_kp,r.jenis_pengadil,
+      r.tahun_permohonan,r.status_workflow,r.persatuan,r.tarikh_hantar,r.emel,r.no_telefon]),
+    `permohonan-pegawai-pembangunan-${year}.csv`);
+  }
   const ra = params.get('type') === 'penilai_berdaftar';
   // Use the same authorized roster and filters as the screen, including active accounts.
   const rosterResponse = await registeredReferees(request, env);

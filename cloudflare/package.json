@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:pp-applications": "node --no-warnings tests/pp-applications.mjs",
+    "test:pp-applications-browser": "node --no-warnings tests/pp-applications-browser.mjs",
     "test:origin-records": "node --no-warnings tests/origin-records.mjs",
     "test:origin-records-browser": "node --no-warnings tests/origin-records-browser.mjs",
     "test:r11-layout": "node --no-warnings tests/r11-layout.mjs",

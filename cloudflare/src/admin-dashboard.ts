@@ -16,6 +16,7 @@ async function applicationCounts(env: Env, years: SessionYears) {
 function categoryYears(years: SessionYears): Record<string, number> {
   const byWindow = windowYears(years);
   return { pengadil_berdaftar: byWindow.berdaftar, penilai_berdaftar: byWindow.penilai,
+    pegawai_pembangunan: byWindow.berdaftar, pp_berdaftar: byWindow.berdaftar,
     kelas3_fam: byWindow.bertulis, ujian_kelas1_fam: byWindow.kelas1 };
 }
 

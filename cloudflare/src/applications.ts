@@ -25,6 +25,7 @@ const APPLICATION_TYPES: Record<string, string> = {
 const ADMIN_TYPES: Record<string, string> = {
   berdaftar: 'pengadil_berdaftar',
   penilai: 'penilai_berdaftar',
+  pp: 'pegawai_pembangunan',
   kelas3: 'kelas3_fam',
   kelas1: 'ujian_kelas1_fam',
 };
@@ -128,6 +129,11 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
   const url = new URL(request.url);
   const status = url.searchParams.get('status') ?? 'all';
   const applicationCategory = ADMIN_TYPES[url.searchParams.get('type') ?? ''] ?? null;
+  // Both the annual R1/R2 snapshot and the dedicated PP form belong in this queue.
+  const categories = applicationCategory === 'pegawai_pembangunan'
+    ? ['pegawai_pembangunan', 'pp_berdaftar'] : applicationCategory ? [applicationCategory] : [];
+  const categoryFilter = categories.length
+    ? `${APPLICATION_CATEGORY_SQL} IN (${categories.map(() => '?').join(',')})` : '1=1';
   const requestedYear = url.searchParams.get('year');
   const year = requestedYear === null ? null : Number(requestedYear);
   if (year !== null && (!Number.isInteger(year) || year < 2000 || year > 2100)) {
@@ -172,10 +178,10 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
     LEFT JOIN persatuan_bolasepak_daerah pb ON pb.id=p.persatuan_id
     LEFT JOIN penilai_permohonan penilai_det ON penilai_det.permohonan_id=p.id
     WHERE (?='all' OR ${APPLICATION_WORKFLOW_SQL}=?)
-      AND (? IS NULL OR ${APPLICATION_CATEGORY_SQL}=?)
+      AND (${categoryFilter})
       AND (? IS NULL OR p.tahun_permohonan=?)
     ORDER BY p.tarikh_hantar DESC
-  `).bind(status, status, applicationCategory, applicationCategory, year, year).all();
+  `).bind(status, status, ...categories, year, year).all();
 
   const month = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Kuala_Lumpur', month: '2-digit',
@@ -188,9 +194,9 @@ export async function adminApplications(request: Request, env: Env): Promise<Res
       SUM(CASE WHEN ${APPLICATION_WORKFLOW_SQL}='Lengkap' THEN 1 ELSE 0 END) AS total_approved,
       SUM(CASE WHEN ${APPLICATION_WORKFLOW_SQL}='Ditolak' THEN 1 ELSE 0 END) AS total_rejected
     FROM permohonan p
-    WHERE (? IS NULL OR ${APPLICATION_CATEGORY_SQL}=?)
+    WHERE (${categoryFilter})
       AND (? IS NULL OR p.tahun_permohonan=?)
-  `).bind(month, applicationCategory, applicationCategory, year, year).first();
+  `).bind(month, ...categories, year, year).first();
   // PDO returns aggregate values as strings in the original PHP response.
   const statistics = Object.fromEntries(Object.entries(stats ?? {}).map(([key, value]) =>
     [key, value === null ? null : String(value)]));

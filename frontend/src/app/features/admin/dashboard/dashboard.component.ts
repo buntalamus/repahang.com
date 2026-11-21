@@ -28,6 +28,7 @@ export class AdminDashboardComponent implements OnInit {
     total: number; pending: number; approved: number }[] = [
     { key: 'pengadil_berdaftar', label: 'Pengadil Berdaftar', route: '/admin/permohonan', type: 'berdaftar', year: new Date().getFullYear(), total: 0, pending: 0, approved: 0 },
     { key: 'penilai_berdaftar', label: 'Penilai Pengadil Berdaftar', route: '/admin/permohonan-ra', year: new Date().getFullYear(), total: 0, pending: 0, approved: 0 },
+    { key: 'pegawai_pembangunan', label: 'Pegawai Pembangunan', route: '/admin/permohonan', type: 'pp', year: new Date().getFullYear(), total: 0, pending: 0, approved: 0 },
     { key: 'kelas3_fam', label: 'Kelas III FAM', route: '/admin/permohonan', type: 'kelas3', year: new Date().getFullYear(), total: 0, pending: 0, approved: 0 },
     { key: 'ujian_kelas1_fam', label: 'Kelas I FAM', route: '/admin/permohonan', type: 'kelas1', year: new Date().getFullYear(), total: 0, pending: 0, approved: 0 },
   ];
@@ -89,9 +90,9 @@ export class AdminDashboardComponent implements OnInit {
             const years = apiStats.stats.application_years || {};
             this.applicationCards = this.applicationCards.map(card => ({ ...card,
               year: years[card.key] || this.applicationYear,
-              total: byType[card.key]?.total || 0,
-              pending: byType[card.key]?.pending || 0,
-              approved: byType[card.key]?.approved || 0,
+              total: (byType[card.key]?.total || 0) + (card.key === 'pegawai_pembangunan' ? byType.pp_berdaftar?.total || 0 : 0),
+              pending: (byType[card.key]?.pending || 0) + (card.key === 'pegawai_pembangunan' ? byType.pp_berdaftar?.pending || 0 : 0),
+              approved: (byType[card.key]?.approved || 0) + (card.key === 'pegawai_pembangunan' ? byType.pp_berdaftar?.approved || 0 : 0),
             }));
         }
 
@@ -110,7 +111,8 @@ export class AdminDashboardComponent implements OnInit {
   private groupRecentApplications(): void {
     this.applicationGroups = this.applicationCards.map(({ key, label, route, type, year }) => ({
       key, label, route, type, year,
-      items: this.recentApplications.filter(app => app.application_category === key).slice(0, 3),
+      items: this.recentApplications.filter(app => app.application_category === key ||
+        (key === 'pegawai_pembangunan' && app.application_category === 'pp_berdaftar')).slice(0, 3),
     }));
   }
 

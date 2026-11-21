@@ -31,7 +31,7 @@ export class AdminApplicationsComponent implements OnInit {
   private sessionYears: Record<string, number> = {};
   private yearChosen = false;
   private readonly tabWindow: Record<string, string> = {
-    berdaftar: 'berdaftar', penilai: 'penilai', kelas3: 'bertulis', kelas1: 'kelas1',
+    berdaftar: 'berdaftar', pp: 'berdaftar', penilai: 'penilai', kelas3: 'bertulis', kelas1: 'kelas1',
   };
   currentPage = 1;
   pageSize = 10;
@@ -65,6 +65,7 @@ export class AdminApplicationsComponent implements OnInit {
 
   allTabs = [
     { key: 'berdaftar', label: 'Pengadil Berdaftar', group: 'pengadil' },
+    { key: 'pp', label: 'Pegawai Pembangunan', group: 'pengadil' },
     { key: 'penilai', label: 'Penilai Pengadil Berdaftar', group: 'penilai' },
     { key: 'kelas3', label: 'Kelas III FAM', group: 'pengadil' },
     { key: 'kelas1', label: 'Ujian Kelas I FAM', group: 'pengadil' },
